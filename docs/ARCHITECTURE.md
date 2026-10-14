@@ -31,7 +31,9 @@ flowchart LR
 ## Webhook to Telegram
 
 1. GitHub sends an event to `POST /webhook`. The Worker verifies the `X-Hub-Signature-256` signature over the raw
-   body; an invalid signature is rejected and nothing is stored.
+   body; an invalid signature is rejected and nothing is stored. Without a configured webhook secret every delivery
+   is answered 503, so a setup gap is told apart from a forged request
+   ([decision 0012](decisions/0012-webhook-signature-verification.md)).
 2. The delivery id (`X-GitHub-Delivery`) is recorded in `deliveries`; a redelivery of the same id is acknowledged
    and ignored.
 3. The parsed event goes through the rules. A draft pull request, and any event no rule matches, produces nothing.
@@ -75,8 +77,9 @@ only. The rules are in [`areas/http-routes.md`](areas/http-routes.md)
 
 ## Configuration
 
-Settings are stored in D1 (`settings`) and written by the setup wizard; the only value outside D1 is the
-encryption key, a Worker secret, plus the D1 binding in `wrangler.jsonc`. The rules per area are in
+Settings are stored in D1 (`settings`) and written by the setup wizard; the values outside D1 are the
+encryption key, a Worker secret, the optional `GITHUB_WEBHOOK_SECRET` Worker secret (the webhook secret until the
+setup wizard stores it in D1), plus the D1 binding in `wrangler.jsonc`. The rules per area are in
 [`areas/`](areas/README.md).
 
 ## Security model
