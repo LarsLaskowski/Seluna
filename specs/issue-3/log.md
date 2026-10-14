@@ -19,3 +19,5 @@ are quoted in full.
 | 2026-10-14 17:15 | 8 Review (security delta 1) | squad-security | APPROVED at a142473; non-blocking: refs/tags/ form undocumented for commits endpoint, documented form is tags/$TAG (opus/medium · 2,263 tokens · 2 tool uses · 14 s · continued) |
 | 2026-10-14 17:16 | 8 Review (delta 1) | squad-reviewer | NON-BLOCKING 1 at a142473: use documented commits/tags/$TAG form (both reviewers independently); Lead decision not needed, fix now (opus/medium · 3,669 tokens · 2 tool uses · 27 s · continued) |
 | 2026-10-14 17:16 | 8 Fix round 2 | squad-dev | moved-tag check uses documented commits/tags/$TAG form (sonnet/medium · 1,033 tokens · 2 tool uses · 6 s · continued) |
+| 2026-10-14 17:16 | 8 Review (delta 2) | squad-reviewer | APPROVE at e187695 (opus/medium · 1,421 tokens · 4 tool uses · 68 s · continued) |
+| 2026-10-14 17:16 | 8 Review (security delta 2) | squad-security | APPROVED at e187695 (opus/medium · 1,308 tokens · 2 tool uses · 7 s · continued) |
