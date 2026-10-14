@@ -244,3 +244,18 @@ pre-releases, which this plan keeps.
   release check (the cron job) — separate features.
 - Branch or tag protection rules for `v*` in the repository settings (a settings change, not a file); worth a
   note to the maintainer, who may add a tag ruleset restricting who can push `v*`.
+
+## Challenge notes
+
+Minor objections of the Devil's Advocate, verbatim (no major objection; Security plan review: APPROVED).
+
+1. **Tag moved between jobs.** `verify` and `release` each check out the tag separately, so a tag force-moved in between would publish a commit that was never verified. `gh release create --verify-tag` only checks that the tag exists.
+   - Instruction for the Dev: in `release`, check out `${{ github.sha }}` (or compare `git rev-parse HEAD` to `$GITHUB_SHA`). Also fail if the remote tag now resolves to a different commit, for example with `git ls-remote origin "refs/tags/$TAG^{}" "refs/tags/$TAG"`. Add one exact error text for this and mention it in the plan.
+2. **Workflow comes from the tag's commit.** A tag-triggered run uses the `release.yml` of the tagged commit. A tag on a feature branch with an edited workflow skips the AC4 guard. The maintainer note in "Out of scope" should say the real enforcement is a tag ruleset for `v*`, and that AC4 only catches mistakes.
+3. **"CI gates" is incomplete.** `ci.yml` also runs a `npm audit --omit=dev --audit-level=high` job and a SonarQube job. The release workflow runs neither. The wording in the CONTRIBUTING and CHANGELOG text should say "format, lint, type-check, test and build checks" rather than "the CI gates". Say so in the plan, or add the audit step to `verify`, which is cheap and needs no write token.
+
+Non-blocking findings of Security (plan review), for the Dev:
+
+- AC4 prevents mistakes, not misuse: say so plainly in decision 0009 and the security considerations, and name a tag ruleset restricting `v*` as the actual control.
+- Moved tag between jobs: before `gh release create`, compare the tag's current commit (e.g. `gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha`) with `$GITHUB_SHA` and fail if they differ (same as objection 1).
+- Changelog heading match: compare the heading as a literal string (or escape the dots); add one AC6 case such as `## [0x1y0]` for `0.1.0`.
