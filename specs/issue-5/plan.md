@@ -334,3 +334,12 @@ Files of the change no unit test can cover: none (`src/index.ts` is covered by `
 - Parsing the body, deduplication by `X-GitHub-Delivery`, rules: later issues (they need a real JSON sample).
 - Residual for the Product Manager (no code): delete the webhook.site hook/inbox and the test repository's hook
   that used `my-secret`, since both are now public.
+
+## Challenge notes
+
+Minor objections of the Devil's Advocate (verbatim):
+
+1. **Missing order test for 413 before 503.** AC5 keeps the 413 and 400 tests running with a configured secret. Nothing proves that an oversized or unreadable body still answers 413 or 400 when no secret is configured, although decision 0012 option 5 and the *Security considerations* depend on that order. Add one test: `handleRequest answers 413 before 503 for an oversized webhook when no secret is configured`. A second one for a failing stream with no secret is optional.
+2. **A 202 test must also pin `delivery` and `event`.** AC6 expects `delivery` and `event` in the 202 log entry. Make the "never logs the webhook body or signature" test run a signed request. A 401 run proves nothing about the 202 path, where the body has just been verified. The `JSON.stringify` of all entries must contain neither `payload=` nor the fixture digest, and must contain neither the `sha1=` value nor the secret `my-secret`.
+
+Security plan review: APPROVED. Non-blocking notes for the Reviewer: the secret source's caught error must not reach the log or the response (no `console.error(err)`); a throwing `verifySignature` would give the runtime's generic 500 without a log entry (optional try/catch answering 401).
