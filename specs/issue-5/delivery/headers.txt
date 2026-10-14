@@ -1,0 +1,9 @@
+secret: my-secret (throwaway)
+x-hub-signature-256: sha256=37f380c18e6100871752a65f1475cff398290b139af0957a6215315a3a593ca5
+x-hub-signature: sha1=27c24080c0bbec3825e844117648d77f8d52ce03
+x-github-event: ping
+x-github-delivery: 1718a4d0-c809-11f1-8378-122c40de5e00
+x-github-hook-id: 698146569
+x-github-hook-installation-target-type: repository
+x-github-hook-installation-target-id: 1419766784
+content-type: application/x-www-form-urlencoded (hook config content_type=form; body.txt has no trailing newline, 9523 bytes)
