@@ -1,0 +1,25 @@
+node_modules
+dist
+coverage
+.wrangler
+package-lock.json
+worker-configuration.d.ts
+.git
+
+# Template-managed and template-rebuilt files keep the template's text (.squad/routing.md, Template-managed files).
+.claude
+.squad/*.md
+.squad/template.json
+.github/ISSUE_TEMPLATE
+.github/pull_request_template.md
+.github/copilot-instructions.md
+CLAUDE.md
+specs
+docs/ARCHITECTURE.md
+docs/CONTRIBUTING.md
+docs/decisions/README.md
+docs/decisions/_template.md
+docs/areas/README.md
+docs/areas/_template.md
+.squad/stack.md
+.squad/project.md

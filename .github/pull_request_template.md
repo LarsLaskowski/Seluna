@@ -39,12 +39,18 @@ Please provide a summary of the tests affected by this work and any unique strat
 
 <!--- Review the list and put an x in the boxes that apply. -->
 
-- [ ] I have added or updated tests for the change.
+- [ ] I have added or updated [Unit Tests](../docs/UNIT_TESTS.md) for the change.
 - [ ] I have tested my changes.
-- [ ] `npm run typecheck`, `npm test` and `npm run build` pass locally.
-- [ ] I have updated the project documentation ([`README.md`](../README.md)) and the `Unreleased` section of [`CHANGELOG.md`](../CHANGELOG.md) to reflect my changes.
-- [ ] New dependencies, if any, were added with a committed `package-lock.json` update.
+- [ ] I have run *Format* and *Build* from [`.squad/stack.md`](../.squad/stack.md), and the *Analyzer gate* reports no diagnostic in a changed file.
+- [ ] The *Coverage gate* in `.squad/stack.md` passes (line coverage on new or changed production code and overall).
+- [ ] I have updated the project documentation ([`README.md`](../README.md), [`ARCHITECTURE.md`](../docs/ARCHITECTURE.md)) to reflect my changes.
+- [ ] I have read the [CONTRIBUTING](../docs/CONTRIBUTING.md) documentation and followed the project's code style guidelines.
+- [ ] New dependencies, if any, were added the way *Dependencies* in `.squad/stack.md` prescribes.
+
+<!-- project:begin checklist -->
+- [ ] I have updated the `Unreleased` section of [`CHANGELOG.md`](../CHANGELOG.md) for user-visible changes.
 - [ ] I have rerun `wrangler types` and committed `worker-configuration.d.ts` if `wrangler.jsonc` changed.
+<!-- project:end checklist -->
 
 ## ⏭ Next Steps
 
