@@ -72,6 +72,15 @@ change with it.
 - the client module and its DTOs — the external shape must not leak past it
 - the test double of that API (*Test doubles*)
 
+## Plan checklist
+
+What the Lead's plan lists under *Documentation updates* besides the area documents, so the Dev writes it before
+review and not after the PR is opened:
+
+- **`CHANGELOG.md`:** an entry under `## [Unreleased]` for every user-visible change (the pull request template
+  checklist requires it; a release fails without entries under its version). A change without user-visible effect
+  names that in the plan instead.
+
 ## Test doubles
 
 The hand-written fakes and stubs the tests reuse (no mocking library unless `docs/UNIT_TESTS.md` says
