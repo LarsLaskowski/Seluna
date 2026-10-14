@@ -14,3 +14,4 @@ are quoted in full.
 | 2026-10-14 17:12 | 7 Code check | Orchestrator | format:check, typecheck, analyzer-check --lint-only (actionlint), scope-check, decision-check PASS; tests/coverage n/a |
 | 2026-10-14 17:13 | 8 Review (security diff) | squad-security | APPROVED at adf0e59; non-blocking: verify checkout without ref: github.sha, commits/refs/tags/$TAG ambiguity, first real tag exercises full path (opus/medium · 35,150 tokens · 5 tool uses · 61 s) |
 | 2026-10-14 17:13 | 8 Review (round 1) | squad-reviewer | APPROVE at adf0e59; no findings (opus/medium · 52,263 tokens · 12 tool uses · 94 s) |
+| 2026-10-14 17:14 | 9 PR approval (Lead) | squad-lead | NOT APPROVED: Security findings 1 (verify checkout ref: github.sha) and 2 (commits/refs/tags/$TAG) fixed now by Dev, then delta round Security+Reviewer; finding 3 accepted as residual risk in decision 0009 (opus/medium · 33,540 tokens · 3 tool uses · 34 s) |
