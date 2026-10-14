@@ -1,6 +1,6 @@
 # 0012: Webhook signature verification
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-14
 - **Area:** HTTP routes
 - **Source:** Issue #5
@@ -84,7 +84,7 @@ a source interface, today the `GITHUB_WEBHOOK_SECRET` Worker secret. The rules a
   which issue #5 does not add, will need its own real JSON sample.
 - The fixture `test/fixtures/ping/form-delivery.json` is a real `ping` delivery, unaltered, because removing
   anything would break its signature. Its secret `my-secret` is a throwaway secret and public from now on; the hook
-  that sent it must never use it again. The body names the public test repository `LarsLaskowski/test`, its owner's
+  that sent it must never use it again. The body names the private test repository `LarsLaskowski/test`, its owner's
   login and ids, the hook id and the hook's delivery URL on webhook.site; GitHub masks the hook's secret in the body.
 - A `POST /webhook` log entry carries two fields more than the other routes ([decision 0011](0011-public-http-surface.md)).
 - An empty `GITHUB_WEBHOOK_SECRET` counts as not configured; any other value is used verbatim, without trimming.

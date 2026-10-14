@@ -77,8 +77,8 @@ only. The rules are in [`areas/http-routes.md`](areas/http-routes.md)
 
 ## Configuration
 
-Settings are stored in D1 (`settings`) and written by the setup wizard; the values outside D1 are the
-encryption key, a Worker secret, the optional `GITHUB_WEBHOOK_SECRET` Worker secret (the webhook secret until the
+Settings are stored in D1 (`settings`) and written by the setup wizard; the values outside D1 are two
+Worker secrets, the encryption key and the optional `GITHUB_WEBHOOK_SECRET` (the webhook secret until the
 setup wizard stores it in D1), plus the D1 binding in `wrangler.jsonc`. The rules per area are in
 [`areas/`](areas/README.md).
 

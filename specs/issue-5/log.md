@@ -17,3 +17,5 @@ are quoted in full.
 | 2026-10-14 20:17 | 6 Coverage | squad-tester | 6 deferred tests written, 91 pass; mutations verified (missing-header test equivalent mutant noted); coverage 100% (34/34) (sonnet/medium · 69,344 tokens · 7 tool uses · 89 s) |
 | 2026-10-14 20:18 | 7 Code check | Orchestrator | format:check, typecheck, 91 tests, coverage 100% (34/34), analyzer 0 findings (9 files), scope-check and decision-check pass |
 | 2026-10-14 20:18 | 8 Review | squad-security | diff ba08a01: VERDICT APPROVED, no blocking; non-blocking: optional try/catch around verify -> 401, PM to retire test hook/inbox (opus/medium · 45,228 tokens · 7 tool uses · 40 s) |
+| 2026-10-14 20:19 | 8 Review | squad-reviewer | round 1 at ba08a01: BLOCKING 1 (0012 says public repo, fixture says private), NON-BLOCKING 2 - all three verbatim doc fixes applied by orchestrator (0012, project.md, ARCHITECTURE.md); format/scope/decision checks pass (opus/medium · 67,810 tokens · 11 tool uses · 73 s) |
+| 2026-10-14 20:19 | 9 PR approval | Orchestrator | approved by checklist: reviews clean, gates pass on head, area docs in diff, decision 0012 set to Accepted |
