@@ -47,10 +47,13 @@ called, never a source of input.
 | Endpoint | Purpose |
 | -------- | ------- |
 | `POST /webhook` | GitHub App events (signature checked) |
-| `GET /health` | Returns the running version |
+| `GET /health` | Returns the running version, fixed from `package.json` at build time |
 | `/setup` | Setup wizard, behind the setup login |
 
-Every other path answers 404.
+Every other method and path answers 404 with an empty body; until the wizard exists, so does `/setup`. A route
+that reads a request body rejects one over 1 MiB with 413, and each request is logged as method, path and status
+only. The rules are in [`areas/http-routes.md`](areas/http-routes.md)
+([decision 0011](decisions/0011-public-http-surface.md)).
 
 ## Cron triggers
 
@@ -74,7 +77,7 @@ Every other path answers 404.
 
 Settings are stored in D1 (`settings`) and written by the setup wizard; the only value outside D1 is the
 encryption key, a Worker secret, plus the D1 binding in `wrangler.jsonc`. The rules per area are in
-[`areas/`](areas/README.md); none are written yet.
+[`areas/`](areas/README.md).
 
 ## Security model
 

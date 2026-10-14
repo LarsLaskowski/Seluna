@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-14
+- **Area:** —
 - **Source:** Squad adopted from Squad-Spec-Repository-Template
 - **Supersedes:** —
 

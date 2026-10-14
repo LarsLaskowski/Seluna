@@ -62,5 +62,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0008](0008-delivery-through-a-d1-outbox.md) | Delivery through a D1 outbox | Accepted | 2026-10-14 |
 | [0009](0009-releases-only-by-tag-push.md) | Releases only by tag push | Accepted | 2026-10-14 |
 | [0010](0010-istanbul-coverage.md) | Istanbul coverage instead of V8 | Accepted | 2026-10-14 |
+| [0011](0011-public-http-surface.md) | Public HTTP surface of the Worker | Proposed | 2026-10-14 |
 
 <!-- project:end index -->
