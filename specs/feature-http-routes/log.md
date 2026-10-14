@@ -16,3 +16,5 @@ are quoted in full.
 | 2026-10-14 17:57 | 6 Coverage | Orchestrator | coverage gate passes (92.3%); uncovered: non-Uint8Array chunk branch (defensive) and never-default of exhaustive switch (unreachable); coverage pass skipped, accepted gaps |
 | 2026-10-14 17:57 | 7 Code check | Orchestrator | format:check, typecheck, lint, test (46/46), coverage gate (92.3%), analyzer (0 findings), scope-check, decision-check pass on 231f83c |
 | 2026-10-14 17:58 | 8 Security diff | squad-security | VERDICT: APPROVED at 231f83c; non-blocking: add peak-memory sentence to area doc (opus/medium · 39,539 tokens · 5 tool uses · 34 s) |
+| 2026-10-14 18:00 | 8 Review round 1 | squad-reviewer | BLOCKING 1 (untested non-bytes chunk branch, body.ts:46-48), NON-BLOCKING 1 verbatim (peak memory sentence in area doc) (opus/medium · 64,419 tokens · 21 tool uses · 137 s) |
+| 2026-10-14 18:00 | 8 Verbatim doc fix | Orchestrator | applied reviewer's peak-memory sentence in docs/areas/http-routes.md; doc gates pass |

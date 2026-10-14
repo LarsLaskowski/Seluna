@@ -34,7 +34,8 @@ check) and the owner's browser (the setup wizard) rely on it; every route below 
   leaves the decision to the counted body.
 - The body is always counted while it is read, whatever `Content-Length` says: a missing, malformed or too small
   header does not bypass the limit. Reading stops as soon as the count exceeds the limit; the rest of the body is
-  never read.
+  never read. An accepted body is briefly held twice while its chunks are combined, so reading one takes up to
+  about 2 MiB of memory.
 - A route that reads no body (`GET /health`, every 404) never reads it, so its size does not matter there.
 
 ### Logging

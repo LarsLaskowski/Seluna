@@ -120,6 +120,24 @@ describe("readBodyWithLimit", () => {
     expect(pulls, "pull count stays near maxBytes / chunkSize").toBeLessThanOrEqual(MAX_BYTES / chunkSize + 3);
   });
 
+  it("readBodyWithLimit returns unreadable for a body stream that yields non-byte chunks", async () => {
+    let cancelled = false;
+    const textual = new ReadableStream<string>({
+      start(controller) {
+        controller.enqueue("not bytes");
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const request = postWith(textual);
+
+    const result = await readBodyWithLimit(request, MAX_BYTES);
+
+    expect(result, "unreadable result").toEqual({ kind: "unreadable" });
+    expect(cancelled, "stream was cancelled").toBe(true);
+  });
+
   it("readBodyWithLimit returns unreadable for a body stream that fails", async () => {
     const failing = new ReadableStream<Uint8Array>({
       pull(controller) {
