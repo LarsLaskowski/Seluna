@@ -64,12 +64,21 @@ The daily trigger:
 10. **`17 5 * * *` (05:17 UTC)** — off the full hour and off the 10-minute schedule, so the two triggers never fire
     in the same minute. Chosen; any fixed daily time would serve.
 
+Preview URLs:
+
+11. **`preview_urls: false`** — a version built from another branch of the copy would otherwise get its own URL and
+    run with the production database and secrets; Seluna has no use for previews. Chosen; `workers_dev` stays on so
+    `/health` is reachable.
+12. **Cloudflare's default** — less configuration, but an unreviewed branch of the copy could answer requests and
+    write to the instance's data.
+
 ## Decision
 
 Seluna is deployed through the Deploy to Cloudflare button and kept up to date by Workers Builds: the Wrangler
 configuration declares the D1 binding `DB` without a database id and the two cron triggers, the deploy form asks
 for `SELUNA_SECRET` and `TELEGRAM_BOT_TOKEN`, and every deploy applies the D1 migrations before `wrangler deploy`.
-The Telegram bot token is a Worker secret, not a value in D1. The rules are in
+The Telegram bot token is a Worker secret, not a value in D1; preview URLs are off, and Git ignores every local
+secret file Wrangler reads. The rules are in
 [`areas/deployment.md`](../areas/deployment.md).
 
 ## Consequences

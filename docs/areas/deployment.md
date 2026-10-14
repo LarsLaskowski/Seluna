@@ -40,7 +40,15 @@ bindings) rely on it.
 
 - The deploy form asks for exactly `SELUNA_SECRET` and `TELEGRAM_BOT_TOKEN`; `.dev.vars.example` names them with
   a description each and holds no value.
-- No secret value is ever committed: `.dev.vars`, the file for local values, is ignored by Git.
+- No secret value is ever committed: Git ignores every file Wrangler loads local secrets from (`.dev.vars`,
+  `.dev.vars.<env>`, `.env`, `.env.local`, `.env.<env>`, `.env.<env>.local`); only `.dev.vars.example` and
+  `.env.example` are tracked, and they hold names and descriptions only.
+
+### Preview URLs
+
+- Preview URLs are off: a version uploaded from a branch other than `main` is not served under a URL of its own, so
+  no code outside `main` answers with the instance's database and secrets. The Worker's own `workers.dev` address
+  stays on, so `/health` answers there.
 
 ### Cron triggers
 
