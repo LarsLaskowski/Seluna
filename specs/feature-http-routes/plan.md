@@ -320,3 +320,19 @@ Files of the change no unit test can cover: none — `src/index.ts` runs through
 - Signature verification, 401/503 (#5); processing (later issues); the wizard under `/setup` (#8 and
   following); `HEAD /health`.
 - No follow-up issue needed.
+
+## Challenge notes
+
+Minor objections of the Devil's Advocate (verbatim):
+
+1. **Tests that read the real `package.json`:** the test that imports `../package.json` in `src/index.test.ts` needs `resolveJsonModule`. `tsconfig.json` includes `src/**/*.ts`, so the flag applies to tests too. The Dev should run `npm run typecheck` and `npm run lint` after adding the flag, because type-aware ESLint may flag the JSON import. If it does, fix it without `any` or a cast.
+2. **Stress-test sizes:** the tests that build a body of `MAX_BODY_BYTES + 1` bytes should use a `ReadableStream` with a few large chunks, not many small ones. The endless-stream `pull` bound in the plan assumes a fixed chunk size, so the Tester should state the chunk size in the test.
+3. **Log level:** the `console.log` call is the only place a request log is written. The Dev should check that `no-console` and the sonarjs rules do not flag it. If they do, disable the rule on that line with a reason, as the plan already says.
+4. **Hidden sibling path:** `index.ts` is the only caller of `handleRequest`. If #5 or #8 later add routes that read bodies, they must go through `readBodyWithLimit`. The plan records this in `.squad/project.md`, so no plan change is needed.
+
+Non-blocking notes of Security (plan review, verbatim in substance):
+
+1. The plan's line "Memory held: at most maxBytes plus one chunk" is not right for the accepted (`ok`) path: the chunk array is still held while it is copied into the combined `Uint8Array`, so peak memory is about twice `maxBytes` (about 2 MiB). Say so in the code comment and the area document; do not rely on the tighter figure.
+2. The rejected `cancel()` that the plan says is ignored must still be handled explicitly (awaited inside try/catch, or `.catch(() => {})`), so it causes no unhandled rejection.
+3. `GET /health` discloses the exact version; the issue requires it. Product Manager decision, not a defect of this change.
+4. Log flooding by unauthenticated 404 requests and slow-trickle bodies are platform limits, not defects of this change.
