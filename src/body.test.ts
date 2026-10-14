@@ -122,7 +122,7 @@ describe("readBodyWithLimit", () => {
 
   it("readBodyWithLimit returns unreadable for a body stream that yields non-byte chunks", async () => {
     let cancelled = false;
-    const textual = new ReadableStream<string>({
+    const textual = new ReadableStream({
       start(controller) {
         controller.enqueue("not bytes");
       },
