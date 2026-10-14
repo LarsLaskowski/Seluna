@@ -64,6 +64,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0010](0010-istanbul-coverage.md) | Istanbul coverage instead of V8 | Accepted | 2026-10-14 |
 | [0011](0011-public-http-surface.md) | Public HTTP surface of the Worker | Accepted | 2026-10-14 |
 | [0012](0012-webhook-signature-verification.md) | Webhook signature verification | Accepted | 2026-10-14 |
-| [0013](0013-deploy-to-cloudflare-and-workers-builds.md) | Deployment through the Deploy to Cloudflare button and Workers Builds | Proposed | 2026-10-14 |
+| [0013](0013-deploy-to-cloudflare-and-workers-builds.md) | Deployment through the Deploy to Cloudflare button and Workers Builds | Accepted | 2026-10-14 |
 
 <!-- project:end index -->

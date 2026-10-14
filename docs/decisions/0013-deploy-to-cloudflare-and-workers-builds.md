@@ -1,6 +1,6 @@
 # 0013: Deployment through the Deploy to Cloudflare button and Workers Builds
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-14
 - **Area:** Deployment
 - **Source:** Issue #6
