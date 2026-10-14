@@ -87,7 +87,8 @@ The concrete areas are listed in [`.squad/project.md`](../.squad/project.md) (*S
 ## Deployment
 
 Wrangler bundles the Worker (`npm run build` is `wrangler deploy --dry-run --outdir dist`); a user deploys it to
-their own Cloudflare account. A release is created only by pushing a `v*` tag
+their own Cloudflare account. A release is created only by pushing a `v*` tag, which the release workflow
+(`.github/workflows/release.yml`) verifies before it publishes
 ([decision 0009](decisions/0009-releases-only-by-tag-push.md)).
 <!-- project:end architecture -->
 
