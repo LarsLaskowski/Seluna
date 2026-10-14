@@ -25,7 +25,8 @@ files or endpoints.
 - **Parsing of external input:** webhook bodies are JSON from GitHub and are narrowed from `unknown`; fields are
   length-limited and escaped (Telegram MarkdownV2/HTML) before they enter a message, because titles and branch names
   are attacker-controlled text.
-- **Logging of external data:** logs carry event type, action and delivery id, never payload text, tokens or keys.
+- **Request body size:** every route that reads a request body reads it through the bounded reader in `src/body.ts` (1 MiB; a `Content-Length` above it is rejected before reading, and the body is always counted while read); a route that reads a body any other way is a `security`-tier finding.
+- **Logging of external data:** logs carry event type, action and delivery id, and per request the method, the URL path without query string and the status (`src/router.ts`); never payload text, headers, query strings, tokens or keys.
 
 ## Guarantees
 
