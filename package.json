@@ -14,7 +14,9 @@
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "coverage:lcov": "vitest run --coverage --coverage.reporter=lcov",
-    "types": "wrangler types"
+    "types": "wrangler types",
+    "db:migrations:apply": "wrangler d1 migrations apply DB --remote",
+    "deploy": "npm run db:migrations:apply && wrangler deploy"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.23.0",
@@ -27,5 +29,15 @@
     "typescript-eslint": "^8.71.2",
     "vitest": "^4.1.0",
     "wrangler": "^4.151.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "SELUNA_SECRET": {
+        "description": "A random string of at least 32 characters, for example from a password manager or `openssl rand -hex 32`. It is the password of the `/setup` page and protects the stored credentials. Keep it: changing it later means running the setup again."
+      },
+      "TELEGRAM_BOT_TOKEN": {
+        "description": "The token of your Telegram bot. In Telegram, send `/newbot` to [@BotFather](https://t.me/BotFather) and copy the token it returns."
+      }
+    }
   }
 }

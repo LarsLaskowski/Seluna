@@ -13,6 +13,6 @@ export default {
   },
   /** Cron triggers from `wrangler.jsonc`; no job runs yet (the jobs follow in issue #18). */
   scheduled(): Promise<void> {
-    throw new Error("Not implemented");
+    return Promise.resolve();
   },
 } satisfies ExportedHandler<Env>;

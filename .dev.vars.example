@@ -1,0 +1,6 @@
+# Random string of at least 32 characters, for example from a password manager or `openssl rand -hex 32`.
+# It is the password of the /setup page and the source of the key that encrypts the stored credentials;
+# changing it later means running the setup again.
+SELUNA_SECRET=
+# Token of your Telegram bot: talk to @BotFather in Telegram, send /newbot and copy the token it returns.
+TELEGRAM_BOT_TOKEN=
