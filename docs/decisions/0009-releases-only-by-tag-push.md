@@ -26,7 +26,7 @@ How the tag-triggered workflow is built:
 3. **One job with `contents: write`** — simplest, but `npm ci` and every dev dependency's code would run with a
    token that can create releases and push to the repository.
 4. **A read-only verification job and a separate release job** — the verification job (tag format, tag on
-   `main`, version match, the CI gates) runs with `contents: read`; only the release job, which installs nothing
+   `main`, version match, changelog section, the format, lint, type-check, test and build checks) runs with `contents: read`; only the release job, which installs nothing
    and runs no project code, gets `contents: write`. Chosen.
 5. **Creating the release with a third-party release action** — one more external action holding the write
    token. Lost against the GitHub CLI, which is preinstalled on the runner and maintained by GitHub, and which
@@ -41,8 +41,9 @@ How the tag-triggered workflow is built:
 ## Decision
 
 A release is created only by pushing a `v*` tag on `main`; merging a pull request never publishes a release.
-The release workflow publishes only after a read-only job has verified the tag and run the CI gates, and only
-the job that creates the release holds a write token. The release steps and checks are documented in
+The release workflow publishes only after a read-only job has verified the tag and run the format, lint, type-check, test and build checks (not the dependency audit and
+SonarQube jobs of `ci.yml`), and only the job that creates the release holds a write token, after it has
+checked that the tag still points to the verified commit. The release steps and checks are documented in
 [`CONTRIBUTING.md`](../CONTRIBUTING.md#versioning-and-releases).
 
 ## Consequences
@@ -52,3 +53,7 @@ each instance compares its version with the latest release, which works from the
 no release is marked as a pre-release. A tag that fails a check leaves a failed workflow run and no release; the
 maintainer deletes the tag, fixes `main` and tags again. The full release path (the GitHub API call) can only be
 exercised by pushing a real tag; the checks before it are verified locally.
+
+The check that the tag is on `main` prevents mistakes, not misuse: a tag-triggered run uses the `release.yml` of
+the tagged commit, so someone who can push a `v*` tag can also change the workflow. The actual control is a
+repository tag ruleset restricting who can push `v*` tags.
