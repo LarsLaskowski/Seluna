@@ -28,6 +28,6 @@ operator or another component can rely on — formats, limits, error behavior, g
 
 | Area | Scope | Not here |
 | ---- | ----- | -------- |
-| [HTTP routes](http-routes.md) | The public routes with their status and body, the request body size limit, the per-request log entry | Webhook signature and event processing, the setup wizard |
+| [HTTP routes](http-routes.md) | The public routes with their status and body, the request body size limit, the webhook signature check, the per-request log entry | Webhook event processing, the setup wizard |
 
 <!-- project:end area-index -->

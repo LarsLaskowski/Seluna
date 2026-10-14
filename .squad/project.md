@@ -84,5 +84,7 @@ otherwise):
 - **Clock** — an injected `() => Date` (or `vi.useFakeTimers()`) so rules, retries and token expiry are tested
   without waiting; code under test never calls `Date.now()` directly.
 - **Real GitHub payloads** — captured events stored as `test/fixtures/<event>/<action>.json`, with secrets and
-  personal data removed; never hand-invented payloads for a rule test.
+  personal data removed; never hand-invented payloads for a rule test. A signed
+  delivery used to test the signature stays unaltered, because any edit breaks its signature, and is signed with a
+  throwaway secret (decision 0012).
 - **D1** — the real D1 binding the Workers test pool provides (migrations applied in a test setup), not a fake.

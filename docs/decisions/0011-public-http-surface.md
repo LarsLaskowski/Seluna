@@ -50,14 +50,16 @@ A body that fails while being read:
 What a log entry holds:
 
 10. **Method, the URL path without query string, status** — chosen, because a query string can carry a one-time
-    code (issue #10). Logging the full URL would put that code into the logs.
+    code (issue #10). Logging the full URL would put that code into the logs. A `POST /webhook` entry also holds
+    the delivery id and the event ([decision 0012](0012-webhook-signature-verification.md)).
 
 ## Decision
 
 `GET /health` and `POST /webhook` are the only routes; everything else answers 404 with an empty body. The
 version comes from `package.json` through a source import that the bundler fixes at build time. Every route that
 reads a body reads it through one bounded reader that rejects with 413 on a too-large `Content-Length` and on a
-counted body over 1 MiB; each request is logged as method, path without query, and status. The resulting rules
+counted body over 1 MiB; each request is logged as method, path without query, and status (for `POST /webhook`
+also the delivery id and the event). The resulting rules
 are in the area document [`areas/http-routes.md`](../areas/http-routes.md).
 
 ## Consequences

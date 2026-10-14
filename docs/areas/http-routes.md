@@ -13,16 +13,30 @@ check) and the owner's browser (the setup wizard) rely on it; every route below 
 | Method and path | Status | Body                                                                           |
 | --------------- | ------ | ------------------------------------------------------------------------------ |
 | `GET /health`   | 200    | JSON `{"status":"ok","version":"<version>"}`, `Content-Type: application/json` |
-| `POST /webhook` | 202    | empty                                                                          |
+| `POST /webhook` | 202    | empty (valid signature)                                                        |
+| `POST /webhook` | 401    | empty (missing or wrong signature)                                             |
+| `POST /webhook` | 503    | empty (no webhook secret configured)                                           |
 | anything else   | 404    | empty                                                                          |
 
 - A route matches on the exact method and the exact path; the query string is ignored. `HEAD /health`,
   `POST /health`, `GET /webhook`, `/health/` and `/HEALTH` are "anything else".
 - `<version>` is the `version` of `package.json` at the time the Worker was built. It is fixed into the bundle
   at build time and never read from a file or a setting at runtime.
-- `POST /webhook` reads the request body (subject to the size limit below) and does nothing else with it yet;
-  signature verification and processing follow in later changes.
 - `/setup` and every path below it are reserved for the setup wizard and answer 404 until the wizard exists.
+
+### Webhook signature
+
+- `POST /webhook` is processed in this order: the body size limit (below), then the webhook secret, then the
+  signature. 413 and 400 therefore answer before 503 and 401.
+- The accepted signature is exactly `X-Hub-Signature-256: sha256=` followed by 64 lowercase hex digits of the
+  HMAC-SHA256 of the raw body bytes as received, under the webhook secret. It is compared in constant time
+  (`crypto.subtle.verify`). Any other form (uppercase digits or prefix, another length, another algorithm, two
+  joined values, an empty value) answers 401.
+- `X-Hub-Signature` (SHA-1) is ignored: a delivery that carries only that header is unsigned and answers 401.
+- The secret is the `GITHUB_WEBHOOK_SECRET` Worker secret, used verbatim (surrounding whitespace is part of it).
+  An absent, empty or non-string value counts as not configured and answers 503, also for a validly signed
+  request; a secret source that fails answers 503 as well.
+- A 202 has no further effect yet; processing of the event follows in a later change.
 
 ### Request body size
 
@@ -40,24 +54,28 @@ check) and the owner's browser (the setup wizard) rely on it; every route below 
 
 ### Logging
 
-- Every request produces exactly one log entry, written once the status is known, with exactly three fields:
-  the method, the path and the status.
-- The path is the URL path without the query string and without the fragment. Request bodies, headers and query
-  strings are never logged.
+- Every request produces exactly one log entry, written once the status is known, with three fields: the
+  method, the path and the status. The entry of `POST /webhook` additionally holds `delivery` (the
+  `X-GitHub-Delivery` value when it matches `^[0-9A-Za-z-]{1,64}$`) and `event` (the `X-GitHub-Event` value when
+  it matches `^[a-z_]{1,64}$`), each `null` otherwise.
+- The path is the URL path without the query string and without the fragment. Request bodies, signatures, query
+  strings and headers other than the two values above are never logged.
 
 ## Limits and errors
 
 - A body that cannot be read to the end (the client aborts, the stream fails) answers **400** with an empty body.
-- 404, 413 and 400 never carry a body, so no response reveals a reason, the configuration or a secret.
+- 404, 413, 400, 401 and 503 never carry a body, so no response reveals a reason, the configuration or a secret.
 
 ## Related decisions
 
 - [`decisions/0011-public-http-surface.md`](../decisions/0011-public-http-surface.md) — the version fixed at
   build time from `package.json`, the body limit only on routes that read a body, and what a request log entry
   holds.
+- [`decisions/0012-webhook-signature-verification.md`](../decisions/0012-webhook-signature-verification.md) — the
+  accepted signature form, the check order and the secret source.
 
 ## Not here
 
-- Webhook signature verification and event processing: later changes to `POST /webhook`
+- Webhook event processing: a later change to `POST /webhook`
   ([`ARCHITECTURE.md`](../ARCHITECTURE.md#webhook-to-telegram)).
 - The setup wizard and its login under `/setup` ([`ARCHITECTURE.md`](../ARCHITECTURE.md#components)).
