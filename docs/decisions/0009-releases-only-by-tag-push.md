@@ -1,6 +1,6 @@
 # 0009: Releases only by tag push
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-14
 - **Area:** —
 - **Source:** Issue #2, Issue #3

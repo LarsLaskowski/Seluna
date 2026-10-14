@@ -21,3 +21,4 @@ are quoted in full.
 | 2026-10-14 17:16 | 8 Fix round 2 | squad-dev | moved-tag check uses documented commits/tags/$TAG form (sonnet/medium · 1,033 tokens · 2 tool uses · 6 s · continued) |
 | 2026-10-14 17:16 | 8 Review (delta 2) | squad-reviewer | APPROVE at e187695 (opus/medium · 1,421 tokens · 4 tool uses · 68 s · continued) |
 | 2026-10-14 17:16 | 8 Review (security delta 2) | squad-security | APPROVED at e187695 (opus/medium · 1,308 tokens · 2 tool uses · 7 s · continued) |
+| 2026-10-14 17:17 | 9 PR approval (Lead) | squad-lead | APPROVED at e187695; findings 1+2 fixed (2 via documented commits/tags form), finding 3 accepted; decision 0009 Accepted |
