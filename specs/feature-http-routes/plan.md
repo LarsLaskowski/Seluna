@@ -321,6 +321,17 @@ Files of the change no unit test can cover: none — `src/index.ts` runs through
   following); `HEAD /health`.
 - No follow-up issue needed.
 
+## Deviations (Lead decision at approval)
+
+1. **Non-byte chunks in `readBodyWithLimit`** (Dev, step 6): the Workers types give the body stream as
+   `ReadableStream<any>`, and `strictTypeChecked` forbids using an `any` chunk, so each chunk is read as
+   `unknown` and checked with `instanceof Uint8Array`; a chunk that is not bytes cancels the reader (a
+   rejected `cancel` is handled) and returns `unreadable` (400 on `POST /webhook`). Accepted: it narrows
+   `unknown` at the boundary as `CLAUDE.md` requires, adds no cast, and maps the case onto the existing
+   `unreadable` outcome of decision 0011 (option 8), so the record and the area document's "a body that
+   cannot be read to the end answers 400" already cover it; neither needs a change. Covered by
+   `src/body.test.ts`: `readBodyWithLimit returns unreadable for a body stream that yields non-byte chunks`.
+
 ## Challenge notes
 
 Minor objections of the Devil's Advocate (verbatim):
