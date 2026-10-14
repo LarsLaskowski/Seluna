@@ -79,9 +79,31 @@ expected to arrive clean (see the decision record on quality gates in [`decision
 <!-- project:begin releases -->
 ## Versioning and releases
 
-Versions follow [Semantic Versioning](https://semver.org/). A release is cut by pushing a `v<major>.<minor>.<patch>`
-tag on `main` ([decision 0009](decisions/0009-releases-only-by-tag-push.md)). Merging a PR by itself never
-publishes a release; user-visible changes are listed in the `Unreleased` section of [`CHANGELOG.md`](../CHANGELOG.md).
+Versions follow [Semantic Versioning](https://semver.org/): a **major** version for incompatible changes (for
+example when the setup has to be redone), a **minor** version for new features, a **patch** version for fixes.
+Versions below 1.0.0 are published as normal releases, not as pre-releases.
+
+A release is cut only by pushing a `v<major>.<minor>.<patch>` tag on `main`
+([decision 0009](decisions/0009-releases-only-by-tag-push.md)); merging a PR by itself never publishes a
+release. User-visible changes are listed in the `Unreleased` section of [`CHANGELOG.md`](../CHANGELOG.md).
+To release version `A.B.C`:
+
+1. In a pull request, set the version with `npm version A.B.C --no-git-tag-version` (updates `package.json`
+   and `package-lock.json`) and rename `## [Unreleased]` in `CHANGELOG.md` to `## [A.B.C] - YYYY-MM-DD`,
+   adding a new empty `## [Unreleased]` above it.
+2. Merge the pull request.
+3. Tag the merge commit on `main` and push the tag:
+   `git switch main && git pull && git tag vA.B.C && git push origin vA.B.C`.
+
+The release workflow (`.github/workflows/release.yml`) rejects a tag that is not exactly `vA.B.C`, a tag on a
+commit that is not on `main`, a version that differs from `package.json` and a missing or empty changelog
+section, runs the format, lint, type-check, test and build checks, and then creates the GitHub release with the
+changelog section followed by GitHub's generated notes. If it fails, no release exists: delete the tag
+(`git push origin :refs/tags/vA.B.C && git tag -d vA.B.C`), fix `main` and tag again.
+
+The "on `main`" check only catches mistakes: a tag-triggered run uses the workflow file of the tagged commit,
+so it cannot stop someone who is allowed to push tags. Restrict who can push `v*` tags with a repository tag
+ruleset; that is the actual control.
 <!-- project:end releases -->
 
 <!-- project:begin stability -->
