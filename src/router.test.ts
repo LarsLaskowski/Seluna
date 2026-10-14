@@ -345,4 +345,13 @@ describe("handleRequest", () => {
 
     expect(entries, "log entries").toEqual([{ method: "GET", path: "/setup", status: 404 }]);
   });
+
+  it("handleRequest logs a non-webhook request without delivery and event fields", async () => {
+    const entries: RequestLogEntry[] = [];
+    const request = new Request(`${ORIGIN}/webhook`, { method: "GET", headers });
+
+    await handleRequest(request, makeDeps(entries));
+
+    expect(entries, "log entries").toStrictEqual([{ method: "GET", path: "/webhook", status: 404 }]);
+  });
 });

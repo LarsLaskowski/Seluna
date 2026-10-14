@@ -18,3 +18,18 @@ describe("secretFromEnv", () => {
     expect(result, "secret").toBe(" my-secret\n");
   });
 });
+
+describe("secretFromEnv with unusable values", () => {
+  it.each([
+    { case: "the variable absent", env: {} },
+    { case: "an empty string", env: { GITHUB_WEBHOOK_SECRET: "" } },
+    { case: "a number", env: { GITHUB_WEBHOOK_SECRET: 42 } },
+    { case: "an object", env: { GITHUB_WEBHOOK_SECRET: { value: "my-secret" } } },
+  ])("secretFromEnv returns undefined for $case", async ({ env }) => {
+    const source = secretFromEnv(env);
+
+    const result = await source.webhookSecret();
+
+    expect(result, "secret").toBeUndefined();
+  });
+});
