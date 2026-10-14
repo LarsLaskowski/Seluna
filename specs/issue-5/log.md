@@ -11,3 +11,4 @@ are quoted in full.
 | 2026-10-14 20:09 | 2 Plan | squad-lead | RESULT: DONE - tier security, plan.md AC1-AC7, decision 0012 Proposed, ARCHITECTURE/0011 edits (opus/medium · 98,423 tokens · 25 tool uses · 360 s) |
 | 2026-10-14 20:10 | 2 Plan challenge | squad-devils-advocate | VERDICT: OBJECTIONS 0 major, 2 minor (413-before-503 order test; 202 log test must pin delivery/event and exclude body/sha1/secret) (sonnet/medium · 33,125 tokens · 9 tool uses · 41 s) |
 | 2026-10-14 20:11 | 3 Plan security | squad-security | VERDICT: APPROVED (no blocking; 3 non-blocking notes appended to plan Challenge notes) (opus/medium · 38,037 tokens · 7 tool uses · 69 s) |
+| 2026-10-14 20:12 | 4 Skeleton | squad-dev | done: signature.ts, webhook-secret.ts, router/index signatures, makeDeps adapted; typecheck/build/47 tests pass. Deviation: stubs return zero values instead of throwing (accepted, step-5 tests still fail) |

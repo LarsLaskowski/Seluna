@@ -1,16 +1,22 @@
 import { MAX_BODY_BYTES, readBodyWithLimit } from "./body";
+import type { WebhookSecretSource } from "./webhook-secret";
 
 /** One log entry per request; nothing else about the request is logged. */
 export interface RequestLogEntry {
   readonly method: string;
   readonly path: string;
   readonly status: number;
+  /** `POST /webhook` only: `X-GitHub-Delivery` when it matches its pattern, otherwise `null`. */
+  readonly delivery?: string | null;
+  /** `POST /webhook` only: `X-GitHub-Event` when it matches its pattern, otherwise `null`. */
+  readonly event?: string | null;
 }
 
 /** What the routes need from outside. */
 export interface RouteDeps {
   readonly version: string;
   readonly log: (entry: RequestLogEntry) => void;
+  readonly webhookSecret: WebhookSecretSource;
 }
 
 async function receiveWebhook(request: Request): Promise<Response> {

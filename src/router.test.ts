@@ -12,6 +12,7 @@ function makeDeps(entries: RequestLogEntry[] = []): RouteDeps {
     log: (entry) => {
       entries.push(entry);
     },
+    webhookSecret: { webhookSecret: () => Promise.resolve(undefined) },
   };
 }
 
