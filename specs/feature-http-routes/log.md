@@ -11,3 +11,4 @@ are quoted in full.
 | 2026-10-14 17:53 | 3 Plan security review | squad-security | VERDICT: APPROVED (4 non-blocking notes) (opus/medium · 38,589 tokens · 5 tool uses · 72 s) |
 | 2026-10-14 17:53 | 2-3 Challenge notes | Orchestrator | minor objections and Security notes appended to plan.md; no Lead revision |
 | 2026-10-14 17:54 | 4 Skeleton | squad-dev | skeleton in place; typecheck and build pass; lint fails only on unused stub params (expected) (sonnet/medium · 69,944 tokens · 5 tool uses · 35 s) |
+| 2026-10-14 17:55 | 5 Tests first | squad-tester | 46 tests in 3 files; confirmed: typecheck passes, all 46 fail on skeleton (sonnet/medium · 79,486 tokens · 7 tool uses · 56 s) |
