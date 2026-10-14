@@ -122,7 +122,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          current="$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$TAG" --jq .sha)"
+          current="$(gh api "repos/$GITHUB_REPOSITORY/commits/tags/$TAG" --jq .sha)"
           if [[ $current != "$GITHUB_SHA" ]]; then
             printf '::error::Tag %s no longer points to the verified commit %s; it was moved during the run. Delete the tag and tag again.\n' "$TAG" "$GITHUB_SHA"
             exit 1
