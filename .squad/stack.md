@@ -102,6 +102,19 @@ imports still counts as uncovered instead of missing from the report.
   used for control flow; the Worker never returns an error body that reveals configuration or secrets.
 - Modules are named after what they own (`signature.ts`, `outbox.ts`); one module per file, tests beside it.
 
+## Logger arguments
+
+CodeQL's *Clear-text logging of sensitive information* (`js/clear-text-logging`) judges a value by its
+**name**: a variable, property or call whose name contains `secret`, `trusted`, `confidential`,
+`account`/`accnt`, `puid`, `uid`, `username`/`userid`, `sessionid`/`sessionkey`, `password`, `passwd`,
+`passcode`, `passphrase`, `authkey`, `oauth`, `apikey`/`apitoken`, `mfa`, `cert`, or names private data
+(`ssn`, `zipcode`, `phone`, `creditcard`, `iban`, `birthdate`, `gender`, `medical`, …) counts as sensitive,
+unless it also contains `hash`, `md5`, `sha`, `random`, `crypt`, `encode`, `redact`, `censor`, `obfuscate`,
+`file`, `path`, `url` (or `accounting`, `certain`, `concert`, `secretary`, `wildcard`, `coauthor`)
+(`shared/concepts/codeql/concepts/internal/SensitiveDataHeuristics.qll` in `github/codeql`, `HeuristicNames`).
+Such a name passed to a log call fails the PR in CI, also when it holds only a label, and no local gate
+reports it. The remedy is a neutral name for the value whose text a test pins, never a suppression.
+
 ## Writing tests
 
 See `docs/UNIT_TESTS.md`. Tests follow the same type check and ESLint rules as production code; every
@@ -112,6 +125,9 @@ interface (`satisfies`, or `vi.fn<…>()` with the signature), never `as any`.
 
 New exports with their full signature, return type and TSDoc, bodies `throw new Error("Not implemented");`,
 so `typecheck` passes and the tests load and fail.
+
+Constructors store their arguments and never throw: a test harness builds these types, so only member bodies
+fail.
 
 A zero-value stub (`return 0`, `return []`, `return ""`) instead of the `throw` is acceptable only when the
 `throw` would break a test that exists and passes today, for example an existing caller of the changed export.
