@@ -12,3 +12,4 @@ are quoted in full.
 | 2026-10-14 17:10 | 4-5 Skeleton, Tests first | Orchestrator | skipped: no production or test code (plan: Verification without tests) |
 | 2026-10-14 17:12 | 6 Implement | squad-dev | release.yml + CONTRIBUTING/ARCHITECTURE/CHANGELOG/decision 0009; scripts verified in scratch (AC2,3,4,6); moved-tag error text added; wording 'format, lint, type-check, test and build checks' (sonnet/medium · 80,189 tokens · 13 tool uses · 79 s) |
 | 2026-10-14 17:12 | 7 Code check | Orchestrator | format:check, typecheck, analyzer-check --lint-only (actionlint), scope-check, decision-check PASS; tests/coverage n/a |
+| 2026-10-14 17:13 | 8 Review (security diff) | squad-security | APPROVED at adf0e59; non-blocking: verify checkout without ref: github.sha, commits/refs/tags/$TAG ambiguity, first real tag exercises full path (opus/medium · 35,150 tokens · 5 tool uses · 61 s) |
