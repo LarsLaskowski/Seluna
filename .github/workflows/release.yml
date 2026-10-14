@@ -1,0 +1,157 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify tag and run checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check tag format
+        env:
+          TAG: ${{ github.ref_name }}
+          LC_ALL: C
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf '::error::Tag %s is not a release tag; expected vMAJOR.MINOR.PATCH, for example v1.2.3.\n' "'$TAG'"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check tag is on main
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            printf '::error::Tag %s points to a commit that is not on main; releases are cut from main only.\n' "$TAG"
+            exit 1
+          fi
+
+      - name: Check version
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          pkg="$(jq -r .version package.json)"
+          if [[ $pkg != "$version" ]]; then
+            printf '::error::Tag %s does not match version %s in package.json; set "version" to %s before tagging.\n' "$TAG" "$pkg" "$version"
+            exit 1
+          fi
+
+      - name: Check changelog section
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          HEADING="## [$version]" awk '
+            BEGIN { h = ENVIRON["HEADING"] }
+            !found { if ($0 == h || index($0, h " ") == 1) { found = 1 } next }
+            /^## / || /^\[[^]]+\]: / { exit }
+            /^[[:space:]]*$/ { if (started) { blanks = blanks $0 "\n" } next }
+            { started = 1; printf "%s", blanks; blanks = ""; print }
+          ' CHANGELOG.md > "${RUNNER_TEMP:-/tmp}/release-notes.md"
+          if ! grep -q '[^[:space:]]' "${RUNNER_TEMP:-/tmp}/release-notes.md"; then
+            printf '::error::CHANGELOG.md has no entries under "## [%s]"; move the Unreleased entries to that section before tagging.\n' "$version"
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  release:
+    name: Create GitHub release
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Check tag still points to the verified commit
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/$GITHUB_REPOSITORY/commits/tags/$TAG" --jq .sha)"
+          if [[ $current != "$GITHUB_SHA" ]]; then
+            printf '::error::Tag %s no longer points to the verified commit %s; it was moved during the run. Delete the tag and tag again.\n' "$TAG" "$GITHUB_SHA"
+            exit 1
+          fi
+
+      - name: Extract changelog section
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          HEADING="## [$version]" awk '
+            BEGIN { h = ENVIRON["HEADING"] }
+            !found { if ($0 == h || index($0, h " ") == 1) { found = 1 } next }
+            /^## / || /^\[[^]]+\]: / { exit }
+            /^[[:space:]]*$/ { if (started) { blanks = blanks $0 "\n" } next }
+            { started = 1; printf "%s", blanks; blanks = ""; print }
+          ' CHANGELOG.md > "${RUNNER_TEMP:-/tmp}/release-notes.md"
+          if ! grep -q '[^[:space:]]' "${RUNNER_TEMP:-/tmp}/release-notes.md"; then
+            printf '::error::CHANGELOG.md has no entries under "## [%s]"; move the Unreleased entries to that section before tagging.\n' "$version"
+            exit 1
+          fi
+
+      - name: Create release
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "${RUNNER_TEMP:-/tmp}/release-notes.md" --generate-notes
