@@ -113,6 +113,11 @@ interface (`satisfies`, or `vi.fn<…>()` with the signature), never `as any`.
 New exports with their full signature, return type and TSDoc, bodies `throw new Error("Not implemented");`,
 so `typecheck` passes and the tests load and fail.
 
+A zero-value stub (`return 0`, `return []`, `return ""`) instead of the `throw` is acceptable only when the
+`throw` would break a test that exists and passes today, for example an existing caller of the changed export.
+The new tests must still fail on the stub, and the Dev reports the stub and the test it protects as a deviation
+in the hand-back. A stub is replaced by the real body before the Coverage gate.
+
 ## Dependencies
 
 Added with `npm install <pkg>` (or `--save-dev`), committed together with `package-lock.json`; exact or
