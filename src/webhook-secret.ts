@@ -7,7 +7,8 @@ export interface WebhookSecretSource {
 }
 
 /** The webhook secret from the Worker environment: `GITHUB_WEBHOOK_SECRET` when it is a non-empty string. */
-export function secretFromEnv(_env: object): WebhookSecretSource {
-  // Skeleton: the implementation follows.
-  return { webhookSecret: () => Promise.resolve(undefined) };
+export function secretFromEnv(env: object): WebhookSecretSource {
+  const value: unknown = WEBHOOK_SECRET_NAME in env ? env[WEBHOOK_SECRET_NAME] : undefined;
+  const secret = typeof value === "string" && value !== "" ? value : undefined;
+  return { webhookSecret: () => Promise.resolve(secret) };
 }
