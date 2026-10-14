@@ -1,6 +1,6 @@
 # 0011: Public HTTP surface of the Worker
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-14
 - **Area:** HTTP routes
 - **Source:** Issue #4
