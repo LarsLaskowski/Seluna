@@ -17,3 +17,5 @@ are quoted in full.
 | 2026-10-15 20:08 | 6 Coverage | squad-tester | LINEAR_RATIO_LIMIT=44 (max measured 14.6); +1 handler test; accepted gap handler.ts 92-93 (never branch); gate 98.6% (sonnet/medium · 4,291 tokens · 4 tool uses · 90 s · continued) |
 | 2026-10-15 20:09 | 7 Code check | Orchestrator | Format, analyzer (0 findings), 384 tests, coverage 98.6%, scope, decision checks pass; main merged already |
 | 2026-10-15 20:11 | 8 Review (diff) | squad-security | APPROVED at 33e5782; non-blocking: cookie tossing on custom domains -> bind CSRF to session before #9-#11 add state-changing forms (issue/#9 plan) (opus/medium · 49,517 tokens · 7 tool uses · 70 s) |
+| 2026-10-15 20:12 | 8 Review round 1 | squad-reviewer | 1 blocking (verbatim doc fix: area doc wording on first four cookie values); no others (opus/medium · 119,246 tokens · 24 tool uses · 167 s) |
+| 2026-10-15 20:12 | 8 Verbatim fix | Orchestrator | Applied reviewer's 3 replacements in docs/areas/setup-wizard.md; diff only those lines; format, scope, decision checks pass; round clean |

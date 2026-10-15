@@ -102,10 +102,10 @@ it and add their pages behind the login.
   value of the cookie `seluna_csrf`, under a key derived like the session key with salt and info
   `seluna/setup-csrf/v1`.
 - `seluna_csrf` holds 32 random bytes as base64url without padding (43 characters). A page with a form takes the
-  first well-formed value from the request; when there is none it draws a new one and sets the cookie (no
+  first well-formed value among the first four `seluna_csrf` values of the request; when there is none it draws a new one and sets the cookie (no
   `Max-Age`, so it ends with the browser session).
 - A submitted form is valid when its body has exactly one `csrf` field and that field verifies, in constant time,
-  against one of the first four well-formed `seluna_csrf` values of the request. A missing, empty, repeated or
+  against one of the well-formed values among the first four `seluna_csrf` values of the request. A missing, empty, repeated or
   wrong field, a missing cookie, or a token from another cookie value or another `SELUNA_SECRET` is rejected.
 
 ### Cookies
@@ -139,7 +139,7 @@ it and add their pages behind the login.
 
 - The interface is in English (`en`) and German (`de`); every text exists in both.
 - The language of a response is, in this order: the query parameter `lang` when it is exactly `en` or `de`; else
-  the first `seluna_lang` cookie value that is exactly `en` or `de`; else the `Accept-Language` header; else
+  the first of the first four `seluna_lang` cookie values that is exactly `en` or `de`; else the `Accept-Language` header; else
   English.
 - A valid `lang` parameter also sets the cookie `seluna_lang` to it, with `Max-Age=31536000` (one year).
 - Every page links to exactly `/setup?lang=en` and `/setup?lang=de`, whatever path it is answered on (a page
