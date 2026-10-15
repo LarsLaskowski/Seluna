@@ -68,6 +68,8 @@ bindings) rely on it.
   Wrangler's message and deploys nothing.
 - Without `GITHUB_WEBHOOK_SECRET` an instance answers every `POST /webhook` with 503
   ([HTTP routes](http-routes.md#webhook-signature)).
+- Without a `SELUNA_SECRET` of at least 32 characters every request under `/setup` answers 503 with a page that
+  explains how to set it ([Setup wizard](setup-wizard.md#paths)).
 
 ## Related decisions
 

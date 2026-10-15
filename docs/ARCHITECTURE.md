@@ -52,7 +52,9 @@ called, never a source of input.
 | `GET /health` | Returns the running version, fixed from `package.json` at build time |
 | `/setup` | Setup wizard, behind the setup login |
 
-Every other method and path answers 404 with an empty body; until the wizard exists, so does `/setup`. A route
+Every other method and path answers 404 with an empty body. Under `/setup` the setup login decides first: without
+a valid session every request gets the login page, and without a usable `SELUNA_SECRET` the wizard refuses to start
+([`areas/setup-wizard.md`](areas/setup-wizard.md), [decision 0015](decisions/0015-setup-login.md)). A route
 that reads a request body rejects one over 1 MiB with 413, and each request is logged as method, path and status
 only. The rules are in [`areas/http-routes.md`](areas/http-routes.md)
 ([decision 0011](decisions/0011-public-http-surface.md)).
@@ -73,7 +75,7 @@ only. The rules are in [`areas/http-routes.md`](areas/http-routes.md)
 | `deliveries` | Processed `X-GitHub-Delivery` ids, for deduplication |
 | `outbox` | Notifications waiting for, or past, delivery |
 | `token_cache` | Short-lived GitHub installation tokens, AES-256-GCM ciphertext |
-| `meta` | The last notified release, the time of the last delivery and the key check value that detects a changed `SELUNA_SECRET` |
+| `meta` | The last notified release, the time of the last delivery, the key check value that detects a changed `SELUNA_SECRET` and the setup login's failed-attempt count |
 
 All six tables come from the first migration; only the modules under `src/store/` access them. The key for the
 encrypted columns is derived from `SELUNA_SECRET` and never stored, so a reader of the database alone learns no
@@ -84,7 +86,7 @@ credential. Columns, formats and the key check are in [`areas/storage.md`](areas
 ## Configuration
 
 Settings are stored in D1 (`settings`) and written by the setup wizard; the values outside D1 are Worker
-secrets — `SELUNA_SECRET` (the source of the encryption key) and `TELEGRAM_BOT_TOKEN`, both asked for by the
+secrets — `SELUNA_SECRET` (the password of the setup login and the source of the encryption and signing keys) and `TELEGRAM_BOT_TOKEN`, both asked for by the
 deploy form, and the optional `GITHUB_WEBHOOK_SECRET` (the webhook secret until the setup wizard stores it in
 D1) — plus the D1 binding `DB` and the cron triggers in `wrangler.jsonc`
 ([decision 0013](decisions/0013-deploy-to-cloudflare-and-workers-builds.md)). The rules per area are in
@@ -92,8 +94,8 @@ D1) — plus the D1 binding `DB` and the cron triggers in `wrangler.jsonc`
 
 ## Security model
 
-The webhook is authenticated by its HMAC signature, the setup wizard by the setup login, and the Worker only
-calls out (GitHub API, Telegram Bot API). The GitHub App has the minimum permissions the rules need, and its
+The webhook is authenticated by its HMAC signature, the setup wizard by the setup login
+([decision 0015](decisions/0015-setup-login.md)), and the Worker only calls out (GitHub API, Telegram Bot API). The GitHub App has the minimum permissions the rules need, and its
 credentials are encrypted in D1 ([decision 0007](decisions/0007-github-app-credentials-encrypted-in-d1.md)).
 The concrete areas are listed in [`.squad/project.md`](../.squad/project.md) (*Security areas*) and
 [`SECURITY.md`](../SECURITY.md).
