@@ -55,7 +55,8 @@ What a log entry holds:
 
 ## Decision
 
-`GET /health` and `POST /webhook` are the only routes; everything else answers 404 with an empty body. The
+`GET /health` and `POST /webhook` are the only routes besides the setup wizard under `/setup`
+([decision 0015](0015-setup-login.md)); everything else answers 404 with an empty body. The
 version comes from `package.json` through a source import that the bundler fixes at build time. Every route that
 reads a body reads it through one bounded reader that rejects with 413 on a too-large `Content-Length` and on a
 counted body over 1 MiB; each request is logged as method, path without query, and status (for `POST /webhook`

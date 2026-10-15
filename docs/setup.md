@@ -20,4 +20,4 @@ Every push to `main` of your copy builds and deploys it, after applying the data
 
 ## Next steps
 
-The `/setup` wizard follows in a later version. Until then the instance answers webhooks with 503.
+Open `https://<worker>.<your-subdomain>.workers.dev/setup` and sign in with your `SELUNA_SECRET`. The setup steps follow in a later version. Until then the instance answers webhooks with 503.

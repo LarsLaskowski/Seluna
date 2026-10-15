@@ -4,25 +4,28 @@
 
 The public HTTP surface of the Worker: which method and path combinations answer, with which status and body,
 how large a request body may be, and what is logged per request. GitHub (the webhook), monitoring (the health
-check) and the owner's browser (the setup wizard) rely on it; every route below builds on these rules.
+check) and the owner's browser (the setup wizard) rely on it; every route below builds on these rules, and so
+does the setup wizard under `/setup`.
 
 ## Behavior
 
 ### Routes
 
-| Method and path | Status | Body                                                                           |
-| --------------- | ------ | ------------------------------------------------------------------------------ |
-| `GET /health`   | 200    | JSON `{"status":"ok","version":"<version>"}`, `Content-Type: application/json` |
-| `POST /webhook` | 202    | empty (valid signature)                                                        |
-| `POST /webhook` | 401    | empty (missing or wrong signature)                                             |
-| `POST /webhook` | 503    | empty (no webhook secret configured)                                           |
-| anything else   | 404    | empty                                                                          |
+| Method and path      | Status                              | Body                                                                           |
+| -------------------- | ----------------------------------- | ------------------------------------------------------------------------------ |
+| `GET /health`        | 200                                 | JSON `{"status":"ok","version":"<version>"}`, `Content-Type: application/json` |
+| `POST /webhook`      | 202                                 | empty (valid signature)                                                        |
+| `POST /webhook`      | 401                                 | empty (missing or wrong signature)                                             |
+| `POST /webhook`      | 503                                 | empty (no webhook secret configured)                                           |
+| `/setup`, `/setup/…` | see [Setup wizard](setup-wizard.md) | see [Setup wizard](setup-wizard.md)                                            |
+| anything else        | 404                                 | empty                                                                          |
 
 - A route matches on the exact method and the exact path; the query string is ignored. `HEAD /health`,
   `POST /health`, `GET /webhook`, `/health/` and `/HEALTH` are "anything else".
 - `<version>` is the `version` of `package.json` at the time the Worker was built. It is fixed into the bundle
   at build time and never read from a file or a setting at runtime.
-- `/setup` and every path below it are reserved for the setup wizard and answer 404 until the wizard exists.
+- `/setup` and every path that starts with `/setup/`, with any method, belong to the setup wizard, which answers
+  them as [Setup wizard](setup-wizard.md) describes; `/setupx`, `/SETUP` and `/setup%2F` are "anything else".
 
 ### Webhook signature
 
@@ -50,7 +53,8 @@ check) and the owner's browser (the setup wizard) rely on it; every route below 
   header does not bypass the limit. Reading stops as soon as the count exceeds the limit; the rest of the body is
   never read. An accepted body is briefly held twice while its chunks are combined, so reading one takes up to
   about 2 MiB of memory.
-- A route that reads no body (`GET /health`, every 404) never reads it, so its size does not matter there.
+- A route that reads no body (`GET /health`, every 404) never reads it, so its size does not matter there. Under
+  `/setup` only the form submissions `POST /setup/login` and `POST /setup/logout` read a body, with this limit.
 
 ### Logging
 
@@ -64,7 +68,9 @@ check) and the owner's browser (the setup wizard) rely on it; every route below 
 ## Limits and errors
 
 - A body that cannot be read to the end (the client aborts, the stream fails) answers **400** with an empty body.
-- 404, 413, 400, 401 and 503 never carry a body, so no response reveals a reason, the configuration or a secret.
+- Outside `/setup`, 404, 413, 400, 401 and 503 never carry a body, so no response reveals a reason, the
+  configuration or a secret. Under `/setup` 404, 413 and 400 carry no body either; the pages the wizard answers
+  with carry fixed texts only ([Setup wizard](setup-wizard.md#limits-and-errors)).
 
 ## Related decisions
 
@@ -78,4 +84,4 @@ check) and the owner's browser (the setup wizard) rely on it; every route below 
 
 - Webhook event processing: a later change to `POST /webhook`
   ([`ARCHITECTURE.md`](../ARCHITECTURE.md#webhook-to-telegram)).
-- The setup wizard and its login under `/setup` ([`ARCHITECTURE.md`](../ARCHITECTURE.md#components)).
+- The setup wizard and its login under `/setup`: [Setup wizard](setup-wizard.md).

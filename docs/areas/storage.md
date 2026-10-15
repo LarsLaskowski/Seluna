@@ -48,8 +48,9 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
 - `settings` holds the owner's choices: the language, the time zone, the quiet hours, the enabled rules, the
   update notice and the Telegram chat id. The keys and their formats are defined by the change that introduces
   each setting.
-- `meta` holds the last notified release, the time of the last delivery and the key check value
-  (`key_check`, below).
+- `meta` holds the last notified release, the time of the last delivery, the key check value
+  (`key_check`, below) and the setup login's failed-attempt count (`login_attempts`, format and rules in
+  [Setup wizard](setup-wizard.md#failed-attempts-and-the-lock)).
 - Wrangler keeps its own record of the applied migrations in the table `d1_migrations`; no Seluna code reads or
   writes it.
 
@@ -66,8 +67,9 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
   with padding.
 - The key is derived with HKDF-SHA256 from the UTF-8 bytes of the Worker secret `SELUNA_SECRET`; salt and info
   are both the UTF-8 bytes of `seluna/secrets/v1`. The key never leaves the Worker's memory and is never stored.
-- The key is used only for the values in D1. Any other key taken from `SELUNA_SECRET` (for example one that signs
-  the setup login's session, issue #8) is derived with an HKDF info of its own, never this one.
+- The key is used only for the values in D1. Any other key taken from `SELUNA_SECRET` is derived with an HKDF
+  info of its own, never this one: the setup login's session and CSRF keys use `seluna/setup-session/v1` and
+  `seluna/setup-csrf/v1` as salt and info ([Setup wizard](setup-wizard.md#session)).
 - Each value is bound to its place as additional authenticated data, the UTF-8 bytes of:
   - `secrets/<key>` for a row of `secrets`;
   - `token_cache/<installation_id>/<expires_at>` for a row of `token_cache`, both numbers in decimal without
@@ -84,7 +86,7 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
   The only way the code obtains the key is from the Worker environment, through the same check, so no caller can
   derive a key from a shorter secret.
 - Without a configured `SELUNA_SECRET` there is no key: nothing is encrypted or decrypted and nothing is written.
-  The setup wizard refuses to start (issue #8), and a component that needs a credential from D1 cannot read it
+  The setup wizard refuses to start ([Setup wizard](setup-wizard.md#paths)), and a component that needs a credential from D1 cannot read it
   and answers as if the credential were missing — the webhook answers 503 without a body, as it does today
   without a webhook secret ([HTTP routes](http-routes.md)).
 
@@ -143,7 +145,6 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
 ## Not here
 
 - How and when migrations are applied to an instance's database: [Deployment](deployment.md#d1-database).
-- What each setting means and how the setup wizard writes it: the setup wizard
-  ([`ARCHITECTURE.md`](../ARCHITECTURE.md#components)).
+- What each setting means and how the setup wizard writes it: [Setup wizard](setup-wizard.md).
 - When rows of `deliveries`, `outbox` and `token_cache` are removed: the cron jobs
   ([`ARCHITECTURE.md`](../ARCHITECTURE.md#cron-triggers)).
