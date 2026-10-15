@@ -1,4 +1,5 @@
 import { MAX_BODY_BYTES, readBodyWithLimit } from "./body";
+import type { SetupDeps } from "./setup/handler";
 import { SIGNATURE_HEADER, verifySignature } from "./signature";
 import type { WebhookSecretSource } from "./webhook-secret";
 
@@ -18,6 +19,7 @@ export interface RouteDeps {
   readonly version: string;
   readonly log: (entry: RequestLogEntry) => void;
   readonly webhookSecret: WebhookSecretSource;
+  readonly setup: SetupDeps;
 }
 
 const DELIVERY_PATTERN = /^[0-9A-Za-z-]{1,64}$/;

@@ -11,3 +11,4 @@ are quoted in full.
 | 2026-10-15 19:46 | 3 Plan security review | squad-security | CHANGES_REQUIRED: 1 blocking (linear-time header parsing claim unpinned: ratio tests or drop claim), non-blocking: session 5th-cookie test, base64 canonical form wording, relative lang links, global lock awareness (opus/medium · 74,035 tokens · 20 tool uses · 202 s) |
 | 2026-10-15 19:50 | 3 Plan revision | squad-lead | RESULT: DONE; AC14 linear-time ratio tests, canonical base64, absolute lang links, 5th session cookie tests (opus/medium · 73,825 tokens · 29 tool uses · 187 s) |
 | 2026-10-15 19:50 | 3 Plan security review (delta) | squad-security | APPROVED at 563f962; note for Tester: ratio tests use same fixed repetition count for n and 10n (opus/medium · 8,350 tokens · 2 tool uses · 27 s · continued) |
+| 2026-10-15 19:52 | 4 Skeleton | squad-dev | Done; typecheck/build pass; only crypto export pin fails (Tester's); lint unused-params expected until impl |

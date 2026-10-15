@@ -5,6 +5,14 @@ export const MIN_SELUNA_SECRET_CHARACTERS = 32;
 /** HKDF salt and info, and the version of the stored format. */
 export const KEY_DERIVATION_LABEL = "seluna/secrets/v1";
 
+/** What a signing key derived from `SELUNA_SECRET` is for. */
+export type SigningPurpose = "setup-session" | "setup-csrf";
+/** HKDF salt and info of each signing key. */
+export const SIGNING_KEY_LABELS: Readonly<Record<SigningPurpose, string>> = {
+  "setup-session": "seluna/setup-session/v1",
+  "setup-csrf": "seluna/setup-csrf/v1",
+};
+
 const IV_BYTES = 12;
 const BASE64_CHUNK = 0x2000;
 
@@ -103,4 +111,19 @@ export async function decrypt(key: CryptoKey, sealed: SealedValue, context: stri
     // Bad input of any kind (OperationError, invalid UTF-8) is reported as undefined; the cause is dropped.
     return undefined;
   }
+}
+
+/** Whether `SELUNA_SECRET` in the Worker environment is a string of at least 32 code points (the rule of `keyFromEnv`). */
+export function isSelunaSecretConfigured(env: object): boolean {
+  throw new Error("Not implemented");
+}
+
+/** A non-extractable HMAC-SHA256 key (sign, verify) derived with HKDF-SHA256 from `SELUNA_SECRET`, salt and info the purpose's label; `undefined` when `SELUNA_SECRET` is not configured. */
+export function signingKeyFromEnv(env: object, purpose: SigningPurpose): Promise<CryptoKey | undefined> {
+  throw new Error("Not implemented");
+}
+
+/** Whether the UTF-8 bytes of `candidate` equal those of `SELUNA_SECRET`, compared in constant time (HMAC under a fresh random key, `crypto.subtle.verify`); `false` when `SELUNA_SECRET` is not configured. */
+export function verifySelunaSecret(env: object, candidate: string): Promise<boolean> {
+  throw new Error("Not implemented");
 }

@@ -1,3 +1,4 @@
+import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { body, headers, secret } from "../test/fixtures/ping/form-delivery.json";
 import { MAX_BODY_BYTES } from "./body";
@@ -22,6 +23,7 @@ function makeDeps(entries: RequestLogEntry[] = [], source: WebhookSecretSource =
       entries.push(entry);
     },
     webhookSecret: source,
+    setup: { env: {}, db: env.DB, now: () => new Date(0) },
   };
 }
 
