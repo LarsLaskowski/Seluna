@@ -17,3 +17,4 @@ are quoted in full.
 | 2026-10-15 17:17 | 6 Implement | squad-dev | Tasks 7,8,9,11,12,13 done; 147 tests pass; coverage gate 98.0% (lines secrets.ts 85, 103 uncovered); analyzer 0; scope/decision checks pass |
 | 2026-10-15 17:18 | 6 Coverage pass | squad-tester | Task 10 done: exports guard test + BLOB corrupt test; 149 tests; coverage 99.0%; line 85 defensive guard unreachable (accepted gap) (sonnet/medium · 61,051 tokens · 6 tool uses · 60 s) |
 | 2026-10-15 17:18 | 7 Code check | Orchestrator | Gates on 194c6c7 pass: format, typecheck, 149 tests, analyzer 0, coverage 99.0%, scope-check, decision-check; main already merged |
+| 2026-10-15 17:19 | 8 Review (diff) | squad-security | APPROVED at 194c6c7; 2 non-blocking: key_check literal duplicated in SQL, no ignoreBOM test (opus/medium · 49,175 tokens · 6 tool uses · 55 s) |
