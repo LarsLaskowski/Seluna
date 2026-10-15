@@ -560,6 +560,17 @@ describe("handleSetup bodies and failures", () => {
     expect(await storedAttempts(), "stored attempts").toBeUndefined();
   });
 
+  it("handleSetup answers a logout body over 1 MiB with 413", async () => {
+    const response = await call("/setup/logout", {
+      method: "POST",
+      cookies: [await sessionCookie()],
+      body: "a".repeat(MAX_BODY_BYTES + 1),
+    });
+
+    expect(response.status, "status").toBe(413);
+    expect(await response.text(), "body").toBe("");
+  });
+
   it("handleSetup answers an unreadable login body with 400", async () => {
     const body = new ReadableStream<Uint8Array>({
       pull(controller) {

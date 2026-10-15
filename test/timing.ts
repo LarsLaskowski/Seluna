@@ -1,9 +1,9 @@
 /**
- * Largest growth ratio a parser may show between an input of length n and one of length 10 n (linear: about 10,
- * quadratic: about 100). Provisional: three times the ratio of 10 a linear parser must show; the Tester replaces
- * it by three times the highest ratio measured with `npm run coverage:lcov` (instrumented) once the parsers exist.
+ * Largest growth ratio a parser may show between an input of length n and one of length 10 n (linear: about
+ * 10, quadratic: about 100). Measured under `npm run coverage:lcov` (instrumented) on all twelve header
+ * inputs, three rounds each: the highest ratio was 14.6; the limit is three times that, rounded up.
  */
-export const LINEAR_RATIO_LIMIT = 30;
+export const LINEAR_RATIO_LIMIT = 44;
 
 /** Timeout of a ratio test: a linear parser needs about a second, a quadratic one is stopped well before 10 s. */
 export const RATIO_TEST_TIMEOUT_MS = 10_000;

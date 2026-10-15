@@ -14,3 +14,4 @@ are quoted in full.
 | 2026-10-15 19:52 | 4 Skeleton | squad-dev | Done; typecheck/build pass; only crypto export pin fails (Tester's); lint unused-params expected until impl (sonnet/medium · 98,737 tokens · 13 tool uses · 80 s) |
 | 2026-10-15 20:03 | 5 Tests first | squad-tester | 224 new tests, compile and fail on skeleton (confirmed by orchestrator); LINEAR_RATIO_LIMIT provisional 30 until coverage pass (sonnet/medium · 207,901 tokens · 38 tool uses · 640 s) |
 | 2026-10-15 20:07 | 6 Implement | squad-dev | Done; 383 tests pass, lint/typecheck/build clean; coverage 98.2% new lines; U1 confirmed; deviation: verifySelunaSecret key via getRandomValues (sonnet/medium · 147,146 tokens · 20 tool uses · 212 s) |
+| 2026-10-15 20:08 | 6 Coverage | squad-tester | LINEAR_RATIO_LIMIT=44 (max measured 14.6); +1 handler test; accepted gap handler.ts 92-93 (never branch); gate 98.6% |
