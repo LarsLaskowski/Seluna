@@ -39,31 +39,33 @@ interface Context {
   readonly csrfValues: readonly string[];
 }
 
-type FormPage = "login" | "start";
+/** Which form a page carries or a submission belongs to; a signed-in form names the session its token is bound to. */
+type SetupForm = { readonly kind: "login" } | { readonly kind: "start"; readonly session: string };
 
 /** Whether `pathname` is `/setup` or starts with `/setup/`. */
 export function isSetupPath(pathname: string): boolean {
   return pathname === SETUP_PATH || pathname.startsWith(`${SETUP_PATH}/`);
 }
 
-async function hasSession(context: Context): Promise<boolean> {
+/** The first of the request's (at most four) `seluna_session` values that is a valid session, or `undefined`. */
+async function sessionOf(context: Context): Promise<string | undefined> {
   const values = cookieValues(context.request.headers.get("cookie"), SESSION_COOKIE);
   for (const value of values) {
     if (await isValidSessionToken(context.sessionKey, value, context.deps.now())) {
-      return true;
+      return value;
     }
   }
-  return false;
+  return undefined;
 }
 
 /** A page with a form: it takes the request's CSRF cookie value, or draws one and sets the cookie. */
-async function formPage(context: Context, page: FormPage, status: number, notice?: Notice): Promise<Response> {
+async function formPage(context: Context, form: SetupForm, status: number, notice?: Notice): Promise<Response> {
   const existing = context.csrfValues[0];
   const cookieValue = existing ?? newCsrfCookieValue();
   const cookies = existing === undefined ? [setupCookie(CSRF_COOKIE, cookieValue)] : [];
   const token = await csrfTokenFor(context.csrfKey, cookieValue);
   const html =
-    page === "login"
+    form.kind === "login"
       ? renderLoginPage(context.language, token, notice)
       : renderStartPage(context.language, token, notice);
   return htmlResponse(html, status, context.language, [...context.languageCookies, ...cookies]);
@@ -95,57 +97,61 @@ async function readForm(context: Context): Promise<URLSearchParams | Response> {
   }
 }
 
-async function hasValidCsrf(context: Context, form: URLSearchParams): Promise<boolean> {
-  const tokens = form.getAll(CSRF_FIELD);
+async function hasValidCsrf(context: Context, fields: URLSearchParams, form: SetupForm): Promise<boolean> {
+  void form;
+  const tokens = fields.getAll(CSRF_FIELD);
   const [token] = tokens;
   return tokens.length === 1 && (await isValidCsrfToken(context.csrfKey, token ?? null, context.csrfValues));
 }
+
+const LOGIN_FORM: SetupForm = { kind: "login" };
 
 async function signIn(context: Context): Promise<Response> {
   const form = await readForm(context);
   if (form instanceof Response) {
     return form;
   }
-  if (!(await hasValidCsrf(context, form))) {
-    return formPage(context, "login", 403, "form-expired");
+  if (!(await hasValidCsrf(context, form, LOGIN_FORM))) {
+    return formPage(context, LOGIN_FORM, 403, "form-expired");
   }
   const { env, db, now } = context.deps;
   try {
     if ((await reserveLoginAttempt(db, now())) === "locked") {
-      return await formPage(context, "login", 429, "locked");
+      return await formPage(context, LOGIN_FORM, 429, "locked");
     }
     const candidates = form.getAll("secret");
     const [candidate] = candidates;
     if (candidates.length !== 1 || candidate === undefined || !(await verifySelunaSecret(env, candidate))) {
-      return await formPage(context, "login", 403, "wrong-secret");
+      return await formPage(context, LOGIN_FORM, 403, "wrong-secret");
     }
     await clearLoginAttempts(db);
   } catch {
     // The error is deliberately dropped: it must reach neither the log nor the response.
-    return formPage(context, "login", 503, "unavailable");
+    return formPage(context, LOGIN_FORM, 503, "unavailable");
   }
   const token = await createSessionToken(context.sessionKey, now());
   return plain(context, 303, [setupCookie(SESSION_COOKIE, token, SESSION_LIFETIME_MS / 1000)], SETUP_PATH);
 }
 
-async function signOut(context: Context): Promise<Response> {
+async function signOut(context: Context, session: string): Promise<Response> {
+  const start: SetupForm = { kind: "start", session };
   const form = await readForm(context);
   if (form instanceof Response) {
     return form;
   }
-  if (!(await hasValidCsrf(context, form))) {
-    return formPage(context, "start", 403, "form-expired");
+  if (!(await hasValidCsrf(context, form, start))) {
+    return formPage(context, start, 403, "form-expired");
   }
   return plain(context, 303, [setupCookie(SESSION_COOKIE, "", 0)], SETUP_PATH);
 }
 
-async function signedIn(context: Context, pathname: string): Promise<Response> {
+async function signedIn(context: Context, session: string, pathname: string): Promise<Response> {
   const { method } = context.request;
   if (method === "GET" && pathname === SETUP_PATH) {
-    return formPage(context, "start", 200);
+    return formPage(context, { kind: "start", session }, 200);
   }
   if (method === "POST" && pathname === LOGOUT_PATH) {
-    return signOut(context);
+    return signOut(context, session);
   }
   return plain(context, 404);
 }
@@ -164,5 +170,6 @@ export async function handleSetup(request: Request, pathname: string, deps: Setu
   if (request.method === "POST" && pathname === LOGIN_PATH) {
     return signIn(context);
   }
-  return (await hasSession(context)) ? signedIn(context, pathname) : formPage(context, "login", 200);
+  const session = await sessionOf(context);
+  return session === undefined ? formPage(context, LOGIN_FORM, 200) : signedIn(context, session, pathname);
 }
