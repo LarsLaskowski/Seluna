@@ -249,6 +249,7 @@ describe("readSecret", () => {
     ["a 15-character IV", `${"A".repeat(15)}.${"A".repeat(24)}`],
     ["a 20-character ciphertext", `${"A".repeat(16)}.${"A".repeat(20)}`],
     ["an unpadded 22-character ciphertext", `${"A".repeat(16)}.${"A".repeat(22)}`],
+    ["an unpadded 25-character ciphertext", `${"A".repeat(16)}.${"A".repeat(25)}`],
   ])(
     "readSecret reports corrupt when the key check value has one dot but malformed parts (%s)",
     async (_label, text) => {
