@@ -109,6 +109,18 @@ describe("decrypt", () => {
     expect(plaintext, "plaintext").toBeUndefined();
   });
 
+  it("decrypt returns a plaintext that starts with a byte order mark unchanged", async () => {
+    const key = await keyFor(SECRET_A);
+    const input = "\uFEFFvalue";
+    expect(input.charCodeAt(0), "first code unit of the input").toBe(0xfeff);
+    expect(input.length, "length of the input").toBe(6);
+    const sealed = await encrypt(key, input, CONTEXT);
+
+    const plaintext = await decrypt(key, sealed, CONTEXT);
+
+    expect(plaintext, "plaintext").toBe(input);
+  });
+
   it("decrypt returns undefined for a plaintext that is not valid UTF-8", async () => {
     const key = await generateAesKey();
     const iv = crypto.getRandomValues(new Uint8Array(12));

@@ -176,6 +176,16 @@ describe("writeSecret", () => {
     expect(await metaRows(), "meta rows").toEqual([{ key: KEY_CHECK_META_KEY, value: "not-a-key-check" }]);
   });
 
+  it("writeSecret reports corrupt when the key check value has one dot but malformed parts and writes nothing", async () => {
+    await putKeyCheck("abc.def");
+
+    const result = await writeSecret(env.DB, await keyFor(SECRET_A), "github_app_id", "12345");
+
+    expect(result, "write result").toEqual({ kind: "corrupt" });
+    expect(await secretRows(), "secrets rows").toEqual([]);
+    expect(await metaRows(), "meta rows").toEqual([{ key: KEY_CHECK_META_KEY, value: "abc.def" }]);
+  });
+
   it("writeSecret reports corrupt and writes nothing when secrets holds a credential but the key check value is absent", async () => {
     await seed(SECRET_A, "github_app_id", "12345");
     await env.DB.prepare("DELETE FROM meta WHERE key = ?1").bind(KEY_CHECK_META_KEY).run();
@@ -229,6 +239,35 @@ describe("readSecret", () => {
     const result = await readSecret(env.DB, await keyFor(SECRET_A), "github_app_id");
 
     expect(result, "read result").toEqual({ kind: "corrupt" });
+  });
+
+  it.each([
+    ["abc.def", "abc.def"],
+    [".", "."],
+    ["not base64!.x", "not base64!.x"],
+    ["an empty ciphertext", "AAAAAAAAAAAAAAAA."],
+    ["a 15-character IV", `${"A".repeat(15)}.${"A".repeat(24)}`],
+    ["a 20-character ciphertext", `${"A".repeat(16)}.${"A".repeat(20)}`],
+    ["an unpadded 22-character ciphertext", `${"A".repeat(16)}.${"A".repeat(22)}`],
+  ])(
+    "readSecret reports corrupt when the key check value has one dot but malformed parts (%s)",
+    async (_label, text) => {
+      await seed(SECRET_A, "github_app_id", "12345");
+      await putKeyCheck(text);
+
+      const result = await readSecret(env.DB, await keyFor(SECRET_A), "github_app_id");
+
+      expect(result, "read result").toEqual({ kind: "corrupt" });
+    },
+  );
+
+  it("readSecret reports secret-changed for a well-formed key check value that does not decrypt", async () => {
+    await seed(SECRET_A, "github_app_id", "12345");
+    await putKeyCheck(`${"A".repeat(16)}.${"A".repeat(24)}`);
+
+    const result = await readSecret(env.DB, await keyFor(SECRET_A), "github_app_id");
+
+    expect(result, "read result").toEqual({ kind: "secret-changed" });
   });
 
   it("readSecret reports corrupt for a ciphertext copied from another secret's row", async () => {
