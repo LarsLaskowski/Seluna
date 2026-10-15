@@ -245,6 +245,15 @@ describe("readSecret", () => {
     expect(result, "read result").toEqual({ kind: "corrupt" });
   });
 
+  it("readSecret reports corrupt when the stored ciphertext is a BLOB instead of text", async () => {
+    await seed(SECRET_A, "github_app_id", "12345");
+    await env.DB.prepare("UPDATE secrets SET ciphertext = X'00' WHERE key = ?1").bind("github_app_id").run();
+
+    const result = await readSecret(env.DB, await keyFor(SECRET_A), "github_app_id");
+
+    expect(result, "read result").toEqual({ kind: "corrupt" });
+  });
+
   it("readSecret reports corrupt for an altered ciphertext", async () => {
     await seed(SECRET_A, "github_app_id", "12345");
     const stored = await rawSecret("github_app_id");

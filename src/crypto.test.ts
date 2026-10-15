@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as cryptoModule from "./crypto";
 import { decrypt, encrypt, keyFromEnv } from "./crypto";
 import { keyFor, withFirstCharacterChanged } from "../test/keys";
 
@@ -184,5 +185,16 @@ describe("keyFromEnv", () => {
     const plaintext = await decrypt(trimmed, sealed, CONTEXT);
 
     expect(plaintext, "plaintext").toBeUndefined();
+  });
+});
+
+describe("crypto module", () => {
+  it("crypto exports keyFromEnv, encrypt and decrypt as its only functions", () => {
+    const functionNames = Object.entries(cryptoModule)
+      .filter(([, value]) => typeof value === "function")
+      .map(([name]) => name)
+      .sort((left, right) => left.localeCompare(right));
+
+    expect(functionNames, "exported function names").toEqual(["decrypt", "encrypt", "keyFromEnv"]);
   });
 });
