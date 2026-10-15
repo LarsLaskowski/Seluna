@@ -9,6 +9,8 @@ export default defineConfig({
         bindings: {
           // The throwaway secret of the real delivery in test/fixtures/ping/form-delivery.json (decision 0012).
           GITHUB_WEBHOOK_SECRET: "my-secret",
+          // A throwaway value for the setup login in tests only (at least 32 characters); never a real secret.
+          SELUNA_SECRET: "throwaway-test-secret-for-the-setup-login-0000",
           // The shipped migrations as read from migrations/, applied by test/d1.ts (never a copy of the SQL).
           TEST_MIGRATIONS: await readD1Migrations("./migrations"),
         },

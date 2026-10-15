@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import * as cryptoModule from "./crypto";
-import { decrypt, encrypt, keyFromEnv } from "./crypto";
-import { keyFor, withFirstCharacterChanged } from "../test/keys";
+import {
+  decrypt,
+  encrypt,
+  isSelunaSecretConfigured,
+  keyFromEnv,
+  signingKeyFromEnv,
+  verifySelunaSecret,
+} from "./crypto";
+import { hmacBase64Url, keyFor, signingKeyFor, withFirstCharacterChanged } from "../test/keys";
 
 const SECRET_A = "0123456789abcdef0123456789abcdef";
 const SECRET_B = "fedcba9876543210fedcba9876543210";
@@ -200,13 +207,113 @@ describe("keyFromEnv", () => {
   });
 });
 
+describe("isSelunaSecretConfigured", () => {
+  it.each([
+    { name: "absent", env: {}, expected: false },
+    { name: "a number", env: { SELUNA_SECRET: 42 }, expected: false },
+    { name: "31 characters", env: { SELUNA_SECRET: "a".repeat(31) }, expected: false },
+    {
+      name: "31 characters that are 32 UTF-16 code units",
+      env: { SELUNA_SECRET: "a".repeat(30) + String.fromCodePoint(0x1f511) },
+      expected: false,
+    },
+    { name: "32 characters", env: { SELUNA_SECRET: SECRET_A }, expected: true },
+  ])("isSelunaSecretConfigured returns $expected for $name", ({ env, expected }) => {
+    const configured = isSelunaSecretConfigured(env);
+
+    expect(configured, "configured").toBe(expected);
+  });
+});
+
+describe("signingKeyFromEnv", () => {
+  const MESSAGE = "v1.1700043200000";
+
+  it("signingKeyFromEnv returns undefined when SELUNA_SECRET is not configured", async () => {
+    const key = await signingKeyFromEnv({ SELUNA_SECRET: "a".repeat(31) }, "setup-session");
+
+    expect(key, "key").toBeUndefined();
+  });
+
+  it("signingKeyFromEnv derives different keys for setup-session and setup-csrf", async () => {
+    const sessionKey = await signingKeyFor(SECRET_A, "setup-session");
+    const csrfKey = await signingKeyFor(SECRET_A, "setup-csrf");
+
+    const sessionMac = await hmacBase64Url(sessionKey, MESSAGE);
+    const csrfMac = await hmacBase64Url(csrfKey, MESSAGE);
+
+    expect(sessionMac, "MAC of the same message").not.toBe(csrfMac);
+  });
+
+  it("signingKeyFromEnv returns a non-extractable HMAC-SHA256 key for signing and verifying", async () => {
+    const key = await signingKeyFor(SECRET_A, "setup-csrf");
+
+    expect(key.extractable, "extractable").toBe(false);
+    expect(key.algorithm, "algorithm").toMatchObject({ name: "HMAC", hash: { name: "SHA-256" }, length: 256 });
+    expect(
+      [...key.usages].sort((left, right) => left.localeCompare(right)),
+      "usages",
+    ).toEqual(["sign", "verify"]);
+  });
+
+  // Produced once with Node 24, importing nothing from src/: crypto.hkdfSync("sha256", secret, salt, info, 32)
+  // with salt = info = utf8("seluna/setup-session/v1") for the secret 0123456789abcdef0123456789abcdef, then
+  // createHmac("sha256", thatKey).update("v1.1700043200000").digest("base64url"); the csrf value likewise with
+  // salt = info = utf8("seluna/setup-csrf/v1").
+  it.each([
+    { purpose: "setup-session" as const, expected: "5vIymaYhJ58dOAi0xzi8XCc-EDdwlxvsNrv4C-vtVls" },
+    { purpose: "setup-csrf" as const, expected: "brU7fxNHFFPkz0tEHsgaHtB87o_qpIeD2Q7Bv9l0JcE" },
+  ])(
+    "signingKeyFromEnv derives the $purpose key with HKDF-SHA256, salt and info seluna/$purpose/v1",
+    async ({ purpose, expected }) => {
+      const key = await signingKeyFor(SECRET_A, purpose);
+
+      const mac = await hmacBase64Url(key, MESSAGE);
+
+      expect(mac, "known HMAC").toBe(expected);
+    },
+  );
+});
+
+describe("verifySelunaSecret", () => {
+  it("verifySelunaSecret returns true for exactly SELUNA_SECRET", async () => {
+    const verified = await verifySelunaSecret({ SELUNA_SECRET: SECRET_A }, SECRET_A);
+
+    expect(verified, "verified").toBe(true);
+  });
+
+  it.each([
+    { name: "a trailing space", candidate: SECRET_A + " " },
+    { name: "the last character missing", candidate: SECRET_A.slice(0, -1) },
+    { name: "one letter's case changed", candidate: SECRET_A.replace("abcdef", "abcdeF") },
+    { name: "one character more", candidate: SECRET_A + "0" },
+    { name: "an empty text", candidate: "" },
+  ])("verifySelunaSecret returns false for $name", async ({ candidate }) => {
+    const verified = await verifySelunaSecret({ SELUNA_SECRET: SECRET_A }, candidate);
+
+    expect(verified, "verified").toBe(false);
+  });
+
+  it("verifySelunaSecret returns false when SELUNA_SECRET is not configured", async () => {
+    const verified = await verifySelunaSecret({}, "");
+
+    expect(verified, "verified").toBe(false);
+  });
+});
+
 describe("crypto module", () => {
-  it("crypto exports keyFromEnv, encrypt and decrypt as its only functions", () => {
+  it("crypto exports decrypt, encrypt, isSelunaSecretConfigured, keyFromEnv, signingKeyFromEnv and verifySelunaSecret as its only functions", () => {
     const functionNames = Object.entries(cryptoModule)
       .filter(([, value]) => typeof value === "function")
       .map(([name]) => name)
       .sort((left, right) => left.localeCompare(right));
 
-    expect(functionNames, "exported function names").toEqual(["decrypt", "encrypt", "keyFromEnv"]);
+    expect(functionNames, "exported function names").toEqual([
+      "decrypt",
+      "encrypt",
+      "isSelunaSecretConfigured",
+      "keyFromEnv",
+      "signingKeyFromEnv",
+      "verifySelunaSecret",
+    ]);
   });
 });

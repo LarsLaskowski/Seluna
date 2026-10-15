@@ -1,10 +1,15 @@
-import { env } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { body, headers, secret } from "../test/fixtures/ping/form-delivery.json";
 import { MAX_BODY_BYTES } from "./body";
 import { handleRequest } from "./router";
 import type { RequestLogEntry, RouteDeps } from "./router";
+import { CSRF_COOKIE, csrfTokenFor } from "./setup/csrf";
+import type { SetupDeps } from "./setup/handler";
+import { LOGIN_ATTEMPTS_META_KEY } from "./store/login-attempts";
 import type { WebhookSecretSource } from "./webhook-secret";
+import { applyMigrations } from "../test/d1";
+import { signingKeyFor } from "../test/keys";
 
 const ORIGIN = "https://example.com";
 const HALF = MAX_BODY_BYTES / 2;
@@ -16,14 +21,25 @@ const FAILING_SECRET_SOURCE: WebhookSecretSource = {
 };
 const DELIVERY_ID = "1718a4d0-c809-11f1-8378-122c40de5e00";
 
-function makeDeps(entries: RequestLogEntry[] = [], source: WebhookSecretSource = FIXTURE_SECRET_SOURCE): RouteDeps {
+const SETUP_SECRET = "throwaway-setup-secret-0123456789abcdef";
+const SETUP_DEPS: SetupDeps = {
+  env: { SELUNA_SECRET: SETUP_SECRET },
+  db: env.DB,
+  now: () => new Date(1_700_000_000_000),
+};
+
+function makeDeps(
+  entries: RequestLogEntry[] = [],
+  source: WebhookSecretSource = FIXTURE_SECRET_SOURCE,
+  setup: SetupDeps = { env: {}, db: env.DB, now: () => new Date(0) },
+): RouteDeps {
   return {
     version: "1.2.3",
     log: (entry) => {
       entries.push(entry);
     },
     webhookSecret: source,
-    setup: { env: {}, db: env.DB, now: () => new Date(0) },
+    setup,
   };
 }
 
@@ -164,10 +180,9 @@ describe("handleRequest", () => {
   it.each([
     { method: "GET", path: "/" },
     { method: "GET", path: "/anything" },
-    { method: "GET", path: "/setup" },
-    { method: "GET", path: "/setup/" },
-    { method: "GET", path: "/setup/app" },
-    { method: "POST", path: "/setup" },
+    { method: "GET", path: "/setupx" },
+    { method: "GET", path: "/SETUP" },
+    { method: "GET", path: "/setup%2F" },
     { method: "HEAD", path: "/health" },
     { method: "POST", path: "/health" },
     { method: "GET", path: "/health/" },
@@ -341,11 +356,11 @@ describe("handleRequest", () => {
 
   it("handleRequest logs an unknown path with status 404", async () => {
     const entries: RequestLogEntry[] = [];
-    const request = new Request(`${ORIGIN}/setup?code=abc`);
+    const request = new Request(`${ORIGIN}/unknown?code=abc`);
 
     await handleRequest(request, makeDeps(entries));
 
-    expect(entries, "log entries").toEqual([{ method: "GET", path: "/setup", status: 404 }]);
+    expect(entries, "log entries").toEqual([{ method: "GET", path: "/unknown", status: 404 }]);
   });
 
   it("handleRequest logs a non-webhook request without delivery and event fields", async () => {
@@ -355,5 +370,31 @@ describe("handleRequest", () => {
     await handleRequest(request, makeDeps(entries));
 
     expect(entries, "log entries").toStrictEqual([{ method: "GET", path: "/webhook", status: 404 }]);
+  });
+
+  it.each(["/setup", "/setup/x"])("handleRequest passes %s to the setup handler", async (path) => {
+    const request = new Request(`${ORIGIN}${path}`);
+
+    const response = await handleRequest(request, makeDeps([], FIXTURE_SECRET_SOURCE, SETUP_DEPS));
+
+    expect(response.status, "status").toBe(200);
+    expect(await response.text(), "page").toContain('action="/setup/login"');
+  });
+
+  it("handleRequest logs a setup login as method, path and status only", async () => {
+    await applyMigrations(env.DB);
+    await env.DB.prepare("DELETE FROM meta WHERE key = ?1").bind(LOGIN_ATTEMPTS_META_KEY).run();
+    const cookieValue = "A".repeat(43);
+    const token = await csrfTokenFor(await signingKeyFor(SETUP_SECRET, "setup-csrf"), cookieValue);
+    const entries: RequestLogEntry[] = [];
+    const request = new Request(`${ORIGIN}/setup/login`, {
+      method: "POST",
+      headers: { cookie: `${CSRF_COOKIE}=${cookieValue}`, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ csrf: token, secret: "a wrong secret" }).toString(),
+    });
+
+    await handleRequest(request, makeDeps(entries, FIXTURE_SECRET_SOURCE, SETUP_DEPS));
+
+    expect(entries, "log entries").toStrictEqual([{ method: "POST", path: "/setup/login", status: 403 }]);
   });
 });

@@ -25,6 +25,16 @@ it("an unknown path answers 404 with an empty body", async () => {
   expect(await response.text(), "body").toBe("");
 });
 
+it("GET /setup answers the login page through the Worker", async () => {
+  const response = await exports.default.fetch("https://example.com/setup");
+
+  const page = await response.text();
+
+  expect(response.status, "status").toBe(200);
+  expect(page, "login form").toContain('action="/setup/login"');
+  expect(page, "password input").toMatch(/type="password"/);
+});
+
 it("POST /webhook answers 202 for the real GitHub ping delivery with the configured secret", async () => {
   const response = await exports.default.fetch("https://example.com/webhook", {
     method: "POST",
