@@ -1,6 +1,6 @@
 # 0007: GitHub App credentials encrypted in D1
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-15
 - **Area:** Storage
 - **Source:** Issue #2, Issue #7

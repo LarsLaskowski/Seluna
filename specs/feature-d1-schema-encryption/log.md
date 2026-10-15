@@ -26,3 +26,5 @@ are quoted in full.
 | 2026-10-15 17:25 | 8 Review round 2 (diff) | squad-security | APPROVED at bc90dc8 (delta) (opus/medium · 5,324 tokens · 2 tool uses · 20 s · continued) |
 | 2026-10-15 17:25 | 8 Review round 2 | squad-reviewer | APPROVE at bc90dc8; non-blocking: add 25-char unpadded ciphertext case to it.each (pins % 4 check) (opus/medium · 9,578 tokens · 3 tool uses · 23 s · continued) |
 | 2026-10-15 17:26 | 8 Fix round 2 tests | squad-tester | Added unpadded 25-char ciphertext case; 160 tests pass, gates on 9297325 pass (sonnet/medium · 1,127 tokens · 2 tool uses · 18 s · continued) |
+| 2026-10-15 17:26 | 8 Review round 3 (delta) | squad-reviewer | APPROVE at 9297325 (test-only delta) (opus/medium · 1,208 tokens · 2 tool uses · 7 s · continued) |
+| 2026-10-15 17:27 | 9 PR approval | Orchestrator | Approved by checklist: round 3 clean at 9297325, gates pass, area docs and decisions in diff, main not moved; decisions 0007 and 0014 set to Accepted |

@@ -1,6 +1,6 @@
 # 0014: D1 schema and data access
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-15
 - **Area:** Storage
 - **Source:** Issue #7
