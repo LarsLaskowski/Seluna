@@ -264,7 +264,8 @@ New directory `src/setup/` for the wizard, one module per concern; one new store
    same bytes. Re-encoding the decoded bytes and comparing with the input is an acceptable way to check this.
 2. `src/crypto.ts` — `isSelunaSecretConfigured`, `signingKeyFromEnv` (HKDF-SHA256 to an HMAC-SHA256 key, length
    256, usages `sign`/`verify`, non-extractable, salt = info = the purpose's label) and `verifySelunaSecret` (fresh
-   random HMAC key from `crypto.subtle.generateKey`, `sign` over `SELUNA_SECRET`'s UTF-8 bytes, `verify` of that
+   random HMAC key — built: 32 bytes from `crypto.getRandomValues` imported as a raw, non-extractable HMAC-SHA256
+   key, accepted by the Lead at approval as equivalent to `crypto.subtle.generateKey` —, `sign` over `SELUNA_SECRET`'s UTF-8 bytes, `verify` of that
    MAC against the candidate's UTF-8 bytes). All three go through the existing private `selunaSecretFromEnv`; no
    exported function returns the secret's text or derives a key from a plain string.
 3. `src/store/login-attempts.ts` — one upsert with `RETURNING`, the semantics of the area document
