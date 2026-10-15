@@ -19,7 +19,7 @@ secrets can only be set through Wrangler or the dashboard, not by the Worker its
 
 ## Decision
 
-The GitHub App credentials (and the Telegram bot token) are stored in the D1 table `secrets`, encrypted with AES-256-GCM under a key held as a Worker secret; they are decrypted only in memory when needed.
+The GitHub App credentials are stored in the D1 table `secrets`, encrypted with AES-256-GCM under a key held as a Worker secret; they are decrypted only in memory when needed. The Telegram bot token is a Worker secret, not a value in D1 ([decision 0013](0013-deploy-to-cloudflare-and-workers-builds.md)).
 
 ## Consequences
 

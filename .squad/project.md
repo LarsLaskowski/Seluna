@@ -12,11 +12,14 @@ files or endpoints.
 
 - **Webhook signature:** `POST /webhook` verifies `X-Hub-Signature-256` (HMAC-SHA256 over the raw body, constant-time
   comparison) before any parsing; an invalid or missing signature is rejected without a body that explains why.
-- **Setup login:** `/setup` and everything behind it (App creation, Telegram bot token, status) is reachable only
+- **Setup login:** `/setup` and everything behind it (App creation, Telegram chat, status) is reachable only
   with the setup credential; session cookies are `HttpOnly`, `Secure`, `SameSite=Strict`, and the endpoint is
   rate-limited and closed once setup is complete unless the owner logs in.
-- **Encrypted credentials:** the GitHub App private key, webhook secret and Telegram bot token live in the D1 table
-  `secrets` as AES-256-GCM ciphertext (random 96-bit nonce per value); the key is a Worker secret. Nothing secret is
+- **Encrypted credentials:** the GitHub App ID, private key and webhook secret live in the D1 table `secrets` as
+  AES-256-GCM ciphertext (random 96-bit nonce per value); the key comes from the Worker secret `SELUNA_SECRET`. The
+  Telegram bot token is the Worker secret `TELEGRAM_BOT_TOKEN`. Worker secrets are set through the deploy form or
+  Wrangler and never committed (`.gitignore` ignores `.dev.vars*` and `.env*`, the files Wrangler loads local secrets
+  from, except `.dev.vars.example` and `.env.example`, which hold names and descriptions only). Nothing secret is
   logged, returned in a response or kept in plain text in D1 (decision 0007).
 - **Minimal GitHub App permissions:** the manifest requests read-only access to exactly what the rules read (pull
   requests, checks/statuses, security alerts, metadata); a new permission is a `security`-tier change.
@@ -53,6 +56,7 @@ change with it.
 **A new or changed setting or secret** touches:
 - the `settings` / `secrets` D1 tables and the migration under `migrations/` (and the encryption path for a secret)
 - the `/setup` wizard that writes it, and the Worker binding in `wrangler.jsonc`, then `wrangler types` for `worker-configuration.d.ts`
+- for a Worker secret the deploy form asks for, `.dev.vars.example` and its description under `cloudflare.bindings` in `package.json`
 - the setting table in `README.md`
 - the test that pins the read/write round trip
 

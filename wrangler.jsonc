@@ -2,5 +2,16 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "seluna",
   "main": "src/index.ts",
-  "compatibility_date": "2026-08-22"
+  "compatibility_date": "2026-08-22",
+  "preview_urls": false,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "seluna",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "triggers": {
+    "crons": ["*/10 * * * *", "17 5 * * *"]
+  }
 }

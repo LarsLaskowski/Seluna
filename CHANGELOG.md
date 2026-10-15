@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Deploy to Cloudflare button: deploys Seluna into your own Cloudflare account with a D1 database `DB` and the secrets `SELUNA_SECRET` and `TELEGRAM_BOT_TOKEN`; every push to `main` of the copy applies the D1 migrations and deploys. Cron triggers every 10 minutes and daily (no jobs yet).
 - Cloudflare Workers project skeleton in TypeScript.
 - HTTP routes: `GET /health` with the version of the build, `POST /webhook` (see below), 404 with an empty body for everything else, 413 for request bodies over 1 MiB, and one log entry per request with method, path and status.
 - Webhook signature check: `POST /webhook` verifies `X-Hub-Signature-256` (HMAC-SHA256 over the raw body) with the `GITHUB_WEBHOOK_SECRET` Worker secret and answers 202 for a valid signature, 401 for a missing or wrong one and 503 when no secret is configured; its log entry also holds the delivery id and event.

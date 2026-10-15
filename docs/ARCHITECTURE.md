@@ -15,7 +15,7 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 | Worker `fetch` handler | `POST /webhook`, `GET /health` (returns the version), `/setup` (the setup wizard) |
 | Rules | Pure functions from a parsed GitHub event to zero or one notification; no I/O, no clock |
 | Outbox | The D1 `outbox` table and delivery to the Telegram Bot API, with retry |
-| Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md)), the Telegram bot token, the setup login |
+| Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md)), the Telegram chat, the setup login |
 | Cron (`scheduled` handler) | Every 10 minutes: retry the outbox and clean up D1. Daily: check for a new Seluna release |
 | D1 | `settings`, `secrets` (AES-256-GCM), `deliveries`, `outbox`, `token_cache`, `meta` |
 
@@ -69,7 +69,7 @@ only. The rules are in [`areas/http-routes.md`](areas/http-routes.md)
 | Table | Holds |
 | ----- | ----- |
 | `settings` | Instance settings (for example the chat id, the notification options) |
-| `secrets` | GitHub App credentials and the Telegram bot token, AES-256-GCM ciphertext |
+| `secrets` | GitHub App credentials, AES-256-GCM ciphertext |
 | `deliveries` | Processed `X-GitHub-Delivery` ids, for deduplication |
 | `outbox` | Notifications waiting for, or past, delivery |
 | `token_cache` | Short-lived GitHub installation tokens |
@@ -77,9 +77,11 @@ only. The rules are in [`areas/http-routes.md`](areas/http-routes.md)
 
 ## Configuration
 
-Settings are stored in D1 (`settings`) and written by the setup wizard; the values outside D1 are two
-Worker secrets, the encryption key and the optional `GITHUB_WEBHOOK_SECRET` (the webhook secret until the
-setup wizard stores it in D1), plus the D1 binding in `wrangler.jsonc`. The rules per area are in
+Settings are stored in D1 (`settings`) and written by the setup wizard; the values outside D1 are Worker
+secrets — `SELUNA_SECRET` (the source of the encryption key) and `TELEGRAM_BOT_TOKEN`, both asked for by the
+deploy form, and the optional `GITHUB_WEBHOOK_SECRET` (the webhook secret until the setup wizard stores it in
+D1) — plus the D1 binding `DB` and the cron triggers in `wrangler.jsonc`
+([decision 0013](decisions/0013-deploy-to-cloudflare-and-workers-builds.md)). The rules per area are in
 [`areas/`](areas/README.md).
 
 ## Security model
@@ -92,8 +94,12 @@ The concrete areas are listed in [`.squad/project.md`](../.squad/project.md) (*S
 
 ## Deployment
 
-Wrangler bundles the Worker (`npm run build` is `wrangler deploy --dry-run --outdir dist`); a user deploys it to
-their own Cloudflare account. A release is created only by pushing a `v*` tag, which the release workflow
+Wrangler bundles the Worker (`npm run build` is `wrangler deploy --dry-run --outdir dist`). A user deploys it to
+their own Cloudflare account with the Deploy to Cloudflare button, which copies the repository into the user's
+GitHub account, provisions the D1 database and asks for the Worker secrets; from then on every push to `main` of
+that copy starts a Workers Build that applies the D1 migrations and then deploys
+([decision 0013](decisions/0013-deploy-to-cloudflare-and-workers-builds.md), rules in
+[`areas/deployment.md`](areas/deployment.md)). A release is created only by pushing a `v*` tag, which the release workflow
 (`.github/workflows/release.yml`) verifies before it publishes
 ([decision 0009](decisions/0009-releases-only-by-tag-push.md)).
 <!-- project:end architecture -->

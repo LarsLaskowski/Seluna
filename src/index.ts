@@ -11,4 +11,8 @@ export default {
   fetch(request: Request, env: Env): Promise<Response> {
     return handleRequest(request, { version, log, webhookSecret: secretFromEnv(env) });
   },
+  /** Cron triggers from `wrangler.jsonc`; no job runs yet (the jobs follow in issue #18). */
+  scheduled(): Promise<void> {
+    return Promise.resolve();
+  },
 } satisfies ExportedHandler<Env>;
