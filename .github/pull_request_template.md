@@ -46,6 +46,7 @@ Please provide a summary of the tests affected by this work and any unique strat
 - [ ] I have updated the project documentation ([`README.md`](../README.md), [`ARCHITECTURE.md`](../docs/ARCHITECTURE.md)) to reflect my changes.
 - [ ] I have read the [CONTRIBUTING](../docs/CONTRIBUTING.md) documentation and followed the project's code style guidelines.
 - [ ] New dependencies, if any, were added the way *Dependencies* in `.squad/stack.md` prescribes.
+
 <!-- project:begin checklist -->
 - [ ] I have updated the `Unreleased` section of [`CHANGELOG.md`](../CHANGELOG.md) for user-visible changes.
 - [ ] I have rerun `wrangler types` and committed `worker-configuration.d.ts` if `wrangler.jsonc` changed.
