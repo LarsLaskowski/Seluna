@@ -29,9 +29,11 @@ behavior the change delivers.
 - B6: The first credential written also stores the key check value in `meta`, in the same transaction; a write
   while `secrets` holds a credential but the key check value is absent reports "corrupt" and writes nothing.
 - B7: After `SELUNA_SECRET` changed, reading a stored credential reports "secret changed", and writing one reports
-  "secret changed" and changes nothing.
+  "secret changed" and changes nothing. A well-formed key check value that was altered cannot be told apart from
+  one under another `SELUNA_SECRET` and reports "secret changed" too.
 - B8: A stored credential whose ciphertext was altered, is malformed, or was copied from another row reports
-  "corrupt"; so does a stored credential when the key check value is absent or malformed, and one whose plaintext
+  "corrupt"; so does a stored credential when the key check value is absent or malformed (not exactly one `.`
+  between a 16-character base64 IV and a padded base64 ciphertext of at least 24 characters), and one whose plaintext
   is not valid UTF-8 or whose ciphertext is shorter than the tag.
 - B9: The encryption key is derived with HKDF-SHA256 from `SELUNA_SECRET`, salt and info `seluna/secrets/v1`, so a
   value encrypted by any implementation of those parameters decrypts.

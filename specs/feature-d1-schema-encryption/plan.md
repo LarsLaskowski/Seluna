@@ -89,6 +89,13 @@ the same for another; the tests narrow the `undefined` away with an assertion, n
   - S `checkKey reports corrupt when the key check value decrypts to another text` (the test writes
     `encrypt(keyA, "other", "meta/key_check")` into `meta`).
   - S `writeSecret reports corrupt when the key check value is malformed and writes nothing`.
+  - S `readSecret reports corrupt when the key check value has one dot but malformed parts` (`it.each` over
+    `abc.def`, `.`, `not base64!.x`, `AAAAAAAAAAAAAAAA.`, a 15-character IV with 24 `A` ciphertext, a 16-`A` IV
+    with 20 `A` ciphertext (15 bytes), and a 16-`A` IV with 22 `A` unpadded ciphertext).
+  - S `writeSecret reports corrupt when the key check value has one dot but malformed parts and writes nothing`
+    (`abc.def`; `secrets` stays empty, the `meta` row unchanged).
+  - S `readSecret reports secret-changed for a well-formed key check value that does not decrypt` (16 `A`, `.`,
+    24 `A`: the boundary that is well-formed).
   - S `writeSecret reports corrupt and writes nothing when secrets holds a credential but the key check value is
     absent` (a credential written, the `key_check` row deleted with SQL, then a write of another name: result
     `corrupt`, `secrets` byte-identical, no `key_check` row).
@@ -108,6 +115,9 @@ the same for another; the tests narrow the `undefined` away with an assertion, n
   - C `decrypt returns undefined for a plaintext that is not valid UTF-8` (the test generates its own AES-GCM key
     with `crypto.subtle.generateKey` and seals the bytes `0xff 0xfe` with additional data `test/utf8` directly
     through `crypto.subtle.encrypt`; `decrypt` with that key and context returns `undefined`).
+  - C `decrypt returns a plaintext that starts with a byte order mark unchanged` (plaintext written as the escape
+    `\uFEFF` followed by `value` in the source; the test asserts the input's `charCodeAt(0)` is `0xfeff` and its
+    `length` is 6, so a lost escape fails the arrange step; the result equals the input).
 - [ ] AC7: Key derivation pinned.
   - C `decrypt opens the known vector produced with HKDF-SHA256, salt and info seluna/secrets/v1` — the Tester
     produces the vector once with Node 24's Web Crypto in a scratch script that does **not** import `src/`
@@ -193,7 +203,9 @@ No content is supplied verbatim by the issue (no fixture, image or configuration
      per byte — no spread of a large array into one call).
 3. **`src/store/secrets.ts`** — the only D1 code of this change:
    - A private `evaluateKeyCheck(key, row)` turns the `meta` row (or its absence) into a `KeyCheckResult`: no row →
-     `unset`; value not a string or not of the form `<iv>.<ciphertext>` (exactly one `.`) → `corrupt`;
+     `unset`; value not a string or not well-formed → `corrupt` (well-formed: exactly one `.`, `<iv>` matches
+     `/^[A-Za-z0-9+/]{16}$/`, `<ciphertext>` matches `/^[A-Za-z0-9+/]+={0,2}$/` with a length that is a multiple
+     of 4 and at least 24 — decided after review round 1, see *Lead decisions*);
      `decrypt(…, "meta/key_check")` `undefined` → `changed`; plaintext other than `KEY_CHECK_PLAINTEXT` →
      `corrupt`; else `match`. It also hands back the stored text, which `writeSecret` conditions on.
    - `checkKey(db, key)`: `SELECT value FROM meta WHERE key = 'key_check'` with `first()`, then `evaluateKeyCheck`.
@@ -562,6 +574,20 @@ characters" for `SELUNA_SECRET`: no change.
 - `docs/decisions/0007-github-app-credentials-encrypted-in-d1.md` — extended in place (unreleased; no `v*` tag
   exists), status `Proposed`, area `Storage`.
 - `docs/decisions/0014-d1-schema-and-data-access.md` (Proposed) — new.
+
+## Lead decisions
+
+- **Review round 1, blocking (`evaluateKeyCheck` reports a malformed one-dot key check as secret changed):** option
+  (a), fix the code. The area document, B8 and AC5 already promised corrupt; the code only checked for one `.`.
+  Option (b), redefining malformed as "no single dot", lost: it would leave values that never came from
+  `encrypt` (bad base64, a wrong IV length) reported as a changed key. Residual overlap that cannot be closed: a
+  well-formed but altered value is indistinguishable from another key under AES-GCM and reports secret changed;
+  written in the storage area, B7 and decision 0007 (*Consequences*). Owners: `src/store/secrets.ts` → Dev; the
+  three AC5 tests → Tester.
+- **Non-blocking, `ignoreBOM: true` untested:** fixed now; the AC6 test
+  `decrypt returns a plaintext that starts with a byte order mark unchanged` → Tester.
+- **Non-blocking (Security), `'key_check'` literals in the SQL duplicate `KEY_CHECK_META_KEY`:** fixed now; the
+  three statements bind `KEY_CHECK_META_KEY` as a parameter → Dev. Covered by the existing AC5 and AC9 tests.
 
 ## Out of scope / follow-ups
 

@@ -121,3 +121,7 @@ characters, checked in the only function that yields the key; each ciphertext is
 - A credential is written only while the key check value it was checked against is still stored, so a write
   racing a reset or a first write under another secret never leaves a credential no key check covers (the
   rules are in the area document).
+- A key check value is classified by its form before it is decrypted: a malformed one is corrupt, while a
+  well-formed one that fails to decrypt reports a changed secret even when it was altered, because AES-GCM's tag
+  check cannot tell an altered value from another key. Both lead to the same reset, so the overlap costs nothing
+  but the wording of the message.

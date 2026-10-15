@@ -96,13 +96,19 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
   writes leave it unchanged.
 - Before a credential is read or written, the key check value is decrypted with the current key:
 
-| Key check value                            | Read of a stored credential | Write of a credential        |
-| ------------------------------------------ | --------------------------- | ---------------------------- |
-| decrypts to `seluna/key-check/v1`          | the value                   | stored                       |
-| does not decrypt (another `SELUNA_SECRET`) | **secret changed**          | **secret changed**, no write |
-| absent, and `secrets` is empty             | **missing** (none stored)   | stored, key check written    |
-| absent, but `secrets` holds a credential   | **corrupt**                 | **corrupt**, no write        |
-| malformed, or decrypts to another text     | **corrupt**                 | **corrupt**, no write        |
+| Key check value                          | Read of a stored credential | Write of a credential        |
+| ---------------------------------------- | --------------------------- | ---------------------------- |
+| decrypts to `seluna/key-check/v1`        | the value                   | stored                       |
+| well-formed, but does not decrypt        | **secret changed**          | **secret changed**, no write |
+| absent, and `secrets` is empty           | **missing** (none stored)   | stored, key check written    |
+| absent, but `secrets` holds a credential | **corrupt**                 | **corrupt**, no write        |
+| malformed, or decrypts to another text   | **corrupt**                 | **corrupt**, no write        |
+
+- The key check value is well-formed when it is a text with exactly one `.`, the part before it is 16 base64
+  characters (a 12-byte IV) and the part after it is standard base64 with padding of at least 24 characters (at
+  least the 16-byte tag); anything else is malformed. A well-formed value that does not decrypt was sealed under
+  another `SELUNA_SECRET` or was altered afterwards; AES-GCM cannot tell the two apart, so both report
+  **secret changed**.
 
 - Reading a credential that was never stored reports **missing**, without looking at the key check value.
 - A stored credential whose own ciphertext does not decrypt (altered, copied from another row, malformed
