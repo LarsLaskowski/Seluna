@@ -21,8 +21,10 @@ bindings) rely on it.
 
 - The Worker has exactly one D1 binding, `DB`. The configuration names a default database, `seluna`, and carries
   no database id: the button provisions the database in the user's account and records its id in the copy.
-- The schema is defined by the migrations in `migrations/` (files `*.sql`, applied in name order, each once). A
-  released migration is never edited; a change to the schema is a new migration.
+- The schema is defined by the migrations in `migrations/` (files `*.sql`, applied in name order, each once); the
+  tables are described in [Storage](storage.md#tables). A migration is never edited once it is on `main`: every
+  copy deploys its `main`, so a merged migration may already be applied in a user's database, release or not. A
+  change to the schema is a new migration.
 
 ### Deploy command
 
@@ -76,5 +78,6 @@ bindings) rely on it.
 ## Not here
 
 - What the cron jobs do: [`ARCHITECTURE.md`](../ARCHITECTURE.md#cron-triggers).
+- The tables the migrations create and the encryption of stored credentials: [Storage](storage.md).
 - The public routes, including `/health`: [HTTP routes](http-routes.md).
 - Releases of the upstream repository: [`CONTRIBUTING.md`](../CONTRIBUTING.md#versioning-and-releases).

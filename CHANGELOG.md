@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- D1 schema: the first migration creates the tables for settings, encrypted credentials, deliveries, the outbox, installation tokens and instance metadata; credentials and installation tokens are stored only encrypted (AES-256-GCM, key derived from `SELUNA_SECRET`, which needs at least 32 characters).
 - Deploy to Cloudflare button: deploys Seluna into your own Cloudflare account with a D1 database `DB` and the secrets `SELUNA_SECRET` and `TELEGRAM_BOT_TOKEN`; every push to `main` of the copy applies the D1 migrations and deploys. Cron triggers every 10 minutes and daily (no jobs yet).
 - Cloudflare Workers project skeleton in TypeScript.
 - HTTP routes: `GET /health` with the version of the build, `POST /webhook` (see below), 404 with an empty body for everything else, 413 for request bodies over 1 MiB, and one log entry per request with method, path and status.

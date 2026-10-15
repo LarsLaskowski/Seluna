@@ -16,7 +16,7 @@ files or endpoints.
   with the setup credential; session cookies are `HttpOnly`, `Secure`, `SameSite=Strict`, and the endpoint is
   rate-limited and closed once setup is complete unless the owner logs in.
 - **Encrypted credentials:** the GitHub App ID, private key and webhook secret live in the D1 table `secrets` as
-  AES-256-GCM ciphertext (random 96-bit nonce per value); the key comes from the Worker secret `SELUNA_SECRET`. The
+  AES-256-GCM ciphertext (random 96-bit nonce per value; code in `src/crypto.ts` and `src/store/secrets.ts`); the key comes from the Worker secret `SELUNA_SECRET`. The D1 table `token_cache` holds installation tokens encrypted the same way, each ciphertext is bound to its row (additional data), and a key check value in `meta` reports a changed `SELUNA_SECRET`. The
   Telegram bot token is the Worker secret `TELEGRAM_BOT_TOKEN`. Worker secrets are set through the deploy form or
   Wrangler and never committed (`.gitignore` ignores `.dev.vars*` and `.env*`, the files Wrangler loads local secrets
   from, except `.dev.vars.example` and `.env.example`, which hold names and descriptions only). Nothing secret is
@@ -66,7 +66,7 @@ change with it.
 - the message formatting and its escaping, the component list in `docs/ARCHITECTURE.md` and the rule list in `README.md`
 
 **A new or changed D1 table or column** touches:
-- a new migration (never an edited one), the access module and its tests, the cleanup cron if rows expire
+- a new migration (never an edited one), the access module under `src/store/` and its tests, the cleanup cron if rows expire
 - the D1 table list in `docs/ARCHITECTURE.md`
 
 **A new or changed cron job** touches:
