@@ -18,3 +18,4 @@ are quoted in full.
 | 2026-10-15 17:18 | 6 Coverage pass | squad-tester | Task 10 done: exports guard test + BLOB corrupt test; 149 tests; coverage 99.0%; line 85 defensive guard unreachable (accepted gap) (sonnet/medium · 61,051 tokens · 6 tool uses · 60 s) |
 | 2026-10-15 17:18 | 7 Code check | Orchestrator | Gates on 194c6c7 pass: format, typecheck, 149 tests, analyzer 0, coverage 99.0%, scope-check, decision-check; main already merged |
 | 2026-10-15 17:19 | 8 Review (diff) | squad-security | APPROVED at 194c6c7; 2 non-blocking: key_check literal duplicated in SQL, no ignoreBOM test (opus/medium · 49,175 tokens · 6 tool uses · 55 s) |
+| 2026-10-15 17:21 | 8 Review round 1 | squad-reviewer | BLOCKING 1 (key check with one '.' but malformed reports secret-changed, docs say corrupt), NON-BLOCKING 1 (ignoreBOM untested) (opus/medium · 90,052 tokens · 23 tool uses · 166 s) |
