@@ -21,3 +21,5 @@ are quoted in full.
 | 2026-10-15 17:21 | 8 Review round 1 | squad-reviewer | BLOCKING 1 (key check with one '.' but malformed reports secret-changed, docs say corrupt), NON-BLOCKING 1 (ignoreBOM untested) (opus/medium · 90,052 tokens · 23 tool uses · 166 s) |
 | 2026-10-15 17:23 | 8 Lead decide | squad-lead | Option (a): code fix for malformed key check -> corrupt; BOM test and SQL literal binding fixed now; docs/spec/plan/0007 updated (opus/medium · 50,509 tokens · 20 tool uses · 110 s) |
 | 2026-10-15 17:24 | 8 Fix round 1 tests | squad-tester | Added malformed key check tests (8 fail as intended) and BOM test (passes) (sonnet/medium · 4,901 tokens · 3 tool uses · 30 s · continued) |
+| 2026-10-15 17:25 | 8 Fix round 1 | squad-dev | Malformed key check -> corrupt via isWellFormedKeyCheck; key_check bound; 159 tests, analyzer 0, coverage 99.1% (sonnet/medium · 32,399 tokens · 3 tool uses · 32 s · continued) |
+| 2026-10-15 17:25 | 7 Code check (fix round) | Orchestrator | Gates on bc90dc8 pass: format, typecheck, 159 tests, analyzer 0, coverage 99.1%, scope, decision |
