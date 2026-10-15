@@ -17,7 +17,7 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 | Outbox | The D1 `outbox` table and delivery to the Telegram Bot API, with retry |
 | Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md)), the Telegram chat, the setup login |
 | Cron (`scheduled` handler) | Every 10 minutes: retry the outbox and clean up D1. Daily: check for a new Seluna release |
-| D1 | `settings`, `secrets` (AES-256-GCM), `deliveries`, `outbox`, `token_cache`, `meta` |
+| D1 (`src/store/`) | `settings`, `secrets` (AES-256-GCM), `deliveries`, `outbox`, `token_cache` (AES-256-GCM), `meta`; the only code that reads or writes D1 |
 
 ```mermaid
 flowchart LR
@@ -72,8 +72,14 @@ only. The rules are in [`areas/http-routes.md`](areas/http-routes.md)
 | `secrets` | GitHub App credentials, AES-256-GCM ciphertext |
 | `deliveries` | Processed `X-GitHub-Delivery` ids, for deduplication |
 | `outbox` | Notifications waiting for, or past, delivery |
-| `token_cache` | Short-lived GitHub installation tokens |
-| `meta` | Schema version and the result of the release check |
+| `token_cache` | Short-lived GitHub installation tokens, AES-256-GCM ciphertext |
+| `meta` | The last notified release, the time of the last delivery and the key check value that detects a changed `SELUNA_SECRET` |
+
+All six tables come from the first migration; only the modules under `src/store/` access them. The key for the
+encrypted columns is derived from `SELUNA_SECRET` and never stored, so a reader of the database alone learns no
+credential. Columns, formats and the key check are in [`areas/storage.md`](areas/storage.md)
+([decision 0007](decisions/0007-github-app-credentials-encrypted-in-d1.md),
+[decision 0014](decisions/0014-d1-schema-and-data-access.md)).
 
 ## Configuration
 

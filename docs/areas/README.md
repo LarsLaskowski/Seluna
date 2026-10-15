@@ -30,5 +30,6 @@ operator or another component can rely on — formats, limits, error behavior, g
 | ---- | ----- | -------- |
 | [HTTP routes](http-routes.md) | The public routes with their status and body, the request body size limit, the webhook signature check, the per-request log entry | Webhook event processing, the setup wizard |
 | [Deployment](deployment.md) | The Deploy to Cloudflare button, the D1 binding and migrations, the Worker secrets, the cron triggers, the deploy command of Workers Builds | What the cron jobs do, the release process |
+| [Storage](storage.md) | The D1 tables and columns, data access through `src/store/`, the encryption of credentials and installation tokens, the key check for a changed `SELUNA_SECRET` | How migrations are applied (Deployment), what each setting means (setup wizard), row cleanup (cron) |
 
 <!-- project:end area-index -->
