@@ -16,3 +16,4 @@ are quoted in full.
 | 2026-10-15 20:07 | 6 Implement | squad-dev | Done; 383 tests pass, lint/typecheck/build clean; coverage 98.2% new lines; U1 confirmed; deviation: verifySelunaSecret key via getRandomValues (sonnet/medium · 147,146 tokens · 20 tool uses · 212 s) |
 | 2026-10-15 20:08 | 6 Coverage | squad-tester | LINEAR_RATIO_LIMIT=44 (max measured 14.6); +1 handler test; accepted gap handler.ts 92-93 (never branch); gate 98.6% (sonnet/medium · 4,291 tokens · 4 tool uses · 90 s · continued) |
 | 2026-10-15 20:09 | 7 Code check | Orchestrator | Format, analyzer (0 findings), 384 tests, coverage 98.6%, scope, decision checks pass; main merged already |
+| 2026-10-15 20:11 | 8 Review (diff) | squad-security | APPROVED at 33e5782; non-blocking: cookie tossing on custom domains -> bind CSRF to session before #9-#11 add state-changing forms (issue/#9 plan) |
