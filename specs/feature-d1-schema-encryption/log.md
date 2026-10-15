@@ -13,3 +13,4 @@ are quoted in full.
 | 2026-10-15 17:06 | 2 Plan revise | squad-lead | RESULT: DONE; all Security and DA points accepted; keyFromEnv replaces deriveKey, AC8/AC9 added (opus/medium · 90,280 tokens · 51 tool uses · 349 s) |
 | 2026-10-15 17:07 | 3 Plan security review (delta) | squad-security | APPROVED (continued); conditional-write SQL measured on local D1 (opus/medium · 26,817 tokens · 5 tool uses · 53 s · continued) |
 | 2026-10-15 17:08 | 4 Skeleton | squad-dev | Task 1 done: src/crypto.ts, src/store/secrets.ts stubs; typecheck+build pass; eslint no-unused-vars on stubs expected until implementation (sonnet/medium · 59,916 tokens · 6 tool uses · 44 s) |
+| 2026-10-15 17:14 | 5 Tests first | squad-tester | Tasks 2-6 done: 39 crypto/secrets + 15 migration tests fail on skeleton, index.test.ts green; U1 resolved; guard test (exports list) deferred to coverage pass (sonnet/medium · 132,476 tokens · 23 tool uses · 317 s) |
