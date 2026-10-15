@@ -36,10 +36,8 @@ export async function isValidCsrfToken(
   if (mac === undefined) {
     return false;
   }
-  let valid = false;
-  for (const value of cookieValues.filter(isWellFormedCsrfCookieValue).slice(0, MAX_COOKIE_VALUES)) {
-    // Every candidate is checked, so the time does not tell which cookie value matched.
-    valid = (await crypto.subtle.verify("HMAC", key, mac, utf8(value))) || valid;
-  }
-  return valid;
+  const candidates = cookieValues.filter(isWellFormedCsrfCookieValue).slice(0, MAX_COOKIE_VALUES);
+  // Every candidate is checked, so the time does not tell which cookie value matched.
+  const results = await Promise.all(candidates.map((value) => crypto.subtle.verify("HMAC", key, mac, utf8(value))));
+  return results.includes(true);
 }
