@@ -12,4 +12,4 @@ are quoted in full.
 | 2026-10-15 17:01 | 2 Plan revise | squad-lead | launched: revise for Security blocking finding + DA minors |
 | 2026-10-15 17:06 | 2 Plan revise | squad-lead | RESULT: DONE; all Security and DA points accepted; keyFromEnv replaces deriveKey, AC8/AC9 added (opus/medium · 90,280 tokens · 51 tool uses · 349 s) |
 | 2026-10-15 17:07 | 3 Plan security review (delta) | squad-security | APPROVED (continued); conditional-write SQL measured on local D1 (opus/medium · 26,817 tokens · 5 tool uses · 53 s · continued) |
-| 2026-10-15 17:08 | 4 Skeleton | squad-dev | Task 1 done: src/crypto.ts, src/store/secrets.ts stubs; typecheck+build pass; eslint no-unused-vars on stubs expected until implementation |
+| 2026-10-15 17:08 | 4 Skeleton | squad-dev | Task 1 done: src/crypto.ts, src/store/secrets.ts stubs; typecheck+build pass; eslint no-unused-vars on stubs expected until implementation (sonnet/medium · 59,916 tokens · 6 tool uses · 44 s) |
