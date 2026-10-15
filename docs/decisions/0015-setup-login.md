@@ -1,6 +1,6 @@
 # 0015: Setup login
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-15
 - **Area:** Setup wizard
 - **Source:** Issue #8
