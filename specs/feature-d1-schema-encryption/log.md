@@ -20,4 +20,4 @@ are quoted in full.
 | 2026-10-15 17:19 | 8 Review (diff) | squad-security | APPROVED at 194c6c7; 2 non-blocking: key_check literal duplicated in SQL, no ignoreBOM test (opus/medium · 49,175 tokens · 6 tool uses · 55 s) |
 | 2026-10-15 17:21 | 8 Review round 1 | squad-reviewer | BLOCKING 1 (key check with one '.' but malformed reports secret-changed, docs say corrupt), NON-BLOCKING 1 (ignoreBOM untested) (opus/medium · 90,052 tokens · 23 tool uses · 166 s) |
 | 2026-10-15 17:23 | 8 Lead decide | squad-lead | Option (a): code fix for malformed key check -> corrupt; BOM test and SQL literal binding fixed now; docs/spec/plan/0007 updated (opus/medium · 50,509 tokens · 20 tool uses · 110 s) |
-| 2026-10-15 17:24 | 8 Fix round 1 tests | squad-tester | Added malformed key check tests (8 fail as intended) and BOM test (passes) |
+| 2026-10-15 17:24 | 8 Fix round 1 tests | squad-tester | Added malformed key check tests (8 fail as intended) and BOM test (passes) (sonnet/medium · 4,901 tokens · 3 tool uses · 30 s · continued) |
