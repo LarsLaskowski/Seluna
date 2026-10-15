@@ -11,6 +11,10 @@ function utf8(text: string): Uint8Array<ArrayBuffer> {
   return new Uint8Array(new TextEncoder().encode(text));
 }
 
+function sessionMessage(sessionToken: string, cookieValue: string): Uint8Array<ArrayBuffer> {
+  return utf8(`session.${sessionToken}.${cookieValue}`);
+}
+
 /** 32 random bytes as base64url without padding (43 characters). */
 export function newCsrfCookieValue(): string {
   return toBase64Url(crypto.getRandomValues(new Uint8Array(CSRF_COOKIE_VALUE_BYTES)));
@@ -43,18 +47,25 @@ export async function isValidCsrfToken(
 }
 
 /** The form token of a signed-in form: HMAC-SHA256 under `key` (from `signingKeyFromEnv(env, "setup-csrf")`) of the ASCII text `session.<sessionToken>.<cookieValue>`, base64url without padding; `sessionToken` is the request's valid session token. */
-export function sessionCsrfTokenFor(key: CryptoKey, sessionToken: string, cookieValue: string): Promise<string> {
-  void [key, sessionToken, cookieValue];
-  throw new Error("Not implemented");
+export async function sessionCsrfTokenFor(key: CryptoKey, sessionToken: string, cookieValue: string): Promise<string> {
+  return toBase64Url(new Uint8Array(await crypto.subtle.sign("HMAC", key, sessionMessage(sessionToken, cookieValue))));
 }
 
 /** Whether `token` verifies, in constant time, as the signed-in form token of `sessionToken` and one of the first four well-formed values in `cookieValues`. */
-export function isValidSessionCsrfToken(
+export async function isValidSessionCsrfToken(
   key: CryptoKey,
   token: string | null,
   sessionToken: string,
   cookieValues: readonly string[],
 ): Promise<boolean> {
-  void [key, token, sessionToken, cookieValues];
-  throw new Error("Not implemented");
+  const mac = token === null ? undefined : fromBase64Url(token);
+  if (mac === undefined) {
+    return false;
+  }
+  const candidates = cookieValues.filter(isWellFormedCsrfCookieValue).slice(0, MAX_COOKIE_VALUES);
+  // Every candidate is checked, so the time does not tell which cookie value matched.
+  const results = await Promise.all(
+    candidates.map((value) => crypto.subtle.verify("HMAC", key, mac, sessionMessage(sessionToken, value))),
+  );
+  return results.includes(true);
 }

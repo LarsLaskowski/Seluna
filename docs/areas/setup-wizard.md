@@ -98,15 +98,27 @@ it and add their pages behind the login.
 
 ### CSRF protection
 
-- Every form carries the hidden field `csrf`. Its value is the HMAC-SHA256 (base64url without padding) of the
-  value of the cookie `seluna_csrf`, under a key derived like the session key with salt and info
-  `seluna/setup-csrf/v1`.
+- Every form carries the hidden field `csrf`. There are two kinds of form: the **login form** (the login page) and
+  the **signed-in forms** (every form on a page answered with a valid session; today the sign-out form on the start
+  page). The key is derived like the session key with salt and info `seluna/setup-csrf/v1`.
+- Login form: the value is the HMAC-SHA256 (base64url without padding) of the value of the cookie `seluna_csrf`.
+- Signed-in form: the value is the HMAC-SHA256 (base64url without padding), under the same key, of the ASCII text
+  `session.<session token>.<cookie value>`, where `<session token>` is the first valid `seluna_session` value of the
+  request (the order of _Session_) and `<cookie value>` the value of `seluna_csrf` the page uses. The page renders
+  it for its own cookie value.
 - `seluna_csrf` holds 32 random bytes as base64url without padding (43 characters). A page with a form takes the
   first well-formed value among the first four `seluna_csrf` values of the request; when there is none it draws a new one and sets the cookie (no
   `Max-Age`, so it ends with the browser session).
 - A submitted form is valid when its body has exactly one `csrf` field and that field verifies, in constant time,
-  against one of the well-formed values among the first four `seluna_csrf` values of the request. A missing, empty, repeated or
-  wrong field, a missing cookie, or a token from another cookie value or another `SELUNA_SECRET` is rejected.
+  against one of the well-formed values among the first four `seluna_csrf` values of the request, with the scheme of
+  the form: a signed-in form is valid only with a token of the session the request carries, and `POST /setup/login`
+  accepts only the login form's token, also when a session is present. A missing, empty, repeated or wrong field, a
+  missing cookie, a token from another cookie value, another session or another `SELUNA_SECRET`, an unbound
+  login-form token on a signed-in form, or a session-bound token on the login form is rejected.
+- What this protects: a cookie planted by a host under the same registrable domain (on a custom domain, or another
+  Worker of the same account under `<subdomain>.workers.dev`) is useless on a signed-in form, because its token needs
+  the owner's session. On the login form it still yields a valid token, which is harmless there because a login also
+  needs `SELUNA_SECRET`.
 
 ### Cookies
 
@@ -178,13 +190,16 @@ The notices and the _not configured_ page, in English (the German texts are thei
 - At most four values per cookie name are looked at; the `Accept-Language` and `Cookie` headers are otherwise
   limited only by the platform's header size, and reading them takes time proportional to their length, also for
   adversarial input such as long runs of spaces, `;` or `,`.
+- A host under the same registrable domain that plants cookies can still make a page look signed out or a form fail
+  (at most four values per cookie name are read, and the browser sends a cookie with a longer path first), but it
+  cannot make a form succeed.
 - Nothing in this area is logged beyond the per-request entry of [HTTP routes](http-routes.md#logging) (method,
   path, status).
 
 ## Related decisions
 
 - [`decisions/0015-setup-login.md`](../decisions/0015-setup-login.md) — stateless signed session, signed
-  double-submit CSRF token, one global attempt count taken before the check, the lock's timing, the hashed inline
+  double-submit CSRF token bound to the session on signed-in forms, one global attempt count taken before the check, the lock's timing, the hashed inline
   style, the language cookie.
 - [`decisions/0007-github-app-credentials-encrypted-in-d1.md`](../decisions/0007-github-app-credentials-encrypted-in-d1.md)
   — the 32-character minimum of `SELUNA_SECRET` and separate keys per purpose.

@@ -7,8 +7,10 @@ import {
   CSRF_FIELD,
   csrfTokenFor,
   isValidCsrfToken,
+  isValidSessionCsrfToken,
   isWellFormedCsrfCookieValue,
   newCsrfCookieValue,
+  sessionCsrfTokenFor,
 } from "./csrf";
 import { LANGUAGE_COOKIE, LANGUAGE_COOKIE_MAX_AGE, resolveLanguage } from "./language";
 import type { Language } from "./language";
@@ -63,11 +65,23 @@ async function formPage(context: Context, form: SetupForm, status: number, notic
   const existing = context.csrfValues[0];
   const cookieValue = existing ?? newCsrfCookieValue();
   const cookies = existing === undefined ? [setupCookie(CSRF_COOKIE, cookieValue)] : [];
-  const token = await csrfTokenFor(context.csrfKey, cookieValue);
-  const html =
-    form.kind === "login"
-      ? renderLoginPage(context.language, token, notice)
-      : renderStartPage(context.language, token, notice);
+  let html: string;
+  switch (form.kind) {
+    case "login":
+      html = renderLoginPage(context.language, await csrfTokenFor(context.csrfKey, cookieValue), notice);
+      break;
+    case "start":
+      html = renderStartPage(
+        context.language,
+        await sessionCsrfTokenFor(context.csrfKey, form.session, cookieValue),
+        notice,
+      );
+      break;
+    default: {
+      const unreachable: never = form;
+      return unreachable;
+    }
+  }
   return htmlResponse(html, status, context.language, [...context.languageCookies, ...cookies]);
 }
 
@@ -98,10 +112,21 @@ async function readForm(context: Context): Promise<URLSearchParams | Response> {
 }
 
 async function hasValidCsrf(context: Context, fields: URLSearchParams, form: SetupForm): Promise<boolean> {
-  void form;
   const tokens = fields.getAll(CSRF_FIELD);
   const [token] = tokens;
-  return tokens.length === 1 && (await isValidCsrfToken(context.csrfKey, token ?? null, context.csrfValues));
+  if (tokens.length !== 1) {
+    return false;
+  }
+  switch (form.kind) {
+    case "login":
+      return isValidCsrfToken(context.csrfKey, token ?? null, context.csrfValues);
+    case "start":
+      return isValidSessionCsrfToken(context.csrfKey, token ?? null, form.session, context.csrfValues);
+    default: {
+      const unreachable: never = form;
+      return unreachable;
+    }
+  }
 }
 
 const LOGIN_FORM: SetupForm = { kind: "login" };
