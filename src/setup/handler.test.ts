@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_BODY_BYTES } from "../body";
 import { LOGIN_ATTEMPTS_META_KEY, LOGIN_LOCK_MS } from "../store/login-attempts";
-import { CSRF_COOKIE, csrfTokenFor } from "./csrf";
+import { CSRF_COOKIE, csrfTokenFor, sessionCsrfTokenFor } from "./csrf";
 import { handleSetup, isSetupPath } from "./handler";
 import type { SetupDeps } from "./handler";
 import { contentSecurityPolicy, escapeHtml } from "./pages";
@@ -69,6 +69,21 @@ const csrfCookie = (value: string = CSRF_VALUE): string => `${CSRF_COOKIE}=${val
 
 async function csrfToken(cookieValue: string = CSRF_VALUE, secret: string = SECRET): Promise<string> {
   return csrfTokenFor(await signingKeyFor(secret, "setup-csrf"), cookieValue);
+}
+
+/** The token of a signed-in form: bound to the session token `session` and the cookie value. */
+async function sessionCsrfToken(
+  session: string,
+  cookieValue: string = CSRF_VALUE,
+  secret: string = SECRET,
+): Promise<string> {
+  return sessionCsrfTokenFor(await signingKeyFor(secret, "setup-csrf"), session, cookieValue);
+}
+
+/** The value of the hidden `csrf` input of `html`, or an empty text. */
+function renderedToken(html: string): string {
+  const input = /<input\b(?=[^>]*type="hidden")(?=[^>]*name="csrf")[^>]*>/.exec(html)?.[0] ?? "";
+  return /value="([^"]*)"/.exec(input)?.[1] ?? "";
 }
 
 /** A login submission with a valid CSRF token and the given `secret` field. */
@@ -333,6 +348,62 @@ describe("handleSetup CSRF", () => {
     expect(setCookiesOf(response, SESSION_COOKIE), "session cookies").toEqual([]);
   });
 
+  it.each([
+    {
+      name: "the unbound login-form token of the request's cookie value",
+      cookies: async () => [await sessionCookie(), csrfCookie()],
+      token: () => csrfToken(),
+    },
+    {
+      name: "bound to another valid session",
+      cookies: async () => [await sessionCookie(), csrfCookie()],
+      token: async () => sessionCsrfToken(await sessionToken(new Date(NOW.getTime() - 3_600_000))),
+    },
+    {
+      name: "the unbound token of a second, tossed seluna_csrf value",
+      cookies: async () => [await sessionCookie(), csrfCookie(), csrfCookie(OTHER_CSRF_VALUE)],
+      token: () => csrfToken(OTHER_CSRF_VALUE),
+    },
+  ])("handleSetup rejects a logout whose token is $name with 403 and keeps the session", async ({ cookies, token }) => {
+    const response = await call("/setup/logout", {
+      method: "POST",
+      cookies: await cookies(),
+      body: form([["csrf", await token()]]),
+    });
+
+    expect(response.status, "status").toBe(403);
+    const html = await response.text();
+    expectStartPage(html);
+    expect(html, "form expired notice").toContain(noticeText("form-expired"));
+    expect(setCookiesOf(response, SESSION_COOKIE), "session cookies").toEqual([]);
+  });
+
+  it("handleSetup rejects a login with a session-bound token with 403", async () => {
+    const response = await call("/setup/login", {
+      method: "POST",
+      cookies: [csrfCookie()],
+      body: form([
+        ["csrf", await sessionCsrfToken(await sessionToken())],
+        ["secret", SECRET],
+      ]),
+    });
+
+    expect(response.status, "status").toBe(403);
+    const html = await response.text();
+    expectLoginPage(html);
+    expect(html, "form expired notice").toContain(noticeText("form-expired"));
+    expect(setCookiesOf(response, SESSION_COOKIE), "session cookies").toEqual([]);
+  });
+
+  it("handleSetup accepts the unbound login token while a session cookie is present", async () => {
+    const init = await loginInit();
+
+    const response = await call("/setup/login", { ...init, cookies: [await sessionCookie(), csrfCookie()] });
+
+    expect(response.status, "status").toBe(303);
+    expect(response.headers.get("Location"), "Location").toBe("/setup");
+  });
+
   it("handleSetup sets a new seluna_csrf cookie on the login page when the request has none", async () => {
     const response = await call("/setup");
 
@@ -411,11 +482,48 @@ describe("handleSetup sign-out and the signed-in branch", () => {
     const response = await call("/setup/logout", {
       method: "POST",
       cookies: [await sessionCookie(), csrfCookie()],
-      body: form([["csrf", await csrfToken()]]),
+      body: form([["csrf", await sessionCsrfToken(await sessionToken())]]),
     });
 
     expect(response.status, "status").toBe(303);
     expect(response.headers.get("Location"), "Location").toBe("/setup");
+    expect(response.headers.getSetCookie(), "Set-Cookie").toContain(
+      `${SESSION_COOKIE}=; Max-Age=0; ${SESSION_COOKIE_ATTRIBUTES}`,
+    );
+  });
+
+  it("handleSetup renders the session-bound token of the request's seluna_csrf cookie on the start page", async () => {
+    const response = await call("/setup", { cookies: [await sessionCookie(), csrfCookie()] });
+
+    const html = await response.text();
+    expectStartPage(html);
+    expect(html, "page").toContain(`value="${await sessionCsrfToken(await sessionToken())}"`);
+    expect(setCookiesOf(response, CSRF_COOKIE), "seluna_csrf cookies").toEqual([]);
+  });
+
+  it("handleSetup sets a new seluna_csrf cookie on the start page and renders its session-bound token", async () => {
+    const response = await call("/setup", { cookies: [await sessionCookie()] });
+
+    const cookies = setCookiesOf(response, CSRF_COOKIE);
+    const match = /^seluna_csrf=([A-Za-z0-9_-]{43}); Path=\/setup; HttpOnly; Secure; SameSite=Strict$/.exec(
+      cookies[0] ?? "",
+    );
+    expect(cookies.length, "number of seluna_csrf cookies").toBe(1);
+    expect(match, "form of the seluna_csrf cookie").not.toBeNull();
+    const session = await sessionToken();
+    expect(await response.text(), "page").toContain(`value="${await sessionCsrfToken(session, match?.[1] ?? "")}"`);
+  });
+
+  it("handleSetup accepts the token of the form-expired start page for a second logout", async () => {
+    const cookies = [await sessionCookie(), csrfCookie()];
+    const expired = await call("/setup/logout", { method: "POST", cookies, body: form([["csrf", await csrfToken()]]) });
+    const token = renderedToken(await expired.text());
+
+    const response = await call("/setup/logout", { method: "POST", cookies, body: form([["csrf", token]]) });
+
+    expect(expired.status, "status of the form-expired page").toBe(403);
+    expect(token, "rendered token").toBe(await sessionCsrfToken(await sessionToken()));
+    expect(response.status, "status").toBe(303);
     expect(response.headers.getSetCookie(), "Set-Cookie").toContain(
       `${SESSION_COOKIE}=; Max-Age=0; ${SESSION_COOKIE_ATTRIBUTES}`,
     );
