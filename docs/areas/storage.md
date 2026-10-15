@@ -57,17 +57,36 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
 
 - Nothing secret is kept in D1 in plain text: the GitHub App credentials (`secrets`) and the installation tokens
   (`token_cache`) are stored only encrypted.
+- Everything else is plain text on purpose, so a reader of the database sees it: `settings` (including the
+  Telegram chat id), `deliveries`, `meta` apart from the key check value, and the `outbox` rows, whose `text` and
+  `button_url` name repositories, pull request titles and branches, also of private repositories. None of these
+  grants access to anything.
 - A value is encrypted with AES-256-GCM under a random 12-byte IV drawn for every single write, with the default
   16-byte tag. The plaintext is the UTF-8 encoding of the value. IV and ciphertext are stored as standard base64
   with padding.
 - The key is derived with HKDF-SHA256 from the UTF-8 bytes of the Worker secret `SELUNA_SECRET`; salt and info
   are both the UTF-8 bytes of `seluna/secrets/v1`. The key never leaves the Worker's memory and is never stored.
-- Each value is bound to its place as additional authenticated data: the UTF-8 bytes of `secrets/<key>` for a
-  row of `secrets`, `token_cache/<installation_id>` (the id in decimal) for a row of `token_cache`, and
-  `meta/key_check` for the key check value. A ciphertext copied into another row does not decrypt there.
+- The key is used only for the values in D1. Any other key taken from `SELUNA_SECRET` (for example one that signs
+  the setup login's session, issue #8) is derived with an HKDF info of its own, never this one.
+- Each value is bound to its place as additional authenticated data, the UTF-8 bytes of:
+  - `secrets/<key>` for a row of `secrets`;
+  - `token_cache/<installation_id>/<expires_at>` for a row of `token_cache`, both numbers in decimal without
+    leading zeros, as JavaScript's `String()` writes an integer. This is the contract for the code that writes
+    and reads installation tokens (issue #15): its tests check that a stored token decrypts with exactly this
+    text. Because `expires_at` is part of it, a row whose expiry was changed afterwards does not decrypt and is
+    treated like a missing token;
+  - `meta/key_check` for the key check value.
+
+  A ciphertext copied into another row does not decrypt there.
+
 - `SELUNA_SECRET` counts as configured only when it is a string of at least 32 characters (Unicode code points,
-  so a character outside the Basic Multilingual Plane counts once). Without a configured `SELUNA_SECRET` nothing
-  is encrypted or decrypted.
+  so a character outside the Basic Multilingual Plane counts once); the value is used as it is, without trimming.
+  The only way the code obtains the key is from the Worker environment, through the same check, so no caller can
+  derive a key from a shorter secret.
+- Without a configured `SELUNA_SECRET` there is no key: nothing is encrypted or decrypted and nothing is written.
+  The setup wizard refuses to start (issue #8), and a component that needs a credential from D1 cannot read it
+  and answers as if the credential were missing — the webhook answers 503 without a body, as it does today
+  without a webhook secret ([HTTP routes](http-routes.md)).
 
 ### Key check
 
@@ -81,23 +100,30 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
 | ------------------------------------------ | --------------------------- | ---------------------------- |
 | decrypts to `seluna/key-check/v1`          | the value                   | stored                       |
 | does not decrypt (another `SELUNA_SECRET`) | **secret changed**          | **secret changed**, no write |
-| absent                                     | **corrupt**                 | stored, key check written    |
+| absent, and `secrets` is empty             | **missing** (none stored)   | stored, key check written    |
+| absent, but `secrets` holds a credential   | **corrupt**                 | **corrupt**, no write        |
 | malformed, or decrypts to another text     | **corrupt**                 | **corrupt**, no write        |
 
 - Reading a credential that was never stored reports **missing**, without looking at the key check value.
 - A stored credential whose own ciphertext does not decrypt (altered, copied from another row, malformed
-  base64 or IV) reports **corrupt**.
+  base64 or IV, a plaintext that is not valid UTF-8) reports **corrupt**.
+- A credential is only written while the key check value in the database is still the one checked before the
+  write (or, for the first credential, the one written in the same transaction). If another write or a reset
+  changed it in between, the write is not applied and is tried once more from the check; the second attempt
+  reports what it finds (stored, **secret changed** or **corrupt**). So no credential is ever stored without a
+  key check value that covers it: two first writes under the same `SELUNA_SECRET` both succeed, and a first
+  write under another `SELUNA_SECRET` at the same moment reports **secret changed** and writes nothing.
 - **Secret changed** is the dedicated result the setup wizard shows; its remedy is a reset that clears the
   stored credentials and the key check value and runs the setup again. **Corrupt** leads to the same reset.
+  The reset always creates new GitHub App credentials and never stores old ones again: D1's Time Travel keeps
+  earlier states of the database, including the deleted rows, for a while after the reset (Cloudflare documents
+  up to 30 days).
 
 ## Limits and errors
 
 - None of the results above carries the value, the key, the IV or the ciphertext, and nothing in this area is
   logged.
 - A value is limited only by D1's own row size limit; the credentials are a few kilobytes at most.
-- Two first writes under different `SELUNA_SECRET` values at the same moment can leave a credential that later
-  reports **secret changed**; one instance has one `SELUNA_SECRET`, so this needs a change of the Worker secret
-  during setup.
 
 ## Related decisions
 

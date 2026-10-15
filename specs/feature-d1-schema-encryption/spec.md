@@ -26,18 +26,24 @@ behavior the change delivers.
   rows.
 - B4: A credential written under a `SELUNA_SECRET` reads back as the same value under that `SELUNA_SECRET`.
 - B5: Reading a credential that was never written reports "missing".
-- B6: The first credential written also stores the key check value in `meta`, in the same transaction.
+- B6: The first credential written also stores the key check value in `meta`, in the same transaction; a write
+  while `secrets` holds a credential but the key check value is absent reports "corrupt" and writes nothing.
 - B7: After `SELUNA_SECRET` changed, reading a stored credential reports "secret changed", and writing one reports
   "secret changed" and changes nothing.
 - B8: A stored credential whose ciphertext was altered, is malformed, or was copied from another row reports
-  "corrupt"; so does a stored credential when the key check value is absent or malformed.
+  "corrupt"; so does a stored credential when the key check value is absent or malformed, and one whose plaintext
+  is not valid UTF-8 or whose ciphertext is shorter than the tag.
 - B9: The encryption key is derived with HKDF-SHA256 from `SELUNA_SECRET`, salt and info `seluna/secrets/v1`, so a
   value encrypted by any implementation of those parameters decrypts.
-- B10: `SELUNA_SECRET` counts as configured only when it is a string of at least 32 characters (code points);
-  otherwise no key is derived.
+- B10: `SELUNA_SECRET` counts as configured only when it is a string of at least 32 characters (code points),
+  used without trimming; otherwise no key is derived. The key is obtained only from the Worker environment through
+  this check: no exported function derives a key from a plain string.
 - B11: The installation-token table holds tokens only encrypted (`iv`, `ciphertext`), deviating from the issue's
   plain `token` column (decision 0007).
 - B12: Only modules under `src/store/` access D1.
+- B13: A credential is written only while the key check value checked before the write is still stored; when a
+  reset or another write changed it in between, the write is tried once more from the check, so no credential is
+  ever left without a key check value that covers it.
 
 ## Acceptance criteria
 
@@ -48,7 +54,8 @@ behavior the change delivers.
 - [ ] AC5: Key check value written with the first credential; absent or malformed key check reported (B6, B8).
 - [ ] AC6: Altered, malformed or moved ciphertext is reported as corrupt, never returned (B8).
 - [ ] AC7: Key derivation parameters pinned by a known vector (B9).
-- [ ] AC8: `SELUNA_SECRET` acceptance rule (B10).
+- [ ] AC8: `SELUNA_SECRET` acceptance rule, enforced where the key is obtained (B10).
+- [ ] AC9: A write racing a reset or another write never leaves an uncovered credential (B13).
 
 The testable form of each criterion, with its tests, is in [plan.md](plan.md).
 
@@ -59,8 +66,10 @@ The testable form of each criterion, with its tests, is in [plan.md](plan.md).
 - The reset of a changed `SELUNA_SECRET` (clearing `secrets`, `token_cache` and the key check) and its wizard page:
   issue #11.
 - Reading the webhook secret from D1 instead of `GITHUB_WEBHOOK_SECRET`, and Worker-secret precedence: issue #10.
-- Encrypting installation tokens on write: issue #15, with the functions of this change.
-- The setup login's own refusal of a short `SELUNA_SECRET`: issue #8 (it should reuse this change's check).
+- Encrypting installation tokens on write: issue #15, with the functions of this change and the additional data
+  `token_cache/<installation_id>/<expires_at>` the storage area fixes.
+- The setup login's own refusal of a short `SELUNA_SECRET`: issue #8 (it tests `keyFromEnv` for `undefined`, and
+  derives any session or signing key with an HKDF info of its own).
 - Wiring the store into the `fetch` or `scheduled` handler: no caller exists yet.
 
 ## Open questions

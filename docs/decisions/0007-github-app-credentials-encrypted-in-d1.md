@@ -45,6 +45,8 @@ How weak secrets are kept out:
 7. **Accept any non-empty secret here and leave the minimum to the login** — one rule fewer, but nothing then
    stops a short secret from protecting the stored credentials if a write path ever bypasses the wizard.
 
+How the minimum is enforced is weighed in options 17 to 19 below.
+
 How a changed `SELUNA_SECRET` is detected:
 
 8. **A known text encrypted under the key, stored in `meta` (`key_check`)** — checked by decrypting it, so the
@@ -56,9 +58,10 @@ How a changed `SELUNA_SECRET` is detected:
 
 What the ciphertext is bound to:
 
-11. **Additional authenticated data naming the row (`secrets/<key>`, `token_cache/<installation_id>`,
+11. **Additional authenticated data naming the row (`secrets/<key>`, `token_cache/<installation_id>/<expires_at>`,
     `meta/key_check`)** — a ciphertext moved to another row, for instance the webhook secret's into the App id's,
-    fails to decrypt instead of being used as the wrong credential. Costs nothing. Chosen.
+    fails to decrypt instead of being used as the wrong credential. For `token_cache` the plain `expires_at` is
+    bound too, so a changed expiry cannot make an expired token look valid. Costs nothing. Chosen.
 12. **No additional data** — what issue #7 describes; leaves row swapping by someone who can write D1 undetected.
 
 How encrypted values are stored:
@@ -77,11 +80,21 @@ The installation tokens:
 16. **Plain `token` column as listed in issue #7** — saves one encryption per cached token, but a database reader
     could use the token until it expires.
 
+Where the 32-character minimum is enforced:
+
+17. **In the only function that yields the key, `keyFromEnv(env)`** — it reads `SELUNA_SECRET` from the Worker
+    environment, checks the minimum and derives the key; the narrowing and the derivation stay private. No caller
+    can derive a key from a shorter secret, and the check runs at run time. Chosen.
+18. **A separate narrowing function and a public `deriveKey(secret: string)`** — the first draft of this change;
+    any later caller could derive a key from a short secret and bypass option 6.
+19. **A branded `SelunaSecret` type that only the narrowing function produces, taken by `deriveKey`** — closes the
+    bypass at the type level, but one cast reopens it, and the project allows a cast after a runtime check.
+
 ## Decision
 
 The GitHub App credentials (table `secrets`) and the installation tokens (table `token_cache`) are stored only as
 AES-256-GCM ciphertext under a key derived with HKDF-SHA256 from `SELUNA_SECRET`, which must have at least 32
-characters; each ciphertext is bound to its row, and a key check value in `meta` reports a changed
+characters, checked in the only function that yields the key; each ciphertext is bound to its row, and a key check value in `meta` reports a changed
 `SELUNA_SECRET` as its own result. The Telegram bot token is a Worker secret, not a value in D1
 ([decision 0013](0013-deploy-to-cloudflare-and-workers-builds.md)). The rules are in the area document
 [`areas/storage.md`](../areas/storage.md).
@@ -98,4 +111,13 @@ characters; each ciphertext is bound to its row, and a key check value in `meta`
   of them makes every stored value unreadable, so a change needs a new label (`seluna/secrets/v2`) and a
   migration path.
 - Issue #15 encrypts each cached installation token with the functions of this change before it writes
-  `token_cache`.
+  `token_cache`, with the additional data `token_cache/<installation_id>/<expires_at>`.
+- The reset after a changed or lost `SELUNA_SECRET` (issue #11) always creates new GitHub App credentials and never
+  stores old ones again: D1's Time Travel keeps the deleted rows restorable for a while (Cloudflare documents up to
+  30 days), so re-storing them would keep a possibly exposed key alive.
+- Any other key taken from `SELUNA_SECRET`, such as a session or signing key for the setup login (issue #8), is
+  derived with its own HKDF info next to `keyFromEnv` in `src/crypto.ts`; the storage key is never reused for
+  another purpose.
+- A credential is written only while the key check value it was checked against is still stored, so a write
+  racing a reset or a first write under another secret never leaves a credential no key check covers (the
+  rules are in the area document).

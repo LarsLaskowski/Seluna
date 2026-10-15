@@ -64,7 +64,8 @@ credentials and the key check. A migration is never edited once it is on `main`.
 
 - Issues #11, #12, #15 and #18 each add the store module for the tables they use and test it against the real D1
   of the Workers test pool.
-- A column a later issue needs (for example a counter for the setup login of #8, or a `sent_at` for the outbox)
-  is a new migration; `meta` and `settings` take new keys without one.
+- Later issues need no migration of their own unless they change the schema: a column a later issue needs (for
+  example a `sent_at` for the outbox) is a new migration, while `meta` and `settings` take new keys without one.
+  The failed-attempt counter of the setup login (#8) is such a value and belongs in `meta`, not in a new table.
 - `CLAUDE.md` still says a migration is frozen "once released"; it is corrected in a squad-maintenance change,
   not in this product change.
