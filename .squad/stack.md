@@ -129,10 +129,9 @@ so `typecheck` passes and the tests load and fail.
 Constructors store their arguments and never throw: a test harness builds these types, so only member bodies
 fail.
 
-A zero-value stub (`return 0`, `return []`, `return ""`) instead of the `throw` is acceptable only when the
-`throw` would break a test that exists and passes today, for example an existing caller of the changed export.
-The new tests must still fail on the stub, and the Dev reports the stub and the test it protects as a deviation
-in the hand-back. A stub is replaced by the real body before the Coverage gate.
+Zero-value stubs (`return 0`, `return []`, `return ""`) are not allowed, not even where the `throw` would break
+a test that exists and passes today, for example an existing caller of the changed export: that test is
+expected to fail until the real body lands, and the Dev reports it in the hand-back.
 
 ## Dependencies
 
