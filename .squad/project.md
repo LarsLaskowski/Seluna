@@ -12,9 +12,14 @@ files or endpoints.
 
 - **Webhook signature:** `POST /webhook` verifies `X-Hub-Signature-256` (HMAC-SHA256 over the raw body, constant-time
   comparison) before any parsing; an invalid or missing signature is rejected without a body that explains why.
-- **Setup login:** `/setup` and everything behind it (App creation, Telegram chat, status) is reachable only
-  with the setup credential; session cookies are `HttpOnly`, `Secure`, `SameSite=Strict`, and the endpoint is
-  rate-limited and closed once setup is complete unless the owner logs in.
+- **Setup login:** `/setup` and every path below it (`src/setup/`) answer only the login page — or, without a
+  `SELUNA_SECRET` of at least 32 characters, a page that explains how to set it — until the owner signs in with
+  `SELUNA_SECRET`, compared in constant time (`verifySelunaSecret` in `src/crypto.ts`). The session is an
+  HMAC-SHA256-signed token with a 12-hour expiry (`src/setup/session.ts`, key from `signingKeyFromEnv`) in a cookie
+  with `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/setup`; every form carries a signed double-submit CSRF token
+  (`src/setup/csrf.ts`); attempts are counted in the `meta` row `login_attempts` before the secret is checked and
+  lock the login for 15 minutes after 5 failures (`src/store/login-attempts.ts`); pages have no script or external
+  resource and a strict Content-Security-Policy (`src/setup/pages.ts`) (decision 0015).
 - **Encrypted credentials:** the GitHub App ID, private key and webhook secret live in the D1 table `secrets` as
   AES-256-GCM ciphertext (random 96-bit nonce per value; code in `src/crypto.ts` and `src/store/secrets.ts`); the key comes from the Worker secret `SELUNA_SECRET`. The D1 table `token_cache` holds installation tokens encrypted the same way, each ciphertext is bound to its row (additional data), and a key check value in `meta` reports a changed `SELUNA_SECRET`. The
   Telegram bot token is the Worker secret `TELEGRAM_BOT_TOKEN`. Worker secrets are set through the deploy form or

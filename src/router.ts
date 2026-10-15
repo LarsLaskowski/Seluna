@@ -1,4 +1,5 @@
 import { MAX_BODY_BYTES, readBodyWithLimit } from "./body";
+import { handleSetup, isSetupPath } from "./setup/handler";
 import type { SetupDeps } from "./setup/handler";
 import { SIGNATURE_HEADER, verifySignature } from "./signature";
 import type { WebhookSecretSource } from "./webhook-secret";
@@ -68,6 +69,9 @@ async function route(request: Request, pathname: string, deps: RouteDeps): Promi
   }
   if (pathname === "/webhook" && request.method === "POST") {
     return receiveWebhook(request, deps);
+  }
+  if (isSetupPath(pathname)) {
+    return handleSetup(request, pathname, deps.setup);
   }
   return new Response(null, { status: 404 });
 }

@@ -14,6 +14,7 @@ export const SIGNING_KEY_LABELS: Readonly<Record<SigningPurpose, string>> = {
 };
 
 const IV_BYTES = 12;
+const HMAC_KEY_BYTES = 32;
 const BASE64_CHUNK = 0x2000;
 
 /** An AES-256-GCM value as stored: base64 of the 12-byte IV and of the ciphertext with its 16-byte tag. */
@@ -115,15 +116,40 @@ export async function decrypt(key: CryptoKey, sealed: SealedValue, context: stri
 
 /** Whether `SELUNA_SECRET` in the Worker environment is a string of at least 32 code points (the rule of `keyFromEnv`). */
 export function isSelunaSecretConfigured(env: object): boolean {
-  throw new Error("Not implemented");
+  return selunaSecretFromEnv(env) !== undefined;
 }
 
 /** A non-extractable HMAC-SHA256 key (sign, verify) derived with HKDF-SHA256 from `SELUNA_SECRET`, salt and info the purpose's label; `undefined` when `SELUNA_SECRET` is not configured. */
-export function signingKeyFromEnv(env: object, purpose: SigningPurpose): Promise<CryptoKey | undefined> {
-  throw new Error("Not implemented");
+export async function signingKeyFromEnv(env: object, purpose: SigningPurpose): Promise<CryptoKey | undefined> {
+  const secret = selunaSecretFromEnv(env);
+  if (secret === undefined) {
+    return undefined;
+  }
+  const label = utf8(SIGNING_KEY_LABELS[purpose]);
+  const material = await crypto.subtle.importKey("raw", utf8(secret), "HKDF", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "HKDF", hash: "SHA-256", salt: label, info: label },
+    material,
+    { name: "HMAC", hash: "SHA-256", length: 256 },
+    false,
+    ["sign", "verify"],
+  );
 }
 
 /** Whether the UTF-8 bytes of `candidate` equal those of `SELUNA_SECRET`, compared in constant time (HMAC under a fresh random key, `crypto.subtle.verify`); `false` when `SELUNA_SECRET` is not configured. */
-export function verifySelunaSecret(env: object, candidate: string): Promise<boolean> {
-  throw new Error("Not implemented");
+export async function verifySelunaSecret(env: object, candidate: string): Promise<boolean> {
+  const secret = selunaSecretFromEnv(env);
+  if (secret === undefined) {
+    return false;
+  }
+  // Both values are reduced to 32-byte MACs under a key nobody knows; `verify` compares those in constant time.
+  const key = await crypto.subtle.importKey(
+    "raw",
+    crypto.getRandomValues(new Uint8Array(HMAC_KEY_BYTES)),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"],
+  );
+  const mac = await crypto.subtle.sign("HMAC", key, utf8(secret));
+  return crypto.subtle.verify("HMAC", key, mac, utf8(candidate));
 }
