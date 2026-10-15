@@ -6,3 +6,4 @@ are quoted in full.
 | Date | Step | Member | Result |
 | ---- | ---- | ------ | ------ |
 | 2026-10-15 20:51 | 1 Intake | Orchestrator | issue 35 read, branch fix-issue-35-bind-csrf-to-session off main |
+| 2026-10-15 20:57 | 2 Plan | squad-lead | RESULT: DONE, tier security, decision 0015 edited in place |

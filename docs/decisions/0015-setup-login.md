@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-15
 - **Area:** Setup wizard
-- **Source:** Issue #8
+- **Source:** Issue #8, Issue #35
 - **Supersedes:** —
 
 ## Context
@@ -32,8 +32,12 @@ The session:
 The CSRF token:
 
 3. **Signed double submit: a random `seluna_csrf` cookie and, in every form, the HMAC of its value** — works on the
-   login page before there is a session and needs no storage; a cookie planted by someone else is useless without
-   the key, because the matching form value cannot be computed. Chosen.
+   login page before there is a session and needs no storage. A cookie planted by someone else is useless only
+   where no one else can obtain the form value for it: a host under the same registrable domain (a sibling on a
+   custom domain, or another Worker of the same account under `<subdomain>.workers.dev`, `workers.dev` being a
+   public suffix) can plant a value whose form value it read from the instance's own login page (cookie tossing),
+   and a same-site submission carries the `SameSite=Strict` session. Chosen for the login form, where a forged
+   submission still needs `SELUNA_SECRET`; the forms behind the login bind the token to the session (option 22).
 4. **A token stored in D1 per form** — storage and cleanup for what option 3 does without.
 5. **No token, relying on `SameSite=Strict` and the `Origin` header** — the issue asks for a token, and
    `SameSite` does not separate sites under the same registrable domain.
@@ -93,24 +97,44 @@ How the language is switched:
 21. **A language setting in D1** — needs the login first, but the login page itself must already be in the
     owner's language.
 
+How the CSRF token of the forms behind the login is bound to the session (issue #35):
+
+22. **The HMAC, under the CSRF key, of `session.<session token>.<cookie value>`; the login form keeps option 3** — a
+    planted cookie is useless on these forms, because the form value needs the owner's session token, which is
+    `HttpOnly`, never rendered, and cannot be made without `SELUNA_SECRET`; every form keeps one shape (cookie plus
+    field), and the message never equals a login-form message (43 base64url characters without a `.`), so neither
+    scheme accepts the other's token. Chosen.
+23. **The HMAC of the session token alone** — as unforgeable, but the forms behind the login would no longer use the
+    cookie, two mechanisms instead of one, and a rendered token would stay valid for the whole session.
+24. **A `__Host-seluna_csrf` cookie** — the browser refuses it from a sibling host, which would cover the login form
+    too; but the prefix requires `Path=/`, against the rule that every wizard cookie is scoped to `/setup`, and the
+    protection would rest on the browser instead of the key.
+25. **A separate HKDF key for these tokens instead of the `session.` prefix** — separation by construction, for one
+    more key derivation per request and a new label, where the disjoint messages already separate the schemes.
+
 ## Decision
 
 `/setup` and everything below it answer only the login page until the owner signs in with `SELUNA_SECRET`, compared
 in constant time inside `src/crypto.ts`; a session is a stateless HMAC-signed token of 12 hours in an `HttpOnly`,
-`Secure`, `SameSite=Strict` cookie on `/setup`, every form is protected by a signed double-submit CSRF token, and
-login attempts are counted in one `meta` row before the secret is checked, locking the login for 15 minutes after
-the fifth failure. The rules are in the area document [`areas/setup-wizard.md`](../areas/setup-wizard.md).
+`Secure`, `SameSite=Strict` cookie on `/setup`, every form is protected by a signed double-submit CSRF token, which
+on the forms behind the login is also bound to the session, and login attempts are counted in one `meta` row before
+the secret is checked, locking the login for 15 minutes after the fifth failure. The rules are in the area document [`areas/setup-wizard.md`](../areas/setup-wizard.md).
 
 ## Consequences
 
-- The wizard steps (#9, #10, #11) add their pages to the signed-in branch of the wizard and put the CSRF field in
-  every form; a step that submits a form to another site (the manifest form of #10 posts to GitHub) widens
-  `form-action` for that page only. Because the cookies are `SameSite=Strict`, the return from GitHub (a
+- The wizard steps (#9, #10, #11) add their pages to the signed-in branch of the wizard and put the CSRF field,
+  bound to the session (option 22), in every form; a step that submits a form to another site (the manifest form
+  of #10 posts to GitHub) widens `form-action` for that page only. Because the cookies are `SameSite=Strict`, the return from GitHub (a
   navigation started on github.com) arrives without the session, so #10 must handle it while signed out.
 - Sign-out cannot revoke a copied token before it expires; changing `SELUNA_SECRET` revokes every session at once,
   and the reset of #11 is the way to do that deliberately.
 - Anyone can keep the login locked (option 11). If that becomes a problem in practice, an unlock path for the
   owner (for example a second secret) is a new decision.
+- A host under the same registrable domain can still disturb the wizard by planting cookies: the request reads at
+  most four values per cookie name and the browser sends a cookie with a longer path first, so planted values can
+  hide the owner's session or CSRF cookie, and a page then looks signed out or a form fails as expired. That is a
+  denial only — no planted value makes a form succeed — and it is accepted rather than read further values, which
+  a planting host could outnumber as well.
 - The format of the `meta` row `login_attempts` and of the session token are fixed by this change; the token
   carries a version (`v1`) so a later format can be told apart.
 - The atomic count rests on D1 running one statement at a time and on SQLite's upsert with `RETURNING` and its
