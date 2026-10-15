@@ -53,6 +53,9 @@ migrations applied and the `meta` row `login_attempts` deleted before each test,
     `PUT /setup`.
   - H: `handleSetup shows the login page for a session cookie that is %s` — cases: expired (clock at its expiry),
     MAC altered, signed under another `SELUNA_SECRET`, quoted (`"v1…"`), expiry more than 12 hours ahead.
+  - H: `handleSetup shows the login page when the only valid seluna_session is the fifth value` (four malformed
+    `seluna_session` values, then a valid one) and `handleSetup shows the start page when the valid seluna_session
+    is the fourth value` (three malformed, then a valid one) — together they pin the bound of four values.
   - `src/setup/handler.test.ts`: `isSetupPath returns %s for %s` — `/setup`, `/setup/`, `/setup/x` true;
     `/setupx`, `/SETUP`, `/setup%2F`, `/`, `/set` false.
   - `src/router.test.ts`: `handleRequest passes %s to the setup handler` (`/setup`, `/setup/x`: 200 login page)
@@ -94,7 +97,8 @@ migrations applied and the `meta` row `login_attempts` deleted before each test,
     another value on every call`, `csrfTokenFor returns 43 base64url characters`, `isValidCsrfToken accepts the
     token of the cookie value`, `isValidCsrfToken accepts the token of the fourth cookie value`, `isValidCsrfToken
     rejects %s` — `null`, empty, the token of another cookie value, a token under another key, a malformed cookie
-    value, the token of the fifth cookie value.
+    value, the token of the fifth cookie value, the valid token with its last character changed only in its two
+    unused bits (it decodes to the same bytes under a forgiving decoder).
 - [ ] **AC4 — the login itself.** The correct secret answers 303 with `Location: /setup` and the cookie
   `seluna_session=<token>; Max-Age=43200; Path=/setup; HttpOnly; Secure; SameSite=Strict`, whose token is valid;
   `GET /setup` with it shows the start page; a wrong, missing or repeated `secret` answers 403 with the *wrong
@@ -113,7 +117,9 @@ migrations applied and the `meta` row `login_attempts` deleted before each test,
     MAC`; `isValidSessionToken accepts a token 1 ms before its expiry`; `isValidSessionToken rejects a token at its
     expiry`; `isValidSessionToken rejects %s` — the expiry changed, one MAC character changed, a key from another
     secret, a leading zero in the expiry, 16 expiry digits, a padded MAC, `+` or `/` in the MAC, `v2`, a fourth
-    segment, empty text, an expiry more than 12 hours after now.
+    segment, empty text, an expiry more than 12 hours after now, the MAC's last character changed only in its two
+    unused bits (the test derives it from the valid MAC: the character whose 6-bit value is the original's XOR 1,
+    so it decodes to the same 32 bytes under a forgiving decoder).
   - `src/crypto.test.ts`: `isSelunaSecretConfigured returns %s for %s` (absent, a number, 31 characters, 31
     characters that are 32 UTF-16 units → false; 32 characters → true); `signingKeyFromEnv returns undefined when
     SELUNA_SECRET is not configured`; `signingKeyFromEnv derives different keys for setup-session and setup-csrf`
@@ -122,8 +128,9 @@ migrations applied and the `meta` row `login_attempts` deleted before each test,
   - `src/crypto.test.ts`: the existing pin, renamed `crypto exports decrypt, encrypt, isSelunaSecretConfigured,
     keyFromEnv, signingKeyFromEnv and verifySelunaSecret as its only functions`.
   - `src/base64url.test.ts`: `toBase64Url writes base64url without padding`; `fromBase64Url returns the bytes of
-    base64url text`; `fromBase64Url returns undefined for %s` — padding `=`, `+`, `/`, a space, a length of 4n+1,
-    a non-ASCII character.
+    base64url text` (including `AA` → one zero byte and `AAA` → two); `fromBase64Url returns undefined for %s` —
+    padding `=`, `+`, `/`, a space, a length of 4n+1, a non-ASCII character, a last character with non-zero unused
+    bits (`AB`, `AAB`).
 - [ ] **AC6 — sign-out and the signed-in branch.** With a session and a valid CSRF token `POST /setup/logout`
   answers 303 to `/setup` with `seluna_session=; Max-Age=0; Path=/setup; HttpOnly; Secure; SameSite=Strict`; with a
   session every other path or method except `GET /setup` and `POST /setup/login` answers 404 with an empty body.
@@ -145,9 +152,15 @@ migrations applied and the `meta` row `login_attempts` deleted before each test,
     `the %s page in %s has no script, no external resource and exactly one style element` (login, start,
     not-configured × en, de: no `<script`, `<link`, `<img`, `<iframe`, no `http:`, `https:` or `//` in an `src`,
     `href` or `action`, one `<style>`); `escapeHtml escapes & < > " and '`; `renderLoginPage shows the %s notice`
-    (each notice, compared with `TEXTS`); `the %s page sets html lang to %s`.
+    (each notice, compared with `TEXTS`); `the %s page sets html lang to %s`; `the %s page links to exactly
+    /setup?lang=en and /setup?lang=de` (login, start, not-configured: the `href` values of its language links are
+    those two fixed texts, whatever path the page is answered on).
   - H: `handleSetup sets the security headers on %s` — the login page, the 303 of a login, a 404 with a session, a
     413.
+  - H: `handleSetup answers the German language link of the form-expired start page with 200 and the start page`
+    (with a session: `POST /setup/logout` with a wrong CSRF token answers 403 with the start page; its `de` link's
+    `href`, resolved against the request URL `/setup/logout`, requested by `GET` with the same session, answers 200
+    with the start page in German).
   - `src/setup/texts.test.ts`: `texts define a non-empty text for every key in English and German`.
 - [ ] **AC9 — language.** `?lang=en|de` wins and sets `seluna_lang` for a year; else the first valid
   `seluna_lang` cookie; else `Accept-Language` as the area document defines; else English.
@@ -158,6 +171,11 @@ migrations applied and the `meta` row `login_attempts` deleted before each test,
     `DE`, `english`, empty, `de-DE`.
   - H: `handleSetup renders German and sets seluna_lang for ?lang=de`; `handleSetup renders German for a
     seluna_lang=de cookie`; `handleSetup renders German for Accept-Language de-DE,de;q=0.9`.
+  - `src/setup/language.test.ts`: `languageFromAcceptLanguage takes time linear in the header length for %s` — a
+    ratio test (*Time bounds as a ratio* in `docs/UNIT_TESTS.md`, method under *Linear-time tests* below) on these
+    inputs of length n: `" ".repeat(n)`; `";".repeat(n)`; `",".repeat(n)`; `"de" + "-x".repeat(n / 2)`;
+    `"de;q=" + "0".repeat(n)` (a weight that never ends); `"de" + ";q=".repeat(n / 3)` (weights that never get a
+    value); `"en;q=0.1,".repeat(n / 9)` (many valid entries). It belongs to AC14.
 - [ ] **AC10 — body limits.** A login body over 1 MiB answers 413 and an unreadable one 400, both with an empty
   body and no counted attempt.
   - H: `handleSetup answers a login body over 1 MiB with 413 and does not count it`; `handleSetup answers an
@@ -175,7 +193,33 @@ migrations applied and the `meta` row `login_attempts` deleted before each test,
   - `src/setup/cookies.test.ts`: `setupCookie writes Path=/setup, HttpOnly, Secure and SameSite=Strict`;
     `setupCookie writes Max-Age before the attributes when given`; `cookieValues returns every value of the name in
     header order`; `cookieValues returns %s for %s` — `null` header, no such name, another case of the name, spaces
-    around pair and value, a value containing `=`, a quoted value (kept with its quotes), an empty value.
+    around pair and value, a value containing `=`, a quoted value (kept with its quotes), an empty value;
+    `cookieValues takes time linear in the header length for %s` — a ratio test (method under *Linear-time tests*)
+    on these inputs of length n, each read for the name `seluna_session`: `" ".repeat(n)`; `";".repeat(n)`;
+    `"x".repeat(n)` (a pair without `=`); `"seluna_session=" + "=".repeat(n)`; `"seluna_session=v;".repeat(n / 17)`
+    (many matching pairs). It belongs to AC14.
+- [ ] **AC14 — linear-time header parsing.** `languageFromAcceptLanguage` and `cookieValues` take time linear in
+  the length of the header, also on adversarial input (the claim of *Limits and errors* in the area document;
+  both headers are unauthenticated input limited only by the platform's header size).
+  - The `languageFromAcceptLanguage` ratio test listed under AC9 and the `cookieValues` ratio test listed under
+    AC13, measured as below.
+
+### Linear-time tests
+
+The ratio tests of AC9, AC13 and AC14 follow *Time bounds as a ratio* in `docs/UNIT_TESTS.md`:
+
+- For each input, measure the duration at length n and at length 10 n with `performance.now()`. The factor is 10,
+  not 4, so that the limit (three times the highest measured ratio) stays far below a quadratic parser's ratio:
+  linear gives about 10, quadratic about 100, while at a factor 4 the limit (about 12–15) would sit next to
+  quadratic's 16.
+- The clock of the Workers test pool advances during synchronous work but only in whole milliseconds (measured
+  by the Lead in a scratch copy: a busy loop read 232 ms on both `performance.now()` and `Date.now()`, and a loop
+  ten times as long measured a ratio of 10.05). So each measurement repeats the call in a loop until the run at
+  length n takes at least 20 ms — the Tester picks n and the repetitions — runs one warm-up first, and takes the
+  smallest of three runs per length.
+- The limit is at least three times the highest ratio the Tester measures with *Test with coverage*
+  (instrumented), written as a constant with a comment that names the measured value; it must stay below 50, or
+  the Tester reports it instead of raising it.
 
 Content the issue supplies verbatim: none (no fixture, image or configuration).
 
@@ -204,7 +248,7 @@ standard formats too; the form body is not parsed by our code.
 | B8 lock | AC2 |
 | B9 CSRF | AC3 |
 | B10 pages, CSP, headers | AC8 |
-| B11 language | AC9 |
+| B11 language | AC9, AC14 (the `Accept-Language` parser's time bound) |
 | B12 body limits, D1 failure | AC10, AC11 |
 | B13 logging, nothing echoed | AC12; nothing echoed: AC8 (`escapeHtml`, pages render only `TEXTS` and the CSRF token — Reviewer checks by reading that no page takes request data) |
 
@@ -215,7 +259,9 @@ New directory `src/setup/` for the wizard, one module per concern; one new store
 
 1. `src/base64url.ts` — base64url without padding, both ways; decoding checks `^[A-Za-z0-9_-]*$` and a length
    that is not 4n+1 **before** `atob`, because `atob` (forgiving base64) also accepts ASCII whitespace, `+`, `/`
-   and padding.
+   and padding, and rejects a last character whose unused low bits are not zero (for a length of 4n+2 the low
+   four bits, for 4n+3 the low two), because forgiving base64 drops them, so several texts would decode to the
+   same bytes. Re-encoding the decoded bytes and comparing with the input is an acceptable way to check this.
 2. `src/crypto.ts` — `isSelunaSecretConfigured`, `signingKeyFromEnv` (HKDF-SHA256 to an HMAC-SHA256 key, length
    256, usages `sign`/`verify`, non-extractable, salt = info = the purpose's label) and `verifySelunaSecret` (fresh
    random HMAC key from `crypto.subtle.generateKey`, `sign` over `SELUNA_SECRET`'s UTF-8 bytes, `verify` of that
@@ -247,6 +293,10 @@ New directory `src/setup/` for the wizard, one module per concern; one new store
    of an unexpected shape) is `locked` — fail closed. D1 errors are not caught here.
 4. `src/setup/cookies.ts`, `session.ts`, `csrf.ts`, `language.ts`, `texts.ts`, `pages.ts` — as in *Signatures*.
    `texts.ts` holds `TEXTS` typed `Readonly<Record<Language, SetupTexts>>`, so a missing text fails the type check.
+   `cookieValues` and `languageFromAcceptLanguage` split their header with `split` (`;`, `,`) and trim, and check
+   each short piece on its own; a regular expression, where used, is anchored, applied to one piece, and has no
+   nested or adjacent unbounded quantifiers (AC14 measures the result). Every page's language links are the fixed
+   texts `/setup?lang=en` and `/setup?lang=de`, never built from the request path.
    The English notices are the texts of the area document (*Texts*); the German ones are their translation (Dev,
    informal "du"). `pages.ts` renders by string templates; every interpolation goes through `escapeHtml`; the CSP
    hash is computed with `crypto.subtle.digest("SHA-256", …)` from the same `STYLE` constant the page embeds.
@@ -291,7 +341,7 @@ additions). No migration, no `wrangler.jsonc` change, no new dependency.
 ```ts
 /** Base64url (RFC 4648 §5) of `bytes`, without padding. */
 export function toBase64Url(bytes: Uint8Array): string;
-/** The bytes of base64url text without padding, or `undefined` for any other text (padding, `+`, `/`, whitespace, a length of 4n+1). */
+/** The bytes of base64url text without padding in its canonical form, or `undefined` for any other text (padding, `+`, `/`, whitespace, a length of 4n+1, a last character with non-zero unused bits). */
 export function fromBase64Url(text: string): Uint8Array<ArrayBuffer> | undefined;
 ```
 
@@ -413,6 +463,7 @@ export const STYLE: string;
 export function escapeHtml(text: string): string;
 /** `default-src 'none'; style-src 'sha256-<base64 SHA-256 of STYLE>'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`. */
 export async function contentSecurityPolicy(): Promise<string>;
+/** Each page links to exactly `/setup?lang=en` and `/setup?lang=de`, whatever path it is answered on. */
 export function renderLoginPage(language: Language, csrfToken: string, notice?: Notice): string;
 export function renderStartPage(language: Language, csrfToken: string, notice?: Notice): string;
 export function renderNotConfiguredPage(language: Language): string;
@@ -524,8 +575,9 @@ No change to `README.md`, `.dev.vars.example` or the `cloudflare.bindings` descr
   (`readBodyWithLimit`); decoding (UTF-8 with replacement, then `URLSearchParams`) never yields more UTF-16 units
   than bytes, so the parsed text is bounded by the same number. At most four values per cookie name are looked at
   (each costs an HMAC). `Accept-Language` and `Cookie` have no limit of ours beyond the platform's header size;
-  their parsing is linear. The candidate secret is not length-capped beyond the body limit (an HMAC over 1 MiB is
-  cheap; a cap would make a longer `SELUNA_SECRET` unusable).
+  their parsing is linear in the header length, pinned by the ratio tests of AC14. The candidate secret is not
+  length-capped beyond the body limit (an HMAC over 1 MiB is cheap; a cap would make a longer `SELUNA_SECRET`
+  unusable).
 - [x] Exceptions that reach the user: D1 errors in the login flow → 503 with the fixed *unavailable* notice (error
   dropped). Body read failures → 400/413 without a body (values, not exceptions). Web Crypto failures (HKDF,
   HMAC, `getRandomValues`) are not expected and not caught: the runtime answers with its generic error, which
@@ -543,7 +595,7 @@ Guards against bypasses — the forms each parser really accepts, and the guard'
 | `secret` field | as above | `getAll("secret")` must have exactly one entry; compared byte-exact (AC4). |
 | Body `Content-Type` | ignored: the body is always parsed as urlencoded | A `multipart/form-data` or `text/plain` body yields no valid `csrf` field unless it carries a valid token, which a cross-site page cannot know. |
 | `lang` parameter, `seluna_lang` cookie | `URLSearchParams.get`, `cookieValues` | Exactly `en` or `de` (AC9). |
-| Base64url text | `atob` (forgiving: also whitespace, `+`, `/`, padding) | `fromBase64Url` checks `^[A-Za-z0-9_-]*$` and the length first (AC5). |
+| Base64url text | `atob` (forgiving: also whitespace, `+`, `/`, padding; drops the unused low bits of the last character, so `AB` and `AA` decode alike) | `fromBase64Url` checks `^[A-Za-z0-9_-]*$` and the length first, and rejects a last character with non-zero unused bits, so each byte string has exactly one accepted text: a session MAC or CSRF token is accepted only in the form the Worker wrote (AC5 `AB`/`AAB` cases, the unused-bit cases of the session and CSRF tests). |
 
 Claims that rest on platform behavior, marked *unverified* until measured:
 
@@ -563,10 +615,64 @@ Claims that rest on platform behavior, marked *unverified* until measured:
 - `docs/decisions/0011-public-http-surface.md` — *Decision* text edited in place to name `/setup` (unreleased;
   status stays `Accepted`).
 
+## Challenge
+
+The Devil's Advocate raised no major and two minor objections; both are accepted.
+
+1. **Language links answer 404 for a signed-in user** (relative `?lang=` links on `/setup/logout` or
+   `/setup/login`, which answer 404 with a session). Accepted: every page links to the fixed texts
+   `/setup?lang=en` and `/setup?lang=de` (*Approach* step 4, the `renderLoginPage` TSDoc); the area document
+   (*Language*) drops "on its own path"; AC8 gains `the %s page links to exactly /setup?lang=en and
+   /setup?lang=de` and the handler test that follows the `de` link of the 403 form-expired start page and expects
+   200. This is also Security's non-blocking (c).
+2. **`SameSite=Strict` and the return from GitHub in #10.** Accepted as a note, no code change in #8: *Out of
+   scope / follow-ups* states that #10 must handle the manifest `redirect_url` return while signed out (no session,
+   no `seluna_csrf`, and the login's 303 drops the query); the area document (*Session*) and decision 0015
+   (*Consequences*) say the same.
+
+## Security review
+
+Plan review, `CHANGES_REQUIRED`:
+
+- **Blocking 1 — the linear-time claim for `Accept-Language` and `Cookie` is pinned by no test.** Resolved by
+  pinning it, not by dropping it: new AC14 with the ratio tests `languageFromAcceptLanguage takes time linear in
+  the header length for %s` (`src/setup/language.test.ts`) and `cookieValues takes time linear in the header length
+  for %s` (`src/setup/cookies.test.ts`) on the adversarial inputs named (runs of spaces, `;`, `,`, `-x` subtags, a
+  never-ending and a never-valued `;q=`, plus a pair without `=`, a value of `=` and many matching pairs for the
+  cookie). The method is under *Linear-time tests*: lengths n and 10 n instead of the 4 n suggested, because with
+  the limit at three times the measured ratio a factor of 4 would leave the limit (about 12–15) next to quadratic's
+  16, while a factor of 10 separates about 30 from 100. That the test pool's clock advances during synchronous
+  work was measured in a scratch copy (whole milliseconds only, hence the 20 ms minimum per run). *Approach* step 4
+  adds the implementation rule (split, then check short pieces; no regex with nested or adjacent unbounded
+  quantifiers over the header). The claim stays in the area document and in *Security considerations*, now naming
+  the tests.
+- **(a) Fifth `seluna_session` value.** Accepted: AC1 gains the handler tests for a valid session as the fifth
+  value (login page) and as the fourth (start page).
+- **(b) Non-canonical base64url.** Accepted, with the stricter fix: `fromBase64Url` rejects a last character with
+  non-zero unused bits (*Approach* step 1, signature TSDoc), so the bypass table's "exact form" is true. Tests:
+  `AB`/`AAB` in `src/base64url.test.ts`, and the MAC or token with its last character changed only in its unused
+  bits in the session (AC5) and CSRF (AC3) tests. The area document's *Session* and *CSRF protection* say the
+  canonical form.
+- **(c) Language links as fixed absolute hrefs.** Accepted, see *Challenge* 1.
+- **(d) Global lock.** Kept as accepted in decision 0015, option 11, and named for the Product Manager under *Out
+  of scope / follow-ups*; not escalated, because the issue asks for the counter in D1 and a per-address count was
+  weighed and rejected there.
+- **(e) COOP/CORP, HSTS.** Not this change; listed under *Out of scope / follow-ups*.
+
 ## Out of scope / follow-ups
 
 - Wizard steps (#9, #10, #11): they plug into the signed-in branch of `handleSetup`; #10 widens `form-action` for
   its manifest page.
+- #10 must handle the return from GitHub's manifest flow (the `redirect_url` navigation from github.com) while
+  signed out: a top-level navigation started on another site carries no `SameSite=Strict` cookie, so that request
+  arrives without the session (and without `seluna_csrf`), and the 303 after a login goes to `/setup` without the
+  query. The area document (*Session*) and decision 0015 (*Consequences*) say so; no change in #8.
+- More hardening headers (`Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`,
+  `Strict-Transport-Security`): not part of this change (Security, non-blocking (e)).
+- For the Product Manager: the lock is global, so anyone who can reach the instance can keep the owner locked out
+  with five requests every 15 minutes. This is the accepted trade-off of decision 0015, option 11 (an attacker
+  cannot spread guesses over addresses; the secret has at least 32 random characters, so the lock is the second
+  line of defense; the owner can delete the `meta` row). Not escalated.
 - Server-side revocation of sessions; an owner-only unlock of the global lock (decision 0015, *Consequences*).
 - A `SELUNA_SECRET` containing a line break cannot be typed into a password field; the area document says so, and
   #20's documentation can warn about it. No follow-up issue.

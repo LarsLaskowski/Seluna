@@ -74,6 +74,8 @@ it and add their pages behind the login.
 - The session cookie `seluna_session` holds `v1.<expires>.<mac>`: `<expires>` is the expiry in milliseconds since
   1970-01-01 UTC, written in decimal without leading zeros, 12 hours (43,200,000 ms) after the login; `<mac>` is
   the HMAC-SHA256 of the ASCII text `v1.<expires>`, written as base64url without padding (43 characters).
+- Base64url text is read only in its canonical form: no padding, no `+`, `/` or whitespace, and the unused low bits
+  of the last character zero, so each MAC and token has exactly one accepted text.
 - The HMAC key is derived with HKDF-SHA256 from `SELUNA_SECRET`, salt and info `seluna/setup-session/v1`
   ([Storage](storage.md#encryption) keeps every key apart). Changing `SELUNA_SECRET` therefore ends every session.
 - A session is valid at time `now` when the cookie value has exactly that form (`<expires>` at most 15 digits),
@@ -82,6 +84,10 @@ it and add their pages behind the login.
 - The cookie header may carry the name more than once; the request has a session when one of the first four
   values is valid.
 - Login sets `seluna_session=<token>; Max-Age=43200` with the cookie attributes below.
+- A navigation started on another site (a link, or a redirect back from GitHub) carries none of the wizard's
+  cookies (`SameSite=Strict`), so it is answered as signed out, and the 303 after a login always goes to `/setup`
+  without a query. A wizard step that another site returns to (the manifest flow of #10) must handle that return
+  while signed out.
 
 ### Sign-out
 
@@ -136,7 +142,8 @@ it and add their pages behind the login.
   the first `seluna_lang` cookie value that is exactly `en` or `de`; else the `Accept-Language` header; else
   English.
 - A valid `lang` parameter also sets the cookie `seluna_lang` to it, with `Max-Age=31536000` (one year).
-- Every page links to `?lang=en` and `?lang=de` on its own path, and its `<html lang>` is its language.
+- Every page links to exactly `/setup?lang=en` and `/setup?lang=de`, whatever path it is answered on (a page
+  answered on `/setup/logout` or `/setup/login` links to `/setup` too), and its `<html lang>` is its language.
 - `Accept-Language` is read as RFC 9110 defines it: a comma-separated list of language ranges, each with an
   optional weight `;q=<0 to 1, at most three decimals>`. A range counts for German when its first subtag is `de`
   and for English when it is `en`, in any case (`de`, `de-DE`, `DE-at`). The language with the highest weight
@@ -169,7 +176,8 @@ The notices and the _not configured_ page, in English (the German texts are thei
 - A login or logout body is limited to 1 MiB counted in bytes before decoding; the parsed text is never longer than
   that number of bytes.
 - At most four values per cookie name are looked at; the `Accept-Language` and `Cookie` headers are otherwise
-  limited only by the platform's header size, and reading them takes time proportional to their length.
+  limited only by the platform's header size, and reading them takes time proportional to their length, also for
+  adversarial input such as long runs of spaces, `;` or `,`.
 - Nothing in this area is logged beyond the per-request entry of [HTTP routes](http-routes.md#logging) (method,
   path, status).
 

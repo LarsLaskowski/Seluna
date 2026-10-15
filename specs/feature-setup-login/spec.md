@@ -57,7 +57,7 @@ The issue's three criteria are AC1, AC2 and AC3; the plan adds the criteria for 
 - [ ] AC1: Without login every page under `/setup` shows the login.
 - [ ] AC2: The sixth failed attempt within 15 minutes is rejected even with the correct secret.
 - [ ] AC3: A form submitted without a valid CSRF token is rejected.
-- [ ] AC4–AC13: see [plan.md](plan.md), *Acceptance criteria*.
+- [ ] AC4–AC14: see [plan.md](plan.md), *Acceptance criteria*.
 
 ## Out of scope
 

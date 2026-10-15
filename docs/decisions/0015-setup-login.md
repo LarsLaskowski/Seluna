@@ -105,7 +105,8 @@ the fifth failure. The rules are in the area document [`areas/setup-wizard.md`](
 
 - The wizard steps (#9, #10, #11) add their pages to the signed-in branch of the wizard and put the CSRF field in
   every form; a step that submits a form to another site (the manifest form of #10 posts to GitHub) widens
-  `form-action` for that page only.
+  `form-action` for that page only. Because the cookies are `SameSite=Strict`, the return from GitHub (a
+  navigation started on github.com) arrives without the session, so #10 must handle it while signed out.
 - Sign-out cannot revoke a copied token before it expires; changing `SELUNA_SECRET` revokes every session at once,
   and the reset of #11 is the way to do that deliberately.
 - Anyone can keep the login locked (option 11). If that becomes a problem in practice, an unlock path for the
