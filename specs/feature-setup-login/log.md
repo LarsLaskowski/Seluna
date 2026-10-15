@@ -19,4 +19,5 @@ are quoted in full.
 | 2026-10-15 20:11 | 8 Review (diff) | squad-security | APPROVED at 33e5782; non-blocking: cookie tossing on custom domains -> bind CSRF to session before #9-#11 add state-changing forms (issue/#9 plan) (opus/medium · 49,517 tokens · 7 tool uses · 70 s) |
 | 2026-10-15 20:12 | 8 Review round 1 | squad-reviewer | 1 blocking (verbatim doc fix: area doc wording on first four cookie values); no others (opus/medium · 119,246 tokens · 24 tool uses · 167 s) |
 | 2026-10-15 20:12 | 8 Verbatim fix | Orchestrator | Applied reviewer's 3 replacements in docs/areas/setup-wizard.md; diff only those lines; format, scope, decision checks pass; round clean |
-| 2026-10-15 20:14 | 9 PR approval | squad-lead | APPROVED: verifySelunaSecret getRandomValues key accepted; cookie tossing -> linked issue, lands before/within #9; minor deviations accepted |
+| 2026-10-15 20:14 | 9 PR approval | squad-lead | APPROVED: verifySelunaSecret getRandomValues key accepted; cookie tossing -> linked issue, lands before/within #9; minor deviations accepted (opus/medium · 42,896 tokens · 7 tool uses · 51 s) |
+| 2026-10-15 20:14 | 10 Follow-up issue | Orchestrator | Opened #35 (bind CSRF token to session) per Lead |
