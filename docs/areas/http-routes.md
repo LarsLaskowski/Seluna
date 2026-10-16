@@ -71,8 +71,7 @@ does the setup wizard under `/setup`.
 
 - A body that cannot be read to the end (the client aborts, the stream fails) answers **400** with an empty body.
 - Outside `/setup`, 404, 413, 400, 401 and 503 never carry a body, so no response reveals a reason, the
-  configuration or a secret. Under `/setup` 404, 413 and 400 carry no body either; the pages the wizard answers
-  with carry fixed texts only ([Setup wizard](setup-wizard.md#limits-and-errors)).
+  configuration or a secret. Under `/setup` 404, 413 and the 400 of an unreadable body carry no body either; the pages the wizard answers with (also the Telegram step's 400, 409 and 502) carry fixed texts only ([Setup wizard](setup-wizard.md#limits-and-errors)).
 
 ## Related decisions
 

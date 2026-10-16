@@ -316,8 +316,7 @@ The notices, the Telegram step and the _not configured_ page, in English (the Ge
 
 ## Limits and errors
 
-- 404, 413 and 400 under `/setup` carry no body; 503 and the 403 and 429 answers carry a page with a fixed
-  notice and never a reason from the runtime or D1.
+- 404, 413 and the 400 of an unreadable body under `/setup` carry no body; 503, the 403 and 429 answers and the Telegram step's 400, 409 and 502 answers carry a page with a fixed notice or text and never a reason from the runtime, D1 or Telegram.
 - Anyone who messages the bot appears in the chat list with a name of their choosing, so a label proves nothing: a
   chat is saved only after its code is typed back. The owner who types in a code a stranger gave them can still save
   a wrong chat; choosing again replaces the earlier value. A stranger who sends the bot many messages can push the
