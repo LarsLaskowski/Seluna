@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-16
+
 ### Added
 
 - Setup login: `/setup` asks for `SELUNA_SECRET` (compared in constant time) and keeps the owner signed in for 12 hours with a signed `HttpOnly`, `Secure`, `SameSite=Strict` cookie; after 5 failed attempts the login is locked for 15 minutes; every form carries a CSRF token, bound to the session on the forms behind the login; the pages use no scripts or external resources, a strict Content-Security-Policy, and English or German. Without a `SELUNA_SECRET` of at least 32 characters the page explains how to set it.
