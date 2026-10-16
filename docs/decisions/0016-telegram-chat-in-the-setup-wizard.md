@@ -1,6 +1,6 @@
 # 0016: Telegram chat in the setup wizard
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-16
 - **Area:** Setup wizard
 - **Source:** Issue #9
