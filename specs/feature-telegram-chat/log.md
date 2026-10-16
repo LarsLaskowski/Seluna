@@ -27,6 +27,6 @@ are quoted in full.
 | 2026-10-16 06:52 | 6 Implement (task 7) | Orchestrator | Dev done (tasks 7-10): 737/738 pass; disputes handler.test.ts 'zero' case (asserts page has no '0'); coverage 94.6% new lines; analyzer clean; 4 minor plan deviations reported |
 | 2026-10-16 06:52 | 6 Test dispute | Lead | launched (mode decide) (opus/medium · 32,576 tokens · 6 tool uses · 49 s) |
 | 2026-10-16 06:53 | 6 Test dispute | Orchestrator | Lead RESULT: DECIDED - 1: Dev's view adopted, Tester checks the stored text against the page without its <style> element; 2: confirmed; 3a-3d: all accepted, with the 3c view documented by the Dev in setup-wizard.md and checked by one Tester assertion; 4: the unreachable default: never lines accepted as a coverage gap, no exclusion and no record. |
-| 2026-10-16 06:53 | 6 Doc fix (decision 3c) | Dev | launched (continued) |
+| 2026-10-16 06:53 | 6 Doc fix (decision 3c) | Dev | launched (continued) (sonnet/medium · 1,735 tokens · 3 tool uses · 16 s · continued) |
 | 2026-10-16 06:54 | 6 Doc fix (decision 3c) | Orchestrator | Dev added the Precedence sentence to docs/areas/setup-wizard.md |
 | 2026-10-16 06:54 | 6 Coverage pass (task 11) | Tester | launched (mode coverage) |
