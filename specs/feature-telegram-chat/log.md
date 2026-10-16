@@ -31,3 +31,6 @@ are quoted in full.
 | 2026-10-16 06:54 | 6 Doc fix (decision 3c) | Orchestrator | Dev added the Precedence sentence to docs/areas/setup-wizard.md |
 | 2026-10-16 06:54 | 6 Coverage pass (task 11) | Tester | launched (mode coverage) (sonnet/medium · 97,131 tokens · 18 tool uses · 175 s) |
 | 2026-10-16 06:57 | 6 Coverage pass (task 11) | Orchestrator | Tester done: 746/746, coverage gate 95.0% new lines; deviation for Lead: 'zero' row stored-text assertion runs on HTML without <style> and <form> (chat list ids contain 0); AC13/AC14/AC18 and index.ts fetch tests added |
+| 2026-10-16 06:58 | 7 Code check | Orchestrator | Gates on 54ef4e7: format, typecheck, build pass; analyzer 0 findings in 21 files; 746/746 tests; coverage 95.0% new (overall reported 0/0 lines); scope 40 files PASS; decision-check PASS; main merged (up to date) |
+| 2026-10-16 06:58 | 8 Review round 1 | Reviewer | launched (full, 54ef4e7) |
+| 2026-10-16 06:58 | 8 Security diff round 1 | Security | launched (mode diff, 54ef4e7) |
