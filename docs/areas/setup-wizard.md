@@ -128,8 +128,9 @@ The step that tells Seluna which Telegram chat to send to. The bot token is the 
 route. The only Bot API methods called are `getUpdates` (this step's page) and `sendMessage` (its test message).
 
 - **Precedence:** when the Worker secret `TELEGRAM_CHAT_ID` is a non-empty string, it decides the chat. `GET
-/setup/telegram` then answers **200** with the _chat id secret_ text, no form and no saved-chat line, and calls
-  neither Telegram nor D1; both POSTs answer **409** with the same view. No page shows the secret's value.
+/setup/telegram` then answers **200** with a page that shows only the heading and the _chat id secret_ text (no
+  intro, no saved-chat line, no form, no search link), and calls neither Telegram nor D1; both POSTs answer **409**
+  with the same view. No page shows the secret's value.
   Delivery uses `TELEGRAM_CHAT_ID` first, then the `settings` key `telegram_chat_id` ([Storage](storage.md)).
 - **Bot token:** read from the environment and never trimmed. It must match exactly `^\d{1,20}:[A-Za-z0-9_-]{1,200}$`
   (digits, a colon, then letters, digits, `-` and `_`), because it is placed into the request URL path, where
