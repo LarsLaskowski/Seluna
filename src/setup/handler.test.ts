@@ -966,6 +966,37 @@ describe("handleSetup Telegram step page", () => {
   });
 });
 
+describe("handleSetup Telegram step without a session", () => {
+  it.each([
+    { method: "GET", path: STEP_PATH },
+    { method: "POST", path: STEP_PATH },
+    { method: "POST", path: VERIFY_PATH },
+  ])(
+    "handleSetup answers $method $path without a session with the login page and calls no Telegram API",
+    async ({ method, path }) => {
+      const telegram = telegramDouble();
+      const init =
+        method === "POST"
+          ? {
+              method,
+              body: form([
+                ["csrf", await csrfToken()],
+                ["chat", String(PRIVATE_CHAT)],
+              ]),
+              cookies: [csrfCookie()],
+            }
+          : { method };
+
+      const response = await call(path, init, telegramDeps(telegram));
+
+      expect(response.status, "status").toBe(200);
+      expectLoginPage(await response.text());
+      expect(telegram.requests, "Telegram requests").toEqual([]);
+      expect(await settingsRowCount(), "number of settings rows").toBe(0);
+    },
+  );
+});
+
 describe("handleSetup Telegram step page problems", () => {
   it("handleSetup shows the token-missing notice and calls no Telegram API", async () => {
     const telegram = telegramDouble();
