@@ -11,8 +11,6 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-# The maintainer creates the tag and the GitHub release by hand (decision 0017); this
-# workflow only verifies the tagged commit and creates nothing.
 jobs:
   verify:
     name: Verify tag and run checks
@@ -76,7 +74,7 @@ jobs:
             { started = 1; printf "%s", blanks; blanks = ""; print }
           ' CHANGELOG.md > "${RUNNER_TEMP:-/tmp}/release-notes.md"
           if ! grep -q '[^[:space:]]' "${RUNNER_TEMP:-/tmp}/release-notes.md"; then
-            printf '::error::CHANGELOG.md has no entries under "## [%s]"; move the Unreleased entries to that section before releasing.\n' "$version"
+            printf '::error::CHANGELOG.md has no entries under "## [%s]"; move the Unreleased entries to that section before tagging.\n' "$version"
             exit 1
           fi
 
@@ -103,3 +101,72 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  release:
+    name: Create draft release
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Check tag still points to the verified commit
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/$GITHUB_REPOSITORY/commits/tags/$TAG" --jq .sha)"
+          if [[ $current != "$GITHUB_SHA" ]]; then
+            printf '::error::Tag %s no longer points to the verified commit %s; it was moved during the run. Delete the tag and tag again.\n' "$TAG" "$GITHUB_SHA"
+            exit 1
+          fi
+
+      - name: Check no release exists yet
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if out="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>&1)"; then
+            printf '::error::A release for %s already exists (draft: %s); this workflow creates it as a draft. Delete the release and the tag, then push the tag again.\n' "$TAG" "$out"
+            exit 1
+          elif [[ $out != *"release not found"* ]]; then
+            printf '::error::Could not check for an existing release of %s: %s\n' "$TAG" "$out"
+            exit 1
+          fi
+
+      - name: Extract changelog section
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          HEADING="## [$version]" awk '
+            BEGIN { h = ENVIRON["HEADING"] }
+            !found { if ($0 == h || index($0, h " ") == 1) { found = 1 } next }
+            /^## / || /^\[[^]]+\]: / { exit }
+            /^[[:space:]]*$/ { if (started) { blanks = blanks $0 "\n" } next }
+            { started = 1; printf "%s", blanks; blanks = ""; print }
+          ' CHANGELOG.md > "${RUNNER_TEMP:-/tmp}/release-notes.md"
+          if ! grep -q '[^[:space:]]' "${RUNNER_TEMP:-/tmp}/release-notes.md"; then
+            printf '::error::CHANGELOG.md has no entries under "## [%s]"; move the Unreleased entries to that section before tagging.\n' "$version"
+            exit 1
+          fi
+
+      - name: Create draft release
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" --verify-tag --draft --title "$TAG" --notes-file "${RUNNER_TEMP:-/tmp}/release-notes.md" --generate-notes

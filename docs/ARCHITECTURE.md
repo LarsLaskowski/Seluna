@@ -114,9 +114,9 @@ their own Cloudflare account with the Deploy to Cloudflare button, which copies 
 GitHub account, provisions the D1 database and asks for the Worker secrets; from then on every push to `main` of
 that copy starts a Workers Build that applies the D1 migrations and then deploys
 ([decision 0013](decisions/0013-deploy-to-cloudflare-and-workers-builds.md), rules in
-[`areas/deployment.md`](areas/deployment.md)). A release is created by hand together with its `v*` tag on `main`; the release workflow
-(`.github/workflows/release.yml`) then verifies the tagged commit
-([decision 0017](decisions/0017-releases-created-by-hand.md)).
+[`areas/deployment.md`](areas/deployment.md)). A release is created only by pushing a `v*` tag, which the release workflow
+(`.github/workflows/release.yml`) verifies before it creates the release as a draft for the maintainer to publish
+([decision 0009](decisions/0009-releases-only-by-tag-push.md)).
 <!-- project:end architecture -->
 
 ## Development process
