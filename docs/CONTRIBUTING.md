@@ -107,7 +107,7 @@ ruleset; that is the actual control.
 
 ### Release plan up to 1.0.0
 
-A release is due when the last issue of its row has been merged to `main`, not earlier and not later. Each row
+A release is due when the last issue of its row has been closed, not earlier and not later. Each row
 is something an owner can try out on a deployed copy. The version in `package.json` stays at the last released
 version until that release pull request; it is never raised on its own.
 
@@ -122,9 +122,10 @@ version until that release pull request; it is never raised on its own.
 | **1.0.0**  | #20                  | Setup guide, external setup test and one week without a lost or duplicated message      |
 
 - A fix on a released version that cannot wait for the next row is a patch release (for example 0.2.1).
-- Issues opened later join the row that is still open; a row is closed once its version is tagged.
-- Pull requests merged after a row is complete but before its release pull request add their changelog entry
-  to the row after it, so cut the release pull request first when the last issue of a row is merged.
+- Issues opened later join the earliest row that has not been tagged yet, unless the Lead assigns a later one; a row
+  is closed once its version is tagged.
+- Pull requests merged after a row is complete but before its release pull request ship in that release, because the
+  tag contains everything on `main`; cut the release pull request first when the last issue of a row is closed.
 - 1.0.0 is tagged only after the acceptance criteria of #20 are met; nothing else makes a version 1.0.0.
 <!-- project:end releases -->
 
