@@ -27,7 +27,13 @@ beforeEach(async () => {
 
 /** Setup dependencies with a usable `SELUNA_SECRET`, the real database and a clock fixed at `milliseconds`. */
 function depsAt(milliseconds = NOW.getTime(), overrides: Partial<SetupDeps> = {}): SetupDeps {
-  return { env: { SELUNA_SECRET: SECRET }, db: env.DB, now: () => new Date(milliseconds), ...overrides };
+  return {
+    env: { SELUNA_SECRET: SECRET },
+    db: env.DB,
+    now: () => new Date(milliseconds),
+    fetch: () => Promise.reject(new Error("unexpected Telegram call")),
+    ...overrides,
+  };
 }
 
 interface RequestInitLike {

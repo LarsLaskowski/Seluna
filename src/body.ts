@@ -16,23 +16,23 @@ export function parseContentLength(value: string | null): number | undefined {
 }
 
 /**
- * Reads the request body, rejecting a `Content-Length` above `maxBytes` before reading and a body whose
+ * Reads the body of a request or response, rejecting a `Content-Length` above `maxBytes` before reading and a body whose
  * counted bytes exceed `maxBytes` while reading.
  *
  * The header is only an early answer: it is never used as an allocation size or as a point to stop reading.
  * Memory: while reading, at most `maxBytes` plus one chunk is held; on the `ok` path the chunks are still held
  * while they are copied into the combined array, so the peak is about twice `maxBytes`.
  */
-export async function readBodyWithLimit(request: Request, maxBytes: number): Promise<ReadBodyResult> {
-  const declared = parseContentLength(request.headers.get("content-length"));
+export async function readBodyWithLimit(message: Request | Response, maxBytes: number): Promise<ReadBodyResult> {
+  const declared = parseContentLength(message.headers.get("content-length"));
   if (declared !== undefined && declared > maxBytes) {
     return { kind: "too-large" };
   }
-  if (request.body === null) {
+  if (message.body === null) {
     return { kind: "ok", body: new Uint8Array(0) };
   }
 
-  const reader = request.body.getReader();
+  const reader = message.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
   try {

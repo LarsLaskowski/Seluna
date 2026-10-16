@@ -26,12 +26,18 @@ const SETUP_DEPS: SetupDeps = {
   env: { SELUNA_SECRET: SETUP_SECRET },
   db: env.DB,
   now: () => new Date(1_700_000_000_000),
+  fetch: () => Promise.reject(new Error("unexpected Telegram call")),
 };
 
 function makeDeps(
   entries: RequestLogEntry[] = [],
   source: WebhookSecretSource = FIXTURE_SECRET_SOURCE,
-  setup: SetupDeps = { env: {}, db: env.DB, now: () => new Date(0) },
+  setup: SetupDeps = {
+    env: {},
+    db: env.DB,
+    now: () => new Date(0),
+    fetch: () => Promise.reject(new Error("unexpected Telegram call")),
+  },
 ): RouteDeps {
   return {
     version: "1.2.3",

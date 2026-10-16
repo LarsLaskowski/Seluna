@@ -1,6 +1,7 @@
 import { MAX_BODY_BYTES, readBodyWithLimit } from "../body";
 import { isSelunaSecretConfigured, signingKeyFromEnv, verifySelunaSecret } from "../crypto";
 import { clearLoginAttempts, reserveLoginAttempt } from "../store/login-attempts";
+import type { TelegramFetch } from "../telegram";
 import { cookieValues, setupCookie } from "./cookies";
 import {
   CSRF_COOKIE,
@@ -24,6 +25,8 @@ export interface SetupDeps {
   readonly env: object;
   readonly db: D1Database;
   readonly now: () => Date;
+  /** Reaches the Telegram Bot API. */
+  readonly fetch: TelegramFetch;
 }
 
 export const SETUP_PATH = "/setup";

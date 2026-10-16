@@ -1,4 +1,5 @@
 import type { Language } from "./language";
+import type { TelegramStepView } from "./telegram-step";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 
@@ -122,4 +123,19 @@ export async function emptyResponse(status: number, cookies: readonly string[], 
   }
   addCookies(headers, cookies);
   return new Response(null, { status, headers });
+}
+
+export type TelegramPageView =
+  | TelegramStepView
+  | { readonly kind: "notice-only" }
+  | { readonly kind: "code"; readonly chatId: number; readonly proof: string };
+
+/** The Telegram step page; links like the login page. A `problem` view shows the notice of its problem. */
+export function renderTelegramPage(
+  language: Language,
+  csrfToken: string,
+  view: TelegramPageView,
+  notice?: Notice,
+): string {
+  throw new Error("Not implemented");
 }

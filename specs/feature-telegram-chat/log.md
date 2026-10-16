@@ -19,4 +19,6 @@ are quoted in full.
 | 2026-10-16 06:31 | 3 Plan revise | Orchestrator | Lead RESULT: DONE - B1 option (a) proof of possession (code in test message, HMAC-signed session-bound 10-min proof, POST /setup/telegram/verify); N1/DA2 accepted residual risk; N2, N3, DA1, DA3 accepted |
 | 2026-10-16 06:31 | 3 Plan security delta | Security | launched (delta, plan 1949fce) (opus/medium · 26,930 tokens · 7 tool uses · 63 s · continued) |
 | 2026-10-16 06:32 | 3 Plan security delta | Orchestrator | Security VERDICT: APPROVED (all findings resolved, no new finding) |
-| 2026-10-16 06:32 | 4 Skeleton (task 1) | Dev | launched (mode skeleton) |
+| 2026-10-16 06:32 | 4 Skeleton (task 1) | Dev | launched (mode skeleton) (sonnet/medium · 109,275 tokens · 10 tool uses · 111 s) |
+| 2026-10-16 06:34 | 4 Skeleton (task 1) | Orchestrator | Dev done: build and typecheck pass; 403/405 tests pass, 2 texts.test.ts assertions fail on the final texts (Tester's, task 5); no deviations |
+| 2026-10-16 06:34 | 5 Tests first (tasks 0, 2-6) | Tester | launched (mode tests-first) |
