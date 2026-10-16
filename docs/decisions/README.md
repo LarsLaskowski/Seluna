@@ -67,5 +67,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0013](0013-deploy-to-cloudflare-and-workers-builds.md) | Deployment through the Deploy to Cloudflare button and Workers Builds | Accepted | 2026-10-14 |
 | [0014](0014-d1-schema-and-data-access.md) | D1 schema and data access | Accepted | 2026-10-15 |
 | [0015](0015-setup-login.md) | Setup login | Accepted | 2026-10-15 |
+| [0016](0016-telegram-chat-in-the-setup-wizard.md) | Telegram chat in the setup wizard | Proposed | 2026-10-16 |
 
 <!-- project:end index -->

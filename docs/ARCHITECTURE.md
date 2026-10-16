@@ -41,8 +41,10 @@ flowchart LR
    delivery to the Telegram Bot API is attempted at once, and the cron trigger retries rows that are still pending.
 
 Guarantees along the way (also in [`.squad/project.md`](../.squad/project.md), *Guarantees*): an invalid signature
-has no effect, a delivery is processed once, a matched event is stored before it is sent, Telegram is only ever
-called, never a source of input.
+has no effect, a delivery is processed once, a matched event is stored before it is sent, and Telegram never calls
+the Worker: it has no webhook and no route, the Worker calls only `getUpdates` and `sendMessage`, and the one input it
+takes from Telegram is the chat list of the setup wizard's Telegram step
+([decision 0016](decisions/0016-telegram-chat-in-the-setup-wizard.md)).
 
 ## Endpoints
 
@@ -87,15 +89,18 @@ credential. Columns, formats and the key check are in [`areas/storage.md`](areas
 
 Settings are stored in D1 (`settings`) and written by the setup wizard; the values outside D1 are Worker
 secrets — `SELUNA_SECRET` (the password of the setup login and the source of the encryption and signing keys) and `TELEGRAM_BOT_TOKEN`, both asked for by the
-deploy form, and the optional `GITHUB_WEBHOOK_SECRET` (the webhook secret until the setup wizard stores it in
-D1) — plus the D1 binding `DB` and the cron triggers in `wrangler.jsonc`
+deploy form, the optional `GITHUB_WEBHOOK_SECRET` (the webhook secret until the setup wizard stores it in
+D1) and the optional `TELEGRAM_CHAT_ID` (takes precedence over the chat the setup wizard stores,
+[decision 0016](decisions/0016-telegram-chat-in-the-setup-wizard.md)) — plus the D1 binding `DB` and the cron triggers in `wrangler.jsonc`
 ([decision 0013](decisions/0013-deploy-to-cloudflare-and-workers-builds.md)). The rules per area are in
 [`areas/`](areas/README.md).
 
 ## Security model
 
 The webhook is authenticated by its HMAC signature, the setup wizard by the setup login
-([decision 0015](decisions/0015-setup-login.md)), and the Worker only calls out (GitHub API, Telegram Bot API). The GitHub App has the minimum permissions the rules need, and its
+([decision 0015](decisions/0015-setup-login.md)), and the Worker only calls out (GitHub API, Telegram Bot API); the
+Telegram chat list it reads in the setup wizard is bounded, narrowed and shown only to the signed-in owner
+([decision 0016](decisions/0016-telegram-chat-in-the-setup-wizard.md)). The GitHub App has the minimum permissions the rules need, and its
 credentials are encrypted in D1 ([decision 0007](decisions/0007-github-app-credentials-encrypted-in-d1.md)).
 The concrete areas are listed in [`.squad/project.md`](../.squad/project.md) (*Security areas*) and
 [`SECURITY.md`](../SECURITY.md).
