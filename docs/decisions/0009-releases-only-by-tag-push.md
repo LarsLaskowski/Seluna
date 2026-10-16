@@ -12,7 +12,8 @@ Users deploy Seluna from the repository. A release has to be a deliberate, trace
 become append-only once a `v*` tag contains them. Users should only ever run a release, never an intermediate
 state, so a release must not be publishable from a commit that failed the quality gates, that is not on `main`,
 or whose `package.json` version disagrees with the tag. The release job needs a token that can write repository
-contents; everything else the workflow runs (dependency installation, lint, tests) does not.
+contents; everything else the workflow runs (dependency installation, lint, tests) does not. The maintainer
+writes the text of each release themselves.
 
 ## Options considered
 
@@ -38,12 +39,23 @@ How the tag-triggered workflow is built:
    "latest release" excludes pre-releases, so the daily release check in each instance would see no release
    at all until 1.0.0. Lost: every version is published as a normal release.
 
+How the release is published:
+
+8. **The workflow publishes the release** — no manual step, but the release text is always the changelog
+   section plus generated notes, and the maintainer cannot edit it before users see it.
+9. **The maintainer creates tag and release by hand on GitHub, the workflow only verifies** — full control over
+   the text, but the release is public before its checks have run, and the tag push from the release page
+   makes a release-creating workflow fail because the release already exists.
+10. **The workflow creates a draft release that the maintainer edits and publishes** — the checks run before
+    anything is public and the maintainer still writes the text. Chosen.
+
 ## Decision
 
 A release is created only by pushing a `v*` tag on `main`; merging a pull request never publishes a release.
-The release workflow publishes only after a read-only job has verified the tag and run the format, lint, type-check, test and build checks (not the dependency audit and
+The release workflow creates the release only after a read-only job has verified the tag and run the format, lint, type-check, test and build checks (not the dependency audit and
 SonarQube jobs of `ci.yml`), and only the job that creates the release holds a write token, after it has
-checked that the tag still points to the verified commit. The release steps and checks are documented in
+checked that the tag still points to the verified commit and that no release for the tag exists. It creates
+the release as a draft, which the maintainer edits and publishes. The release steps and checks are documented in
 [`CONTRIBUTING.md`](../CONTRIBUTING.md#versioning-and-releases).
 
 ## Consequences
@@ -51,7 +63,9 @@ checked that the tag still points to the verified commit. The release steps and 
 Releases are rare and intentional, and the tag is the release boundary for decision records. The daily cron in
 each instance compares its version with the latest release, which works from the first 0.x release on because
 no release is marked as a pre-release. A tag that fails a check leaves a failed workflow run and no release; the
-maintainer deletes the tag, fixes `main` and tags again. The full release path (the GitHub API call) can only be
+maintainer deletes the tag, fixes `main` and tags again. Publishing is a second, manual step: a draft that is
+never published leaves the version unreleased for every instance. A release created by hand on GitHub's release
+page bypasses the checks and makes the workflow fail. The full release path (the GitHub API call) can only be
 exercised by pushing a real tag; the checks before it are verified locally.
 
 The check that the tag is on `main` prevents mistakes, not misuse: a tag-triggered run uses the `release.yml` of

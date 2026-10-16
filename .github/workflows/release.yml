@@ -103,7 +103,7 @@ jobs:
         run: npm run build
 
   release:
-    name: Create GitHub release
+    name: Create draft release
     needs: verify
     runs-on: ubuntu-latest
     permissions:
@@ -128,6 +128,21 @@ jobs:
             exit 1
           fi
 
+      - name: Check no release exists yet
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if out="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>&1)"; then
+            printf '::error::A release for %s already exists (draft: %s); this workflow creates it as a draft. Delete the release and the tag, then push the tag again.\n' "$TAG" "$out"
+            exit 1
+          elif [[ $out != *"release not found"* ]]; then
+            printf '::error::Could not check for an existing release of %s: %s\n' "$TAG" "$out"
+            exit 1
+          fi
+
       - name: Extract changelog section
         env:
           TAG: ${{ github.ref_name }}
@@ -147,11 +162,11 @@ jobs:
             exit 1
           fi
 
-      - name: Create release
+      - name: Create draft release
         env:
           TAG: ${{ github.ref_name }}
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "${RUNNER_TEMP:-/tmp}/release-notes.md" --generate-notes
+          gh release create "$TAG" --verify-tag --draft --title "$TAG" --notes-file "${RUNNER_TEMP:-/tmp}/release-notes.md" --generate-notes

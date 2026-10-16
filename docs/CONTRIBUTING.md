@@ -93,12 +93,16 @@ To release version `A.B.C`:
    adding a new empty `## [Unreleased]` above it.
 2. Merge the pull request.
 3. Tag the merge commit on `main` and push the tag:
-   `git switch main && git pull && git tag vA.B.C && git push origin vA.B.C`.
+   `git switch main && git pull && git tag vA.B.C && git push origin vA.B.C`. Do not create the release or the
+   tag on GitHub's release page: the workflow creates the release, and fails if one already exists.
+4. Once the release workflow has passed, open the draft release `vA.B.C` on GitHub, edit its text as needed
+   (leave *Set as a pre-release* unchecked) and publish it.
 
 The release workflow (`.github/workflows/release.yml`) rejects a tag that is not exactly `vA.B.C`, a tag on a
 commit that is not on `main`, a version that differs from `package.json` and a missing or empty changelog
 section, runs the format, lint, type-check, test and build checks, and then creates the GitHub release with the
-changelog section followed by GitHub's generated notes. If it fails, no release exists: delete the tag
+changelog section followed by GitHub's generated notes as a **draft**; nothing is published until the maintainer
+publishes the draft. If it fails, it has created no release: delete the tag (and, if it failed because a release for the tag already exists, that release)
 (`git push origin :refs/tags/vA.B.C && git tag -d vA.B.C`), fix `main` and tag again.
 
 The "on `main`" check only catches mistakes: a tag-triggered run uses the workflow file of the tagged commit,
