@@ -102,7 +102,7 @@ The release workflow (`.github/workflows/release.yml`) rejects a tag that is not
 commit that is not on `main`, a version that differs from `package.json` and a missing or empty changelog
 section, runs the format, lint, type-check, test and build checks, and then creates the GitHub release with the
 changelog section followed by GitHub's generated notes as a **draft**; nothing is published until the maintainer
-publishes the draft. If it fails, no release exists: delete the tag
+publishes the draft. If it fails, it has created no release: delete the tag (and, if it failed because a release for the tag already exists, that release)
 (`git push origin :refs/tags/vA.B.C && git tag -d vA.B.C`), fix `main` and tag again.
 
 The "on `main`" check only catches mistakes: a tag-triggered run uses the workflow file of the tagged commit,
