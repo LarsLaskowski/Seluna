@@ -1,5 +1,6 @@
 import type { Language } from "./language";
-import type { TelegramStepView } from "./telegram-step";
+import type { TelegramChat } from "../telegram";
+import type { TelegramProblem, TelegramStepView } from "./telegram-step";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 
@@ -7,6 +8,7 @@ import type { Notice } from "./texts";
 export const STYLE =
   "body{font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem;line-height:1.5}" +
   "label,input{display:block;width:100%;box-sizing:border-box}input{margin:.25rem 0 1rem;padding:.5rem}" +
+  "input[type=radio]{display:inline;width:auto;margin:0 .5rem 0 0}" +
   "button{padding:.5rem 1rem}.notice{padding:.5rem;border:1px solid currentcolor}nav{font-size:.9rem}";
 
 const SECURITY_HEADERS: Readonly<Record<string, string>> = {
@@ -77,6 +79,7 @@ export function renderStartPage(language: Language, csrfToken: string, notice?: 
   return layout(
     language,
     `<h1>${escapeHtml(texts.startHeading)}</h1>\n<p>${escapeHtml(texts.startBody)}</p>\n${noticeHtml(language, notice)}\n` +
+      `<ul>\n<li><a href="/setup/telegram">${escapeHtml(texts.telegramHeading)}</a></li>\n</ul>\n` +
       `<form method="post" action="/setup/logout">\n${csrfInput(csrfToken)}\n` +
       `<button type="submit">${escapeHtml(texts.logoutButton)}</button>\n</form>`,
   );
@@ -130,6 +133,60 @@ export type TelegramPageView =
   | { readonly kind: "notice-only" }
   | { readonly kind: "code"; readonly chatId: number; readonly proof: string };
 
+const PROBLEM_NOTICES: Readonly<Record<TelegramProblem, Notice>> = {
+  "token-missing": "telegram-token-missing",
+  "token-malformed": "telegram-token-malformed",
+  "token-rejected": "telegram-token-rejected",
+  conflict: "telegram-conflict",
+  unavailable: "telegram-unavailable",
+};
+
+function searchLink(language: Language): string {
+  return `<p><a href="/setup/telegram">${escapeHtml(TEXTS[language].telegramSearchLink)}</a></p>`;
+}
+
+function savedChatHtml(language: Language, savedChatId: number | undefined): string {
+  const texts = TEXTS[language];
+  return savedChatId === undefined
+    ? `<p>${escapeHtml(texts.telegramNoSavedChat)}</p>`
+    : `<p>${escapeHtml(texts.telegramSavedChat)} <code>${String(savedChatId)}</code></p>`;
+}
+
+/** One radio input per chat; every name is escaped and isolated in its own `bdi`, the username in another one after it. */
+function chatOptionHtml(language: Language, chat: TelegramChat): string {
+  const texts = TEXTS[language];
+  const username = chat.username === undefined ? "" : ` <bdi class="username">@${escapeHtml(chat.username)}</bdi>`;
+  const kind = chat.kind === "private" ? texts.telegramPrivateChat : texts.telegramGroup;
+  return (
+    `<label><input type="radio" name="chat" value="${String(chat.id)}" required> ` +
+    `<bdi>${escapeHtml(chat.name)}</bdi>${username} (${escapeHtml(kind)})</label>`
+  );
+}
+
+function chatsHtml(language: Language, csrfToken: string, chats: readonly TelegramChat[]): string {
+  const texts = TEXTS[language];
+  if (chats.length === 0) {
+    return `<p>${escapeHtml(texts.telegramNoChats)}</p>`;
+  }
+  return (
+    `<p>${escapeHtml(texts.telegramChatsIntro)}</p>\n<form method="post" action="/setup/telegram">\n${csrfInput(csrfToken)}\n` +
+    `${chats.map((chat) => chatOptionHtml(language, chat)).join("\n")}\n` +
+    `<button type="submit">${escapeHtml(texts.telegramConfirmButton)}</button>\n</form>`
+  );
+}
+
+function codeHtml(language: Language, csrfToken: string, chatId: number, proof: string): string {
+  const texts = TEXTS[language];
+  return (
+    `<p>${escapeHtml(texts.telegramCodeSent)} <code>${String(chatId)}</code></p>\n<p>${escapeHtml(texts.telegramCodeIntro)}</p>\n` +
+    `<form method="post" action="/setup/telegram/verify">\n${csrfInput(csrfToken)}\n` +
+    `<input type="hidden" name="proof" value="${escapeHtml(proof)}">\n` +
+    `<label for="code">${escapeHtml(texts.telegramCodeLabel)}</label>\n` +
+    `<input id="code" type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>\n` +
+    `<button type="submit">${escapeHtml(texts.telegramCodeButton)}</button>\n</form>`
+  );
+}
+
 /** The Telegram step page; links like the login page. A `problem` view shows the notice of its problem. */
 export function renderTelegramPage(
   language: Language,
@@ -137,5 +194,34 @@ export function renderTelegramPage(
   view: TelegramPageView,
   notice?: Notice,
 ): string {
-  throw new Error("Not implemented");
+  const texts = TEXTS[language];
+  const heading = `<h1>${escapeHtml(texts.telegramHeading)}</h1>`;
+  const intro = `<p>${escapeHtml(texts.telegramIntro)}</p>`;
+  let body: string;
+  switch (view.kind) {
+    case "chat-id-secret":
+      body = `${heading}\n<p>${escapeHtml(texts.telegramChatIdSecret)}</p>`;
+      break;
+    case "notice-only":
+      body = `${heading}\n${intro}\n${noticeHtml(language, notice)}\n${searchLink(language)}`;
+      break;
+    case "code":
+      body = `${heading}\n${noticeHtml(language, notice)}\n${codeHtml(language, csrfToken, view.chatId, view.proof)}\n${searchLink(language)}`;
+      break;
+    case "problem":
+      body =
+        `${heading}\n${intro}\n${noticeHtml(language, notice ?? PROBLEM_NOTICES[view.problem])}\n` +
+        `${savedChatHtml(language, view.savedChatId)}\n${searchLink(language)}`;
+      break;
+    case "chats":
+      body =
+        `${heading}\n${intro}\n${noticeHtml(language, notice)}\n${savedChatHtml(language, view.savedChatId)}\n` +
+        `${searchLink(language)}\n${chatsHtml(language, csrfToken, view.chats)}`;
+      break;
+    default: {
+      const unreachable: never = view;
+      return unreachable;
+    }
+  }
+  return layout(language, body);
 }
