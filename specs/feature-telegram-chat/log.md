@@ -29,4 +29,5 @@ are quoted in full.
 | 2026-10-16 06:53 | 6 Test dispute | Orchestrator | Lead RESULT: DECIDED - 1: Dev's view adopted, Tester checks the stored text against the page without its <style> element; 2: confirmed; 3a-3d: all accepted, with the 3c view documented by the Dev in setup-wizard.md and checked by one Tester assertion; 4: the unreachable default: never lines accepted as a coverage gap, no exclusion and no record. |
 | 2026-10-16 06:53 | 6 Doc fix (decision 3c) | Dev | launched (continued) (sonnet/medium · 1,735 tokens · 3 tool uses · 16 s · continued) |
 | 2026-10-16 06:54 | 6 Doc fix (decision 3c) | Orchestrator | Dev added the Precedence sentence to docs/areas/setup-wizard.md |
-| 2026-10-16 06:54 | 6 Coverage pass (task 11) | Tester | launched (mode coverage) |
+| 2026-10-16 06:54 | 6 Coverage pass (task 11) | Tester | launched (mode coverage) (sonnet/medium · 97,131 tokens · 18 tool uses · 175 s) |
+| 2026-10-16 06:57 | 6 Coverage pass (task 11) | Orchestrator | Tester done: 746/746, coverage gate 95.0% new lines; deviation for Lead: 'zero' row stored-text assertion runs on HTML without <style> and <form> (chat list ids contain 0); AC13/AC14/AC18 and index.ts fetch tests added |
