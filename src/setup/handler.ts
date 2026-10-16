@@ -15,8 +15,26 @@ import {
 } from "./csrf";
 import { LANGUAGE_COOKIE, LANGUAGE_COOKIE_MAX_AGE, resolveLanguage } from "./language";
 import type { Language } from "./language";
-import { emptyResponse, htmlResponse, renderLoginPage, renderNotConfiguredPage, renderStartPage } from "./pages";
+import {
+  emptyResponse,
+  htmlResponse,
+  renderLoginPage,
+  renderNotConfiguredPage,
+  renderStartPage,
+  renderTelegramPage,
+} from "./pages";
+import type { TelegramPageView } from "./pages";
 import { createSessionToken, isValidSessionToken, SESSION_COOKIE, SESSION_LIFETIME_MS } from "./session";
+import {
+  CHAT_FIELD,
+  CODE_FIELD,
+  confirmTelegramChat,
+  PROOF_FIELD,
+  TELEGRAM_STEP_PATH,
+  TELEGRAM_VERIFY_PATH,
+  telegramStepView,
+  verifyTelegramChat,
+} from "./telegram-step";
 import type { Notice } from "./texts";
 
 /** What the wizard needs from outside. */
@@ -41,11 +59,15 @@ interface Context {
   readonly languageCookies: readonly string[];
   readonly sessionKey: CryptoKey;
   readonly csrfKey: CryptoKey;
+  readonly telegramKey: CryptoKey;
   readonly csrfValues: readonly string[];
 }
 
 /** Which form a page carries or a submission belongs to; a signed-in form names the session its token is bound to. */
-type SetupForm = { readonly kind: "login" } | { readonly kind: "start"; readonly session: string };
+type SetupForm =
+  | { readonly kind: "login" }
+  | { readonly kind: "start"; readonly session: string }
+  | { readonly kind: "telegram"; readonly session: string; readonly view: TelegramPageView };
 
 /** Whether `pathname` is `/setup` or starts with `/setup/`. */
 export function isSetupPath(pathname: string): boolean {
@@ -77,6 +99,14 @@ async function formPage(context: Context, form: SetupForm, status: number, notic
       html = renderStartPage(
         context.language,
         await sessionCsrfTokenFor(context.csrfKey, form.session, cookieValue),
+        notice,
+      );
+      break;
+    case "telegram":
+      html = renderTelegramPage(
+        context.language,
+        await sessionCsrfTokenFor(context.csrfKey, form.session, cookieValue),
+        form.view,
         notice,
       );
       break;
@@ -124,6 +154,7 @@ async function hasValidCsrf(context: Context, fields: URLSearchParams, form: Set
     case "login":
       return isValidCsrfToken(context.csrfKey, token ?? null, context.csrfValues);
     case "start":
+    case "telegram":
       return isValidSessionCsrfToken(context.csrfKey, token ?? null, form.session, context.csrfValues);
     default: {
       const unreachable: never = form;
@@ -173,6 +204,123 @@ async function signOut(context: Context, session: string): Promise<Response> {
   return plain(context, 303, [setupCookie(SESSION_COOKIE, "", 0)], SETUP_PATH);
 }
 
+/** The Telegram page for `view`, with the session-bound token of a signed-in form. */
+function telegramPage(
+  context: Context,
+  session: string,
+  status: number,
+  view: TelegramPageView,
+  notice?: Notice,
+): Promise<Response> {
+  return formPage(context, { kind: "telegram", session, view }, status, notice);
+}
+
+const NOTICE_ONLY: TelegramPageView = { kind: "notice-only" };
+
+async function showTelegramStep(context: Context, session: string): Promise<Response> {
+  const { env, db, fetch } = context.deps;
+  let view: TelegramPageView;
+  try {
+    view = await telegramStepView(env, db, fetch);
+  } catch {
+    // The error is deliberately dropped: it must reach neither the log nor the response.
+    return telegramPage(context, session, 503, NOTICE_ONLY, "unavailable");
+  }
+  return telegramPage(context, session, 200, view);
+}
+
+/** The fields of a signed-in Telegram form whose CSRF token is valid, or the response that ends the request. */
+async function readTelegramForm(context: Context, session: string): Promise<URLSearchParams | Response> {
+  const form = await readForm(context);
+  if (form instanceof Response) {
+    return form;
+  }
+  if (!(await hasValidCsrf(context, form, { kind: "telegram", session, view: NOTICE_ONLY }))) {
+    return telegramPage(context, session, 403, NOTICE_ONLY, "form-expired");
+  }
+  return form;
+}
+
+async function confirmTelegram(context: Context, session: string): Promise<Response> {
+  const form = await readTelegramForm(context, session);
+  if (form instanceof Response) {
+    return form;
+  }
+  const { env, fetch, now } = context.deps;
+  const result = await confirmTelegramChat(
+    env,
+    fetch,
+    context.telegramKey,
+    session,
+    form.getAll(CHAT_FIELD),
+    context.language,
+    now(),
+  );
+  switch (result.kind) {
+    case "code-sent":
+      return telegramPage(context, session, 200, { kind: "code", chatId: result.chatId, proof: result.proof });
+    case "chat-id-secret":
+      return telegramPage(context, session, 409, { kind: "chat-id-secret" });
+    case "invalid-chat":
+      return telegramPage(context, session, 400, NOTICE_ONLY, "telegram-invalid-chat");
+    case "token-missing":
+      return telegramPage(context, session, 503, NOTICE_ONLY, "telegram-token-missing");
+    case "token-malformed":
+      return telegramPage(context, session, 503, NOTICE_ONLY, "telegram-token-malformed");
+    case "token-rejected":
+      return telegramPage(context, session, 502, NOTICE_ONLY, "telegram-token-rejected");
+    case "send-failed":
+      return telegramPage(context, session, 502, NOTICE_ONLY, "telegram-send-failed");
+    default: {
+      const unreachable: never = result;
+      return unreachable;
+    }
+  }
+}
+
+async function verifyTelegram(context: Context, session: string): Promise<Response> {
+  const form = await readTelegramForm(context, session);
+  if (form instanceof Response) {
+    return form;
+  }
+  const { env, db, now } = context.deps;
+  let result: Awaited<ReturnType<typeof verifyTelegramChat>>;
+  try {
+    result = await verifyTelegramChat(
+      env,
+      db,
+      context.telegramKey,
+      session,
+      form.getAll(PROOF_FIELD),
+      form.getAll(CODE_FIELD),
+      now(),
+    );
+  } catch {
+    // The error is deliberately dropped: it must reach neither the log nor the response.
+    return telegramPage(context, session, 503, NOTICE_ONLY, "unavailable");
+  }
+  switch (result.kind) {
+    case "saved":
+      return plain(context, 303, [], TELEGRAM_STEP_PATH);
+    case "chat-id-secret":
+      return telegramPage(context, session, 409, { kind: "chat-id-secret" });
+    case "code-expired":
+      return telegramPage(context, session, 400, NOTICE_ONLY, "telegram-code-expired");
+    case "wrong-code":
+      return telegramPage(
+        context,
+        session,
+        400,
+        { kind: "code", chatId: result.chatId, proof: result.proof },
+        "telegram-wrong-code",
+      );
+    default: {
+      const unreachable: never = result;
+      return unreachable;
+    }
+  }
+}
+
 async function signedIn(context: Context, session: string, pathname: string): Promise<Response> {
   const { method } = context.request;
   if (method === "GET" && pathname === SETUP_PATH) {
@@ -180,6 +328,17 @@ async function signedIn(context: Context, session: string, pathname: string): Pr
   }
   if (method === "POST" && pathname === LOGOUT_PATH) {
     return signOut(context, session);
+  }
+  if (pathname === TELEGRAM_STEP_PATH) {
+    if (method === "GET") {
+      return showTelegramStep(context, session);
+    }
+    if (method === "POST") {
+      return confirmTelegram(context, session);
+    }
+  }
+  if (method === "POST" && pathname === TELEGRAM_VERIFY_PATH) {
+    return verifyTelegram(context, session);
   }
   return plain(context, 404);
 }
@@ -190,11 +349,17 @@ export async function handleSetup(request: Request, pathname: string, deps: Setu
   const languageCookies = fromQuery ? [setupCookie(LANGUAGE_COOKIE, language, LANGUAGE_COOKIE_MAX_AGE)] : [];
   const sessionKey = await signingKeyFromEnv(deps.env, "setup-session");
   const csrfKey = await signingKeyFromEnv(deps.env, "setup-csrf");
-  if (!isSelunaSecretConfigured(deps.env) || sessionKey === undefined || csrfKey === undefined) {
+  const telegramKey = await signingKeyFromEnv(deps.env, "setup-telegram");
+  if (
+    !isSelunaSecretConfigured(deps.env) ||
+    sessionKey === undefined ||
+    csrfKey === undefined ||
+    telegramKey === undefined
+  ) {
     return htmlResponse(renderNotConfiguredPage(language), 503, language, languageCookies);
   }
   const csrfValues = cookieValues(request.headers.get("cookie"), CSRF_COOKIE).filter(isWellFormedCsrfCookieValue);
-  const context: Context = { request, deps, language, languageCookies, sessionKey, csrfKey, csrfValues };
+  const context: Context = { request, deps, language, languageCookies, sessionKey, csrfKey, telegramKey, csrfValues };
   if (request.method === "POST" && pathname === LOGIN_PATH) {
     return signIn(context);
   }

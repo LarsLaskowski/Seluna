@@ -54,7 +54,9 @@ does the setup wizard under `/setup`.
   never read. An accepted body is briefly held twice while its chunks are combined, so reading one takes up to
   about 2 MiB of memory.
 - A route that reads no body (`GET /health`, every 404) never reads it, so its size does not matter there. Under
-  `/setup` only the form submissions `POST /setup/login` and `POST /setup/logout` read a body, with this limit.
+  `/setup` only the form submissions `POST /setup/login`, `POST /setup/logout`, `POST /setup/telegram` and
+  `POST /setup/telegram/verify` read a body, with this limit. The Telegram Bot API answers read by the setup
+  wizard are limited the same way, through the same reader ([Setup wizard](setup-wizard.md#telegram-chat)).
 
 ### Logging
 

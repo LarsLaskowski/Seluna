@@ -1,7 +1,7 @@
 import { readBodyWithLimit } from "./body";
 
-const BOT_TOKEN_FORM = /^[0-9]{1,20}:[A-Za-z0-9_-]{1,200}$/;
-const CHAT_ID_FORM = /^-?[1-9][0-9]{0,15}$/;
+const BOT_TOKEN_FORM = /^\d{1,20}:[A-Za-z0-9_-]{1,200}$/;
+const CHAT_ID_FORM = /^-?[1-9]\d{0,15}$/;
 const USERNAME_FORM = /^\w{1,64}$/;
 const UPDATE_FIELDS = ["message", "edited_message", "my_chat_member"] as const;
 
@@ -41,7 +41,7 @@ export function isChatIdSecretSet(env: object): boolean {
   return typeof value === "string" && value !== "";
 }
 
-/** The chat id `text` denotes (`^-?[1-9][0-9]{0,15}$`, safe integer), otherwise `undefined`. */
+/** The chat id `text` denotes (`^-?[1-9]\d{0,15}$`, safe integer), otherwise `undefined`. */
 export function parseChatId(text: string): number | undefined {
   if (!CHAT_ID_FORM.test(text)) {
     return undefined;
@@ -70,7 +70,7 @@ export function parseChats(body: unknown): readonly TelegramChat[] | undefined {
   const seen = new Set<number>();
   const chats: TelegramChat[] = [];
   // The array is oldest first: walking it backwards meets the newest update of each chat first.
-  for (const update of updates.toReversed()) {
+  for (const update of [...updates].reverse()) {
     const found = chatOfUpdate(update);
     if (found === undefined || seen.has(found.chat.id)) {
       continue;
@@ -159,7 +159,12 @@ export type FindChatsResult =
 
 /** Calls `getUpdates` once (`token` from `botTokenFromEnv`). Never throws. */
 export async function findChats(token: string, fetcher: TelegramFetch): Promise<FindChatsResult> {
-  const answer = await callBotApi(token, "getUpdates", { offset: -GET_UPDATES_LIMIT, limit: GET_UPDATES_LIMIT, timeout: 0 }, fetcher);
+  const answer = await callBotApi(
+    token,
+    "getUpdates",
+    { offset: -GET_UPDATES_LIMIT, limit: GET_UPDATES_LIMIT, timeout: 0 },
+    fetcher,
+  );
   if (answer.kind === "failed") {
     return { kind: "unavailable" };
   }
@@ -184,7 +189,7 @@ async function readJson(response: Response): Promise<unknown> {
     return undefined;
   }
   try {
-    const text = new TextDecoder("utf-8", { fatal: true }).decode(result.body);
+    const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(result.body);
     const parsed: unknown = JSON.parse(text);
     return parsed;
   } catch {
@@ -193,7 +198,12 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 /** One POST to a Bot API method with a JSON body; never throws. A non-2xx answer is returned without reading its body. */
-async function callBotApi(token: string, method: string, payload: object, fetcher: TelegramFetch): Promise<BotApiAnswer> {
+async function callBotApi(
+  token: string,
+  method: string,
+  payload: object,
+  fetcher: TelegramFetch,
+): Promise<BotApiAnswer> {
   try {
     const request = new Request(`${TELEGRAM_API_ORIGIN}/bot${token}/${method}`, {
       method: "POST",

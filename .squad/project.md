@@ -28,8 +28,12 @@ files or endpoints.
   logged, returned in a response or kept in plain text in D1 (decision 0007).
 - **Minimal GitHub App permissions:** the manifest requests read-only access to exactly what the rules read (pull
   requests, checks/statuses, security alerts, metadata); a new permission is a `security`-tier change.
-- **Outbound-only Telegram:** the Worker only calls the Telegram Bot API (`sendMessage`); it exposes no Telegram
-  webhook and accepts no input from Telegram. The bot token never appears in a URL that is logged.
+- **Outbound-only Telegram:** the Worker calls only the Telegram Bot API methods `getUpdates` (in the setup wizard's
+  Telegram step, `src/setup/telegram-step.ts`) and `sendMessage` (`src/telegram.ts`); it never sets or deletes a
+  webhook and exposes no Telegram route; the input it takes from Telegram is the `getUpdates` answer of the signed-in
+  step and the status of each `sendMessage` answer, both read bounded (1 MiB) and narrowed in `src/telegram.ts`; a
+  chat is stored only after the owner typed back the code of its test message (`src/setup/chat-proof.ts`); the bot
+  token appears only in the request URL, which Seluna never logs.
 - **Parsing of external input:** webhook bodies are JSON from GitHub and are narrowed from `unknown`; fields are
   length-limited and escaped (Telegram MarkdownV2/HTML) before they enter a message, because titles and branch names
   are attacker-controlled text.
@@ -97,8 +101,11 @@ otherwise):
 
 - **GitHub API double** — a `fetch` stub (`vi.fn` on `globalThis.fetch`, typed against the client's signature) that
   answers installation-token, pull request and check-run requests from fixtures under `test/fixtures/`.
-- **Telegram Bot API double** — a `fetch` stub that records `sendMessage` calls and can answer with a rate limit
-  (429 with `retry_after`) or a server error; no real bot is ever called.
+- **Telegram Bot API double** — `test/telegram.ts`: a `vi.fn<TelegramFetch>()` passed as the injected `TelegramFetch`
+  (not a stub on `globalThis.fetch`) that records every request and answers `getUpdates` and `sendMessage` from
+  fixtures, a status and body, or a rejection (a rate limit, a server error); it fails the test on any other method.
+  Its `getUpdates` answers come from `test/fixtures/telegram/`, which are written from the Bot API reference, not
+  captured (see the `README.md` there); no real bot is ever called.
 - **Clock** — an injected `() => Date` (or `vi.useFakeTimers()`) so rules, retries and token expiry are tested
   without waiting; code under test never calls `Date.now()` directly.
 - **Real GitHub payloads** — captured events stored as `test/fixtures/<event>/<action>.json`, with secrets and

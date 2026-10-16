@@ -29,7 +29,7 @@ export function newChatCode(): string {
 }
 
 /** `v1.<chatId>.<expires>.<mac>`; `key` from `signingKeyFromEnv(env, "setup-telegram")`, `session` the request's valid session token. */
-export function createChatProof(
+export async function createChatProof(
   key: CryptoKey,
   session: string,
   chatId: number,
@@ -48,7 +48,7 @@ export type ChatProofCheck =
   | { readonly kind: "invalid" };
 
 /** Checks `proof` against `session` and `code` at `now` as the area document's *Chat proof* says; the MAC in constant time. */
-export function checkChatProof(
+export async function checkChatProof(
   key: CryptoKey,
   proof: string,
   session: string,
@@ -65,7 +65,12 @@ export function checkChatProof(
   const chatId = parseChatId(chatText);
   const mac = fromBase64Url(macPart);
   const expires = Number(expiresText);
-  if (chatId === undefined || mac === undefined || expires <= now.getTime() || expires > now.getTime() + CHAT_PROOF_LIFETIME_MS) {
+  if (
+    chatId === undefined ||
+    mac === undefined ||
+    expires <= now.getTime() ||
+    expires > now.getTime() + CHAT_PROOF_LIFETIME_MS
+  ) {
     return { kind: "invalid" };
   }
   if (!CODE_FORM.test(code)) {

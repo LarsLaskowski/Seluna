@@ -1,11 +1,5 @@
 import { readSetting, TELEGRAM_CHAT_ID_SETTING, writeSetting } from "../store/settings";
-import {
-  botTokenFromEnv,
-  findChats,
-  isChatIdSecretSet,
-  parseChatId,
-  sendMessage,
-} from "../telegram";
+import { botTokenFromEnv, findChats, isChatIdSecretSet, parseChatId, sendMessage } from "../telegram";
 import type { TelegramChat, TelegramFetch } from "../telegram";
 import { checkChatProof, createChatProof, newChatCode } from "./chat-proof";
 import type { Language } from "./language";
@@ -22,11 +16,7 @@ export type TelegramStepView =
   | { readonly kind: "chats"; readonly chats: readonly TelegramChat[]; readonly savedChatId: number | undefined };
 
 /** What the step page shows; calls `getUpdates` at most once. D1 errors are not caught. */
-export async function telegramStepView(
-  env: object,
-  db: D1Database,
-  fetcher: TelegramFetch,
-): Promise<TelegramStepView> {
+export async function telegramStepView(env: object, db: D1Database, fetcher: TelegramFetch): Promise<TelegramStepView> {
   if (isChatIdSecretSet(env)) {
     return { kind: "chat-id-secret" };
   }
@@ -77,7 +67,7 @@ export type ConfirmChatResult =
   | { readonly kind: "send-failed" };
 
 /** Sends a test message with a new code to the one chat in `chatFields` and returns the proof for it; stores nothing. */
-export function confirmTelegramChat(
+export async function confirmTelegramChat(
   env: object,
   fetcher: TelegramFetch,
   proofKey: CryptoKey,
@@ -124,7 +114,7 @@ export type VerifyChatResult =
   | { readonly kind: "wrong-code"; readonly chatId: number; readonly proof: string };
 
 /** Checks the one proof and code of the verify form and stores the proof's chat. Calls no Telegram API. D1 errors are not caught. */
-export function verifyTelegramChat(
+export async function verifyTelegramChat(
   env: object,
   db: D1Database,
   proofKey: CryptoKey,
