@@ -948,7 +948,9 @@ describe("handleSetup Telegram step page", () => {
       expect(response.status, "status").toBe(200);
       expect(html, "no saved chat text").toContain(escapeHtml(TEXTS.en.telegramNoSavedChat));
       expect(html, "saved chat line").not.toContain(escapeHtml(TEXTS.en.telegramSavedChat));
-      expect(html, "stored text").not.toContain(escapeHtml(stored));
+      // The page's style and the chat list (ids such as 5003003) legitimately contain digits like "0".
+      const body = html.replace(/<style[\s\S]*?<\/style>/g, "").replace(/<form[\s\S]*?<\/form>/g, "");
+      expect(body, "stored text outside the style element and the chat form").not.toContain(escapeHtml(stored));
     },
   );
 
@@ -1062,6 +1064,7 @@ describe("handleSetup Telegram step page problems", () => {
     expect(response.status, "status (a read of D1 would answer 503)").toBe(200);
     const html = await response.text();
     expect(html, "chat id secret text").toContain(escapeHtml(TEXTS.en.telegramChatIdSecret));
+    expect(html, "chats intro").not.toContain(escapeHtml(TEXTS.en.telegramChatsIntro));
     expect(html, "form").not.toContain("<form");
     expect(html, "saved chat line").not.toContain(escapeHtml(TEXTS.en.telegramSavedChat));
     expect(html, "no saved chat text").not.toContain(escapeHtml(TEXTS.en.telegramNoSavedChat));

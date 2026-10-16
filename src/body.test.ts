@@ -150,4 +150,36 @@ describe("readBodyWithLimit", () => {
 
     expect(result, "unreadable result").toEqual({ kind: "unreadable" });
   });
+
+  it("readBodyWithLimit returns the bytes of a Response body within maxBytes", async () => {
+    const response = new Response(new Uint8Array([1, 2, 3]));
+
+    const result = await readBodyWithLimit(response, MAX_BYTES);
+
+    expect(result, "result with the body bytes").toEqual({ kind: "ok", body: new Uint8Array([1, 2, 3]) });
+  });
+
+  it("readBodyWithLimit returns an empty body for a Response without body", async () => {
+    const response = new Response(null, { status: 204 });
+
+    const result = await readBodyWithLimit(response, MAX_BYTES);
+
+    expect(result, "result with an empty body").toEqual({ kind: "ok", body: new Uint8Array(0) });
+  });
+
+  it("readBodyWithLimit rejects a Response whose Content-Length is over maxBytes", async () => {
+    const response = new Response(null, { headers: { "content-length": String(MAX_BYTES + 1) } });
+
+    const result = await readBodyWithLimit(response, MAX_BYTES);
+
+    expect(result, "too-large result").toEqual({ kind: "too-large" });
+  });
+
+  it("readBodyWithLimit counts a Response body that is one byte over maxBytes", async () => {
+    const response = new Response(streamOf([bytes(4), bytes(5)]));
+
+    const result = await readBodyWithLimit(response, MAX_BYTES);
+
+    expect(result, "too-large result").toEqual({ kind: "too-large" });
+  });
 });

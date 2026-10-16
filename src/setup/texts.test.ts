@@ -52,4 +52,55 @@ describe("TEXTS", () => {
         "The code has expired or the form is no longer valid. Search for chats again and send a new test message.",
     });
   });
+
+  it("texts word the English Telegram step as the area document does", () => {
+    const { en } = TEXTS;
+
+    expect(
+      {
+        startBody: en.startBody,
+        telegramHeading: en.telegramHeading,
+        telegramIntro: en.telegramIntro,
+        telegramSearchLink: en.telegramSearchLink,
+        telegramChatIdSecret: en.telegramChatIdSecret,
+        telegramSavedChat: en.telegramSavedChat,
+        telegramNoSavedChat: en.telegramNoSavedChat,
+        telegramChatsIntro: en.telegramChatsIntro,
+        telegramNoChats: en.telegramNoChats,
+        telegramPrivateChat: en.telegramPrivateChat,
+        telegramGroup: en.telegramGroup,
+        telegramConfirmButton: en.telegramConfirmButton,
+        telegramTestMessage: en.telegramTestMessage,
+        telegramCodeSent: en.telegramCodeSent,
+        telegramCodeIntro: en.telegramCodeIntro,
+        telegramCodeLabel: en.telegramCodeLabel,
+        telegramCodeButton: en.telegramCodeButton,
+      },
+      "English Telegram step texts",
+    ).toEqual({
+      startBody: "Set up your instance step by step:",
+      telegramHeading: "Telegram chat",
+      telegramIntro:
+        "Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats.",
+      telegramSearchLink: "Search for chats",
+      telegramChatIdSecret:
+        "The chat is set by the Worker secret TELEGRAM_CHAT_ID, which takes precedence over a chat chosen here. To choose the chat here, delete that secret.",
+      telegramSavedChat: "Saved chat:",
+      telegramNoSavedChat: "No chat is saved yet.",
+      telegramChatsIntro:
+        "Chats your bot has seen recently. Anyone who messages your bot appears here, so choose only your own chat: Seluna sends a test message with a code to it, and the chat is saved once you enter that code.",
+      telegramNoChats:
+        "No chat found. Send /start to your bot or add it to a group, then search again. Telegram keeps messages to the bot for 24 hours, and Seluna sees only the newest 100: if your bot receives many messages, send /start again just before you search.",
+      telegramPrivateChat: "Private chat",
+      telegramGroup: "Group",
+      telegramConfirmButton: "Send test message",
+      telegramTestMessage:
+        "Seluna setup: to send the notifications of your instance to this chat, enter this code on your setup page. If you did not ask for it, ignore this message. Code:",
+      telegramCodeSent: "Test message sent to chat:",
+      telegramCodeIntro:
+        "Enter the six-digit code from that message to save the chat. If no message arrived, the chat is not yours: search again and choose another.",
+      telegramCodeLabel: "Code",
+      telegramCodeButton: "Save chat",
+    });
+  });
 });
