@@ -948,9 +948,18 @@ describe("handleSetup Telegram step page", () => {
       expect(response.status, "status").toBe(200);
       expect(html, "no saved chat text").toContain(escapeHtml(TEXTS.en.telegramNoSavedChat));
       expect(html, "saved chat line").not.toContain(escapeHtml(TEXTS.en.telegramSavedChat));
-      // The page's style and the chat list (ids such as 5003003) legitimately contain digits like "0".
-      const body = html.replace(/<style[\s\S]*?<\/style>/g, "").replace(/<form[\s\S]*?<\/form>/g, "");
-      expect(body, "stored text outside the style element and the chat form").not.toContain(escapeHtml(stored));
+      // The page's style and the chat list (ids such as 5003003) legitimately contain digits like "0": check the
+      // text between the end of the style element and the chat form, and the text after the form.
+      const styleEnd = html.indexOf("</style>");
+      const formStart = html.indexOf("<form");
+      const formEnd = html.indexOf("</form>");
+      expect(styleEnd, "end of the style element found").toBeGreaterThanOrEqual(0);
+      expect(formStart, "chat form found after the style element").toBeGreaterThan(styleEnd);
+      expect(formEnd, "end of the chat form found").toBeGreaterThan(formStart);
+      const segments = [html.slice(styleEnd, formStart), html.slice(formEnd)];
+      for (const segment of segments) {
+        expect(segment, "stored text outside the style element and the chat form").not.toContain(escapeHtml(stored));
+      }
     },
   );
 
