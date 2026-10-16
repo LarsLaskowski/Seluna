@@ -23,7 +23,7 @@ describe("TEXTS", () => {
     expect(TEXTS.en.notConfiguredParagraphs.length, "English not-configured paragraphs").toBeGreaterThan(0);
     expect(TEXTS.de.notConfiguredParagraphs.length, "German not-configured paragraphs").toBeGreaterThan(0);
     expect(Object.keys(TEXTS.de.notices), "German notice keys").toEqual(Object.keys(TEXTS.en.notices));
-    expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(4);
+    expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(13);
   });
 
   it("texts word the English notices as the area document does", () => {
@@ -33,6 +33,23 @@ describe("TEXTS", () => {
         "Too many failed attempts. Signing in is locked for 15 minutes after the fifth failed attempt; try again later.",
       "form-expired": "The form has expired. Please submit it again.",
       unavailable: "The setup is unavailable right now. Please try again in a moment.",
+      "telegram-token-missing":
+        "The Worker secret TELEGRAM_BOT_TOKEN is not set. In Telegram, send /newbot to @BotFather and copy the token it returns. In the Cloudflare dashboard open this Worker, then Settings, then Variables and Secrets, and add a secret named TELEGRAM_BOT_TOKEN with that token. Or run: npx wrangler secret put TELEGRAM_BOT_TOKEN",
+      "telegram-token-malformed":
+        "The Worker secret TELEGRAM_BOT_TOKEN is not a bot token. A token from @BotFather is digits, a colon, then letters, digits, - and _, without spaces. Copy it again from @BotFather and replace the secret in the Cloudflare dashboard under Settings, then Variables and Secrets.",
+      "telegram-token-rejected":
+        "Telegram does not accept the Worker secret TELEGRAM_BOT_TOKEN: it is mistyped or was revoked. Send /mybots to @BotFather, copy your bot's current token and replace the secret in the Cloudflare dashboard under Settings, then Variables and Secrets.",
+      "telegram-conflict":
+        "Telegram does not hand the bot's chats to Seluna because another program receives its updates (a webhook, or a program that polls the bot). Seluna needs a bot of its own: create one with /newbot at @BotFather, or remove the webhook from this bot.",
+      "telegram-unavailable":
+        "Telegram could not be reached or gave an answer Seluna cannot read. Please try again in a moment.",
+      "telegram-send-failed":
+        "The test message could not be sent, so the chat was not saved. Check that the bot is still in the chat and not blocked, then search again.",
+      "telegram-invalid-chat": "Please choose a chat from the list.",
+      "telegram-wrong-code":
+        "The code does not match the test message. Check the code in your chat and enter it again.",
+      "telegram-code-expired":
+        "The code has expired or the form is no longer valid. Search for chats again and send a new test message.",
     });
   });
 });

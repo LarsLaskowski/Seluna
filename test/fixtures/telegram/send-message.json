@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "result": {
+    "message_id": 501,
+    "from": {
+      "id": 7000000001,
+      "is_bot": true,
+      "first_name": "Seluna Test Bot",
+      "username": "seluna_test_bot"
+    },
+    "chat": {
+      "id": 5001001,
+      "first_name": "Anna",
+      "last_name": "Beispiel",
+      "username": "anna_example",
+      "type": "private"
+    },
+    "date": 1700000100,
+    "text": "Seluna setup test message. Code: 123456"
+  }
+}
