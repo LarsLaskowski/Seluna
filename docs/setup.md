@@ -20,4 +20,4 @@ Every push to `main` of your copy builds and deploys it, after applying the data
 
 ## Next steps
 
-Open `https://<worker>.<your-subdomain>.workers.dev/setup` and sign in with your `SELUNA_SECRET`. The setup steps follow in a later version. Until then the instance answers webhooks with 503.
+Open `https://<worker>.<your-subdomain>.workers.dev/setup` and sign in with your `SELUNA_SECRET`. Then open the step **Telegram chat**: send `/start` to your bot (or add the bot to a group), search for chats, choose your own chat and type the code of the test message Seluna sends to it into the setup page. Seluna saves the chat once the code matches. Optionally, the Worker secret `TELEGRAM_CHAT_ID` sets the chat by hand and takes precedence over the chosen one. The other setup steps follow in a later version. Until then the instance answers webhooks with 503.

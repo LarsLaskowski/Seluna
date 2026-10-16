@@ -54,7 +54,9 @@ does the setup wizard under `/setup`.
   never read. An accepted body is briefly held twice while its chunks are combined, so reading one takes up to
   about 2 MiB of memory.
 - A route that reads no body (`GET /health`, every 404) never reads it, so its size does not matter there. Under
-  `/setup` only the form submissions `POST /setup/login` and `POST /setup/logout` read a body, with this limit.
+  `/setup` only the form submissions `POST /setup/login`, `POST /setup/logout`, `POST /setup/telegram` and
+  `POST /setup/telegram/verify` read a body, with this limit. The Telegram Bot API answers read by the setup
+  wizard are limited the same way, through the same reader ([Setup wizard](setup-wizard.md#telegram-chat)).
 
 ### Logging
 
@@ -69,8 +71,7 @@ does the setup wizard under `/setup`.
 
 - A body that cannot be read to the end (the client aborts, the stream fails) answers **400** with an empty body.
 - Outside `/setup`, 404, 413, 400, 401 and 503 never carry a body, so no response reveals a reason, the
-  configuration or a secret. Under `/setup` 404, 413 and 400 carry no body either; the pages the wizard answers
-  with carry fixed texts only ([Setup wizard](setup-wizard.md#limits-and-errors)).
+  configuration or a secret. Under `/setup` 404, 413 and the 400 of an unreadable body carry no body either; the pages the wizard answers with (also the Telegram step's 400, 409 and 502) carry fixed texts only ([Setup wizard](setup-wizard.md#limits-and-errors)).
 
 ## Related decisions
 

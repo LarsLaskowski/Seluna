@@ -21,9 +21,10 @@ it and add their pages behind the login.
   2. **`POST /setup/login`**: the login (below), with or without a session.
   3. **No valid session**: **200** with the login page, for every other method and path.
   4. **With a valid session**: `GET /setup` answers **200** with the start page, `POST /setup/logout` signs out
-     (below), everything else answers **404** with an empty body.
-- The start page says that the owner is signed in and that the setup steps follow in a later version, and carries
-  the sign-out form. The wizard steps add their pages in this branch.
+     (below), `GET` and `POST /setup/telegram` and `POST /setup/telegram/verify` are the Telegram step
+     ([Telegram chat](#telegram-chat)), everything else answers **404** with an empty body.
+- The start page says that the owner is signed in, lists the setup steps as links (today one: _Telegram chat_, to
+  `/setup/telegram`) and carries the sign-out form. The wizard steps add their pages in this branch.
 
 ### Login
 
@@ -100,7 +101,7 @@ it and add their pages behind the login.
 
 - Every form carries the hidden field `csrf`. There are two kinds of form: the **login form** (the login page) and
   the **signed-in forms** (every form on a page answered with a valid session; today the sign-out form on the start
-  page). The key is derived like the session key with salt and info `seluna/setup-csrf/v1`.
+  page and the confirm and verify forms of the Telegram step). The key is derived like the session key with salt and info `seluna/setup-csrf/v1`.
 - Login form: the value is the HMAC-SHA256 (base64url without padding) of the value of the cookie `seluna_csrf`.
 - Signed-in form: the value is the HMAC-SHA256 (base64url without padding), under the same key, of the ASCII text
   `session.<session token>.<cookie value>`, where `<session token>` is the first valid `seluna_session` value of the
@@ -119,6 +120,99 @@ it and add their pages behind the login.
   Worker of the same account under `<subdomain>.workers.dev`) is useless on a signed-in form, because its token needs
   the owner's session. On the login form it still yields a valid token, which is harmless there because a login also
   needs `SELUNA_SECRET`.
+
+### Telegram chat
+
+The step that tells Seluna which Telegram chat to send to. The bot token is the Worker secret
+`TELEGRAM_BOT_TOKEN`; the bot never gets a webhook, Seluna neither sets nor removes one and exposes no Telegram
+route. The only Bot API methods called are `getUpdates` (this step's page) and `sendMessage` (its test message).
+
+- **Precedence:** when the Worker secret `TELEGRAM_CHAT_ID` is a non-empty string, it decides the chat. `GET
+/setup/telegram` then answers **200** with a page that shows only the heading and the _chat id secret_ text (no
+  intro, no saved-chat line, no form, no search link), and calls neither Telegram nor D1; both POSTs answer **409**
+  with the same view. No page shows the secret's value.
+  Delivery uses `TELEGRAM_CHAT_ID` first, then the `settings` key `telegram_chat_id` ([Storage](storage.md)).
+- **Bot token:** read from the environment and never trimmed. It must match exactly `^\d{1,20}:[A-Za-z0-9_-]{1,200}$`
+  (digits, a colon, then letters, digits, `-` and `_`), because it is placed into the request URL path, where
+  `/`, `\`, `?`, `#`, `%`, `.`, whitespace, control characters and non-ASCII characters would change the method or
+  the path. A missing (absent, not a string or empty) token is _token missing_, any other value that does not match
+  is _token malformed_; neither calls Telegram.
+- **Chat id:** a chat id is text matching `^-?[1-9]\d{0,15}$` whose number is a safe integer. The form field `chat`
+  and a stored `telegram_chat_id` are checked this way; a stored value that is not a chat id is shown as _no saved
+  chat_.
+
+#### The step page
+
+- `GET /setup/telegram` (signed in) reads the saved chat from `settings`, then calls `getUpdates` **once**:
+  `POST https://api.telegram.org/bot<token>/getUpdates` with `Content-Type: application/json`, body
+  `{"offset":-100,"limit":100,"timeout":0}` (no `allowed_updates`) and a 10 second abort. The negative offset
+  returns the newest 100 updates and makes Telegram discard the bot's older ones, so every load changes the bot's
+  state at Telegram (not Seluna's); only Seluna reads this bot's updates, and another program polling the same bot
+  is a conflict.
+- Answers: 2xx with `ok: true` and a `result` array lists the chats; **401** or **404** is _token rejected_; **409**
+  is _conflict_ (a webhook, or another program receiving the updates; Seluna does not remove it); every other
+  status, a failed or aborted request, a body above 1 MiB (counted in bytes before decoding), a body that is not
+  UTF-8 JSON and a 2xx body of another shape are _Telegram unavailable_. A Telegram `description`, the token or a
+  runtime error text never reaches a page or the log.
+- **Chats:** each update's `message`, `edited_message` or `my_chat_member` supplies a `chat`. A private chat
+  (`type` `private`) is named by `first_name`, a space and `last_name` when present; a group (`group`,
+  `supergroup`) by `title`; a missing name falls back to the decimal id. A private chat's `username` is kept when it
+  matches `^\w{1,64}$`. Names are cut to 128 code points. A chat is listed once, newest first, named by its newest
+  update; channels, other types, ids that are not safe integers and updates without one of the three fields are
+  skipped. A chat whose newest update is a `my_chat_member` with `new_chat_member.status` `left` or `kicked`, or a
+  message carrying `migrate_to_chat_id`, is left out until a newer update of it arrives.
+- **Page:** heading, intro, the saved chat (_Saved chat:_ and the id, or _no saved chat_), a link to
+  `/setup/telegram` (_search_) and then either the _chats intro_ with a form `POST /setup/telegram` (one required
+  radio input `chat` per chat with the decimal id as value, a label with the name, the `@username` and the kind,
+  the session-bound CSRF field and the confirm button) or, with no chat, the _no chats_ text and no form. Every name
+  is HTML-escaped and wrapped in its own `<bdi>`; a username is shown as `@<username>` in a separate
+  `<bdi class="username">` after the name, so a name cannot pose as a username. A problem (token missing,
+  malformed or rejected, conflict, unavailable) shows its notice instead of the chats, with the saved-chat line.
+- When reading `settings` fails, the answer is **503** with the notice-only page (heading, intro, notice, search
+  link) and the _unavailable_ notice; Telegram is not called.
+
+#### Confirming a chat
+
+- `POST /setup/telegram` sends a test message with a six-digit code to the chosen chat and stores nothing. In this
+  order: the body is read (**413** above 1 MiB, **400** unreadable, empty bodies); the CSRF token (signed-in form)
+  must be valid, else **403**, the notice-only page and _form expired_; `TELEGRAM_CHAT_ID` set: **409**; the field
+  `chat` must occur once and be a chat id, else **400** and _invalid chat_; the bot token must be present (**503**
+  _token missing_) and well-formed (**503** _token malformed_); then one `sendMessage`
+  (`POST https://api.telegram.org/bot<token>/sendMessage`, JSON `{"chat_id":<id as a number>,"text":"<test message
+in the page language> <code>"}`, no `parse_mode`, 10 second abort). `sendMessage` 401 or 404 answers **502** with
+  _token rejected_; any other failure (status, `ok` not `true`, rejected fetch, unreadable or oversized answer)
+  answers **502** with _send failed_. Telegram is not called in the 413, 400, 403, 409 and 503 cases.
+- Success answers **200** with the code page: heading, the _code sent_ text with the chat id, the _code intro_, a
+  form `POST /setup/telegram/verify` with the session-bound CSRF field, a hidden field `proof`, a text input `code`
+  (`required`, `inputmode="numeric"`, `autocomplete="one-time-code"`, `pattern="[0-9]{6}"`, `maxlength="6"`), the
+  _code button_ and the search link. The code appears in the message to Telegram only, never in the page or the
+  headers. Reloading the code page re-posts the confirm form, which sends a new code; an older code stays usable
+  until it expires.
+
+#### Chat proof
+
+- The pending chat and the code live only in the signed form token `proof` and in the test message; nothing is kept
+  in D1 or a cookie. The code is six decimal digits drawn uniformly (`crypto.getRandomValues` into a `Uint32`,
+  redrawn while it is at least 4,294,000,000, then modulo 1,000,000, zero-padded).
+- `proof` is `v1.<chatId>.<expires>.<mac>`: `<expires>` is the time of the test message plus 600,000 ms in decimal,
+  `<mac>` the HMAC-SHA256 (base64url without padding, 43 characters) of the ASCII text
+  `chat-proof.v1.<chatId>.<expires>.<session token>.<code>`. The key is derived like the session key with salt and
+  info `seluna/setup-telegram/v1`. The MAC binds the chat, the expiry, the request's session token and the code: the
+  code of one chat cannot save another, and a proof is useless in another session, under another `SELUNA_SECRET`,
+  or after 10 minutes.
+- A proof is **invalid** unless it matches `^v1\.(-?[1-9]\d{0,15})\.([1-9]\d{0,14})\.([\w-]{43})$`, the chat id is a
+  chat id, the MAC text is canonical base64url and `now < expires ≤ now + 600,000 ms`. Otherwise it is a **wrong
+  code** unless the submitted code is exactly six digits and the MAC verifies in constant time for the request's
+  session and that code, which is **valid**.
+- `POST /setup/telegram/verify` in this order: body (**413**, **400**); CSRF (**403**, notice-only page, _form
+  expired_); `TELEGRAM_CHAT_ID` set (**409**); exactly one `proof` field, else **400** and the notice-only page with
+  _code expired_; an invalid proof, **400** the same; a wrong code (another code, a missing, repeated or malformed
+  `code` field, an altered chat id, another session or key) **400** with the code page for the proof's chat id,
+  the same proof and _wrong code_; a valid proof writes `settings` `telegram_chat_id` (replacing an earlier value)
+  and answers **303** with `Location: /setup/telegram`. A failing D1 write answers **503** with _unavailable_.
+  Telegram is not called, and nothing is stored unless the answer is the 303.
+- Tries are not limited: only the signed-in owner can submit, and a million codes in ten minutes gain them nothing
+  over choosing again.
 
 ### Cookies
 
@@ -166,7 +260,7 @@ it and add their pages behind the login.
 
 ### Texts
 
-The notices and the _not configured_ page, in English (the German texts are their translation, in
+The notices, the Telegram step and the _not configured_ page, in English (the German texts are their translation, in
 `src/setup/texts.ts`):
 
 - _wrong secret_: "That is not the SELUNA_SECRET of this instance."
@@ -174,6 +268,45 @@ The notices and the _not configured_ page, in English (the German texts are thei
   again later."
 - _form expired_: "The form has expired. Please submit it again."
 - _unavailable_: "The setup is unavailable right now. Please try again in a moment."
+- _token missing_: "The Worker secret TELEGRAM_BOT_TOKEN is not set. In Telegram, send /newbot to @BotFather and
+  copy the token it returns. In the Cloudflare dashboard open this Worker, then Settings, then Variables and
+  Secrets, and add a secret named TELEGRAM_BOT_TOKEN with that token. Or run: npx wrangler secret put
+  TELEGRAM_BOT_TOKEN"
+- _token malformed_: "The Worker secret TELEGRAM_BOT_TOKEN is not a bot token. A token from @BotFather is digits, a
+  colon, then letters, digits, - and _, without spaces. Copy it again from @BotFather and replace the secret in the
+  Cloudflare dashboard under Settings, then Variables and Secrets."
+- _token rejected_: "Telegram does not accept the Worker secret TELEGRAM_BOT_TOKEN: it is mistyped or was revoked.
+  Send /mybots to @BotFather, copy your bot's current token and replace the secret in the Cloudflare dashboard under
+  Settings, then Variables and Secrets."
+- _conflict_: "Telegram does not hand the bot's chats to Seluna because another program receives its updates (a
+  webhook, or a program that polls the bot). Seluna needs a bot of its own: create one with /newbot at @BotFather, or
+  remove the webhook from this bot."
+- _Telegram unavailable_: "Telegram could not be reached or gave an answer Seluna cannot read. Please try again in
+  a moment."
+- _send failed_: "The test message could not be sent, so the chat was not saved. Check that the bot is still in the
+  chat and not blocked, then search again."
+- _invalid chat_: "Please choose a chat from the list."
+- _wrong code_: "The code does not match the test message. Check the code in your chat and enter it again."
+- _code expired_: "The code has expired or the form is no longer valid. Search for chats again and send a new test
+  message."
+- Start page: "Set up your instance step by step:" and the link "Telegram chat".
+- _intro_: "Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the
+  bot to a group. Then search for chats."
+- _search_: "Search for chats".
+- _chat id secret_: "The chat is set by the Worker secret TELEGRAM_CHAT_ID, which takes precedence over a chat chosen
+  here. To choose the chat here, delete that secret."
+- _Saved chat:_ and _No chat is saved yet._
+- _chats intro_: "Chats your bot has seen recently. Anyone who messages your bot appears here, so choose only your
+  own chat: Seluna sends a test message with a code to it, and the chat is saved once you enter that code."
+- _no chats_: "No chat found. Send /start to your bot or add it to a group, then search again. Telegram keeps
+  messages to the bot for 24 hours, and Seluna sees only the newest 100: if your bot receives many messages, send
+  /start again just before you search."
+- _Private chat_, _Group_, _confirm button_ "Send test message".
+- _test message_ (followed by a space and the code): "Seluna setup: to send the notifications of your instance to
+  this chat, enter this code on your setup page. If you did not ask for it, ignore this message. Code:"
+- _code sent_ (followed by the id): "Test message sent to chat:"; _code intro_: "Enter the six-digit code from that
+  message to save the chat. If no message arrived, the chat is not yours: search again and choose another."; _Code_;
+  _code button_ "Save chat".
 - _not configured_: the heading "SELUNA_SECRET is not set", then: the setup cannot start because the Worker secret
   `SELUNA_SECRET` is missing or shorter than 32 characters; create a random string of at least 32 characters (a
   password manager, or `openssl rand -hex 32`); in the Cloudflare dashboard open this Worker, then _Settings_ →
@@ -183,9 +316,14 @@ The notices and the _not configured_ page, in English (the German texts are thei
 
 ## Limits and errors
 
-- 404, 413 and 400 under `/setup` carry no body; 503 and the 403 and 429 answers carry a page with a fixed
-  notice and never a reason from the runtime or D1.
-- A login or logout body is limited to 1 MiB counted in bytes before decoding; the parsed text is never longer than
+- 404, 413 and the 400 of an unreadable body under `/setup` carry no body; 503, the 403 and 429 answers and the Telegram step's 400, 409 and 502 answers carry a page with a fixed notice or text and never a reason from the runtime, D1 or Telegram.
+- Anyone who messages the bot appears in the chat list with a name of their choosing, so a label proves nothing: a
+  chat is saved only after its code is typed back. The owner who types in a code a stranger gave them can still save
+  a wrong chat; choosing again replaces the earlier value. A stranger who sends the bot many messages can push the
+  owner's chat out of the newest 100 updates (_no chats_: send `/start` again just before searching) or make the
+  answer exceed 1 MiB (_Telegram unavailable_ until 100 newer, smaller updates arrived); both fail closed, and the
+  workaround for both is the `TELEGRAM_CHAT_ID` Worker secret.
+- A login, logout or Telegram form body is limited to 1 MiB counted in bytes before decoding; the parsed text is never longer than
   that number of bytes.
 - At most four values per cookie name are looked at; the `Accept-Language` and `Cookie` headers are otherwise
   limited only by the platform's header size, and reading them takes time proportional to their length, also for
@@ -201,6 +339,9 @@ The notices and the _not configured_ page, in English (the German texts are thei
 - [`decisions/0015-setup-login.md`](../decisions/0015-setup-login.md) — stateless signed session, signed
   double-submit CSRF token bound to the session on signed-in forms, one global attempt count taken before the check, the lock's timing, the hashed inline
   style, the language cookie.
+- [`decisions/0016-telegram-chat-in-the-setup-wizard.md`](../decisions/0016-telegram-chat-in-the-setup-wizard.md) —
+  `getUpdates` on page load with a negative offset, the token allow-list, the chat stored only after its code is
+  typed back, the pending chat in a signed session-bound token.
 - [`decisions/0007-github-app-credentials-encrypted-in-d1.md`](../decisions/0007-github-app-credentials-encrypted-in-d1.md)
   — the 32-character minimum of `SELUNA_SECRET` and separate keys per purpose.
 

@@ -48,6 +48,9 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
 - `settings` holds the owner's choices: the language, the time zone, the quiet hours, the enabled rules, the
   update notice and the Telegram chat id. The keys and their formats are defined by the change that introduces
   each setting.
+- The `settings` key `telegram_chat_id` holds the decimal text of the Telegram chat id (negative for a group). Only
+  the setup wizard writes it, and only after the owner typed back the code of a successful test message
+  ([Setup wizard](setup-wizard.md#telegram-chat)); a stored value that is not a chat id counts as no chat.
 - `meta` holds the last notified release, the time of the last delivery, the key check value
   (`key_check`, below) and the setup login's failed-attempt count (`login_attempts`, format and rules in
   [Setup wizard](setup-wizard.md#failed-attempts-and-the-lock)).
@@ -69,7 +72,8 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
   are both the UTF-8 bytes of `seluna/secrets/v1`. The key never leaves the Worker's memory and is never stored.
 - The key is used only for the values in D1. Any other key taken from `SELUNA_SECRET` is derived with an HKDF
   info of its own, never this one: the setup login's session and CSRF keys use `seluna/setup-session/v1` and
-  `seluna/setup-csrf/v1` as salt and info ([Setup wizard](setup-wizard.md#session)).
+  `seluna/setup-csrf/v1` as salt and info ([Setup wizard](setup-wizard.md#session)); the Telegram chat proof's key uses
+  `seluna/setup-telegram/v1` ([Setup wizard](setup-wizard.md#chat-proof)).
 - Each value is bound to its place as additional authenticated data, the UTF-8 bytes of:
   - `secrets/<key>` for a row of `secrets`;
   - `token_cache/<installation_id>/<expires_at>` for a row of `token_cache`, both numbers in decimal without

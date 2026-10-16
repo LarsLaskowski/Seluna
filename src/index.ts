@@ -13,7 +13,7 @@ export default {
       version,
       log,
       webhookSecret: secretFromEnv(env),
-      setup: { env, db: env.DB, now: () => new Date() },
+      setup: { env, db: env.DB, now: () => new Date(), fetch: (request) => fetch(request) },
     });
   },
   /** Cron triggers from `wrangler.jsonc`; no job runs yet (the jobs follow in issue #18). */

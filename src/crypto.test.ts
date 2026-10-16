@@ -244,6 +244,16 @@ describe("signingKeyFromEnv", () => {
     expect(sessionMac, "MAC of the same message").not.toBe(csrfMac);
   });
 
+  it("signingKeyFromEnv derives three different keys for setup-session, setup-csrf and setup-telegram", async () => {
+    const macs = await Promise.all(
+      (["setup-session", "setup-csrf", "setup-telegram"] as const).map(async (purpose) =>
+        hmacBase64Url(await signingKeyFor(SECRET_A, purpose), MESSAGE),
+      ),
+    );
+
+    expect(new Set(macs).size, "number of distinct MACs of the same message").toBe(3);
+  });
+
   it("signingKeyFromEnv returns a non-extractable HMAC-SHA256 key for signing and verifying", async () => {
     const key = await signingKeyFor(SECRET_A, "setup-csrf");
 
@@ -258,10 +268,11 @@ describe("signingKeyFromEnv", () => {
   // Produced once with Node 24, importing nothing from src/: crypto.hkdfSync("sha256", secret, salt, info, 32)
   // with salt = info = utf8("seluna/setup-session/v1") for the secret 0123456789abcdef0123456789abcdef, then
   // createHmac("sha256", thatKey).update("v1.1700043200000").digest("base64url"); the csrf value likewise with
-  // salt = info = utf8("seluna/setup-csrf/v1").
+  // salt = info = utf8("seluna/setup-csrf/v1"); the setup-telegram value likewise with "seluna/setup-telegram/v1".
   it.each([
     { purpose: "setup-session" as const, expected: "5vIymaYhJ58dOAi0xzi8XCc-EDdwlxvsNrv4C-vtVls" },
     { purpose: "setup-csrf" as const, expected: "brU7fxNHFFPkz0tEHsgaHtB87o_qpIeD2Q7Bv9l0JcE" },
+    { purpose: "setup-telegram" as const, expected: "7VgSyLpjX6KdiahF8OQ3zfc_QB96Nv7dKxe5nINqJxk" },
   ])(
     "signingKeyFromEnv derives the $purpose key with HKDF-SHA256, salt and info seluna/$purpose/v1",
     async ({ purpose, expected }) => {
