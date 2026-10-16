@@ -15,5 +15,6 @@ are quoted in full.
 | 2026-10-16 06:20 | 3 Plan security review | Security | launched (mode plan) (opus/medium · 70,366 tokens · 13 tool uses · 172 s) |
 | 2026-10-16 06:23 | 2 Plan challenge | Orchestrator | Devil's Advocate VERDICT: OBJECTIONS 0 major, 3 minor (stranger's chat saved; update window crowded out; getUpdates GET discards older updates) |
 | 2026-10-16 06:23 | 3 Plan security review | Orchestrator | Security VERDICT: CHANGES_REQUIRED - B1 spoofed chat stored without proof of possession; N1 update window filled past 1 MiB; N2 guarantee overstates (sendMessage answer also read); N3 token in subrequest URL vs traces |
-| 2026-10-16 06:23 | 3 Plan revise | Lead | launched (mode revise) |
+| 2026-10-16 06:23 | 3 Plan revise | Lead | launched (mode revise) (opus/medium · 120,798 tokens · 41 tool uses · 409 s) |
 | 2026-10-16 06:31 | 3 Plan revise | Orchestrator | Lead RESULT: DONE - B1 option (a) proof of possession (code in test message, HMAC-signed session-bound 10-min proof, POST /setup/telegram/verify); N1/DA2 accepted residual risk; N2, N3, DA1, DA3 accepted |
+| 2026-10-16 06:31 | 3 Plan security delta | Security | launched (delta, plan 1949fce) |
