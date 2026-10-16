@@ -127,7 +127,7 @@ function plain(
   return emptyResponse(status, [...context.languageCookies, ...cookies], location);
 }
 
-/** The fields of a login or logout body, or the response that ends the request. */
+/** The fields of a signed-in or login form body, or the response that ends the request. */
 async function readForm(context: Context): Promise<URLSearchParams | Response> {
   const result = await readBodyWithLimit(context.request, MAX_BODY_BYTES);
   switch (result.kind) {
