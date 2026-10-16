@@ -39,4 +39,6 @@ are quoted in full.
 | 2026-10-16 07:03 | 8 Verbatim fixes | Orchestrator | Applied reviewer's verbatim text in docs/areas/setup-wizard.md, docs/areas/http-routes.md (blocking) and docs/areas/README.md (non-blocking) in e771a9e; format, scope, decision checks pass |
 | 2026-10-16 07:03 | 8 Fix round 1 (AC6 test) | Tester | launched (continued) (sonnet/medium · 7,422 tokens · 4 tool uses · 35 s · continued) |
 | 2026-10-16 07:04 | 8 Fix round 1 (AC6 test) | Orchestrator | Tester added AC6 no-session it.each (GET/POST /setup/telegram, POST /setup/telegram/verify); handler.test.ts 172/172 |
-| 2026-10-16 07:04 | 8 Fix round 1 (readForm TSDoc) | Dev | launched (continued) |
+| 2026-10-16 07:04 | 8 Fix round 1 (readForm TSDoc) | Dev | launched (continued) (sonnet/medium · 771 tokens · 2 tool uses · 11 s · continued from 6 Implement (task 7)) |
+| 2026-10-16 07:05 | 8 Fix round 1 | Orchestrator | readForm TSDoc fixed in fde7550; gates on fde7550: format, typecheck, build pass; analyzer 0 in 21; 749/749; coverage 95.0%; scope 41 PASS; decision PASS |
+| 2026-10-16 07:05 | 8 Review round 2 (delta) | Reviewer | launched (continued, fde7550) |
