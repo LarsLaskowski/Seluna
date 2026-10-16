@@ -125,6 +125,12 @@ without captured answers, and checked live before release. The rules are in the 
   `/start` again lists it) or make the answer exceed 1 MiB (_Telegram unavailable_ until 100 newer updates arrived).
   Both store nothing, and `TELEGRAM_CHAT_ID` bypasses them; this is accepted, because any window or size limit can be
   filled by someone who can message the bot.
+- Code guesses are not counted: within a proof's 10 minutes the verify form accepts any number of tries. Only the
+  holder of the owner's session and CSRF token can submit it, and that holder can already prove a chat of their own,
+  so a guessing limit protects nothing the session does not. A wrong code shows the chat id the proof names and
+  sends the proof back before its MAC is checked; both come from the owner's own form, pass a strict pattern, are
+  escaped and are never stored, so a forged proof can change only the page its own sender sees. Both points were
+  accepted without change in the security review of issue #9.
 - The bot token sits in the request URL as the Bot API requires; Seluna never logs it, but Workers traces turned on
   in the dashboard would record it, which the deployment area says.
 - Delivery (#12) uses `TELEGRAM_CHAT_ID` when set, else `settings` `telegram_chat_id`, and reuses the client's
