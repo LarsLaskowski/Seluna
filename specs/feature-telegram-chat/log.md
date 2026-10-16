@@ -37,6 +37,6 @@ are quoted in full.
 | 2026-10-16 07:03 | 8 Security diff round 1 | Orchestrator | Security VERDICT: APPROVED (non-blocking N1 reflected chat id on wrong-code, N2 no rate limit on code guesses - informational) |
 | 2026-10-16 07:03 | 8 Review round 1 | Orchestrator | Reviewer VERDICT: BLOCKING 3 \| NON-BLOCKING 2 - AC6 no-session Telegram routes untested (mutation survives); verbatim: setup-wizard.md:319, http-routes.md:74 (400/409/502 pages); non-blocking verbatim areas/README.md:33; readForm TSDoc |
 | 2026-10-16 07:03 | 8 Verbatim fixes | Orchestrator | Applied reviewer's verbatim text in docs/areas/setup-wizard.md, docs/areas/http-routes.md (blocking) and docs/areas/README.md (non-blocking) in e771a9e; format, scope, decision checks pass |
-| 2026-10-16 07:03 | 8 Fix round 1 (AC6 test) | Tester | launched (continued) |
+| 2026-10-16 07:03 | 8 Fix round 1 (AC6 test) | Tester | launched (continued) (sonnet/medium · 7,422 tokens · 4 tool uses · 35 s · continued) |
 | 2026-10-16 07:04 | 8 Fix round 1 (AC6 test) | Orchestrator | Tester added AC6 no-session it.each (GET/POST /setup/telegram, POST /setup/telegram/verify); handler.test.ts 172/172 |
 | 2026-10-16 07:04 | 8 Fix round 1 (readForm TSDoc) | Dev | launched (continued) |
