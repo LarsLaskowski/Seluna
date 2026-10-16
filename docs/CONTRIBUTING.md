@@ -104,6 +104,28 @@ changelog section followed by GitHub's generated notes. If it fails, no release 
 The "on `main`" check only catches mistakes: a tag-triggered run uses the workflow file of the tagged commit,
 so it cannot stop someone who is allowed to push tags. Restrict who can push `v*` tags with a repository tag
 ruleset; that is the actual control.
+
+### Release plan up to 1.0.0
+
+A release is due when the last issue of its row has been merged to `main`, not earlier and not later. Each row
+is something an owner can try out on a deployed copy. The version in `package.json` stays at the last released
+version until that release pull request; it is never raised on its own.
+
+| Version    | Issues               | What an owner can do afterwards                                                         |
+| ---------- | -------------------- | --------------------------------------------------------------------------------------- |
+| **0.1.0**  | #1–#8, #35           | Deploy an instance with one click, `/health`, signed webhooks, secure `/setup` login    |
+| **0.2.0**  | #9, #10, #11, #40    | Finish the whole setup in the wizard: Telegram chat, GitHub App, settings, status page  |
+| **0.3.0**  | #12, #13             | Receive the first real Telegram messages: pull request rules, outbox, deduplication     |
+| **0.4.0**  | #14, #15, #16        | Quiet hours, GitHub App authentication, CI failure messages                             |
+| **0.5.0**  | #17, #18             | Security alert messages, retry of failed messages, cleanup, notice of new releases      |
+| **0.6.0**  | #19                  | Update a copy with one click                                                            |
+| **1.0.0**  | #20                  | Setup guide, external setup test and one week without a lost or duplicated message      |
+
+- A fix on a released version that cannot wait for the next row is a patch release (for example 0.2.1).
+- Issues opened later join the row that is still open; a row is closed once its version is tagged.
+- Pull requests merged after a row is complete but before its release pull request add their changelog entry
+  to the row after it, so cut the release pull request first when the last issue of a row is merged.
+- 1.0.0 is tagged only after the acceptance criteria of #20 are met; nothing else makes a version 1.0.0.
 <!-- project:end releases -->
 
 <!-- project:begin stability -->
