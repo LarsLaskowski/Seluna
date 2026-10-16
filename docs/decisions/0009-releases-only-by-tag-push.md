@@ -1,6 +1,6 @@
 # 0009: Releases only by tag push
 
-- **Status:** Accepted
+- **Status:** Superseded by [0017](0017-releases-created-by-hand.md)
 - **Date:** 2026-10-14
 - **Area:** —
 - **Source:** Issue #2, Issue #3

@@ -60,7 +60,7 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0006](0006-github-app-per-user-manifest-flow.md) | A GitHub App per user, created through the manifest flow | Accepted | 2026-10-14 |
 | [0007](0007-github-app-credentials-encrypted-in-d1.md) | GitHub App credentials encrypted in D1 | Accepted | 2026-10-15 |
 | [0008](0008-delivery-through-a-d1-outbox.md) | Delivery through a D1 outbox | Accepted | 2026-10-14 |
-| [0009](0009-releases-only-by-tag-push.md) | Releases only by tag push | Accepted | 2026-10-14 |
+| [0009](0009-releases-only-by-tag-push.md) | Releases only by tag push | Superseded by [0017](0017-releases-created-by-hand.md) | 2026-10-14 |
 | [0010](0010-istanbul-coverage.md) | Istanbul coverage instead of V8 | Accepted | 2026-10-14 |
 | [0011](0011-public-http-surface.md) | Public HTTP surface of the Worker | Accepted | 2026-10-14 |
 | [0012](0012-webhook-signature-verification.md) | Webhook signature verification | Accepted | 2026-10-14 |
@@ -68,5 +68,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0014](0014-d1-schema-and-data-access.md) | D1 schema and data access | Accepted | 2026-10-15 |
 | [0015](0015-setup-login.md) | Setup login | Accepted | 2026-10-15 |
 | [0016](0016-telegram-chat-in-the-setup-wizard.md) | Telegram chat in the setup wizard | Accepted | 2026-10-16 |
+| [0017](0017-releases-created-by-hand.md) | Releases created by hand, verified by the release workflow | Accepted | 2026-10-16 |
 
 <!-- project:end index -->
