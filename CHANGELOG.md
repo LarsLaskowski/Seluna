@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-16
+
 ### Added
 
 - Setup wizard step _Telegram chat_: lists the private chats and groups your bot has seen (`getUpdates`), sends a test message with a code to the chosen one and saves its id once the code is entered; an optional `TELEGRAM_CHAT_ID` Worker secret takes precedence; a missing or invalid `TELEGRAM_BOT_TOKEN` is explained.
