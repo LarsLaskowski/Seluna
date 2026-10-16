@@ -16,8 +16,8 @@ files or endpoints.
   `SELUNA_SECRET` of at least 32 characters, a page that explains how to set it — until the owner signs in with
   `SELUNA_SECRET`, compared in constant time (`verifySelunaSecret` in `src/crypto.ts`). The session is an
   HMAC-SHA256-signed token with a 12-hour expiry (`src/setup/session.ts`, key from `signingKeyFromEnv`) in a cookie
-  with `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/setup`; every form carries a signed double-submit CSRF token
-  (`src/setup/csrf.ts`); attempts are counted in the `meta` row `login_attempts` before the secret is checked and
+  with `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/setup`; every form carries a signed double-submit CSRF token, which on the
+  signed-in forms is also bound to the session (`src/setup/csrf.ts`); attempts are counted in the `meta` row `login_attempts` before the secret is checked and
   lock the login for 15 minutes after 5 failures (`src/store/login-attempts.ts`); pages have no script or external
   resource and a strict Content-Security-Policy (`src/setup/pages.ts`) (decision 0015).
 - **Encrypted credentials:** the GitHub App ID, private key and webhook secret live in the D1 table `secrets` as

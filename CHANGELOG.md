@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Setup login: `/setup` asks for `SELUNA_SECRET` (compared in constant time) and keeps the owner signed in for 12 hours with a signed `HttpOnly`, `Secure`, `SameSite=Strict` cookie; after 5 failed attempts the login is locked for 15 minutes; every form carries a CSRF token; the pages use no scripts or external resources, a strict Content-Security-Policy, and English or German. Without a `SELUNA_SECRET` of at least 32 characters the page explains how to set it.
+- Setup login: `/setup` asks for `SELUNA_SECRET` (compared in constant time) and keeps the owner signed in for 12 hours with a signed `HttpOnly`, `Secure`, `SameSite=Strict` cookie; after 5 failed attempts the login is locked for 15 minutes; every form carries a CSRF token, bound to the session on the forms behind the login; the pages use no scripts or external resources, a strict Content-Security-Policy, and English or German. Without a `SELUNA_SECRET` of at least 32 characters the page explains how to set it.
 - D1 schema: the first migration creates the tables for settings, encrypted credentials, deliveries, the outbox, installation tokens and instance metadata; credentials and installation tokens are stored only encrypted (AES-256-GCM, key derived from `SELUNA_SECRET`, which needs at least 32 characters).
 - Deploy to Cloudflare button: deploys Seluna into your own Cloudflare account with a D1 database `DB` and the secrets `SELUNA_SECRET` and `TELEGRAM_BOT_TOKEN`; every push to `main` of the copy applies the D1 migrations and deploys. Cron triggers every 10 minutes and daily (no jobs yet).
 - Cloudflare Workers project skeleton in TypeScript.
