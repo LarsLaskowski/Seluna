@@ -42,9 +42,10 @@ flowchart LR
 
 Guarantees along the way (also in [`.squad/project.md`](../.squad/project.md), *Guarantees*): an invalid signature
 has no effect, a delivery is processed once, a matched event is stored before it is sent, and Telegram never calls
-the Worker: it has no webhook and no route, the Worker calls only `getUpdates` and `sendMessage`, and the one input it
-takes from Telegram is the chat list of the setup wizard's Telegram step
-([decision 0016](decisions/0016-telegram-chat-in-the-setup-wizard.md)).
+the Worker: it has no webhook and no route, the Worker calls only `getUpdates` and `sendMessage`, and the input it
+takes from Telegram is the `getUpdates` answer of the setup wizard's signed-in Telegram step and the status of each
+`sendMessage` answer, both read bounded and narrowed; a chat is stored only after the owner typed back the code of
+its test message ([decision 0016](decisions/0016-telegram-chat-in-the-setup-wizard.md)).
 
 ## Endpoints
 
@@ -99,7 +100,8 @@ D1) and the optional `TELEGRAM_CHAT_ID` (takes precedence over the chat the setu
 
 The webhook is authenticated by its HMAC signature, the setup wizard by the setup login
 ([decision 0015](decisions/0015-setup-login.md)), and the Worker only calls out (GitHub API, Telegram Bot API); the
-Telegram chat list it reads in the setup wizard is bounded, narrowed and shown only to the signed-in owner
+Telegram chat list it reads in the setup wizard is bounded, narrowed and shown only to the signed-in owner, who
+saves a chat only by typing back the code its test message carried
 ([decision 0016](decisions/0016-telegram-chat-in-the-setup-wizard.md)). The GitHub App has the minimum permissions the rules need, and its
 credentials are encrypted in D1 ([decision 0007](decisions/0007-github-app-credentials-encrypted-in-d1.md)).
 The concrete areas are listed in [`.squad/project.md`](../.squad/project.md) (*Security areas*) and

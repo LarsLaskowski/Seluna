@@ -3,15 +3,17 @@
 Source: Issue #9 | [spec.md](spec.md)
 Status: Draft
 Tier: security — the change calls a new Telegram Bot API method and reads its answer (security area *Outbound-only
-Telegram* and *Parsing of external input*), adds a page and a form behind the setup login (*Setup login*), puts a
-Worker secret into an outbound URL, and widens the bounded body reader (*Request body size*).
+Telegram* and *Parsing of external input*), adds pages and forms behind the setup login (*Setup login*), adds a
+signed, session-bound form token and a signing key purpose, puts a Worker secret into an outbound URL, and widens
+the bounded body reader (*Request body size*).
 
 ## Problem / root cause
 
 Feature; summary of [spec.md](spec.md): a signed-in step `/setup/telegram` calls `getUpdates` once per page load,
-lists private chats and groups by name, sends a test message to the chosen chat and stores its id in `settings`
-(`telegram_chat_id`); a `TELEGRAM_CHAT_ID` Worker secret takes precedence; missing or invalid bot tokens give
-understandable errors; the bot never gets a webhook.
+lists private chats and groups by name, sends a test message carrying a six-digit code to the chosen chat and stores
+its id in `settings` (`telegram_chat_id`) only once the owner has typed that code back (proof that the owner reads the
+chat; revision after the Security plan review, *Challenge* B1); a `TELEGRAM_CHAT_ID` Worker secret takes precedence;
+missing or invalid bot tokens give understandable errors; the bot never gets a webhook.
 
 Claims of the issue, checked against the code:
 
@@ -68,9 +70,11 @@ wording. "Telegram is called" means a request reaches the injected `fetch` (the 
   `parseChats lists a chat again after an update newer than its removal`,
   `parseChats leaves out a group that was migrated to a supergroup`.
 - [ ] **AC3 — Names are bounded and rendered as inert text.** A name (and a username) is cut to its first 128 code
-  points; on the page every name is HTML-escaped and wrapped in `<bdi>`, a username is shown as `@<username>`.
-  Tests: `parseChats cuts a name to 128 code points` (`src/telegram.test.ts`),
-  `renderTelegramPage escapes each chat name and wraps it in bdi` (`src/setup/pages.test.ts`).
+  points; on the page every name is HTML-escaped and wrapped in its own `<bdi>`, and a username is shown as
+  `@<username>` in a separate `<bdi class="username">` after the name's element, so a name cannot pose as a
+  username. Tests: `parseChats cuts a name to 128 code points` (`src/telegram.test.ts`),
+  `renderTelegramPage escapes each chat name and wraps it in bdi`,
+  `renderTelegramPage shows the username in an element of its own after the name` (`src/setup/pages.test.ts`).
 - [ ] **AC4 — One `getUpdates` request, outbound only.** `findChats` makes exactly one request:
   `POST https://api.telegram.org/bot<token>/getUpdates`, `Content-Type: application/json`, body
   `{"offset":-100,"limit":100,"timeout":0}` (no `allowed_updates`), with an abort signal (10 s). Answers:
@@ -102,29 +106,32 @@ wording. "Telegram is called" means a request reaches the injected `fetch` (the 
   `handleSetup shows the saved chat id on the Telegram step`,
   `handleSetup answers GET /setup/telegram without a session with the login page and calls no Telegram API`,
   `renderStartPage links to the Telegram step` (`src/setup/pages.test.ts`).
-- [ ] **AC7 — Confirm: test message, then store.** `POST /setup/telegram` with a valid session-bound CSRF token
-  and exactly one field `chat` that is a chat id (*Guard: chat id*) sends one `sendMessage` request
-  (`POST https://api.telegram.org/bot<token>/sendMessage`, JSON `{"chat_id":<id as JSON number>,"text":<test message
-  in the page language>}`, no `parse_mode`), and only when Telegram answers 2xx with `{"ok":true,…}` writes
-  `settings` `telegram_chat_id` = the decimal id (replacing an earlier value) and answers **303**
-  `Location: /setup/telegram`. Works for a private chat id and a negative group id.
-  Tests: `handleSetup sends the test message to the confirmed private chat and saves its id`,
-  `handleSetup sends the test message to the confirmed group and saves its id`,
-  `handleSetup replaces an earlier saved chat`,
+- [ ] **AC7 — Confirm: a test message with a code, nothing stored yet.** `POST /setup/telegram` with a valid
+  session-bound CSRF token and exactly one field `chat` that is a chat id (*Guard: chat id*) draws a code
+  (`newChatCode`) and sends one `sendMessage` request (`POST https://api.telegram.org/bot<token>/sendMessage`, JSON
+  `{"chat_id":<id as JSON number>,"text":"<telegramTestMessage in the page language> <code>"}`, no `parse_mode`).
+  Only when Telegram answers 2xx with `{"ok":true,…}` does it answer **200** with the *code* page: heading, the
+  *code sent* text with the decimal chat id, the *code intro*, a form `method="post" action="/setup/telegram/verify"`
+  with the session-bound CSRF field, a hidden field `proof` = `createChatProof(key, session, chatId, code, now)`, a
+  text input `name="code"` (`required`, `inputmode="numeric"`, `autocomplete="one-time-code"`, `pattern="[0-9]{6}"`,
+  `maxlength="6"`) and the *code button*, and the search link. `settings` is not written; the code appears in the
+  request to Telegram only, never in the page or the response headers. Works for a private chat id and a negative
+  group id. Tests: `handleSetup sends a test message with a six-digit code to the confirmed private chat and stores nothing yet`,
+  `handleSetup sends a test message with a six-digit code to the confirmed group and stores nothing yet`,
+  `handleSetup shows the code form with a proof for the chat and without the code`,
   `sendMessage posts chat_id and text as JSON to sendMessage` (`src/telegram.test.ts`).
-- [ ] **AC8 — Confirm failures store nothing.** In this order: body over 1 MiB → 413, unreadable → 400 (empty
-  bodies); CSRF missing/wrong/unbound → **403** notice *form expired*; `TELEGRAM_CHAT_ID` set → **409** with the
-  *chat id secret* view; `chat` missing, repeated or not a chat id → **400** notice *invalid chat*; token missing →
-  **503** notice *token missing*; malformed → **503** notice *token malformed*; `sendMessage` 401/404 → **502**
-  notice *token rejected*; any other failure (status, `ok` not `true`, fetch rejected, unreadable or oversized
-  answer) → **502** notice *send failed*; D1 write fails → **503** notice *unavailable*. No failure leaves a
-  `telegram_chat_id` written; in the 413, 400, 403, 409 and 503-token cases Telegram is not called. Error pages are the
-  *notice-only* Telegram page (heading, intro, notice, search link; no `getUpdates` call).
+- [ ] **AC8 — Confirm failures send no code and store nothing.** In this order: body over 1 MiB → 413, unreadable →
+  400 (empty bodies); CSRF missing/wrong/unbound → **403** notice *form expired*; `TELEGRAM_CHAT_ID` set → **409**
+  with the *chat id secret* view; `chat` missing, repeated or not a chat id → **400** notice *invalid chat*; token
+  missing → **503** notice *token missing*; malformed → **503** notice *token malformed*; `sendMessage` 401/404 →
+  **502** notice *token rejected*; any other failure (status, `ok` not `true`, fetch rejected, unreadable or
+  oversized answer) → **502** notice *send failed*. No confirm request writes `settings` or shows a code form on
+  failure; in the 413, 400, 403, 409 and 503-token cases Telegram is not called. Error pages are the *notice-only*
+  Telegram page (heading, intro, notice, search link; no `getUpdates` call).
   Tests: `handleSetup rejects the confirm form without a valid session-bound CSRF token with 403 and calls no Telegram API`,
   `handleSetup rejects a missing, repeated or malformed chat field with 400 and calls no Telegram API`,
-  `handleSetup saves nothing and answers 502 when the test message fails`,
+  `handleSetup shows no code form and answers 502 when the test message fails`,
   `handleSetup answers 502 with the token-rejected notice when sendMessage answers 401`,
-  `handleSetup answers 503 with the unavailable notice when saving the chat fails`,
   `handleSetup answers a confirm body over 1 MiB with 413`,
   `sendMessage maps 401 and 404 to token-rejected and every other failure to failed` (`src/telegram.test.ts`).
 - [ ] **AC9 — Missing or invalid token: understandable error.** On `GET /setup/telegram`: token missing → 200 page
@@ -156,12 +163,59 @@ wording. "Telegram is called" means a request reaches the injected `fetch` (the 
 - [ ] **AC14 — Texts.** Every new text exists in English and German; the English notices and step texts are word
   for word those of *Texts*; the test message is sent in the language of the request (`?lang=de` → German).
   Tests (`src/setup/texts.test.ts`, adapted): `texts define a non-empty text for every key in English and German`
-  (notice count 11), `texts word the English notices as the area document does` (extended),
+  (notice count 13), `texts word the English notices as the area document does` (extended),
   `texts word the English Telegram step as the area document does`;
   `handleSetup sends the test message in German for a German page` (`src/setup/handler.test.ts`).
+- [ ] **AC15 — Verify: the code saves the chat.** `POST /setup/telegram/verify` with a valid session-bound CSRF
+  token, exactly one field `proof` and exactly one field `code` for which `checkChatProof(key, proof, session, code,
+  now)` is `valid` writes `settings` `telegram_chat_id` = the proof's decimal chat id (replacing an earlier value)
+  and answers **303** `Location: /setup/telegram`; the step page then shows it as the saved chat. Telegram is not
+  called. Tests: `handleSetup saves the chat when the code of its test message is entered`,
+  `handleSetup saves a group chat when the code of its test message is entered`,
+  `handleSetup replaces an earlier saved chat`, `handleSetup calls no Telegram API on the verify form`.
+- [ ] **AC16 — Verify failures store nothing.** In this order: body over 1 MiB → 413, unreadable → 400 (empty
+  bodies); CSRF missing/wrong/unbound → **403** notice *form expired* (notice-only page); `TELEGRAM_CHAT_ID` set →
+  **409** with the *chat id secret* view; `proof` missing or repeated, or `checkChatProof` `invalid` (malformed,
+  expired, expiry more than 10 minutes ahead) → **400** notice-only page with the notice *code expired*;
+  `checkChatProof` `wrong-code` (another code, a missing, repeated or malformed `code` field, a proof whose chat id
+  was altered, a proof of another session or another `SELUNA_SECRET`) → **400** code page for the proof's chat id
+  with the same proof and the notice *wrong code*; D1 write fails → **503** notice *unavailable*. None of these
+  writes `settings`, and none calls Telegram. Tests:
+  `handleSetup stores nothing and shows the wrong-code notice for a wrong code`,
+  `handleSetup stores nothing when the code for chat A is sent with a proof altered to chat B`,
+  `handleSetup stores nothing for the proof and code of another session`,
+  `handleSetup stores nothing and shows the code-expired notice for a proof older than 10 minutes`,
+  `handleSetup stores nothing and shows the code-expired notice for a missing, repeated or malformed proof`,
+  `handleSetup rejects the verify form without a valid session-bound CSRF token with 403`,
+  `handleSetup answers the verify form with 409 while TELEGRAM_CHAT_ID is set and stores nothing`,
+  `handleSetup answers 503 with the unavailable notice when saving the chat fails`,
+  `handleSetup answers a verify body over 1 MiB with 413`.
+- [ ] **AC17 — Chat proof.** `newChatCode` returns six decimal digits (uniform: a `Uint32` from
+  `crypto.getRandomValues`, redrawn while ≥ 4,294,000,000, then modulo 1,000,000, zero-padded). `createChatProof`
+  returns `v1.<chatId>.<expires>.<mac>` with `<expires>` = `now` + 600,000 ms in decimal and `<mac>` the HMAC-SHA256
+  (base64url without padding, 43 characters) under the `setup-telegram` key of the ASCII text
+  `chat-proof.v1.<chatId>.<expires>.<session>.<code>`. `checkChatProof` returns `invalid` unless the proof matches
+  `^v1\.(-?[1-9][0-9]{0,15})\.([1-9][0-9]{0,14})\.([\w-]{43})$`, the chat id passes `parseChatId`, the MAC text is
+  canonical base64url (`fromBase64Url`) and `now < expires ≤ now + 600,000 ms`; otherwise `wrong-code` (with the chat
+  id) unless `code` matches `^[0-9]{6}$` and the MAC verifies with `crypto.subtle.verify` (constant time) for that
+  session and code, which is `valid` (with the chat id). Tests (`src/setup/chat-proof.test.ts`):
+  `newChatCode returns six decimal digits`,
+  `checkChatProof accepts the code and session the proof was made for`,
+  `checkChatProof reports wrong-code for another code, another chat id, another session and another key`,
+  `checkChatProof reports wrong-code for a code that is not six digits`,
+  `checkChatProof reports invalid for an expired proof and for an expiry more than 10 minutes ahead`,
+  `checkChatProof reports invalid for every malformed proof` (table: empty, `v2.…`, chat id `0` / `+1` / `01` / 17
+  digits / unsafe 16 digits, expiry `0` / 16 digits, MAC of 42 or 44 characters, a non-canonical last MAC character,
+  `=` padding, an extra `.` segment, whitespace).
+- [ ] **AC18 — A signing key of its own.** `SigningPurpose` gains `"setup-telegram"` with the label
+  `seluna/setup-telegram/v1`; its key differs from the session and CSRF keys. Tests (`src/crypto.test.ts`,
+  adapted): the table of `signingKeyFromEnv derives the $purpose key with HKDF-SHA256, salt and info seluna/$purpose/v1`
+  gains a `setup-telegram` row (expected value computed by the Tester with an independent HKDF run, as the existing
+  rows were); `signingKeyFromEnv derives different keys for setup-session, setup-csrf and setup-telegram` (renamed
+  from the two-purpose test and extended).
 
 The issue's own criteria map as: "A private chat and a group are both recognized and the test message arrives" →
-AC1, AC6, AC7 (unit level, against fixtures written from the Bot API reference) plus the live check in *Runtime details* (only a real bot shows
+AC1, AC6, AC7, AC15 (unit level, against fixtures written from the Bot API reference) plus the live check in *Runtime details* (only a real bot shows
 the message arriving); "A missing or invalid `TELEGRAM_BOT_TOKEN` shows an understandable error" → AC5, AC8, AC9.
 
 ### Texts
@@ -177,12 +231,16 @@ English, exact (German translations by the Dev in `src/setup/texts.ts`; `<…>` 
 | `telegramChatIdSecret` | The chat is set by the Worker secret TELEGRAM_CHAT_ID, which takes precedence over a chat chosen here. To choose the chat here, delete that secret. |
 | `telegramSavedChat` (followed by the id) | Saved chat: |
 | `telegramNoSavedChat` | No chat is saved yet. |
-| `telegramChatsIntro` | Chats your bot has seen recently. Choose yours: Seluna sends a test message to it and saves it. |
-| `telegramNoChats` | No chat found. Send /start to your bot or add it to a group, then search again. Telegram keeps messages to the bot for 24 hours. |
+| `telegramChatsIntro` | Chats your bot has seen recently. Anyone who messages your bot appears here, so choose only your own chat: Seluna sends a test message with a code to it, and the chat is saved once you enter that code. |
+| `telegramNoChats` | No chat found. Send /start to your bot or add it to a group, then search again. Telegram keeps messages to the bot for 24 hours, and Seluna sees only the newest 100: if your bot receives many messages, send /start again just before you search. |
 | `telegramPrivateChat` | Private chat |
 | `telegramGroup` | Group |
-| `telegramConfirmButton` | Send test message and save |
-| `telegramTestMessage` | Seluna is connected: notifications of this instance arrive in this chat. |
+| `telegramConfirmButton` | Send test message |
+| `telegramTestMessage` (followed by a space and the code) | Seluna setup: to send the notifications of your instance to this chat, enter this code on your setup page. If you did not ask for it, ignore this message. Code: |
+| `telegramCodeSent` (followed by the id) | Test message sent to chat: |
+| `telegramCodeIntro` | Enter the six-digit code from that message to save the chat. If no message arrived, the chat is not yours: search again and choose another. |
+| `telegramCodeLabel` | Code |
+| `telegramCodeButton` | Save chat |
 | notice `telegram-token-missing` | The Worker secret TELEGRAM_BOT_TOKEN is not set. In Telegram, send /newbot to @BotFather and copy the token it returns. In the Cloudflare dashboard open this Worker, then Settings, then Variables and Secrets, and add a secret named TELEGRAM_BOT_TOKEN with that token. Or run: npx wrangler secret put TELEGRAM_BOT_TOKEN |
 | notice `telegram-token-malformed` | The Worker secret TELEGRAM_BOT_TOKEN is not a bot token. A token from @BotFather is digits, a colon, then letters, digits, - and _, without spaces. Copy it again from @BotFather and replace the secret in the Cloudflare dashboard under Settings, then Variables and Secrets. |
 | notice `telegram-token-rejected` | Telegram does not accept the Worker secret TELEGRAM_BOT_TOKEN: it is mistyped or was revoked. Send /mybots to @BotFather, copy your bot's current token and replace the secret in the Cloudflare dashboard under Settings, then Variables and Secrets. |
@@ -190,6 +248,8 @@ English, exact (German translations by the Dev in `src/setup/texts.ts`; `<…>` 
 | notice `telegram-unavailable` | Telegram could not be reached or gave an answer Seluna cannot read. Please try again in a moment. |
 | notice `telegram-send-failed` | The test message could not be sent, so the chat was not saved. Check that the bot is still in the chat and not blocked, then search again. |
 | notice `telegram-invalid-chat` | Please choose a chat from the list. |
+| notice `telegram-wrong-code` | The code does not match the test message. Check the code in your chat and enter it again. |
+| notice `telegram-code-expired` | The code has expired or the form is no longer valid. Search for chats again and send a new test message. |
 
 The existing four notices and the other existing texts stay as they are; only `startBody` changes.
 
@@ -232,16 +292,17 @@ above `9007199254740991`; and a missing or repeated field.
 | 3 One `getUpdates` per load, private chats and groups with names, once each, no channels | AC1, AC4, AC6 |
 | 4 Removed, blocked and migrated chats not listed | AC2 |
 | 5 No chat found | AC6 |
-| 6 Confirm → test message → store → step page with saved id | AC7, AC6 (saved id), AC11 |
+| 6 Confirm → test message with a code → code entered → store → step page with saved id | AC7, AC15, AC17, AC6 (saved id), AC11 |
 | 7 Test message fails → nothing stored | AC8 |
+| 16 Wrong, expired or foreign code → nothing stored | AC16, AC17, AC18 |
 | 8 Missing / malformed / rejected token, no call when missing or malformed | AC5, AC8, AC9 |
 | 9 Webhook or other poller → explained, webhook not removed | AC4 (`conflict`, only `getUpdates`/`sendMessage` called), AC9 |
 | 10 Telegram unreachable / unreadable | AC4, AC9 |
 | 11 No webhook, no route for Telegram, only `getUpdates` and `sendMessage` | AC4, AC7 (request URLs asserted); the existing 404 tests of `src/router.test.ts` for paths outside `/setup` |
-| 12 `TELEGRAM_CHAT_ID` precedence, value not shown, no form, confirm stores nothing | AC10, AC8 (409) |
+| 12 `TELEGRAM_CHAT_ID` precedence, value not shown, no form, confirm and verify store nothing | AC10, AC8 (409), AC16 (409) |
 | 13 Names escaped, isolated, cut to 128 | AC3 |
 | 14 English and German, test message in page language | AC14 |
-| 15 Behind the login, session-bound CSRF | AC6 (no session → login page), AC8 (403) |
+| 15 Behind the login, session-bound CSRF | AC6 (no session → login page), AC8 (403), AC16 (403) |
 
 ## Approach
 
@@ -255,28 +316,41 @@ above `9007199254740991`; and a missing or repeated field.
 - `src/store/settings.ts` (new) — `readSetting` / `writeSetting` (`INSERT … ON CONFLICT (key) DO UPDATE`), and the key
   constant `TELEGRAM_CHAT_ID_SETTING = "telegram_chat_id"`.
 - `src/body.ts` — `readBodyWithLimit` takes `Request | Response` (both have `headers` and `body`); no rule changes.
+- `src/setup/chat-proof.ts` (new) — `newChatCode`, `createChatProof`, `checkChatProof` (AC17): the pending chat
+  and the code live only in the signed form token `proof` and in the test message, never in D1, a cookie or the page;
+  the MAC binds chat id, expiry, the request's session token and the code, so the code of chat A cannot save chat B,
+  and a proof is useless in another session.
+- `src/crypto.ts` — `SigningPurpose` gains `"setup-telegram"` (label `seluna/setup-telegram/v1`, AC18); no other
+  change.
 - `src/setup/telegram-step.ts` (new) — `telegramStepView` (order: `TELEGRAM_CHAT_ID` → `chat-id-secret`, no D1, no
   Telegram; read the saved chat from D1, errors propagate; token `missing`/`malformed` → `problem`, no Telegram;
-  `findChats` → `chats` or `problem`) and `confirmTelegramChat` (order as in AC8 after the CSRF check: secret, field,
-  token, `sendMessage`, `writeSetting`).
-- `src/setup/pages.ts` / `texts.ts` — `renderTelegramPage` for the views above plus `notice-only`; the start page
-  gets a list with one link; new texts and notices.
-- `src/setup/handler.ts` — `SetupDeps.fetch`; the signed-in branch routes `GET /setup/telegram` and
-  `POST /setup/telegram`; a third signed-in form kind (`telegram`, session-bound CSRF exactly like `start`); a D1
-  error is caught in the handler (dropped, as in `signIn`) and answered 503 *unavailable*; the POST body is read with
-  `readForm` (1 MiB).
+  `findChats` → `chats` or `problem`), `confirmTelegramChat` (order as in AC8 after the CSRF check: secret, field,
+  token, `newChatCode`, `sendMessage`, `createChatProof`; no D1) and `verifyTelegramChat` (order as in AC16 after the
+  CSRF check: secret, fields, `checkChatProof`, `writeSetting`; no Telegram).
+- `src/setup/pages.ts` / `texts.ts` — `renderTelegramPage` for the views above plus `notice-only` and `code`; the
+  start page gets a list with one link; new texts and notices.
+- `src/setup/handler.ts` — `SetupDeps.fetch`; `Context` gains `telegramKey` (from `signingKeyFromEnv(env,
+  "setup-telegram")`, derived and checked with the other two keys); the signed-in branch routes `GET` and
+  `POST /setup/telegram` and `POST /setup/telegram/verify`; a third signed-in form kind (`telegram`, session-bound
+  CSRF exactly like `start`) used by both POSTs; a D1 error is caught in the handler (dropped, as in `signIn`) and
+  answered 503 *unavailable*; both POST bodies are read with `readForm` (1 MiB).
 - `src/index.ts` — passes `fetch: (request) => fetch(request)` into `setup`.
 - No migration, no change to `wrangler.jsonc`, `.dev.vars.example` or `package.json` `cloudflare.bindings`, no new
   dependency.
 
-Status codes of `/setup/telegram` (signed in): `GET` → 200 for every view, 503 when D1 fails. `POST` → 303, 413, 400,
-403, 409, 400, 503, 502, 503 as in AC8. Other methods → 404 (unchanged rule).
+Status codes (signed in): `GET /setup/telegram` → 200 for every view, 503 when D1 fails. `POST /setup/telegram` →
+200 (code page), 413, 400, 403, 409, 400, 503, 502 as in AC7/AC8. `POST /setup/telegram/verify` → 303, 413, 400, 403,
+409, 400, 400, 503 as in AC15/AC16. Other methods and paths → 404 (unchanged rule). Reloading the code page re-posts
+the confirm form, which sends a new code; the browser asks first, and the older code stays usable until it expires.
 
 ## Options considered
 
 1. **When `getUpdates` runs: on every load of `GET /setup/telegram` (chosen)** vs. **a POST "search" form with CSRF.**
-   A GET is safe here (it changes no Seluna state; cross-site navigations arrive signed out under `SameSite=Strict`),
-   needs no extra form, and "search again" is a reload. The POST variant adds a form and a CSRF check for no gain.
+   The GET changes no Seluna state, and cross-site navigations arrive signed out under `SameSite=Strict`; it does
+   change state at Telegram: the negative offset makes Telegram discard the bot's updates older than the newest 100
+   (option 2), which only Seluna reads. A forged load needs the owner's session, and its only effect is that same
+   discard. It needs no extra form, and "search again" is a reload. The POST variant adds a form and a CSRF check for
+   no gain.
 2. **Which updates: `offset=-100, limit=100` (chosen)** vs. **no offset.** Without an offset Telegram returns the
    *oldest* 100 unconfirmed updates, so the owner's fresh `/start` can be missing when a group is busy. The negative
    offset returns the newest 100 and makes Telegram forget older ones — harmless for a bot only Seluna uses, and
@@ -296,6 +370,20 @@ Status codes of `/setup/telegram` (signed in): `GET` → 200 for every view, 503
    the same function to the outbox.
 8. **Chats keyed by the newest update (chosen)** vs. **any update.** Keying by the newest update drops a chat the bot
    was removed from or blocked in, and the old id of a migrated group, which would otherwise fail the test message.
+9. **When a chosen chat is stored: after the owner types back a code from the test message (chosen)** vs. **as soon
+   as `sendMessage` succeeds** (the first plan) vs. **as soon as `sendMessage` succeeds, with a warning in the list
+   and the username in an element of its own.** Anyone who knows the bot's username can put a chat into the list
+   whose label copies the owner's (same first and last name, a fake `@name` inside the name, homoglyphs, a copied
+   group title), and `sendMessage` succeeds for that chat, so storing on success would send every later notification
+   (private repository names, pull request titles, security alerts) to the stranger. The code proves that the owner
+   reads the chosen chat; the warning alone leaves the choice to the owner's eye and needs the Product Manager's
+   acceptance of the residual risk (Security B1 option (b)). The code costs one extra form.
+10. **Where the pending chat and code are kept between the two POSTs: a signed, session-bound form token valid for
+    10 minutes (chosen)** vs. **a D1 row** vs. **a cookie.** The token needs no table, no cleanup and no migration;
+    the MAC over chat id, expiry, session token and code makes it unforgeable, tied to one chat and one session, and
+    keeps the code out of the page. A D1 row would need a key, expiry and cleanup; a cookie would add a fourth cookie
+    with the same contents for no gain. A token can be submitted again until it expires; only the signed-in owner can
+    submit it, so the number of tries is not limited.
 
 ## Affected projects and types
 
@@ -303,11 +391,13 @@ Status codes of `/setup/telegram` (signed in): `GET` → 200 for every view, 503
 | ------- | ----------- | ------ |
 | Worker | `src/telegram.ts` | new: Bot API client (`botTokenFromEnv`, `isChatIdSecretSet`, `parseChatId`, `parseChats`, `findChats`, `sendMessage`) |
 | Worker | `src/store/settings.ts` | new: `readSetting`, `writeSetting`, `TELEGRAM_CHAT_ID_SETTING` |
-| Worker | `src/setup/telegram-step.ts` | new: `telegramStepView`, `confirmTelegramChat` |
+| Worker | `src/setup/telegram-step.ts` | new: `telegramStepView`, `confirmTelegramChat`, `verifyTelegramChat` |
+| Worker | `src/setup/chat-proof.ts` | new: `newChatCode`, `createChatProof`, `checkChatProof` |
+| Worker | `src/crypto.ts` | `SigningPurpose` and `SIGNING_KEY_LABELS` gain `setup-telegram` |
 | Worker | `src/body.ts` | `readBodyWithLimit` takes `Request \| Response` |
-| Worker | `src/setup/handler.ts` | `SetupDeps.fetch`; routes `GET`/`POST /setup/telegram`; form kind `telegram` |
-| Worker | `src/setup/pages.ts` | `renderTelegramPage`, `TelegramPageView`; start page links to the step |
-| Worker | `src/setup/texts.ts` | new texts and seven notices; `startBody` reworded |
+| Worker | `src/setup/handler.ts` | `SetupDeps.fetch`; `Context.telegramKey`; routes `GET`/`POST /setup/telegram`, `POST /setup/telegram/verify`; form kind `telegram` |
+| Worker | `src/setup/pages.ts` | `renderTelegramPage`, `TelegramPageView` (with the `code` view); start page links to the step |
+| Worker | `src/setup/texts.ts` | new texts and nine notices; `startBody` reworded |
 | Worker | `src/index.ts` | passes `fetch` into `setup` |
 | Tests | `test/telegram.ts` | new: the Telegram Bot API double |
 | Tests | `test/fixtures/telegram/*.json`, `test/fixtures/telegram/README.md` | new: Bot API answers written from the Bot API reference, marked as such (see *Test files*) |
@@ -395,37 +485,91 @@ export type TelegramStepView =
 /** What the step page shows; calls `getUpdates` at most once. D1 errors are not caught. */
 export function telegramStepView(env: object, db: D1Database, fetcher: TelegramFetch): Promise<TelegramStepView>;
 
+export const TELEGRAM_VERIFY_PATH = "/setup/telegram/verify";
+export const PROOF_FIELD = "proof";
+export const CODE_FIELD = "code";
+
 export type ConfirmChatResult =
-  | "saved"
-  | "chat-id-secret"
-  | "invalid-chat"
-  | "token-missing"
-  | "token-malformed"
-  | "token-rejected"
-  | "send-failed";
-/** Sends the test message to the one chat in `chatFields` and stores it. D1 errors are not caught. */
+  | { readonly kind: "code-sent"; readonly chatId: number; readonly proof: string }
+  | { readonly kind: "chat-id-secret" }
+  | { readonly kind: "invalid-chat" }
+  | { readonly kind: "token-missing" }
+  | { readonly kind: "token-malformed" }
+  | { readonly kind: "token-rejected" }
+  | { readonly kind: "send-failed" };
+/** Sends a test message with a new code to the one chat in `chatFields` and returns the proof for it; stores nothing. */
 export function confirmTelegramChat(
   env: object,
-  db: D1Database,
   fetcher: TelegramFetch,
+  proofKey: CryptoKey,
+  session: string,
   chatFields: readonly string[],
   language: Language,
+  now: Date,
 ): Promise<ConfirmChatResult>;
+
+export type VerifyChatResult =
+  | { readonly kind: "saved" }
+  | { readonly kind: "chat-id-secret" }
+  | { readonly kind: "code-expired" }
+  | { readonly kind: "wrong-code"; readonly chatId: number; readonly proof: string };
+/** Checks the one proof and code of the verify form and stores the proof's chat. Calls no Telegram API. D1 errors are not caught. */
+export function verifyTelegramChat(
+  env: object,
+  db: D1Database,
+  proofKey: CryptoKey,
+  session: string,
+  proofFields: readonly string[],
+  codeFields: readonly string[],
+  now: Date,
+): Promise<VerifyChatResult>;
+```
+
+`src/setup/chat-proof.ts` (new):
+
+```ts
+/** A proof is accepted for 10 minutes after the test message was sent. */
+export const CHAT_PROOF_LIFETIME_MS = 600_000;
+
+/** Six decimal digits drawn uniformly with `crypto.getRandomValues`. */
+export function newChatCode(): string;
+
+/** `v1.<chatId>.<expires>.<mac>`; `key` from `signingKeyFromEnv(env, "setup-telegram")`, `session` the request's valid session token. */
+export function createChatProof(key: CryptoKey, session: string, chatId: number, code: string, now: Date): Promise<string>;
+
+export type ChatProofCheck =
+  | { readonly kind: "valid"; readonly chatId: number }
+  | { readonly kind: "wrong-code"; readonly chatId: number }
+  | { readonly kind: "invalid" };
+/** Checks `proof` against `session` and `code` at `now` as the area document's *Chat proof* says; the MAC in constant time. */
+export function checkChatProof(key: CryptoKey, proof: string, session: string, code: string, now: Date): Promise<ChatProofCheck>;
+```
+
+`src/crypto.ts` (changed, final in the skeleton):
+
+```ts
+export type SigningPurpose = "setup-session" | "setup-csrf" | "setup-telegram";
+// SIGNING_KEY_LABELS gains "setup-telegram": "seluna/setup-telegram/v1"
 ```
 
 `src/setup/pages.ts` (new export, changed body of `renderStartPage`, signature unchanged):
 
 ```ts
-export type TelegramPageView = TelegramStepView | { readonly kind: "notice-only" };
+export type TelegramPageView =
+  | TelegramStepView
+  | { readonly kind: "notice-only" }
+  | { readonly kind: "code"; readonly chatId: number; readonly proof: string };
 /** The Telegram step page; links like the login page. A `problem` view shows the notice of its problem. */
 export function renderTelegramPage(language: Language, csrfToken: string, view: TelegramPageView, notice?: Notice): string;
 ```
 
 `src/setup/texts.ts` (changed): `Notice` gains `"telegram-token-missing" | "telegram-token-malformed" |
 "telegram-token-rejected" | "telegram-conflict" | "telegram-unavailable" | "telegram-send-failed" |
-"telegram-invalid-chat"`; `SetupTexts` gains the readonly string fields `telegramHeading`, `telegramIntro`,
-`telegramSearchLink`, `telegramChatIdSecret`, `telegramSavedChat`, `telegramNoSavedChat`, `telegramChatsIntro`,
-`telegramNoChats`, `telegramPrivateChat`, `telegramGroup`, `telegramConfirmButton`, `telegramTestMessage`.
+"telegram-invalid-chat" | "telegram-wrong-code" | "telegram-code-expired"`; `SetupTexts` gains the readonly string
+fields `telegramHeading`, `telegramIntro`, `telegramSearchLink`, `telegramChatIdSecret`, `telegramSavedChat`,
+`telegramNoSavedChat`, `telegramChatsIntro`, `telegramNoChats`, `telegramPrivateChat`, `telegramGroup`,
+`telegramConfirmButton`, `telegramTestMessage`, `telegramCodeSent`, `telegramCodeIntro`, `telegramCodeLabel`,
+`telegramCodeButton`.
 In the skeleton the texts are real (they are data, not bodies); the tests that compare them are the Tester's.
 
 `src/setup/handler.ts` (changed):
@@ -444,7 +588,8 @@ export interface SetupDeps {
 
 Files the skeleton rewrites: `src/setup/handler.ts` (field only; routing is the implementation), `src/body.ts`
 (parameter type — this one is final in the skeleton, the body already works for both), `src/index.ts` (final),
-`src/setup/texts.ts` (final in the skeleton). `src/setup/pages.ts` gets the new export as a stub.
+`src/crypto.ts` (final: the union member and its label), `src/setup/texts.ts` (final in the skeleton).
+`src/setup/chat-proof.ts` is new (stubs). `src/setup/pages.ts` gets the new export as a stub.
 
 ## Test files
 
@@ -453,10 +598,14 @@ By *Layout* (`.squad/stack.md`) and `docs/UNIT_TESTS.md`: one test file per modu
 - `src/telegram.test.ts` (new) — AC1–AC5, AC7 (`sendMessage`), AC8 (`sendMessage` mapping), AC10 (`isChatIdSecretSet`),
   *Guard: chat id* (`parseChatId rejects every other form`, `parseChatId accepts a private and a supergroup id`).
 - `src/store/settings.test.ts` (new) — AC11, against the real D1 of the test pool (`test/d1.ts`).
+- `src/setup/chat-proof.test.ts` (new) — AC17, with keys from `test/keys.ts` (`signingKeyFor(secret, "setup-telegram")`).
+- `src/crypto.test.ts` (adapted) — AC18.
 - `src/setup/telegram-step.test.ts` (new) — only what the handler tests do not reach, added in the coverage pass.
-- `src/setup/handler.test.ts` (extended) — AC6–AC12, AC14 (German test message).
+- `src/setup/handler.test.ts` (extended) — AC6–AC12, AC14 (German test message), AC15, AC16; the code is read
+  from the `text` of the `sendMessage` request the double recorded, and the proof from the code page's hidden field.
 - `src/setup/pages.test.ts` (extended) — AC3 (`renderTelegramPage …`), AC6 (`renderStartPage links to the Telegram step`);
-  its table of pages gains the Telegram page so the shared page rules (no script, CSP hash, language links) run on it.
+  its table of pages gains the Telegram page (chats view) and the code page so the shared page rules (no script, CSP
+  hash, language links) run on them.
 - `src/setup/texts.test.ts` (adapted) — AC14.
 - `src/body.test.ts` (extended) — AC13.
 - `test/telegram.ts` (new, Tester) — the **Telegram Bot API double**: a `vi.fn<TelegramFetch>()` that records every
@@ -483,7 +632,7 @@ By *Layout* (`.squad/stack.md`) and `docs/UNIT_TESTS.md`: one test file per modu
     error shape: `ok` false, `error_code`, `description`).
   - `get-updates-conflict.json` — the 409 shape with `error_code` 409 and a `description` naming the webhook.
   - `send-message.json` — `{"ok":true,"result":<Message>}` with the sent text, `chat` and `from` (the bot,
-    `is_bot` true).
+    `is_bot` true). The double answers it for any `chat_id` and `text`; the tests read the code from the request.
 
   Variants the fixtures lack (channel, unsafe id, missing name, oversized name, a newer update after a removal) are
   built in the test by copying an object of `get-updates.json` and changing one field, never hand-typed from
@@ -495,8 +644,10 @@ Existing test call sites of the changed `SetupDeps` (a new required field, the o
 **Dev** adapts them in step 4, mechanically, no assertion touched — `src/setup/handler.test.ts:29-31` (`depsAt`:
 add a `fetch` that rejects, so an unexpected Telegram call fails), `src/router.test.ts:25-29` (`SETUP_DEPS`) and
 `src/router.test.ts:34` (`makeDeps` default), each with a `fetch` that rejects. `src/index.ts` is production code (Dev).
-`src/setup/texts.test.ts:25` (`number of notices` 4 → 11) and `:28-36` (notice wording) are assertion changes: the
-**Tester** in step 5.
+`src/setup/texts.test.ts:25` (`number of notices` 4 → 13) and `:28-36` (notice wording) are assertion changes: the
+**Tester** in step 5, as is `src/crypto.test.ts:236-275` (AC18: the two-purpose test renamed and extended, a
+`setup-telegram` row in the known-HMAC table). The new `SigningPurpose` member breaks no call site (`test/keys.ts`
+takes the union).
 
 Files of the change no unit test can cover: none. (`src/index.ts` keeps being loaded by `src/index.test.ts`; the
 added arrow is on a line that test executes.)
@@ -504,39 +655,53 @@ added arrow is on a line that test executes.)
 ## Areas
 
 - [Setup wizard](../../docs/areas/setup-wizard.md) (main area of the change) — *Paths*: the signed-in branch answers
-  `GET` and `POST /setup/telegram`, the start page links to it (sentence on "later version" replaced); a new section
-  *Telegram chat* with: when `getUpdates` runs and with which parameters, which chats are listed and how they are
-  named (AC1–AC3), the confirm order and status codes (AC7, AC8), the `TELEGRAM_CHAT_ID` precedence (AC10), the bot
-  token allow-list, that no webhook is set or removed, the 1 MiB / 10 s bounds; *CSRF protection*: the Telegram form
-  is a signed-in form; *Texts*: the new English texts word for word; *Limits and errors*: Telegram answers never
-  reach a page or the log; a chat list may include chats of strangers who messaged the bot, and the test message is
-  how the owner recognizes their own chat. Owner: **Dev**.
+  `GET` and `POST /setup/telegram` and `POST /setup/telegram/verify`, the start page links to the step (sentence on
+  "later version" replaced); a new section *Telegram chat* with: when `getUpdates` runs and with which parameters,
+  and that every load makes Telegram discard the bot's updates older than the newest 100 (so the GET changes no
+  Seluna state but does change Telegram's); which chats are listed and how they are named (AC1–AC3); the confirm
+  order and status codes (AC7, AC8); a subsection *Chat proof* with the code, the proof format, its 10-minute
+  lifetime, its binding to chat, session and code, the key label `seluna/setup-telegram/v1`, and the verify order
+  and status codes (AC15–AC17); the `TELEGRAM_CHAT_ID` precedence (AC10); the bot token allow-list; that no webhook
+  is set or removed; the 1 MiB / 10 s bounds. *CSRF protection*: the confirm and verify forms are signed-in forms.
+  *Texts*: the new English texts word for word. *Limits and errors*: Telegram answers never reach a page or the log;
+  anyone who messages the bot appears in the list with a name of their choosing, so a label proves nothing, and a
+  chat is saved only after its code is typed back; a wrong chat saved anyway (the owner typed a code a stranger gave
+  them) is corrected by choosing again, which replaces the earlier value; a stranger who sends the bot many messages
+  can push the owner's chat out of the newest 100 updates (*no chats* — send `/start` again just before searching)
+  or make the answer exceed 1 MiB (*Telegram unavailable* until 100 newer, smaller updates have arrived), and the
+  workaround for both is the `TELEGRAM_CHAT_ID` Worker secret. Owner: **Dev**.
 - [Storage](../../docs/areas/storage.md) — *Tables*: the `settings` key `telegram_chat_id` (decimal text of a chat
-  id), written only by the setup wizard after a successful test message; link to Setup wizard. Owner: **Dev**.
+  id), written only by the setup wizard after the code of a successful test message was typed back; link to Setup
+  wizard. *Encryption* (the list of key labels): `seluna/setup-telegram/v1` for the chat proof key. Owner: **Dev**.
 - [Deployment](../../docs/areas/deployment.md) — *Worker secrets*: a row `TELEGRAM_CHAT_ID` (optional, the chat id;
-  takes precedence over the wizard's choice; set by hand; not asked by the deploy form). Owner: **Dev**.
-- [HTTP routes](../../docs/areas/http-routes.md) — *Request body size*: `POST /setup/telegram` joins the form
-  submissions that read a body. Owner: **Dev**.
+  takes precedence over the wizard's choice; set by hand; not asked by the deploy form); and below the table one
+  sentence on `TELEGRAM_BOT_TOKEN`: the Bot API puts the token into the request URL, so turning on Workers traces or
+  logs that record outbound requests in the Cloudflare dashboard records the token with them, and the owner who does
+  so treats those traces as secret or replaces the token with `/revoke` at @BotFather afterwards. Owner: **Dev**.
+- [HTTP routes](../../docs/areas/http-routes.md) — *Request body size*: `POST /setup/telegram` and
+  `POST /setup/telegram/verify` join the form submissions that read a body. Owner: **Dev**.
 
 ## Documentation updates
 
 - `docs/ARCHITECTURE.md` — the guarantee sentence on Telegram, *Security model*, *Configuration* (`TELEGRAM_CHAT_ID`),
-  link to decision 0016. Owner: **Lead** (done with this plan).
-- `docs/decisions/0016-telegram-chat-in-the-setup-wizard.md` and its index row — **Lead** (done, `Proposed`).
+  link to decision 0016. Owner: **Lead** (done with this plan, reworded in the revision for N2).
+- `docs/decisions/0016-telegram-chat-in-the-setup-wizard.md` and its index row — **Lead** (done, `Proposed`; revised).
 - `.squad/project.md` — *Security areas*, *Outbound-only Telegram*: "the Worker calls only the Telegram Bot API
   methods `getUpdates` (in the setup wizard's Telegram step, `src/setup/telegram-step.ts`) and `sendMessage`
-  (`src/telegram.ts`); it never sets or deletes a webhook, exposes no Telegram route, and the only input it takes
-  from Telegram is the `getUpdates` answer, read bounded (1 MiB) and narrowed in `src/telegram.ts`; the bot token
-  appears only in the request URL, which is never logged." *Test doubles*, *Telegram Bot API double*: name
-  `test/telegram.ts`, the injected `TelegramFetch` instead of a stub on `globalThis.fetch`, and its `getUpdates`
-  answers from `test/fixtures/telegram/`, which are written from the Bot API reference (not captured; see the
-  `README.md` there). Owner: **Dev** (the Lead may not write `.squad/`).
+  (`src/telegram.ts`); it never sets or deletes a webhook and exposes no Telegram route; the input it takes from
+  Telegram is the `getUpdates` answer of the signed-in step and the status of each `sendMessage` answer, both read
+  bounded (1 MiB) and narrowed in `src/telegram.ts`; a chat is stored only after the owner typed back the code of its
+  test message (`src/setup/chat-proof.ts`); the bot token appears only in the request URL, which Seluna never logs."
+  *Test doubles*, *Telegram Bot API double*: name `test/telegram.ts`, the injected `TelegramFetch` instead of a stub
+  on `globalThis.fetch`, and its `getUpdates` answers from `test/fixtures/telegram/`, which are written from the Bot
+  API reference (not captured; see the `README.md` there). Owner: **Dev** (the Lead may not write `.squad/`).
 - `docs/setup.md` — *Next steps*: after signing in, open the Telegram step, send `/start` to the bot (or add it to a
-  group), search, choose the chat and check the test message; optional `TELEGRAM_CHAT_ID`. Owner: **Dev**.
+  group), search, choose your own chat, and type the code of the test message into the setup page; optional
+  `TELEGRAM_CHAT_ID`. Owner: **Dev**.
 - `CHANGELOG.md` — under `## [Unreleased]` / `### Added`: "Setup wizard step *Telegram chat*: lists the private
-  chats and groups your bot has seen (`getUpdates`), sends a test message to the chosen one and saves its id; an
-  optional `TELEGRAM_CHAT_ID` Worker secret takes precedence; a missing or invalid `TELEGRAM_BOT_TOKEN` is
-  explained." Owner: **Dev**.
+  chats and groups your bot has seen (`getUpdates`), sends a test message with a code to the chosen one and saves its
+  id once the code is entered; an optional `TELEGRAM_CHAT_ID` Worker secret takes precedence; a missing or invalid
+  `TELEGRAM_BOT_TOKEN` is explained." Owner: **Dev**.
 - `README.md`, `.dev.vars.example`, `package.json` `cloudflare.bindings`, `wrangler.jsonc`,
   `worker-configuration.d.ts`: no change (the new secret is optional and set by hand; Worker secrets are not part of
   the generated `Env`).
@@ -545,13 +710,14 @@ added arrow is on a line that test executes.)
 
 - *A draft pull request triggers no notification*, *invalid signature has no effect*, *processed once*, *outbox
   before delivery*, *releases by tag*: untouched (no webhook, outbox or release code changes).
-- *Each user's data stays in that user's own Cloudflare account*: kept — the chat id is stored in the instance's D1;
-  the only external party is the user's own bot on Telegram, as before.
+- *Each user's data stays in that user's own Cloudflare account*: kept, and now enforced for the chat too — the chat
+  id is stored in the instance's D1 only after the owner proved they read the chat, so notifications cannot be
+  steered to a stranger's chat by a look-alike label.
 - *GitHub App credentials only encrypted*: untouched.
 - `docs/ARCHITECTURE.md` "Telegram is only ever called, never a source of input": reworded, not weakened in what it
-  protects — Telegram still never calls the Worker (no route, no webhook); the one input taken from it is the
-  `getUpdates` answer in the signed-in setup step, bounded and narrowed, shown only to the owner. The issue (the
-  Product Manager's request) asks for exactly this; decision 0016 records it.
+  protects — Telegram still never calls the Worker (no route, no webhook); the input taken from it is the
+  `getUpdates` answer of the signed-in setup step and the status of each `sendMessage` answer, bounded and narrowed.
+  The issue (the Product Manager's request) asks for exactly this; decision 0016 records it.
 
 ## Security considerations
 
@@ -559,27 +725,44 @@ added arrow is on a line that test executes.)
   parsing; form body ≤ 1 MiB in bytes **before** decoding (existing reader); chat name and username cut to 128 code
   points **after** JSON decoding (so the rendered text is bounded: at most 100 chats × (128 + 128) code points,
   ×6 after HTML escaping in the worst case); `getUpdates` returns at most 100 updates; each Bot API call is aborted
-  after 10 s; one `getUpdates` per page load and one `sendMessage` per confirm.
+  after 10 s (Security measured in workerd that `AbortSignal.timeout` interrupts both the header wait and a stalled
+  body read); one `getUpdates` per page load and one `sendMessage` per confirm; a proof is accepted for 10 minutes.
 - [x] Exceptions that can reach a user-visible failure: a rejected `fetch` (network, abort), a body read error, a
   `TextDecoder`/`JSON.parse` error → *Telegram unavailable* / *send failed*; a D1 error → *unavailable*. No runtime
-  message, Telegram `description` or token reaches a page or the log; nothing new is logged (the router's
+  message, Telegram `description`, token or code reaches a page or the log; nothing new is logged (the router's
   per-request entry stays method, path, status).
-- [x] The token in the URL: allow-listed (*Guard: bot token*) before it is placed there; the URL is never logged;
-  `wrangler.jsonc` enables no observability that would record subrequest URLs (the Reviewer checks it stays so).
+- [x] The token in the URL: allow-listed (*Guard: bot token*) before it is placed there; Seluna never logs the URL;
+  `wrangler.jsonc` enables no observability that would record subrequest URLs (the Reviewer checks it stays so); an
+  owner who turns on Workers traces in the dashboard records it, which the Deployment area says (Security N3).
 - [x] Attacker-controlled text: anyone who knows the bot's username can message it, so names in the list are
-  hostile input — escaped, `<bdi>`-isolated, bounded, never placed in an attribute other than the numeric `value`;
-  the chat id posted back is re-validated (*Guard: chat id*), not trusted from the page. A stranger's chat chosen by
-  mistake gets only the fixed test message; the owner sees whether it arrived (area document, *Limits and errors*).
-- [x] CSRF: the confirm form is a signed-in form with the session-bound token (decision 0015); `GET /setup/telegram`
-  changes no Seluna state; a cross-site navigation arrives signed out (`SameSite=Strict`).
+  hostile input — escaped, `<bdi>`-isolated, bounded, the username in an element of its own, never placed in an
+  attribute other than the numeric `value`; the chat id posted back is re-validated (*Guard: chat id*), not trusted
+  from the page.
+- [x] Chosen chat: a label proves nothing (a stranger can copy the owner's name, put a fake `@name` into a name, use
+  homoglyphs or copy a group title), so a chat is stored only after the owner types back the six-digit code its test
+  message carried (AC15–AC17). The proof is an HMAC under a key of its own over chat id, expiry, session token and
+  code: it cannot be forged without `SELUNA_SECRET`, a code for chat A cannot save chat B, a proof is useless in
+  another session or after 10 minutes, and the code is never in the page, so the page source does not reveal it. A
+  stranger who receives a code cannot use it (they have no session); what remains is an owner who types in a code a
+  stranger sends them, which the test message's text ("If you did not ask for it, ignore this message") and the code
+  page ("If no message arrived, the chat is not yours") speak against. Tries are not limited: only the signed-in owner
+  can submit, and 10^6 codes in 10 minutes is no gain to them over choosing again.
+- [x] CSRF: the confirm and verify forms are signed-in forms with the session-bound token (decision 0015);
+  `GET /setup/telegram` changes no Seluna state, only Telegram's (older updates discarded); a cross-site navigation
+  arrives signed out (`SameSite=Strict`).
 - [x] `TELEGRAM_CHAT_ID` and `TELEGRAM_BOT_TOKEN` values never appear in a response.
+- [x] Crowding the update window (Security N1, Devil's Advocate 2): a stranger who sends the bot 100 messages can push
+  the owner's `/start` out of the list, or with long messages push the answer above 1 MiB (*Telegram unavailable*).
+  Both fail closed (nothing stored); the first is undone by sending `/start` again (the `telegramNoChats` text says
+  so), the second lasts until 100 newer updates arrived, and `TELEGRAM_CHAT_ID` bypasses both. A larger limit only
+  raises what the stranger has to send; a smaller `limit` makes the window easier to crowd. Recorded in decision
+  0016 *Consequences* and the area document.
 
 ### Runtime details no one can verify beforehand
 
 The session cannot reach `api.telegram.org` (the egress proxy refuses it), so these rest on the Bot API reference
 and are *unverified* until the live check below (no real sample is provided; the fixtures follow the same reference);
-the design fails closed on each (nothing stored, a fixed
-notice):
+the design fails closed on each (nothing stored, a fixed notice):
 
 1. An unknown or revoked token is answered with 401 (some malformed paths with 404): both map to *token rejected*;
    anything else is *unavailable* / *send failed*.
@@ -588,33 +771,78 @@ notice):
    (`my_chat_member`, and the `new_chat_members` service message even in privacy mode) — the live check settles it.
 4. A negative `offset` returns the newest updates. If it did not, the oldest ones come back and a fresh `/start` may
    be missing: the page shows *no chats*, nothing breaks.
-5. A `Request` built with `signal: AbortSignal.timeout(…)` keeps the signal in workerd, so the test can assert
-   `request.signal` is present and not aborted; if workerd does not expose it, the Dev reports it and the Lead
-   decides (the assertion is dropped, the timeout stays).
+5. A `Request` built with `signal: AbortSignal.timeout(…)` keeps the signal in workerd — **settled**: Security measured
+   it in its plan review (the signal is kept, and the timeout interrupts header wait and body read), so the test
+   asserts `request.signal` is present and not aborted.
 6. `chat_id` as a JSON number is accepted for a negative 13-digit supergroup id.
-
 7. The shape of `getUpdates` and `sendMessage` answers (field names, `chat.type` values, `first_name` always present
    on a private chat, `title` on a group, ids within 52 bits) is as the reference documents it. A field that is
    missing or of another type makes `parseChats` skip the update or the answer `unavailable`, never a stored value.
 
 Verification: a live check on a deployed copy before the PR is marked ready — a private chat and a basic group both
-listed, the test message arrives in both, a wrong token shows *token rejected*, and a bot with a webhook shows
-*conflict* (points 1–4 and 7; the issue's first criterion cannot be shown otherwise). Owner: the Product Manager,
-requested by the orchestrator in the PR's *Next steps*. Points 5 and 6 are settled by the Dev's run of the tests in
-workerd (5) and by the live check (6). A deviation the live check finds is a new issue, not a silent fixture edit.
+listed, the test message with its code arrives in both and typing the code saves the chat, a wrong token shows
+*token rejected*, and a bot with a webhook shows *conflict* (points 1–4, 6 and 7; the issue's first criterion cannot
+be shown otherwise). Owner: the Product Manager, requested by the orchestrator in the PR's *Next steps*. A deviation
+the live check finds is a new issue, not a silent fixture edit.
 
 ## Decision records
 
 - [`docs/decisions/0016-telegram-chat-in-the-setup-wizard.md`](../../docs/decisions/0016-telegram-chat-in-the-setup-wizard.md)
-  (Proposed) — `getUpdates` on page load with a negative offset, the token allow-list, no webhook removal, the chat
-  id in plain `settings`, `TELEGRAM_CHAT_ID` precedence without showing it, the reworded outbound-only rule, and the
-  client built from the Bot API reference without a real sample, with its residual risk.
+  (Proposed) — `getUpdates` on page load with a negative offset (and that it discards older updates at Telegram), the
+  token allow-list, no webhook removal, the chat stored only after the code of its test message is typed back, the
+  pending chat in a signed session-bound form token, the chat id in plain `settings`, `TELEGRAM_CHAT_ID` precedence
+  without showing it, the reworded outbound-only rule, the crowded update window accepted, and the client built from
+  the Bot API reference without a real sample, with its residual risk.
 - Decision 0015 (Accepted, unreleased) is not changed: its *Consequences* already foresee the wizard steps adding
-  signed-in forms with the session-bound token.
+  signed-in forms with the session-bound token; the new signing key follows its key-separation rule.
+
+## Challenge
+
+Devil's Advocate (0 major, 3 minor), answered in the revision:
+
+1. *A stranger's chat can be saved and receive notifications.* **Accepted**, and answered more strongly than asked:
+   besides the sentence in `telegramChatsIntro` (anyone who messages the bot appears here, choose only your own chat;
+   English wording asserted by `texts word the English Telegram step as the area document does`, German by the Dev)
+   and the *Limits and errors* sentence that choosing again replaces an earlier value, a chat is now stored only after
+   the code of its test message is typed back (Security B1 (a); AC15–AC17, option 9).
+2. *A stranger can push the owner out of the list.* **Accepted**: `telegramNoChats` now says Seluna sees only the
+   newest 100 and to send `/start` again just before searching; the area document names the effect and the
+   `TELEGRAM_CHAT_ID` workaround; decision 0016 *Consequences* records it as accepted.
+3. *`getUpdates` through a GET changes Telegram's state.* **Accepted**: decision 0016 (option 1 and *Consequences*),
+   option 1 above and the area document's *Telegram chat* section state that each load makes Telegram discard the
+   bot's updates older than the newest 100; "safe" is now said only of Seluna's state.
+
+## Security review
+
+Security (plan), CHANGES_REQUIRED, answered in the revision:
+
+- **B1 (blocking) — a chat chosen from a spoofed list is stored.** **Accepted, option (a)** (proof of possession; the
+  Lead's decision, no Product Manager acceptance needed). The confirm form now only sends a test message carrying a
+  six-digit code and answers the code page (AC7, AC8); `POST /setup/telegram/verify` stores the chat only for the
+  code of a valid proof (AC15, AC16); the proof is an HMAC-signed, session-bound, 10-minute form token under a new
+  key `seluna/setup-telegram/v1`, no D1 (AC17, AC18, option 10). The tests Security asked for: wrong code stores
+  nothing (`handleSetup stores nothing and shows the wrong-code notice for a wrong code`), expired code stores
+  nothing (`… for a proof older than 10 minutes`), a code for chat A cannot save chat B (`handleSetup stores nothing
+  when the code for chat A is sent with a proof altered to chat B`, and `checkChatProof reports wrong-code for …
+  another chat id …`), plus another session and every malformed proof. The username is also rendered as an element
+  of its own (AC3), part of option (b) taken on as cheap hardening. The false statements are corrected: decision 0016
+  *Consequences* no longer says "never a wrong chat stored" (that sentence now speaks only of reference deviations,
+  and the chat proof is named as what keeps a stranger's chat out), and the planned *Limits and errors* wording above
+  no longer says the test message alone lets the owner recognize their chat.
+- **N1 — the update window can be filled.** **Accepted** as a documented, fail-closed residual (*Security
+  considerations*, last bullet): the area document names the effect and the `TELEGRAM_CHAT_ID` workaround; the 1 MiB
+  limit stays, because any limit can be filled by a stranger and a larger one only costs the Worker memory; a smaller
+  `limit` was weighed and rejected (easier to crowd). Recorded in 0016 *Consequences*.
+- **N2 — the reworded guarantee overstates.** **Accepted**: `docs/ARCHITECTURE.md` (guarantee sentence and *Security
+  model*), decision 0016 and the planned `.squad/project.md` wording now say "the `getUpdates` answer of the signed-in
+  step and the status of each `sendMessage` answer, both read bounded and narrowed in `src/telegram.ts`".
+- **N3 — token in the subrequest URL under Workers traces.** **Accepted**: the Deployment area gains the sentence on
+  `TELEGRAM_BOT_TOKEN` and traces (*Areas*, owner Dev), and *Security considerations* says "Seluna never logs" instead
+  of "never logged".
 
 ## Out of scope / follow-ups
 
 - Channels as a target; a test message for `TELEGRAM_CHAT_ID`; showing the saved chat's name; preselecting the saved
-  chat in the list.
+  chat in the list; a limit on code tries.
 - Delivery to the chat (issue #12) reads `TELEGRAM_CHAT_ID` first, then `settings` `telegram_chat_id` — the rule is in
   the Setup wizard area document; #12 reuses `isChatIdSecretSet`, `parseChatId` and `sendMessage`.

@@ -9,7 +9,8 @@ Source: Issue #9 (dependency #8, setup login, is merged on `main`: PR #36, CSRF 
 Seluna delivers through the owner's own Telegram bot (`TELEGRAM_BOT_TOKEN`), but it does not know which chat to
 send to. Finding a chat id by hand (calling the Bot API in a browser, reading JSON) is error-prone. The setup wizard
 finds it: the owner talks to the bot (or adds it to a group), the wizard lists the chats the bot has seen, the owner
-picks one, a test message proves it works, and the chat id is saved.
+picks one, a test message with a code proves it works and that the chat is the owner's, and once the owner types the
+code back the chat id is saved.
 
 ## Behavior
 
@@ -24,9 +25,12 @@ picks one, a test message proves it works, and the chat id is saved.
 4. A chat the bot was removed from or blocked in (its newest update says so), and a group that Telegram converted
    to a supergroup (the old id), is not listed.
 5. When no chat is found, the page says so and repeats what to do.
-6. The owner chooses one listed chat and confirms. The wizard sends a fixed test message to that chat; only when
-   Telegram accepts it is the chat id stored in the D1 `settings` table (key `telegram_chat_id`), replacing an
-   earlier one. The owner then sees the step page again, which shows the saved chat id.
+6. The owner chooses one listed chat and confirms. The wizard sends a test message with a six-digit code to that
+   chat and, when Telegram accepts it, asks for the code. Only when the owner types the code back (within 10 minutes,
+   in the same session) is the chat id stored in the D1 `settings` table (key `telegram_chat_id`), replacing an
+   earlier one. The owner then sees the step page again, which shows the saved chat id. Anyone who messages the bot
+   can appear in the list under a name of their choosing; the code keeps such a chat from being saved, and the list
+   says to choose only your own chat.
 7. If the test message fails, nothing is stored and the page says that the test message could not be sent.
 8. A missing `TELEGRAM_BOT_TOKEN`, a value that does not have the form of a bot token, and a token Telegram rejects
    each show an understandable error that says what to do; with a missing or malformed token Telegram is not called.
@@ -40,7 +44,9 @@ picks one, a test message proves it works, and the chat id is saved.
     a submitted confirm form stores nothing and sends nothing.
 13. Chat names are shown as text only: escaped, isolated against bidirectional reordering, and cut to 128 characters.
 14. The step is in English and German like every wizard page, and the test message is in the page's language.
-15. The step is behind the setup login, and its form carries the session-bound CSRF token like every signed-in form.
+15. The step is behind the setup login, and its forms carry the session-bound CSRF token like every signed-in form.
+16. A wrong code stores nothing and asks again; an expired code, or a code form of another session, stores nothing
+    and asks to search again. A code sent for one chat cannot save another.
 
 ## Acceptance criteria
 
