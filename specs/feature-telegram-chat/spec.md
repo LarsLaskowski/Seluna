@@ -58,4 +58,6 @@ picks one, a test message proves it works, and the chat id is saved.
 
 ## Open questions
 
-- A real sample of the Bot API answers (see the escalation in the Lead's result and *Test files* in plan.md).
+- None. A real sample of the Bot API answers is not provided: the Product Manager decided that the client is built
+  from the Bot API reference, with the residual risk recorded in decision 0016 and a live check before the pull
+  request is marked ready (*Runtime details* in plan.md).

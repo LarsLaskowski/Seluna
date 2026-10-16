@@ -56,7 +56,7 @@ wording. "Telegram is called" means a request reaches the injected `fetch` (the 
   is oldest first), named by its newest update. A chat whose id is not a safe integer, a chat of another type
   (`channel`), and an update without one of those three fields are skipped. A missing name falls back to the
   decimal id. An answer that is not an object with `ok: true` and an array `result` yields `undefined`.
-  Tests (`src/telegram.test.ts`): `parseChats lists the private chat and the group of the real getUpdates sample`,
+  Tests (`src/telegram.test.ts`): `parseChats lists the private chat and the group of the getUpdates fixture`,
   `parseChats lists a supergroup as a group`, `parseChats lists each chat once, newest first, named by its newest update`,
   `parseChats skips channels, ids that are not safe integers and updates without a chat`,
   `parseChats names a chat without a name by its id`,
@@ -161,7 +161,7 @@ wording. "Telegram is called" means a request reaches the injected `fetch` (the 
   `handleSetup sends the test message in German for a German page` (`src/setup/handler.test.ts`).
 
 The issue's own criteria map as: "A private chat and a group are both recognized and the test message arrives" →
-AC1, AC6, AC7 (unit level, against the real sample) plus the live check in *Runtime details* (only a real bot shows
+AC1, AC6, AC7 (unit level, against fixtures written from the Bot API reference) plus the live check in *Runtime details* (only a real bot shows
 the message arriving); "A missing or invalid `TELEGRAM_BOT_TOKEN` shows an understandable error" → AC5, AC8, AC9.
 
 ### Texts
@@ -310,7 +310,7 @@ Status codes of `/setup/telegram` (signed in): `GET` → 200 for every view, 503
 | Worker | `src/setup/texts.ts` | new texts and seven notices; `startBody` reworded |
 | Worker | `src/index.ts` | passes `fetch` into `setup` |
 | Tests | `test/telegram.ts` | new: the Telegram Bot API double |
-| Tests | `test/fixtures/telegram/*.json` | new: real Bot API answers (see *Test files*) |
+| Tests | `test/fixtures/telegram/*.json`, `test/fixtures/telegram/README.md` | new: Bot API answers written from the Bot API reference, marked as such (see *Test files*) |
 
 ## Signatures (for the Dev's skeleton)
 
@@ -463,17 +463,33 @@ By *Layout* (`.squad/stack.md`) and `docs/UNIT_TESTS.md`: one test file per modu
   request (method name taken from the URL path, parsed JSON body) and answers per method from a fixture, a status
   and body given by the test, or a rejection; it fails the test on any method other than `getUpdates` and
   `sendMessage`.
-- **Fixtures** (`test/fixtures/telegram/`, the stack's fixture directory, by Bot API method): the plan is built
-  from a **real sample** that is not yet in the repository — see the escalation in the Lead's result. Names:
-  `get-updates.json` (one real `getUpdates` answer holding the variants below), `get-updates-unauthorized.json`
-  (the real body of a 401 answer), `send-message.json` (one real successful `sendMessage` answer). Variants the
-  `getUpdates` sample must hold: a private chat after `/start` (`message`, with `first_name`, and `last_name` /
-  `username` where the account has them); the bot added to a basic group (`my_chat_member` and/or the
-  `new_chat_members` service message); a supergroup; ideally the bot removed from a group or blocked in a chat
-  (`my_chat_member` `left`/`kicked`) and a group upgraded to a supergroup (`migrate_to_chat_id`). Personal data is
-  replaced (names, usernames, ids changed consistently), structure untouched. Variants the sample lacks (channel,
-  unsafe id, missing name, oversized name) are built in the test by copying an object of the sample and changing one
-  field, never hand-typed from scratch.
+- **Fixtures** (`test/fixtures/telegram/`, the stack's fixture directory, by Bot API method), owner **Tester**:
+  **written from the Bot API reference** (<https://core.telegram.org/bots/api>: *Making requests*, *getUpdates*,
+  *Update*, *Message*, *Chat*, *ChatMemberUpdated*, *ChatMember*, *sendMessage*), not captured from Telegram — the
+  Product Manager decided so (log, step 2; decision 0016, *Consequences*). They are marked as such in
+  `test/fixtures/telegram/README.md` (JSON holds no comment): the source, the sections each file follows, and that
+  they are to be replaced by captured answers once a live run yields some. Files:
+  - `get-updates.json` — one `{"ok":true,"result":[…]}` answer, oldest update first, with every field the reference
+    marks as always present on the objects used (`update_id`, `message_id`, `date`, `chat`, `from` with `is_bot`,
+    `first_name`; `my_chat_member` with `chat`, `from`, `date`, `old_chat_member`, `new_chat_member`, each with
+    `status` and `user`). Variants: a private chat after `/start` (`message`, `first_name`, `last_name`, `username`,
+    an `entities` entry `bot_command`); a second private chat with `first_name` only; a basic group the bot was added
+    to (`my_chat_member` `left` → `member`, and a `message` with `new_chat_members`, negative id); a supergroup
+    (`-100…` 13-digit id, `title`, `message`); an `edited_message`; a chat whose newest update is `my_chat_member`
+    `kicked` (private, bot blocked) and one whose newest is `left` (group); a basic group whose newest message carries
+    `migrate_to_chat_id`; an update of a type the parser ignores (`callback_query` or `channel_post`). Ids, names and
+    usernames are invented.
+  - `get-updates-unauthorized.json` — `{"ok":false,"error_code":401,"description":"Unauthorized"}` (the reference's
+    error shape: `ok` false, `error_code`, `description`).
+  - `get-updates-conflict.json` — the 409 shape with `error_code` 409 and a `description` naming the webhook.
+  - `send-message.json` — `{"ok":true,"result":<Message>}` with the sent text, `chat` and `from` (the bot,
+    `is_bot` true).
+
+  Variants the fixtures lack (channel, unsafe id, missing name, oversized name, a newer update after a removal) are
+  built in the test by copying an object of `get-updates.json` and changing one field, never hand-typed from
+  scratch. Because the fixtures share the reference's assumptions, the tests cannot catch a deviation of the real
+  API from it: that is the residual risk recorded in decision 0016 and closed only by the live check in *Runtime
+  details*.
 
 Existing test call sites of the changed `SetupDeps` (a new required field, the old shape no longer compiles): the
 **Dev** adapts them in step 4, mechanically, no assertion touched — `src/setup/handler.test.ts:29-31` (`depsAt`:
@@ -513,7 +529,8 @@ added arrow is on a line that test executes.)
   from Telegram is the `getUpdates` answer, read bounded (1 MiB) and narrowed in `src/telegram.ts`; the bot token
   appears only in the request URL, which is never logged." *Test doubles*, *Telegram Bot API double*: name
   `test/telegram.ts`, the injected `TelegramFetch` instead of a stub on `globalThis.fetch`, and its `getUpdates`
-  answers from `test/fixtures/telegram/`. Owner: **Dev** (the Lead may not write `.squad/`).
+  answers from `test/fixtures/telegram/`, which are written from the Bot API reference (not captured; see the
+  `README.md` there). Owner: **Dev** (the Lead may not write `.squad/`).
 - `docs/setup.md` — *Next steps*: after signing in, open the Telegram step, send `/start` to the bot (or add it to a
   group), search, choose the chat and check the test message; optional `TELEGRAM_CHAT_ID`. Owner: **Dev**.
 - `CHANGELOG.md` — under `## [Unreleased]` / `### Added`: "Setup wizard step *Telegram chat*: lists the private
@@ -560,14 +577,15 @@ added arrow is on a line that test executes.)
 ### Runtime details no one can verify beforehand
 
 The session cannot reach `api.telegram.org` (the egress proxy refuses it), so these rest on the Bot API reference
-and are *unverified* until the real sample and a live run; the design fails closed on each (nothing stored, a fixed
+and are *unverified* until the live check below (no real sample is provided; the fixtures follow the same reference);
+the design fails closed on each (nothing stored, a fixed
 notice):
 
 1. An unknown or revoked token is answered with 401 (some malformed paths with 404): both map to *token rejected*;
    anything else is *unavailable* / *send failed*.
 2. A bot with a webhook, or polled by another program, answers `getUpdates` with 409 → *conflict*.
 3. Adding the bot to a group produces an update carrying the group's `chat` under the default `allowed_updates`
-   (`my_chat_member`, and the `new_chat_members` service message even in privacy mode) — the real sample settles it.
+   (`my_chat_member`, and the `new_chat_members` service message even in privacy mode) — the live check settles it.
 4. A negative `offset` returns the newest updates. If it did not, the oldest ones come back and a fresh `/start` may
    be missing: the page shows *no chats*, nothing breaks.
 5. A `Request` built with `signal: AbortSignal.timeout(…)` keeps the signal in workerd, so the test can assert
@@ -575,16 +593,22 @@ notice):
    decides (the assertion is dropped, the timeout stays).
 6. `chat_id` as a JSON number is accepted for a negative 13-digit supergroup id.
 
-Verification: the Product Manager's real sample (point 3, and 1–2 if the 401/409 bodies are captured), and a live
-check on a deployed copy before the PR is marked ready — private chat and group listed, test message arrives in
-both, a wrong token shows *token rejected* (the issue's first criterion cannot be shown otherwise). Owner: the
-Product Manager, requested by the orchestrator in the PR's *Next steps*.
+7. The shape of `getUpdates` and `sendMessage` answers (field names, `chat.type` values, `first_name` always present
+   on a private chat, `title` on a group, ids within 52 bits) is as the reference documents it. A field that is
+   missing or of another type makes `parseChats` skip the update or the answer `unavailable`, never a stored value.
+
+Verification: a live check on a deployed copy before the PR is marked ready — a private chat and a basic group both
+listed, the test message arrives in both, a wrong token shows *token rejected*, and a bot with a webhook shows
+*conflict* (points 1–4 and 7; the issue's first criterion cannot be shown otherwise). Owner: the Product Manager,
+requested by the orchestrator in the PR's *Next steps*. Points 5 and 6 are settled by the Dev's run of the tests in
+workerd (5) and by the live check (6). A deviation the live check finds is a new issue, not a silent fixture edit.
 
 ## Decision records
 
 - [`docs/decisions/0016-telegram-chat-in-the-setup-wizard.md`](../../docs/decisions/0016-telegram-chat-in-the-setup-wizard.md)
   (Proposed) — `getUpdates` on page load with a negative offset, the token allow-list, no webhook removal, the chat
-  id in plain `settings`, `TELEGRAM_CHAT_ID` precedence without showing it, the reworded outbound-only rule.
+  id in plain `settings`, `TELEGRAM_CHAT_ID` precedence without showing it, the reworded outbound-only rule, and the
+  client built from the Bot API reference without a real sample, with its residual risk.
 - Decision 0015 (Accepted, unreleased) is not changed: its *Consequences* already foresee the wizard steps adding
   signed-in forms with the session-bound token.
 

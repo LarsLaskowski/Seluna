@@ -71,6 +71,12 @@ How the Worker reaches Telegram:
     outbox (#12). Chosen.
 16. **A stub on `globalThis.fetch`** — global state shared between tests.
 
+What the client and its fixtures are built from (the session cannot reach Telegram):
+
+17. **The Bot API reference; the test fixtures are written from it and marked as such** — no real answers are
+    available; the Product Manager chose this over waiting for captured samples. Chosen.
+18. **Captured answers of a real bot** — fixtures that show what Telegram really sends, but none were provided.
+
 ## Decision
 
 The signed-in step `/setup/telegram` calls `getUpdates` once per page load for the newest 100 updates, lists the
@@ -78,7 +84,8 @@ private chats and groups a test message can reach, and on confirmation sends a f
 stores the chat id in `settings`; the bot token is allow-listed before it enters a URL, a webhook on the bot is
 reported and never removed, and a non-empty `TELEGRAM_CHAT_ID` takes precedence without being shown. The Worker
 still exposes nothing Telegram can call and calls only `getUpdates` and `sendMessage`; the `getUpdates` answer is the
-one input it takes from Telegram, read bounded and narrowed. The rules are in the area document
+one input it takes from Telegram, read bounded and narrowed. The client is built from the Bot API reference,
+without captured answers, and checked live before release. The rules are in the area document
 [`areas/setup-wizard.md`](../areas/setup-wizard.md).
 
 ## Consequences
@@ -90,6 +97,11 @@ one input it takes from Telegram, read bounded and narrowed. The rules are in th
   owner recognizes their own chat by the test message arriving.
 - Delivery (#12) uses `TELEGRAM_CHAT_ID` when set, else `settings` `telegram_chat_id`, and reuses the client's
   `sendMessage`.
-- Telegram's answers for an unknown token (401, sometimes 404), a webhook (409) and the updates of a newly added group
-  are taken from the Bot API reference; the session could not reach Telegram. Every other answer fails closed
-  (nothing stored, a fixed notice). Revisit if a live run shows other codes.
+- Residual risk: the client and its fixtures under `test/fixtures/telegram/` (marked in the `README.md` there) rest on
+  the Bot API reference, not on captured answers, so the unit tests share its assumptions and cannot reveal where
+  Telegram deviates from it — the status codes for an unknown token (401, sometimes 404) and a webhook (409), which
+  updates a newly added group produces, whether a negative `offset` returns the newest updates, and the field shapes
+  of chats and member updates. Each deviation fails closed (an update skipped, a fixed notice, nothing stored), so
+  the worst outcome is a chat that is not listed or a less precise notice, never a wrong chat stored. The Product
+  Manager's live check on a deployed copy before the pull request is marked ready is the one check against the real
+  API; a deviation it or a later run finds is fixed in a new issue, with the captured answer replacing the fixture.
