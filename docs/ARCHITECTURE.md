@@ -123,7 +123,7 @@ their own Cloudflare account with the Deploy to Cloudflare button, which copies 
 GitHub account, provisions the D1 database and asks for the Worker secrets; from then on every push to `main` of
 that copy starts a Workers Build whose deploy command, `npm run deploy`, applies the D1 migrations and then deploys
 (the setup guide has the user check that command, which the button does not always set)
-([decision 0013](decisions/0013-deploy-to-cloudflare-and-workers-builds.md), rules in
+([decision 0013](decisions/0013-deploy-to-cloudflare-and-workers-builds.md), [decision 0020](decisions/0020-deploy-command-checked-in-the-setup-guide.md), rules in
 [`areas/deployment.md`](areas/deployment.md)). A release is published on GitHub as a pre-release with its `v*` tag on `main`; the release workflow
 (`.github/workflows/release.yml`) verifies the tagged commit and only then turns it into the latest full release
 ([decision 0009](decisions/0009-releases-only-by-tag-push.md)).

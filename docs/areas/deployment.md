@@ -93,7 +93,10 @@ bindings) rely on it.
 
 - [`decisions/0013-deploy-to-cloudflare-and-workers-builds.md`](../decisions/0013-deploy-to-cloudflare-and-workers-builds.md)
   — the button and Workers Builds, the binding without a database id, migrations before the deploy, the Telegram
-  bot token as a Worker secret, and the deploy command the user checks after the button's deploy.
+  bot token as a Worker secret.
+- [`decisions/0020-deploy-command-checked-in-the-setup-guide.md`](../decisions/0020-deploy-command-checked-in-the-setup-guide.md)
+  — why the setup guide has the user check the deploy command after the button's deploy, and why the migrations
+  stay out of the build command.
 - [`decisions/0017-github-app-manifest-flow.md`](../decisions/0017-github-app-manifest-flow.md) — the optional
   GitHub Worker secrets and their precedence over the credentials the wizard stores.
 
