@@ -37,3 +37,11 @@ export function migrationTestDb(): D1Database {
   // A cast after the runtime check above: the binding is declared only in vitest.config.ts, not in Env.
   return db as D1Database;
 }
+
+/** A `D1Database` whose every member throws: passed to code that must not touch the database. */
+export function unusedDb(): D1Database {
+  const fail = (): never => {
+    throw new Error("The database must not be used");
+  };
+  return { prepare: fail, batch: fail, exec: fail, dump: fail, withSession: fail };
+}

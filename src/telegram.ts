@@ -1,4 +1,4 @@
-import { readBodyWithLimit } from "./body";
+import { readJsonWithLimit } from "./body";
 
 const BOT_TOKEN_FORM = /^\d{1,20}:[A-Za-z0-9_-]{1,200}$/;
 const CHAT_ID_FORM = /^-?[1-9]\d{0,15}$/;
@@ -182,21 +182,6 @@ type BotApiAnswer =
   | { readonly kind: "answered"; readonly status: number; readonly ok: boolean; readonly body: unknown }
   | { readonly kind: "failed" };
 
-/** Reads a 2xx answer bounded to 1 MiB; `undefined` when it cannot be read as UTF-8 JSON. */
-async function readJson(response: Response): Promise<unknown> {
-  const result = await readBodyWithLimit(response, MAX_TELEGRAM_RESPONSE_BYTES);
-  if (result.kind !== "ok") {
-    return undefined;
-  }
-  try {
-    const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(result.body);
-    const parsed: unknown = JSON.parse(text);
-    return parsed;
-  } catch {
-    return undefined;
-  }
-}
-
 /** One POST to a Bot API method with a JSON body; never throws. A non-2xx answer is returned without reading its body. */
 async function callBotApi(
   token: string,
@@ -216,7 +201,12 @@ async function callBotApi(
       await response.body?.cancel().catch(() => undefined);
       return { kind: "answered", status: response.status, ok: false, body: undefined };
     }
-    return { kind: "answered", status: response.status, ok: true, body: await readJson(response) };
+    return {
+      kind: "answered",
+      status: response.status,
+      ok: true,
+      body: await readJsonWithLimit(response, MAX_TELEGRAM_RESPONSE_BYTES),
+    };
   } catch {
     // Network errors, aborts and unreadable answers carry nothing the owner can use; the cause is dropped.
     return { kind: "failed" };

@@ -1,5 +1,7 @@
+import type { AccountChoice } from "../github/manifest";
 import type { Language } from "./language";
 import type { TelegramChat } from "../telegram";
+import type { GitHubStepView } from "./github-step";
 import type { TelegramProblem, TelegramStepView } from "./telegram-step";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
@@ -31,12 +33,15 @@ export function escapeHtml(text: string): string {
   return text.replaceAll(/[&<>"']/g, (character) => ENTITIES[character] ?? character);
 }
 
-/** `default-src 'none'; style-src 'sha256-<base64 SHA-256 of STYLE>'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`. */
-export async function contentSecurityPolicy(): Promise<string> {
+/** Where a page's forms may post to: this origin, or (the manifest review page) `https://github.com`. */
+export type FormTarget = "self" | "github";
+
+/** `default-src 'none'; style-src 'sha256-<base64 SHA-256 of STYLE>'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`; `form-action https://github.com` for the `github` target. */
+export async function contentSecurityPolicy(formTarget: FormTarget = "self"): Promise<string> {
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(STYLE)));
   // The policy wants standard base64 with padding, not base64url.
   const hash = btoa(Array.from(digest, (byte) => String.fromCodePoint(byte)).join(""));
-  return `default-src 'none'; style-src 'sha256-${hash}'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`;
+  return `default-src 'none'; style-src 'sha256-${hash}'; form-action ${formTarget === "github" ? "https://github.com" : "'self'"}; frame-ancestors 'none'; base-uri 'none'`;
 }
 
 function noticeHtml(language: Language, notice: Notice | undefined): string {
@@ -79,7 +84,8 @@ export function renderStartPage(language: Language, csrfToken: string, notice?: 
   return layout(
     language,
     `<h1>${escapeHtml(texts.startHeading)}</h1>\n<p>${escapeHtml(texts.startBody)}</p>\n${noticeHtml(language, notice)}\n` +
-      `<ul>\n<li><a href="/setup/telegram">${escapeHtml(texts.telegramHeading)}</a></li>\n</ul>\n` +
+      `<ul>\n<li><a href="/setup/telegram">${escapeHtml(texts.telegramHeading)}</a></li>\n` +
+      `<li><a href="/setup/github">${escapeHtml(texts.githubHeading)}</a></li>\n</ul>\n` +
       `<form method="post" action="/setup/logout">\n${csrfInput(csrfToken)}\n` +
       `<button type="submit">${escapeHtml(texts.logoutButton)}</button>\n</form>`,
   );
@@ -92,9 +98,9 @@ export function renderNotConfiguredPage(language: Language): string {
   return layout(language, `<h1>${escapeHtml(texts.notConfiguredHeading)}</h1>\n${paragraphs}`);
 }
 
-async function securityHeaders(): Promise<Headers> {
+async function securityHeaders(formTarget: FormTarget = "self"): Promise<Headers> {
   const headers = new Headers(SECURITY_HEADERS);
-  headers.set("Content-Security-Policy", await contentSecurityPolicy());
+  headers.set("Content-Security-Policy", await contentSecurityPolicy(formTarget));
   return headers;
 }
 
@@ -110,8 +116,9 @@ export async function htmlResponse(
   status: number,
   language: Language,
   cookies: readonly string[],
+  formTarget: FormTarget = "self",
 ): Promise<Response> {
-  const headers = await securityHeaders();
+  const headers = await securityHeaders(formTarget);
   headers.set("Content-Type", "text/html; charset=utf-8");
   headers.set("Content-Language", language);
   addCookies(headers, cookies);
@@ -224,4 +231,111 @@ export function renderTelegramPage(
     }
   }
   return layout(language, body);
+}
+
+export type GitHubPageView =
+  GitHubStepView | { readonly kind: "notice-only" } | { readonly kind: "created"; readonly slug: string | undefined };
+
+function githubBackLink(language: Language): string {
+  return `<p><a href="/setup/github">${escapeHtml(TEXTS[language].githubBackLink)}</a></p>`;
+}
+
+function savedAppHtml(language: Language, savedAppId: number | undefined): string {
+  const texts = TEXTS[language];
+  return savedAppId === undefined
+    ? `<p>${escapeHtml(texts.githubNoSavedApp)}</p>`
+    : `<p>${escapeHtml(texts.githubSavedApp)} <code>${String(savedAppId)}</code></p>\n<p>${escapeHtml(texts.githubReplaceHint)}</p>`;
+}
+
+function githubFormHtml(language: Language, csrfToken: string): string {
+  const texts = TEXTS[language];
+  return (
+    `<form method="post" action="/setup/github">\n${csrfInput(csrfToken)}\n` +
+    `<label><input type="radio" name="account_type" value="personal" required> ${escapeHtml(texts.githubPersonal)}</label>\n` +
+    `<label><input type="radio" name="account_type" value="organization" required> ${escapeHtml(texts.githubOrganization)}</label>\n` +
+    `<label for="account">${escapeHtml(texts.githubAccountLabel)}</label>\n` +
+    `<input id="account" type="text" name="account" maxlength="39" autocomplete="off" required>\n` +
+    `<button type="submit">${escapeHtml(texts.githubNextButton)}</button>\n</form>`
+  );
+}
+
+function githubCreatedHtml(language: Language, slug: string | undefined): string {
+  const texts = TEXTS[language];
+  const install =
+    slug === undefined
+      ? `<p>${escapeHtml(texts.githubInstallManual)}</p>`
+      : `<p>${escapeHtml(texts.githubInstallIntro)}</p>\n` +
+        `<p><a href="https://github.com/apps/${escapeHtml(slug)}/installations/new">${escapeHtml(texts.githubInstallLink)}</a></p>`;
+  return `<p>${escapeHtml(texts.githubCreated)}</p>\n${install}`;
+}
+
+/** The GitHub App step page; links like the login page. */
+export function renderGitHubPage(language: Language, csrfToken: string, view: GitHubPageView, notice?: Notice): string {
+  const texts = TEXTS[language];
+  const heading = `<h1>${escapeHtml(texts.githubHeading)}</h1>`;
+  const intro = `<p>${escapeHtml(texts.githubIntro)}</p>`;
+  let body: string;
+  switch (view.kind) {
+    case "worker-secrets":
+      body = `${heading}\n<p>${escapeHtml(texts.githubWorkerSecrets)}</p>`;
+      break;
+    case "partial-worker-secrets":
+      body = `${heading}\n<p>${escapeHtml(texts.githubPartialWorkerSecrets)}</p>`;
+      break;
+    case "reset-needed":
+      body = `${heading}\n<p>${escapeHtml(texts.githubResetNeeded)}</p>`;
+      break;
+    case "notice-only":
+      body = `${heading}\n${noticeHtml(language, notice)}\n${githubBackLink(language)}`;
+      break;
+    case "created":
+      body = `${heading}\n${githubCreatedHtml(language, view.slug)}`;
+      break;
+    case "form":
+      body =
+        `${heading}\n${intro}\n${noticeHtml(language, notice)}\n${savedAppHtml(language, view.savedAppId)}\n` +
+        githubFormHtml(language, csrfToken);
+      break;
+    default: {
+      const unreachable: never = view;
+      return unreachable;
+    }
+  }
+  return layout(language, body);
+}
+
+/** The review page whose form posts the manifest to GitHub; links like the login page. */
+export function renderGitHubReviewPage(
+  language: Language,
+  choice: AccountChoice,
+  appName: string,
+  formAction: string,
+  manifest: string,
+): string {
+  const texts = TEXTS[language];
+  const type = choice.type === "personal" ? texts.githubPersonal : texts.githubOrganization;
+  return layout(
+    language,
+    `<h1>${escapeHtml(texts.githubHeading)}</h1>\n<p>${escapeHtml(texts.githubReviewIntro)}</p>\n` +
+      `<p>${escapeHtml(texts.githubReviewAccountLabel)} <bdi>${escapeHtml(choice.account)}</bdi> (${escapeHtml(type)})</p>\n` +
+      `<p>${escapeHtml(texts.githubAppNameLabel)} <code>${escapeHtml(appName)}</code></p>\n` +
+      `<p>${escapeHtml(texts.githubPermissionsLabel)} ${escapeHtml(texts.githubPermissionsList)}</p>\n` +
+      `<p>${escapeHtml(texts.githubEventsLabel)} ${escapeHtml(texts.githubEventsList)}</p>\n` +
+      `<form method="post" action="${escapeHtml(formAction)}">\n` +
+      `<input type="hidden" name="manifest" value="${escapeHtml(manifest)}">\n` +
+      `<button type="submit">${escapeHtml(texts.githubToGitHubButton)}</button>\n</form>`,
+  );
+}
+
+/** The finish page whose form posts the return's `code` and `state` back; links like the login page. */
+export function renderGitHubFinishPage(language: Language, code: string, state: string, notice?: Notice): string {
+  const texts = TEXTS[language];
+  return layout(
+    language,
+    `<h1>${escapeHtml(texts.githubHeading)}</h1>\n<p>${escapeHtml(texts.githubFinishIntro)}</p>\n${noticeHtml(language, notice)}\n` +
+      `<form method="post" action="/setup/github/callback">\n` +
+      `<input type="hidden" name="code" value="${escapeHtml(code)}">\n` +
+      `<input type="hidden" name="state" value="${escapeHtml(state)}">\n` +
+      `<button type="submit">${escapeHtml(texts.githubFinishButton)}</button>\n</form>`,
+  );
 }

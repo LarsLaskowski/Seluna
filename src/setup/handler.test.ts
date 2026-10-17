@@ -2,16 +2,33 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_BODY_BYTES } from "../body";
 import { LOGIN_ATTEMPTS_META_KEY, LOGIN_LOCK_MS } from "../store/login-attempts";
+import { readSecret, writeSecret } from "../store/secrets";
 import { CSRF_COOKIE, csrfTokenFor, sessionCsrfTokenFor } from "./csrf";
 import { createChatProof } from "./chat-proof";
+import { verifyGitHubState } from "./github-state";
 import { handleSetup, isSetupPath } from "./handler";
 import type { SetupDeps } from "./handler";
 import { contentSecurityPolicy, escapeHtml } from "./pages";
 import { createSessionToken, SESSION_COOKIE, SESSION_LIFETIME_MS } from "./session";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
-import { applyMigrations, migrationTestDb } from "../../test/d1";
-import { signingKeyFor, withFirstCharacterChanged } from "../../test/keys";
+import { applyMigrations, migrationTestDb, unusedDb } from "../../test/d1";
+import {
+  conversionAnswer,
+  conversionOwnedBy,
+  expectedManifestJson,
+  FIXTURE_CLIENT_SECRET,
+  FIXTURE_CODE,
+  FIXTURE_PKCS8,
+  FIXTURE_WEBHOOK_SECRET,
+  FIXTURES as GITHUB_FIXTURES,
+  githubDouble,
+  jsonAnswer as githubJsonAnswer,
+  REJECTED as GITHUB_REJECTED,
+  stateFor,
+} from "../../test/github";
+import type { GitHubAnswer, GitHubDouble } from "../../test/github";
+import { keyFor, signingKeyFor, withFirstCharacterChanged } from "../../test/keys";
 import { FIXTURES, jsonAnswer, REJECTED, telegramDouble, updatesAnswer } from "../../test/telegram";
 import type { TelegramAnswer, TelegramDouble } from "../../test/telegram";
 
@@ -27,6 +44,10 @@ beforeEach(async () => {
   await applyMigrations(env.DB);
   await env.DB.prepare("DELETE FROM meta WHERE key = ?1").bind(LOGIN_ATTEMPTS_META_KEY).run();
   await env.DB.prepare("DELETE FROM settings").run();
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM secrets"),
+    env.DB.prepare("DELETE FROM meta WHERE key = 'key_check'"),
+  ]);
 });
 
 /** Setup dependencies with a usable `SELUNA_SECRET`, the real database and a clock fixed at `milliseconds`. */
@@ -36,6 +57,8 @@ function depsAt(milliseconds = NOW.getTime(), overrides: Partial<SetupDeps> = {}
     db: env.DB,
     now: () => new Date(milliseconds),
     fetch: () => Promise.reject(new Error("unexpected Telegram call")),
+    githubFetch: () => Promise.reject(new Error("unexpected GitHub call")),
+    version: "0.0.0-test",
     ...overrides,
   };
 }
@@ -1616,5 +1639,960 @@ describe("handleSetup Telegram verify form", () => {
 
     expect(response.status, "status").toBe(400);
     expect(await response.text(), "body").toBe("");
+  });
+});
+
+const GITHUB_PATH = "/setup/github";
+const CALLBACK_PATH = "/setup/github/callback";
+const OTHER_SESSION = "v1.1700043100000.othermacothermacothermacothermacother1";
+const GITHUB_WORKER_SECRETS = {
+  GITHUB_APP_ID: "12345",
+  GITHUB_APP_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----",
+  GITHUB_WEBHOOK_SECRET: "worker-webhook-secret-value",
+};
+const PERSONAL_GITHUB = { type: "personal", account: "github" } as const;
+
+/** Setup dependencies that reach GitHub through `github`; `overrides` may change the environment or the database. */
+function githubDeps(github: GitHubDouble, overrides: Partial<SetupDeps> = {}): SetupDeps {
+  return depsAt(NOW.getTime(), { githubFetch: github.fetch, ...overrides });
+}
+
+/** Dependencies whose environment also holds the Worker secrets named in `secrets`. */
+function githubSecretDeps(github: GitHubDouble, secrets: Record<string, string>): SetupDeps {
+  return githubDeps(github, { env: { SELUNA_SECRET: SECRET, ...secrets } });
+}
+
+/** A state as the plan documents it for the valid session (or `session`), created at `createdAt` under `secret`. */
+async function githubState(
+  choice: { readonly type: "personal" | "organization"; readonly account: string },
+  options: { readonly session?: string; readonly secret?: string; readonly createdAt?: Date } = {},
+): Promise<string> {
+  return stateFor(
+    await signingKeyFor(options.secret ?? SECRET, "setup-github"),
+    options.session ?? (await sessionToken()),
+    choice,
+    options.createdAt ?? NOW,
+  );
+}
+
+function unescapeHtml(text: string): string {
+  return text
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#39;", "'")
+    .replaceAll("&amp;", "&");
+}
+
+/** The `action` of the first form of `html`, unescaped, or an empty text. */
+function formActionOf(html: string): string {
+  const form = /<form\b(?=[^>]*method="post")[^>]*>/.exec(html)?.[0] ?? "";
+  return unescapeHtml(/action="([^"]*)"/.exec(form)?.[1] ?? "");
+}
+
+async function secretsCount(): Promise<unknown> {
+  const row = await env.DB.prepare("SELECT COUNT(*) AS total FROM secrets").first();
+  return row?.total;
+}
+
+async function keyCheckCount(): Promise<unknown> {
+  const row = await env.DB.prepare("SELECT COUNT(*) AS total FROM meta WHERE key = 'key_check'").first();
+  return row?.total;
+}
+
+/** Stores the App ID under the key of `secret`; fails the test when it is not stored. */
+async function seedAppId(secret: string, value: string): Promise<void> {
+  const result = await writeSecret(env.DB, await keyFor(secret), "github_app_id", value);
+  expect(result, "seeding github_app_id").toEqual({ kind: "ok" });
+}
+
+/** The notice-only GitHub page: heading, `notice` and the back link, and no form. */
+function expectGitHubNoticeOnlyPage(html: string, notice: Notice): void {
+  expect(html, "heading").toContain(`<h1>${escapeHtml(TEXTS.en.githubHeading)}</h1>`);
+  expect(html, "notice").toContain(noticeText(notice));
+  expect(html, "back link").toContain(`<a href="${GITHUB_PATH}">${escapeHtml(TEXTS.en.githubBackLink)}</a>`);
+  expect(html, "form").not.toContain("<form");
+}
+
+/** The finish page: the finish form posting `code` and `state` to the callback path, and no csrf field. */
+function expectFinishPage(html: string, code: string, state: string): void {
+  expect(html, "finish text").toContain(escapeHtml(TEXTS.en.githubFinishIntro));
+  expect(html, "finish button").toContain(escapeHtml(TEXTS.en.githubFinishButton));
+  expect(html, "finish form").toMatch(/<form\b(?=[^>]*method="post")(?=[^>]*action="\/setup\/github\/callback")[^>]*>/);
+  expect(unescapeHtml(hiddenValue(html, "code")), "code field").toBe(code);
+  expect(unescapeHtml(hiddenValue(html, "state")), "state field").toBe(state);
+  expect(html, "csrf field").not.toContain('name="csrf"');
+}
+
+describe("handleSetup GitHub step page", () => {
+  it("GET /setup/github answers 200 with the account form and a session-bound CSRF field", async () => {
+    const response = await stepPage(githubDeps(githubDouble()), GITHUB_PATH);
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "heading").toContain(`<h1>${escapeHtml(TEXTS.en.githubHeading)}</h1>`);
+    expect(html, "intro").toContain(escapeHtml(TEXTS.en.githubIntro));
+    expect(html, "no saved app text").toContain(escapeHtml(TEXTS.en.githubNoSavedApp));
+    expect(html, "form").toMatch(/<form\b(?=[^>]*method="post")(?=[^>]*action="\/setup\/github")[^>]*>/);
+    expect(html, "account type field").toContain('name="account_type"');
+    expect(html, "personal value").toContain('value="personal"');
+    expect(html, "organization value").toContain('value="organization"');
+    expect(html, "personal text").toContain(escapeHtml(TEXTS.en.githubPersonal));
+    expect(html, "organization text").toContain(escapeHtml(TEXTS.en.githubOrganization));
+    expect(html, "account field").toMatch(/<input\b(?=[^>]*name="account")[^>]*>/);
+    expect(html, "account label").toContain(escapeHtml(TEXTS.en.githubAccountLabel));
+    expect(html, "next button").toContain(escapeHtml(TEXTS.en.githubNextButton));
+    expect(hiddenValue(html, "csrf"), "session-bound CSRF token").toBe(await validCsrf());
+  });
+
+  it("GET /setup/github shows the saved App ID", async () => {
+    await seedAppId(SECRET, "12345");
+
+    const response = await stepPage(githubDeps(githubDouble()), GITHUB_PATH);
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "saved app line").toMatch(
+      new RegExp(`${escapeRegExp(escapeHtml(TEXTS.en.githubSavedApp))}[^0-9]{0,40}12345`),
+    );
+    expect(html, "replace hint").toContain(escapeHtml(TEXTS.en.githubReplaceHint));
+    expect(html, "no saved app text").not.toContain(escapeHtml(TEXTS.en.githubNoSavedApp));
+  });
+
+  it.each([
+    { name: "all three Worker secrets", secrets: GITHUB_WORKER_SECRETS, text: TEXTS.en.githubWorkerSecrets },
+    {
+      name: "one Worker secret",
+      secrets: { GITHUB_WEBHOOK_SECRET: GITHUB_WORKER_SECRETS.GITHUB_WEBHOOK_SECRET },
+      text: TEXTS.en.githubPartialWorkerSecrets,
+    },
+  ])("GET /setup/github shows no form and no value for $name", async ({ secrets, text }) => {
+    const response = await stepPage(githubSecretDeps(githubDouble(), secrets), GITHUB_PATH);
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "explanation").toContain(escapeHtml(text));
+    expect(html, "form").not.toContain("<form");
+    expect(html, "value of a Worker secret").not.toContain(GITHUB_WORKER_SECRETS.GITHUB_WEBHOOK_SECRET);
+  });
+
+  it("GET /setup/github shows the reset text and no form when the saved credentials cannot be read", async () => {
+    await seedAppId(OTHER_SECRET, "12345");
+
+    const response = await stepPage(githubDeps(githubDouble()), GITHUB_PATH);
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "reset text").toContain(escapeHtml(TEXTS.en.githubResetNeeded));
+    expect(html, "form").not.toContain("<form");
+  });
+
+  it("GET /setup/github answers 503 with the unavailable notice when D1 fails", async () => {
+    const response = await stepPage(githubDeps(githubDouble(), { db: migrationTestDb() }), GITHUB_PATH);
+
+    expect(response.status, "status").toBe(503);
+    const html = await response.text();
+    expectGitHubNoticeOnlyPage(html, "unavailable");
+    expect(html.toLowerCase(), "error text").not.toContain("no such table");
+  });
+
+  it("the start page links to /setup/telegram and /setup/github", async () => {
+    const response = await stepPage(depsAt(), "/setup");
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "Telegram link").toContain(`<a href="/setup/telegram">${escapeHtml(TEXTS.en.telegramHeading)}</a>`);
+    expect(html, "GitHub link").toContain(`<a href="/setup/github">${escapeHtml(TEXTS.en.githubHeading)}</a>`);
+  });
+});
+
+/** The fields of a start form: a valid session-bound token, then the account types and the accounts. */
+async function startFields(types: readonly string[], accounts: readonly string[]): Promise<FormFields> {
+  return [
+    ["csrf", await validCsrf()],
+    ...types.map((type): [string, string] => ["account_type", type]),
+    ...accounts.map((account): [string, string] => ["account", account]),
+  ];
+}
+
+async function startGitHub(types: readonly string[], accounts: readonly string[], deps: SetupDeps): Promise<Response> {
+  return postSignedIn(GITHUB_PATH, await startFields(types, accounts), deps);
+}
+
+describe("handleSetup GitHub start form", () => {
+  it("POST /setup/github answers 200 with a review page that posts the manifest to GitHub for a personal account", async () => {
+    const response = await startGitHub(["personal"], ["octocat"], githubDeps(githubDouble()));
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "review text").toContain(escapeHtml(TEXTS.en.githubReviewIntro));
+    expect(html, "account").toContain("octocat");
+    expect(html, "account type").toContain(escapeHtml(TEXTS.en.githubPersonal));
+    expect(html, "app name").toContain("seluna-octocat");
+    expect(html, "permissions").toContain(escapeHtml(TEXTS.en.githubPermissionsList));
+    expect(html, "events").toContain(escapeHtml(TEXTS.en.githubEventsList));
+    expect(html, "button").toContain(escapeHtml(TEXTS.en.githubToGitHubButton));
+    expect(formActionOf(html), "form action").toMatch(
+      /^https:\/\/github\.com\/settings\/apps\/new\?state=v1\.personal\.octocat\.1700003600000\.[\w-]{22}\.[\w-]{43}$/,
+    );
+    expect(unescapeHtml(hiddenValue(html, "manifest")), "manifest field").toBe(expectedManifestJson(ORIGIN, "octocat"));
+  });
+
+  it("POST /setup/github posts an organization's manifest to its organization settings", async () => {
+    const response = await startGitHub(["organization"], ["Octo-Org"], githubDeps(githubDouble()));
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "account type").toContain(escapeHtml(TEXTS.en.githubOrganization));
+    expect(html, "app name").toContain("seluna-Octo-Org");
+    expect(formActionOf(html), "form action").toMatch(
+      /^https:\/\/github\.com\/organizations\/Octo-Org\/settings\/apps\/new\?state=v1\.organization\.Octo-Org\.1700003600000\.[\w-]{22}\.[\w-]{43}$/,
+    );
+    expect(unescapeHtml(hiddenValue(html, "manifest")), "manifest field").toBe(
+      expectedManifestJson(ORIGIN, "Octo-Org"),
+    );
+  });
+
+  it("POST /setup/github sends GitHub no CSRF token and widens form-action to https://github.com on that page only", async () => {
+    const review = await startGitHub(["personal"], ["octocat"], githubDeps(githubDouble()));
+
+    expect(await review.clone().text(), "csrf field on the review page").not.toContain('name="csrf"');
+    expect(review.headers.get("Content-Security-Policy"), "policy of the review page").toBe(
+      await contentSecurityPolicy("github"),
+    );
+  });
+
+  it.each([
+    { name: "the step page", status: 200, respond: () => stepPage(githubDeps(githubDouble()), GITHUB_PATH) },
+    {
+      name: "the finish page",
+      status: 200,
+      respond: async () =>
+        call(
+          `${CALLBACK_PATH}?${form([
+            ["code", FIXTURE_CODE],
+            ["state", await githubState(PERSONAL_GITHUB)],
+          ])}`,
+        ),
+    },
+    {
+      name: "a refused start",
+      status: 400,
+      respond: () => startGitHub(["personal"], ["a/b"], githubDeps(githubDouble())),
+    },
+  ])("the GitHub pages keep form-action 'self' except the review page: $name", async ({ respond, status }) => {
+    const response = await respond();
+
+    expect(response.status, "status").toBe(status);
+    expect(response.headers.get("Content-Security-Policy"), "policy").toBe(await contentSecurityPolicy());
+  });
+
+  it.each(CSRF_FAILURES)(
+    "POST /setup/github rejects a wrong CSRF token with 403: $name",
+    async ({ tokens: tokensOf }) => {
+      const csrf = (await tokensOf()).map((token): [string, string] => ["csrf", token]);
+
+      const response = await postSignedIn(
+        GITHUB_PATH,
+        [...csrf, ["account_type", "personal"], ["account", "octocat"]],
+        githubDeps(githubDouble()),
+      );
+
+      expect(response.status, "status").toBe(403);
+      const html = await response.text();
+      expectGitHubNoticeOnlyPage(html, "form-expired");
+      expect(html, "manifest").not.toContain("manifest");
+    },
+  );
+
+  it.each([
+    { name: "a missing account type", types: [] as string[], accounts: ["octocat"] },
+    { name: "a repeated account type", types: ["personal", "personal"], accounts: ["octocat"] },
+    { name: "an unknown account type", types: ["user"], accounts: ["octocat"] },
+    { name: "a missing account", types: ["personal"], accounts: [] as string[] },
+    { name: "a repeated account", types: ["personal"], accounts: ["octocat", "octocat"] },
+    { name: "an account with a slash", types: ["organization"], accounts: ["a/b"] },
+    { name: "an account with a leading hyphen", types: ["personal"], accounts: ["-a"] },
+    { name: "an account of 40 characters", types: ["personal"], accounts: ["a".repeat(40)] },
+    { name: "an account with a trailing line feed", types: ["personal"], accounts: ["octocat\n"] },
+  ])(
+    "POST /setup/github answers 400 with the invalid account notice for a missing, repeated or invalid field: $name",
+    async ({ types, accounts }) => {
+      const response = await startGitHub(types, accounts, githubDeps(githubDouble()));
+
+      expect(response.status, "status").toBe(400);
+      const html = await response.text();
+      expect(html, "notice").toContain(noticeText("github-invalid-account"));
+      expect(html, "form").toMatch(/<form\b(?=[^>]*method="post")(?=[^>]*action="\/setup\/github")[^>]*>/);
+      expect(html, "manifest").not.toContain('name="manifest"');
+    },
+  );
+
+  it.each([
+    { name: "all three Worker secrets", secrets: GITHUB_WORKER_SECRETS, text: TEXTS.en.githubWorkerSecrets },
+    { name: "one Worker secret", secrets: { GITHUB_APP_ID: "12345" }, text: TEXTS.en.githubPartialWorkerSecrets },
+  ])("POST /setup/github answers 409 while a GitHub Worker secret is set: $name", async ({ secrets, text }) => {
+    const response = await startGitHub(["personal"], ["octocat"], githubSecretDeps(githubDouble(), secrets));
+
+    expect(response.status, "status").toBe(409);
+    const html = await response.text();
+    expect(html, "explanation").toContain(escapeHtml(text));
+    expect(html, "form").not.toContain("<form");
+  });
+
+  it("POST /setup/github answers 409 reset needed when the key check fails", async () => {
+    await seedAppId(OTHER_SECRET, "12345");
+
+    const response = await startGitHub(["personal"], ["octocat"], githubDeps(githubDouble()));
+
+    expect(response.status, "status").toBe(409);
+    const html = await response.text();
+    expect(html, "reset text").toContain(escapeHtml(TEXTS.en.githubResetNeeded));
+    expect(html, "form").not.toContain("<form");
+  });
+
+  it("POST /setup/github answers 503 with the unavailable notice when D1 fails", async () => {
+    const deps = githubDeps(githubDouble(), { db: migrationTestDb() });
+
+    const response = await startGitHub(["personal"], ["octocat"], deps);
+
+    expect(response.status, "status").toBe(503);
+    expectGitHubNoticeOnlyPage(await response.text(), "unavailable");
+  });
+
+  it.each([
+    { name: "when it was issued", offsetMs: 0, session: undefined, valid: true },
+    { name: "in its last millisecond", offsetMs: 3_599_999, session: undefined, valid: true },
+    { name: "one hour after it was issued", offsetMs: 3_600_000, session: undefined, valid: false },
+    { name: "for another session", offsetMs: 0, session: OTHER_SESSION, valid: false },
+  ])(
+    "the state of the review page binds the session, the account type and the account for one hour: $name",
+    async ({ offsetMs, session, valid }) => {
+      const response = await startGitHub(["organization"], ["Octo-Org"], githubDeps(githubDouble()));
+      const state = new URL(formActionOf(await response.text())).searchParams.get("state") ?? "";
+
+      const choice = await verifyGitHubState(
+        await signingKeyFor(SECRET, "setup-github"),
+        state,
+        session ?? (await sessionToken()),
+        new Date(NOW.getTime() + offsetMs),
+      );
+
+      expect(choice, "account choice").toEqual(valid ? { type: "organization", account: "Octo-Org" } : undefined);
+    },
+  );
+});
+
+/** The path of the callback with `fields` as its query. */
+function callbackPath(fields: FormFields): string {
+  return `${CALLBACK_PATH}?${form(fields)}`;
+}
+
+describe("handleSetup GitHub return", () => {
+  it("GET /setup/github/callback answers 200 signed out with a finish form carrying code and state", async () => {
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await call(
+      callbackPath([
+        ["code", FIXTURE_CODE],
+        ["state", state],
+      ]),
+    );
+
+    expect(response.status, "status").toBe(200);
+    expectFinishPage(await response.text(), FIXTURE_CODE, state);
+  });
+
+  it("GET /setup/github/callback answers the same finish form to a signed-in session", async () => {
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await call(
+      callbackPath([
+        ["code", FIXTURE_CODE],
+        ["state", state],
+      ]),
+      { cookies: await signedInCookies() },
+    );
+
+    expect(response.status, "status").toBe(200);
+    expectFinishPage(await response.text(), FIXTURE_CODE, state);
+    expect(response.headers.getSetCookie(), "cookies").toEqual([]);
+  });
+
+  it("GET /setup/github/callback sets no cookie and calls neither GitHub nor D1", async () => {
+    const github = githubDouble();
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await call(
+      callbackPath([
+        ["code", FIXTURE_CODE],
+        ["state", state],
+      ]),
+      {},
+      githubDeps(github, { db: unusedDb() }),
+    );
+
+    expect(response.status, "status").toBe(200);
+    expect(await response.text(), "finish page").toContain('action="/setup/github/callback"');
+    expect(response.headers.getSetCookie(), "cookies").toEqual([]);
+    expect(github.requests, "GitHub requests").toEqual([]);
+  });
+
+  it("GET /setup/github/callback still sets the language cookie for ?lang=de", async () => {
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await call(
+      callbackPath([
+        ["code", FIXTURE_CODE],
+        ["state", state],
+        ["lang", "de"],
+      ]),
+    );
+
+    expect(response.status, "status").toBe(200);
+    expect(response.headers.getSetCookie().length, "number of cookies").toBe(1);
+    expect(setCookiesOf(response, "seluna_lang").length, "language cookies").toBe(1);
+  });
+
+  const STATE = `v1.personal.octocat.1700003600000.${"A".repeat(22)}.${"B".repeat(43)}`;
+  it.each<{ name: string; fields: FormFields }>([
+    { name: "a missing code", fields: [["state", STATE]] },
+    { name: "a missing state", fields: [["code", FIXTURE_CODE]] },
+    {
+      name: "a repeated code",
+      fields: [
+        ["code", FIXTURE_CODE],
+        ["code", FIXTURE_CODE],
+        ["state", STATE],
+      ],
+    },
+    {
+      name: "a repeated state",
+      fields: [
+        ["code", FIXTURE_CODE],
+        ["state", STATE],
+        ["state", STATE],
+      ],
+    },
+    {
+      name: "an empty code",
+      fields: [
+        ["code", ""],
+        ["state", STATE],
+      ],
+    },
+    {
+      name: "a code of 101 characters",
+      fields: [
+        ["code", "a".repeat(101)],
+        ["state", STATE],
+      ],
+    },
+    {
+      name: "a code that is dot dot",
+      fields: [
+        ["code", ".."],
+        ["state", STATE],
+      ],
+    },
+    {
+      name: "a code with a slash",
+      fields: [
+        ["code", "a/b"],
+        ["state", STATE],
+      ],
+    },
+    {
+      name: "a code with a backslash",
+      fields: [
+        ["code", "a\\b"],
+        ["state", STATE],
+      ],
+    },
+    {
+      name: "a code with a question mark",
+      fields: [
+        ["code", "a?b"],
+        ["state", STATE],
+      ],
+    },
+    {
+      name: "a code with a number sign",
+      fields: [
+        ["code", "a#b"],
+        ["state", STATE],
+      ],
+    },
+    {
+      name: "a code with a space",
+      fields: [
+        ["code", "a b"],
+        ["state", STATE],
+      ],
+    },
+    {
+      name: "a code with a plus sign",
+      fields: [
+        ["code", "a+b"],
+        ["state", STATE],
+      ],
+    },
+    {
+      name: "a code with an equals sign",
+      fields: [
+        ["code", "a=b"],
+        ["state", STATE],
+      ],
+    },
+    {
+      name: "a code with an umlaut",
+      fields: [
+        ["code", "ä"],
+        ["state", STATE],
+      ],
+    },
+    {
+      name: "a code with a trailing line feed",
+      fields: [
+        ["code", "a\n"],
+        ["state", STATE],
+      ],
+    },
+    {
+      name: "an empty state",
+      fields: [
+        ["code", FIXTURE_CODE],
+        ["state", ""],
+      ],
+    },
+    {
+      name: "a state of another version",
+      fields: [
+        ["code", FIXTURE_CODE],
+        ["state", STATE.replace("v1.", "v2.")],
+      ],
+    },
+    {
+      name: "a state with the type user",
+      fields: [
+        ["code", FIXTURE_CODE],
+        ["state", STATE.replace(".personal.", ".user.")],
+      ],
+    },
+    {
+      name: "a state with a 21-character nonce",
+      fields: [
+        ["code", FIXTURE_CODE],
+        ["state", STATE.replace("A".repeat(22), "A".repeat(21))],
+      ],
+    },
+    {
+      name: "a state with an expiry with a leading zero",
+      fields: [
+        ["code", FIXTURE_CODE],
+        ["state", STATE.replace("1700003600000", "01700003600000")],
+      ],
+    },
+  ])(
+    "GET /setup/github/callback answers 400 with the invalid return notice for a missing, repeated or malformed code or state: $name",
+    async ({ fields }) => {
+      const github = githubDouble();
+
+      const response = await call(callbackPath(fields), {}, githubDeps(github, { db: unusedDb() }));
+
+      expect(response.status, "status").toBe(400);
+      expectGitHubNoticeOnlyPage(await response.text(), "github-return-invalid");
+      expect(response.headers.getSetCookie(), "cookies").toEqual([]);
+      expect(github.requests, "GitHub requests").toEqual([]);
+    },
+  );
+
+  it("GET /setup/github/callback answers 400 for a well-formed state followed by a line feed", async () => {
+    const state = `${STATE}\n`;
+    expect(state.charCodeAt(state.length - 1), "last code unit of the state").toBe(0x0a);
+
+    const response = await call(
+      callbackPath([
+        ["code", FIXTURE_CODE],
+        ["state", state],
+      ]),
+    );
+
+    expect(response.status, "status").toBe(400);
+    expectGitHubNoticeOnlyPage(await response.text(), "github-return-invalid");
+  });
+});
+
+/** The fields of a finish form: no csrf field, `code`, then `state`. */
+function finishFields(code: string, state: string): FormFields {
+  return [
+    ["code", code],
+    ["state", state],
+  ];
+}
+
+/** The created page of an app with a usable slug: saved text, install intro and the install link. */
+function expectCreatedPage(html: string, slug: string): void {
+  expect(html, "saved text").toContain(escapeHtml(TEXTS.en.githubCreated));
+  expect(html, "install intro").toContain(escapeHtml(TEXTS.en.githubInstallIntro));
+  expect(html, "install link").toContain(
+    `<a href="https://github.com/apps/${slug}/installations/new">${escapeHtml(TEXTS.en.githubInstallLink)}</a>`,
+  );
+}
+
+/** The created page of an app without a usable slug: saved text and the manual install text, no link to apps. */
+function expectCreatedPageWithoutLink(html: string): void {
+  expect(html, "saved text").toContain(escapeHtml(TEXTS.en.githubCreated));
+  expect(html, "manual install text").toContain(escapeHtml(TEXTS.en.githubInstallManual));
+  expect(html, "install link").not.toContain("https://github.com/apps/");
+}
+
+describe("handleSetup GitHub finish form", () => {
+  it("POST /setup/github/callback stores app id, PKCS#8 key and webhook secret encrypted and links to the installation page", async () => {
+    const github = githubDouble();
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await postSignedIn(CALLBACK_PATH, finishFields(FIXTURE_CODE, state), githubDeps(github));
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expectCreatedPage(html, "octoapp");
+    expect(html, "webhook secret on the page").not.toContain(FIXTURE_WEBHOOK_SECRET);
+    expect(html, "client secret on the page").not.toContain(FIXTURE_CLIENT_SECRET);
+    expect(html, "private key on the page").not.toContain("BEGIN");
+    expect(
+      github.requests.map((request) => request.code),
+      "converted codes",
+    ).toEqual([FIXTURE_CODE]);
+    const key = await keyFor(SECRET);
+    expect(await readSecret(env.DB, key, "github_app_id"), "App ID").toEqual({ kind: "ok", value: "1" });
+    expect(await readSecret(env.DB, key, "github_private_key"), "private key").toEqual({
+      kind: "ok",
+      value: FIXTURE_PKCS8,
+    });
+    expect(await readSecret(env.DB, key, "github_webhook_secret"), "webhook secret").toEqual({
+      kind: "ok",
+      value: FIXTURE_WEBHOOK_SECRET,
+    });
+    const stored = JSON.stringify((await env.DB.prepare("SELECT * FROM secrets").all()).results);
+    expect(stored, "webhook secret in the table").not.toContain(FIXTURE_WEBHOOK_SECRET);
+    expect(stored, "key in the table").not.toContain("BEGIN");
+  });
+
+  it("POST /setup/github/callback does not read a csrf field", async () => {
+    const github = githubDouble();
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await postSignedIn(
+      CALLBACK_PATH,
+      [["csrf", "not-a-token"], ...finishFields(FIXTURE_CODE, state)],
+      githubDeps(github),
+    );
+
+    expect(response.status, "status").toBe(200);
+    expectCreatedPage(await response.text(), "octoapp");
+  });
+
+  it.each<{ name: string; fields: () => Promise<FormFields> }>([
+    {
+      name: "a state of another session",
+      fields: async () => finishFields(FIXTURE_CODE, await githubState(PERSONAL_GITHUB, { session: OTHER_SESSION })),
+    },
+    {
+      name: "an expired state",
+      fields: async () =>
+        finishFields(
+          FIXTURE_CODE,
+          await githubState(PERSONAL_GITHUB, { createdAt: new Date(NOW.getTime() - 3_600_000) }),
+        ),
+    },
+    {
+      name: "a state of another SELUNA_SECRET",
+      fields: async () => finishFields(FIXTURE_CODE, await githubState(PERSONAL_GITHUB, { secret: OTHER_SECRET })),
+    },
+    {
+      name: "a state with an altered MAC",
+      fields: async () => {
+        const state = await githubState(PERSONAL_GITHUB);
+        return finishFields(FIXTURE_CODE, state.slice(0, -43) + withFirstCharacterChanged(state.slice(-43)));
+      },
+    },
+    { name: "a missing state", fields: () => Promise.resolve([["code", FIXTURE_CODE]]) },
+    {
+      name: "two states",
+      fields: async () => {
+        const state = await githubState(PERSONAL_GITHUB);
+        return [
+          ["code", FIXTURE_CODE],
+          ["state", state],
+          ["state", state],
+        ];
+      },
+    },
+  ])(
+    "POST /setup/github/callback rejects a state of another session, an expired or a missing state with 403 without calling GitHub: $name",
+    async ({ fields }) => {
+      const github = githubDouble();
+
+      const response = await postSignedIn(CALLBACK_PATH, await fields(), githubDeps(github));
+
+      expect(response.status, "status").toBe(403);
+      expectGitHubNoticeOnlyPage(await response.text(), "github-state-invalid");
+      expect(github.requests, "GitHub requests").toEqual([]);
+      expect(await secretsCount(), "number of secrets rows").toBe(0);
+    },
+  );
+
+  it.each([
+    { name: "all three Worker secrets", secrets: GITHUB_WORKER_SECRETS, text: TEXTS.en.githubWorkerSecrets },
+    { name: "one Worker secret", secrets: { GITHUB_APP_ID: "12345" }, text: TEXTS.en.githubPartialWorkerSecrets },
+  ])(
+    "POST /setup/github/callback answers 409 while a GitHub Worker secret is set, without calling GitHub: $name",
+    async ({ secrets, text }) => {
+      const github = githubDouble();
+      const state = await githubState(PERSONAL_GITHUB);
+
+      const response = await postSignedIn(
+        CALLBACK_PATH,
+        finishFields(FIXTURE_CODE, state),
+        githubSecretDeps(github, secrets),
+      );
+
+      expect(response.status, "status").toBe(409);
+      expect(await response.text(), "explanation").toContain(escapeHtml(text));
+      expect(github.requests, "GitHub requests").toEqual([]);
+      expect(await secretsCount(), "number of secrets rows").toBe(0);
+    },
+  );
+
+  it("POST /setup/github/callback answers 409 reset needed before calling GitHub", async () => {
+    await seedAppId(OTHER_SECRET, "12345");
+    const github = githubDouble();
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await postSignedIn(CALLBACK_PATH, finishFields(FIXTURE_CODE, state), githubDeps(github));
+
+    expect(response.status, "status").toBe(409);
+    const html = await response.text();
+    expect(html, "reset text").toContain(escapeHtml(TEXTS.en.githubResetNeeded));
+    expect(html, "form").not.toContain("<form");
+    expect(github.requests, "GitHub requests").toEqual([]);
+  });
+
+  it.each([
+    { name: "404", answer: githubJsonAnswer(404, GITHUB_FIXTURES.notFound) },
+    { name: "422", answer: githubJsonAnswer(422, GITHUB_FIXTURES.validationFailed) },
+  ])("POST /setup/github/callback answers 400 code rejected for GitHub's $name", async ({ answer }) => {
+    const github = githubDouble(answer);
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await postSignedIn(CALLBACK_PATH, finishFields(FIXTURE_CODE, state), githubDeps(github));
+
+    expect(response.status, "status").toBe(400);
+    const html = await response.text();
+    expectGitHubNoticeOnlyPage(html, "github-code-rejected");
+    expect(html, "GitHub's message").not.toContain("Validation Failed");
+    expect(await secretsCount(), "number of secrets rows").toBe(0);
+  });
+
+  it("POST /setup/github/callback offers the finish form again with 502 when GitHub is unavailable", async () => {
+    const github = githubDouble(GITHUB_REJECTED);
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await postSignedIn(CALLBACK_PATH, finishFields(FIXTURE_CODE, state), githubDeps(github));
+
+    expect(response.status, "status").toBe(502);
+    const html = await response.text();
+    expect(html, "notice").toContain(noticeText("github-unavailable"));
+    expectFinishPage(html, FIXTURE_CODE, state);
+    expect(await secretsCount(), "number of secrets rows").toBe(0);
+  });
+
+  it.each<{ name: string; answer: GitHubAnswer }>([
+    { name: "an answer that is not JSON", answer: { kind: "raw", status: 201, body: "not json" } },
+    {
+      name: "a webhook secret that is null",
+      answer: githubJsonAnswer(201, conversionAnswer({ webhook_secret: null })),
+    },
+    { name: "a key that does not import", answer: githubJsonAnswer(201, conversionAnswer({ pem: "not a key" })) },
+  ])(
+    "POST /setup/github/callback answers 502 answer invalid and stores nothing for a malformed answer or a key that does not import: $name",
+    async ({ answer }) => {
+      const github = githubDouble(answer);
+      const state = await githubState(PERSONAL_GITHUB);
+
+      const response = await postSignedIn(CALLBACK_PATH, finishFields(FIXTURE_CODE, state), githubDeps(github));
+
+      expect(response.status, "status").toBe(502);
+      const html = await response.text();
+      expectGitHubNoticeOnlyPage(html, "github-answer-invalid");
+      expect(html, "install link").not.toContain("https://github.com/apps/");
+      expect(await secretsCount(), "number of secrets rows").toBe(0);
+      expect(await keyCheckCount(), "number of key check rows").toBe(0);
+    },
+  );
+
+  it("POST /setup/github/callback answers 503 store failed when saving fails after the conversion", async () => {
+    const github = githubDouble();
+    const state = await githubState(PERSONAL_GITHUB);
+    // The credential write is the only batch of three or more statements; reading a credential batches two.
+    const db: D1Database = {
+      prepare: (query) => env.DB.prepare(query),
+      exec: (query) => env.DB.exec(query),
+      withSession: (constraintOrBookmark) => env.DB.withSession(constraintOrBookmark),
+      dump: () => Promise.reject(new Error("dump is deprecated and not forwarded")),
+      batch: <T = unknown>(statements: D1PreparedStatement[]) =>
+        statements.length >= 3 ? Promise.reject(new Error("write failed")) : env.DB.batch<T>(statements),
+    };
+
+    const response = await postSignedIn(CALLBACK_PATH, finishFields(FIXTURE_CODE, state), githubDeps(github, { db }));
+
+    expect(response.status, "status").toBe(503);
+    const html = await response.text();
+    expectGitHubNoticeOnlyPage(html, "github-store-failed");
+    expect(html, "install link").not.toContain("https://github.com/apps/");
+    expect(github.requests.length, "number of conversions").toBe(1);
+    expect(await secretsCount(), "number of secrets rows").toBe(0);
+  });
+
+  it.each([
+    { name: "no slug", slug: undefined },
+    { name: "a slug with uppercase letters", slug: "Octo-App" },
+    { name: "a slug with a slash", slug: "a/b" },
+  ])("the created page tells how to install the app when the answer has no usable slug: $name", async ({ slug }) => {
+    const github = githubDouble(githubJsonAnswer(201, conversionAnswer({ slug })));
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await postSignedIn(CALLBACK_PATH, finishFields(FIXTURE_CODE, state), githubDeps(github));
+
+    expect(response.status, "status").toBe(200);
+    expectCreatedPageWithoutLink(await response.text());
+    expect(await secretsCount(), "number of secrets rows").toBe(3);
+  });
+
+  it.each([
+    {
+      name: "an app of the user github for a personal octocat",
+      choice: { type: "personal", account: "octocat" } as const,
+      answer: githubJsonAnswer(201, conversionAnswer()),
+    },
+    {
+      name: "an app of the user github for the organization github",
+      choice: { type: "organization", account: "github" } as const,
+      answer: githubJsonAnswer(201, conversionAnswer()),
+    },
+    {
+      name: "an app of the organization github for the personal account github",
+      choice: { type: "personal", account: "github" } as const,
+      answer: githubJsonAnswer(201, conversionOwnedBy("github", "Organization")),
+    },
+  ])(
+    "POST /setup/github/callback answers 403 owner mismatch, stores nothing and shows no install link for an app of another account: $name",
+    async ({ choice, answer }) => {
+      const github = githubDouble(answer);
+      const state = await githubState(choice);
+
+      const response = await postSignedIn(CALLBACK_PATH, finishFields(FIXTURE_CODE, state), githubDeps(github));
+
+      expect(response.status, "status").toBe(403);
+      const html = await response.text();
+      expectGitHubNoticeOnlyPage(html, "github-owner-mismatch");
+      expect(html, "install link").not.toContain("https://github.com/apps/");
+      expect(await secretsCount(), "number of secrets rows").toBe(0);
+      expect(await keyCheckCount(), "number of key check rows").toBe(0);
+    },
+  );
+});
+
+describe("handleSetup GitHub forms: bodies, sign-in and failures", () => {
+  const unreadable = (): ReadableStream<Uint8Array> =>
+    new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.error(new Error("connection lost"));
+      },
+    });
+
+  it.each([
+    { method: "GET", path: GITHUB_PATH },
+    { method: "POST", path: GITHUB_PATH },
+    { method: "POST", path: CALLBACK_PATH },
+  ])("$method $path signed out answers the login page and calls nothing", async ({ method, path }) => {
+    const github = githubDouble();
+
+    const response = await call(path, { method }, githubDeps(github, { db: unusedDb() }));
+
+    expect(response.status, "status").toBe(200);
+    expectLoginPage(await response.text());
+    expect(github.requests, "GitHub requests").toEqual([]);
+  });
+
+  it.each([GITHUB_PATH, CALLBACK_PATH])(
+    "POST %s answers a body over 1 MiB with 413 before any other check",
+    async (path) => {
+      const github = githubDouble();
+
+      const response = await call(
+        path,
+        { method: "POST", cookies: await signedInCookies(), body: "a".repeat(MAX_BODY_BYTES + 1) },
+        githubDeps(github),
+      );
+
+      expect(response.status, "status").toBe(413);
+      expect(await response.text(), "body").toBe("");
+      expect(github.requests, "GitHub requests").toEqual([]);
+    },
+  );
+
+  it.each([GITHUB_PATH, CALLBACK_PATH])(
+    "POST %s answers an unreadable body with 400 before any other check",
+    async (path) => {
+      const github = githubDouble();
+
+      const response = await call(
+        path,
+        { method: "POST", cookies: await signedInCookies(), body: unreadable() },
+        githubDeps(github),
+      );
+
+      expect(response.status, "status").toBe(400);
+      expect(await response.text(), "body").toBe("");
+      expect(github.requests, "GitHub requests").toEqual([]);
+    },
+  );
+
+  it("POST /setup/github/callback answers 503 with the unavailable notice when D1 fails before the conversion", async () => {
+    const github = githubDouble();
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await postSignedIn(
+      CALLBACK_PATH,
+      finishFields(FIXTURE_CODE, state),
+      githubDeps(github, { db: migrationTestDb() }),
+    );
+
+    expect(response.status, "status").toBe(503);
+    const html = await response.text();
+    expectGitHubNoticeOnlyPage(html, "unavailable");
+    expect(html.toLowerCase(), "error text").not.toContain("no such table");
+    expect(github.requests, "GitHub requests").toEqual([]);
+  });
+
+  it.each([
+    { name: "a missing code", codes: [] as string[] },
+    { name: "a repeated code", codes: [FIXTURE_CODE, FIXTURE_CODE] },
+    { name: "a code with a slash", codes: ["a/b"] },
+  ])("POST /setup/github/callback answers 400 with the invalid return notice for $name", async ({ codes }) => {
+    const github = githubDouble();
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await postSignedIn(
+      CALLBACK_PATH,
+      [...codes.map((code): [string, string] => ["code", code]), ["state", state]],
+      githubDeps(github),
+    );
+
+    expect(response.status, "status").toBe(400);
+    expectGitHubNoticeOnlyPage(await response.text(), "github-return-invalid");
+    expect(github.requests, "GitHub requests").toEqual([]);
   });
 });

@@ -6,12 +6,13 @@ export const MIN_SELUNA_SECRET_CHARACTERS = 32;
 export const KEY_DERIVATION_LABEL = "seluna/secrets/v1";
 
 /** What a signing key derived from `SELUNA_SECRET` is for. */
-export type SigningPurpose = "setup-session" | "setup-csrf" | "setup-telegram";
+export type SigningPurpose = "setup-session" | "setup-csrf" | "setup-telegram" | "setup-github";
 /** HKDF salt and info of each signing key. */
 export const SIGNING_KEY_LABELS: Readonly<Record<SigningPurpose, string>> = {
   "setup-session": "seluna/setup-session/v1",
   "setup-csrf": "seluna/setup-csrf/v1",
   "setup-telegram": "seluna/setup-telegram/v1",
+  "setup-github": "seluna/setup-github/v1",
 };
 
 const IV_BYTES = 12;

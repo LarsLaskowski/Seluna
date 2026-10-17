@@ -19,12 +19,16 @@ it and add their pages behind the login.
      [Storage](storage.md#encryption)): **503** with the _not configured_ page, for every method and path. No body
      is read and no cookie other than the language cookie is set.
   2. **`POST /setup/login`**: the login (below), with or without a session.
-  3. **No valid session**: **200** with the login page, for every other method and path.
-  4. **With a valid session**: `GET /setup` answers **200** with the start page, `POST /setup/logout` signs out
+  3. **`GET /setup/github/callback`**: GitHub's return ([GitHub App](#github-app)), with or without a session.
+  4. **No valid session**: **200** with the login page, for every other method and path (a `POST
+/setup/github/callback` without a session included).
+  5. **With a valid session**: `GET /setup` answers **200** with the start page, `POST /setup/logout` signs out
      (below), `GET` and `POST /setup/telegram` and `POST /setup/telegram/verify` are the Telegram step
-     ([Telegram chat](#telegram-chat)), everything else answers **404** with an empty body.
-- The start page says that the owner is signed in, lists the setup steps as links (today one: _Telegram chat_, to
-  `/setup/telegram`) and carries the sign-out form. The wizard steps add their pages in this branch.
+     ([Telegram chat](#telegram-chat)), `GET` and `POST /setup/github` and `POST /setup/github/callback` are the
+     GitHub App step ([GitHub App](#github-app)), everything else answers **404** with an empty body.
+- The start page says that the owner is signed in, lists the setup steps as links (today two: _Telegram chat_, to
+  `/setup/telegram`, and _GitHub App_, to `/setup/github`) and carries the sign-out form. The wizard steps add their
+  pages in this branch.
 
 ### Login
 
@@ -87,8 +91,8 @@ it and add their pages behind the login.
 - Login sets `seluna_session=<token>; Max-Age=43200` with the cookie attributes below.
 - A navigation started on another site (a link, or a redirect back from GitHub) carries none of the wizard's
   cookies (`SameSite=Strict`), so it is answered as signed out, and the 303 after a login always goes to `/setup`
-  without a query. A wizard step that another site returns to (the manifest flow of #10) must handle that return
-  while signed out.
+  without a query. The step that another site returns to, the manifest flow of the [GitHub App](#github-app) step,
+  handles that return while signed out.
 
 ### Sign-out
 
@@ -101,7 +105,10 @@ it and add their pages behind the login.
 
 - Every form carries the hidden field `csrf`. There are two kinds of form: the **login form** (the login page) and
   the **signed-in forms** (every form on a page answered with a valid session; today the sign-out form on the start
-  page and the confirm and verify forms of the Telegram step). The key is derived like the session key with salt and info `seluna/setup-csrf/v1`.
+  page, the confirm and verify forms of the Telegram step and the account form of the GitHub App step). The key is
+  derived like the session key with salt and info `seluna/setup-csrf/v1`. Two forms carry no `csrf` field: the form
+  of the GitHub review page, which posts to github.com, and the GitHub finish form, which is protected by its
+  session-bound state instead ([GitHub App](#github-app)).
 - Login form: the value is the HMAC-SHA256 (base64url without padding) of the value of the cookie `seluna_csrf`.
 - Signed-in form: the value is the HMAC-SHA256 (base64url without padding), under the same key, of the ASCII text
   `session.<session token>.<cookie value>`, where `<session token>` is the first valid `seluna_session` value of the
@@ -214,6 +221,111 @@ in the page language> <code>"}`, no `parse_mode`, 10 second abort). `sendMessage
 - Tries are not limited: only the signed-in owner can submit, and a million codes in ten minutes gain them nothing
   over choosing again.
 
+### GitHub App
+
+The step that creates the private GitHub App through GitHub's manifest flow ([decision
+0017](../decisions/0017-github-app-manifest-flow.md)) and stores its App ID, private key and webhook secret
+encrypted ([Storage](storage.md)). The Worker secrets `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and
+`GITHUB_WEBHOOK_SECRET` stay a manual alternative and take precedence.
+
+- **Worker secrets:** each of the three that is a non-empty string counts as set. All three set: the step shows the
+  _Worker secrets_ text and no form. One or two set: the _partial Worker secrets_ text and no form. While any of the
+  three is set, both POSTs answer **409** with the same view and call neither GitHub nor D1. No page shows a value.
+- **Account name:** the account or organization name is checked against `^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$`
+  (1 to 39 letters, digits and inner hyphens) before it enters a URL or the app name, and is never encoded or
+  trimmed. The account type is exactly `personal` or `organization`.
+- **Manifest code:** the `code` of GitHub's return must match `^[A-Za-z0-9_-]{1,100}$` before it enters the URL of
+  the conversion. The app's slug must match `^[a-z0-9-]{1,100}$` before it enters the install link.
+
+#### The step page
+
+- `GET /setup/github` (signed in) answers **200** with one of: the _Worker secrets_ view, the _partial Worker
+  secrets_ view, the _reset needed_ view (the stored `github_app_id` cannot be read with the current `SELUNA_SECRET`,
+  or the key check value is damaged; no form), or the form. The form shows the saved App ID (or _no saved app_ and,
+  with an app, the _replace hint_), two radio inputs `account_type` (`personal`, `organization`), a text input
+  `account`, the session-bound CSRF field and the _next_ button. A stored value that is not an App ID is shown as _no
+  saved app_. The view reads D1 only when none of the Worker secrets is set; a D1 failure answers **503** with the
+  notice-only page (heading, notice, link back to the step) and _unavailable_.
+
+#### Starting the flow
+
+- `POST /setup/github` in this order: the body is read (**413**, **400**); the CSRF token (signed-in form) must be
+  valid, else **403**, the notice-only page and _form expired_; any Worker secret set, **409**; exactly one
+  `account_type` that parses and exactly one `account` that is an account name, else **400** with the form page and
+  _invalid account_; the key check changed or corrupt, **409** with the _reset needed_ view; a D1 failure, **503**
+  with _unavailable_.
+- Success answers **200** with the **review page**: the account and its type, the app name, the permissions, the
+  events, and one form `method="post"` whose `action` is `https://github.com/settings/apps/new?state=<state>` for a
+  personal account or `https://github.com/organizations/<account>/settings/apps/new?state=<state>` for an
+  organization, with the hidden field `manifest` as its only field (no `csrf` field: the form posts to another
+  site). This is the only page whose `Content-Security-Policy` has `form-action https://github.com` in place of
+  `form-action 'self'`.
+- **Manifest** (the JSON of the field `manifest`, keys in this order): `name` `seluna-<account>` cut to its first 34
+  characters; `url` `https://github.com/LarsLaskowski/Seluna`; `hook_attributes` `{"url":"<origin>/webhook","active":true}`;
+  `redirect_url` `<origin>/setup/github/callback`; `public` `false`; `default_permissions` read-only `actions`,
+  `pull_requests`, `vulnerability_alerts`, `security_events`, `secret_scanning_alerts` and `metadata`;
+  `default_events` `pull_request`, `workflow_run`, `dependabot_alert`, `code_scanning_alert` and
+  `secret_scanning_alert`. `<origin>` is the origin of the request. The owner can edit the app's name on GitHub's page.
+- **State:** `v1.<type>.<account>.<expires>.<nonce>.<mac>`: `<type>` is `personal` or `organization`, `<account>` the
+  name as entered, `<expires>` the time of the request plus 3,600,000 ms in decimal, `<nonce>` 16 random bytes as
+  base64url (22 characters), `<mac>` the HMAC-SHA256 (base64url without padding, 43 characters) of the ASCII text
+  `github-state.v1.<type>.<account>.<expires>.<nonce>.<session token>`. The key is derived like the session key with
+  salt and info `seluna/setup-github/v1`. The state has at most 139 characters and consists of letters, digits, `-`,
+  `_` and `.`. Nothing is kept in D1 or a cookie.
+- A state is **valid** for a session when it has exactly that form (canonical base64url, an expiry without leading
+  zero of at most 15 digits), its MAC verifies in constant time for the request's session token, and `now < expires
+≤ now + 1 hour`. It then yields the account type and account it was issued for.
+
+#### GitHub's return and finishing
+
+- GitHub redirects to `/setup/github/callback?code=<code>&state=<state>` without the wizard's cookies
+  (`SameSite=Strict`). `GET /setup/github/callback` answers, signed in or not and after the `SELUNA_SECRET` check,
+  **200** with the **finish page** when the query has exactly one `code` that passes the manifest code allow-list and
+  exactly one `state` of the form above; the page's one form posts the hidden fields `code` and `state` (escaped) to
+  `/setup/github/callback` and carries no `csrf` field. Otherwise it answers **400** with the notice-only page and
+  _invalid return_. Neither answer calls GitHub or D1 or sets a cookie (a valid `lang` parameter still sets the
+  language cookie); the response carries `Referrer-Policy: no-referrer`.
+- The finish form is a request from the instance's own page, so the browser sends the session cookie. The valid state
+  takes the place of the `csrf` field: its MAC is bound to this session, so neither a page on another site nor a host
+  under the same registrable domain can submit it. The finish page sets no `seluna_csrf` cookie, which would replace
+  the owner's and expire every other open form.
+- `POST /setup/github/callback` without a session answers the login page and calls nothing. With one, in this order:
+  1. the body is read (**413**, **400**);
+  2. exactly one `state` field that is valid for the session, else **403** with the notice-only page and _state
+     invalid_; GitHub is not called;
+  3. any Worker secret set, **409** with that view;
+  4. exactly one `code` field that passes the allow-list, else **400** and _invalid return_;
+  5. the key check changed or corrupt, **409** with the _reset needed_ view; a D1 failure, **503** with
+     _unavailable_; GitHub is not called in these cases;
+  6. the conversion (below): _rejected_ **400** and _code rejected_; _unavailable_ **502** with the finish page again
+     (same `code` and `state`) and _GitHub unavailable_; _malformed_ **502** with the notice-only page and _answer
+     invalid_;
+  7. the **owner check**: the answer's `owner.login` must pass the account name allow-list and equal the state's
+     account ignoring ASCII letter case, and `owner.type` must be exactly `User` for `personal` or `Organization`
+     for `organization`, else **403** with the notice-only page and _owner mismatch_; nothing is stored, no install
+     link is shown and the key is not converted. Without it, anyone could send the owner's browser to the return path
+     with a code of their own app and the owner's state;
+  8. the private key is converted to PKCS#8 and must import as an RS256 signing key, else **502** with _answer
+     invalid_;
+  9. the three credentials are stored in one transaction ([Storage](storage.md)); a result other than stored, or a D1
+     failure, answers **503** with _store failed_;
+  10. stored: **200** with the **created page**: _app saved_, the _install intro_ and a link to
+      `https://github.com/apps/<slug>/installations/new`, or, when the answer has no slug that passes the allow-list,
+      the _install manually_ text and no link.
+- **The conversion:** one `POST https://api.github.com/app-manifests/<code>/conversions` with `Accept:
+application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, `User-Agent: seluna/<version>`, no
+  `Authorization`, no body, `redirect: "manual"` and a 10 second abort signal. A 2xx answer of at most 1 MiB (counted in
+  bytes before decoding) that is UTF-8 JSON is narrowed to: `id` (a positive safe integer), `owner` (`login`, a string
+  of at most 39 characters, and `type`, a string), `slug` (kept only when it passes the allow-list), `pem` (a string of
+  at most 16,384 characters) and `webhook_secret` (a non-empty string of at most 1,024 characters). Any other 2xx body
+  (also `webhook_secret: null`, a missing or enterprise `owner`) is _malformed_. **404** and **422** are _rejected_; any
+  other status, a redirect among them, and a failed or aborted request are _unavailable_; the body of every non-2xx
+  answer is cancelled unread. The client secret and every other field are discarded.
+- **Stored values:** `github_app_id` the decimal App ID, `github_private_key` the PKCS#8 PEM (`-----BEGIN PRIVATE
+KEY-----`, lines of 64 characters), `github_webhook_secret` the webhook secret as GitHub generated it. The key is
+  accepted as a PKCS#1 (`RSA PRIVATE KEY`) or PKCS#8 (`PRIVATE KEY`) PEM of at most 16,384 characters with canonical
+  base64 and nothing around it; nothing is ever decrypted or logged.
+
 ### Cookies
 
 - Every cookie the wizard sets has `Path=/setup; HttpOnly; Secure; SameSite=Strict`, so the browser sends it to
@@ -226,8 +338,10 @@ in the page language> <code>"}`, no `parse_mode`, 10 second abort). `sendMessage
 - Pages are complete HTML documents rendered on the server, UTF-8, without a framework, without any script,
   without any external resource (no script, font, style or image is loaded from anywhere), and with one inline
   `<style>` element.
-- Every text placed in a page is HTML-escaped (`&`, `<`, `>`, `"`, `'`). No page echoes anything from the request:
-  not the secret, not a token other than the page's own CSRF token, not a header, not the path.
+- Every text placed in a page is HTML-escaped (`&`, `<`, `>`, `"`, `'`). No page echoes anything from the request
+  (not the secret, not a token other than the page's own CSRF token, not a header, not the path) except the GitHub
+  finish page, which echoes the `code` and `state` of the return in hidden fields after their allow-lists, escaped.
+  The review page shows the account as entered, after its allow-list, escaped.
 - Every response under `/setup` (pages, redirects, 404, 413, 400) carries:
 
   | Header                    | Value                                                                                                        |
@@ -239,7 +353,8 @@ in the page language> <code>"}`, no `parse_mode`, 10 second abort). `sendMessage
   | `Cache-Control`           | `no-store`                                                                                                   |
 
   `<hash>` is the base64 (with padding) SHA-256 of the UTF-8 bytes of the content of the page's `<style>` element.
-  A page also carries `Content-Type: text/html; charset=utf-8` and `Content-Language` with its language.
+  The GitHub review page alone has `form-action https://github.com` instead of `form-action 'self'`, so that its form
+  can post the manifest. A page also carries `Content-Type: text/html; charset=utf-8` and `Content-Language` with its language.
 
 ### Language
 
@@ -260,7 +375,7 @@ in the page language> <code>"}`, no `parse_mode`, 10 second abort). `sendMessage
 
 ### Texts
 
-The notices, the Telegram step and the _not configured_ page, in English (the German texts are their translation, in
+The notices, the Telegram step, the GitHub App step and the _not configured_ page, in English (the German texts are their translation, in
 `src/setup/texts.ts`):
 
 - _wrong secret_: "That is not the SELUNA_SECRET of this instance."
@@ -289,7 +404,7 @@ The notices, the Telegram step and the _not configured_ page, in English (the Ge
 - _wrong code_: "The code does not match the test message. Check the code in your chat and enter it again."
 - _code expired_: "The code has expired or the form is no longer valid. Search for chats again and send a new test
   message."
-- Start page: "Set up your instance step by step:" and the link "Telegram chat".
+- Start page: "Set up your instance step by step:" and the links "Telegram chat" and "GitHub App".
 - _intro_: "Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the
   bot to a group. Then search for chats."
 - _search_: "Search for chats".
@@ -307,6 +422,51 @@ The notices, the Telegram step and the _not configured_ page, in English (the Ge
 - _code sent_ (followed by the id): "Test message sent to chat:"; _code intro_: "Enter the six-digit code from that
   message to save the chat. If no message arrived, the chat is not yours: search again and choose another."; _Code_;
   _code button_ "Save chat".
+- GitHub App step: the heading "GitHub App"; the _intro_ "Seluna receives the events of your repositories through a
+  private GitHub App of its own. Create it here for your personal account or for an organization: Seluna sends GitHub
+  a manifest with the app's name, the webhook address of this instance and read-only permissions, and saves the app's
+  credentials encrypted once you have confirmed on GitHub."; _Worker secrets_ "The GitHub App is set by the Worker
+  secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET, which take precedence over an app created
+  here. To create the app here, delete those secrets."; _partial Worker secrets_ "Some, but not all, of the Worker
+  secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET are set. Set all three to configure the app
+  by hand, or delete them to create the app here."; _reset needed_ "The saved GitHub credentials cannot be read with
+  the current SELUNA_SECRET: it was changed, or the saved values are damaged. Set the earlier SELUNA_SECRET again, or
+  delete the saved credentials in the Cloudflare dashboard (the rows of the D1 table secrets and the row key_check of
+  the table meta), then create the app again."; _Saved GitHub App, App ID:_ (followed by the id) and _No GitHub App is
+  saved yet._; _replace hint_ "Creating a new app replaces the saved one. Delete the old app on GitHub afterwards: in
+  the settings of your account or organization, under Developer settings, then GitHub Apps."; _My personal account_,
+  _An organization_, the account label "Name of the account or organization, as in github.com/name" and the button
+  "Next".
+- GitHub review page: "Seluna asks GitHub to create this app. On GitHub, check the details and select Create GitHub
+  App; GitHub then sends you back here. Seluna saves the app only if GitHub created it for the account shown here.";
+  the labels "Account:" (followed by the account and, in parentheses, the account type), "App name:", "Permissions,
+  all read-only:" with "Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts,
+  Metadata", "Events:" with "Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning
+  alert", and the button "Continue to GitHub".
+- GitHub finish page: "GitHub has created the app. Select Finish so that Seluna fetches and saves its
+  credentials." and the button "Finish". Created page: "The GitHub App is saved.", "Now install it on your account or
+  organization. Choosing All repositories is recommended, so that new repositories are covered too." with the link
+  "Install the app on GitHub", or "Install it on GitHub: in the settings of your account or organization, open
+  Developer settings, then GitHub Apps, choose the app and select Install App. Choosing All repositories is
+  recommended, so that new repositories are covered too."; the link back "Back to the GitHub App step".
+- _invalid account_: "Choose your personal account or an organization and enter its name: 1 to 39 letters, digits
+  and hyphens, not starting or ending with a hyphen."
+- _invalid return_: "This page needs the code and state GitHub sends back after creating the app. Start again from
+  the GitHub App step."
+- _state invalid_: "This return from GitHub does not belong to your current sign-in or is older than one hour, so
+  nothing was saved. If GitHub created an app, delete it on GitHub and start again."
+- _code rejected_: "GitHub no longer accepts this return: the code was already used or is older than one hour. Open
+  the GitHub App step and compare the App ID saved there with the one GitHub shows in the app's settings: if they
+  match, the app is saved; otherwise delete the app on GitHub and start again."
+- _GitHub unavailable_: "GitHub could not be reached. Select Finish again in a moment; the return stays valid for
+  one hour."
+- _answer invalid_: "GitHub created the app, but its answer could not be read, so nothing was saved. Delete the app
+  on GitHub and start again."
+- _owner mismatch_: "This app does not belong to the account you chose in Seluna, so nothing was saved. If you
+  created it yourself, delete it on GitHub and start again with the name of the account you are signed in to on
+  GitHub, or of the organization."
+- _store failed_: "GitHub created the app, but saving its credentials failed, so nothing was saved. Delete the app
+  on GitHub and start again."
 - _not configured_: the heading "SELUNA_SECRET is not set", then: the setup cannot start because the Worker secret
   `SELUNA_SECRET` is missing or shorter than 32 characters; create a random string of at least 32 characters (a
   password manager, or `openssl rand -hex 32`); in the Cloudflare dashboard open this Worker, then _Settings_ →
@@ -316,14 +476,25 @@ The notices, the Telegram step and the _not configured_ page, in English (the Ge
 
 ## Limits and errors
 
-- 404, 413 and the 400 of an unreadable body under `/setup` carry no body; 503, the 403 and 429 answers and the Telegram step's 400, 409 and 502 answers carry a page with a fixed notice or text and never a reason from the runtime, D1 or Telegram.
+- 404, 413 and the 400 of an unreadable body under `/setup` carry no body; 503, the 403 and 429 answers and the Telegram and GitHub steps' 400, 409 and 502 answers carry a page with a fixed notice or text and never a reason from the runtime, D1, Telegram or GitHub.
+- An app that GitHub created but Seluna did not save (a session that expired during the detour, an unreadable answer,
+  an app of another account than the one entered, a failed write, a code an earlier attempt used while its answer was
+  lost) stays on GitHub and is deleted there by hand; the notices say so. GitHub's rejection of a used code does not
+  tell whether an earlier attempt saved the app, so the _code rejected_ notice has the owner compare the saved App ID
+  with the app's own before deleting it. GitHub's own limit of one hour for the flow, and the state's, bound the return. A session that
+  expires during the detour loses the return: sign in again and start over.
+- The conversion request carries a 10 second timeout and its answer is read up to 1 MiB; no document claims that the
+  timeout also bounds reading the body, which is limited by size only.
+- Whether GitHub returns `code` and `state` as documented, whether the browser sends the session cookie with the
+  finish form and whether `form-action https://github.com` lets GitHub's own redirects through were not captured from
+  a real run when this step was written; each deviation fails closed (a fixed notice, nothing stored).
 - Anyone who messages the bot appears in the chat list with a name of their choosing, so a label proves nothing: a
   chat is saved only after its code is typed back. The owner who types in a code a stranger gave them can still save
   a wrong chat; choosing again replaces the earlier value. A stranger who sends the bot many messages can push the
   owner's chat out of the newest 100 updates (_no chats_: send `/start` again just before searching) or make the
   answer exceed 1 MiB (_Telegram unavailable_ until 100 newer, smaller updates arrived); both fail closed, and the
   workaround for both is the `TELEGRAM_CHAT_ID` Worker secret.
-- A login, logout or Telegram form body is limited to 1 MiB counted in bytes before decoding; the parsed text is never longer than
+- A login, logout, Telegram or GitHub form body is limited to 1 MiB counted in bytes before decoding; the parsed text is never longer than
   that number of bytes.
 - At most four values per cookie name are looked at; the `Accept-Language` and `Cookie` headers are otherwise
   limited only by the platform's header size, and reading them takes time proportional to their length, also for
@@ -342,6 +513,9 @@ The notices, the Telegram step and the _not configured_ page, in English (the Ge
 - [`decisions/0016-telegram-chat-in-the-setup-wizard.md`](../decisions/0016-telegram-chat-in-the-setup-wizard.md) —
   `getUpdates` on page load with a negative offset, the token allow-list, the chat stored only after its code is
   typed back, the pending chat in a signed session-bound token.
+- [`decisions/0017-github-app-manifest-flow.md`](../decisions/0017-github-app-manifest-flow.md) — the manifest flow,
+  the signed-out return and the finish form protected by its state, the owner check, the PKCS#8 conversion, the
+  one-transaction write and the precedence of the Worker secrets.
 - [`decisions/0007-github-app-credentials-encrypted-in-d1.md`](../decisions/0007-github-app-credentials-encrypted-in-d1.md)
   — the 32-character minimum of `SELUNA_SECRET` and separate keys per purpose.
 

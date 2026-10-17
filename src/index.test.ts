@@ -1,11 +1,14 @@
 import { createExecutionContext, createScheduledController, waitOnExecutionContext } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, onTestFinished, vi } from "vitest";
 import worker from "./index";
 import { version } from "../package.json";
 import { body, headers } from "../test/fixtures/ping/form-delivery.json";
 import { applyMigrations } from "../test/d1";
 import { telegramDouble } from "../test/telegram";
+import { FIXTURE_CODE, githubDouble, stateFor } from "../test/github";
+import { keyFor, signingKeyFor } from "../test/keys";
+import { writeSecret } from "./store/secrets";
 
 // The throwaway SELUNA_SECRET of vitest.config.ts.
 const SETUP_SECRET = "throwaway-test-secret-for-the-setup-login-0000";
@@ -105,4 +108,70 @@ it("the Telegram step of /setup calls the Bot API through the global fetch of th
   expect(signedIn.status, "login status").toBe(303);
   expect(response.status, "status").toBe(200);
   expect(telegram.methods(), "Bot API methods called").toEqual(["getUpdates"]);
+});
+
+/** Empties the credential tables now and when the test ends, so no stored credential leaks into another test. */
+async function withEmptyCredentials(): Promise<void> {
+  await applyMigrations(env.DB);
+  const empty = async (): Promise<void> => {
+    await env.DB.batch([env.DB.prepare("DELETE FROM secrets"), env.DB.prepare("DELETE FROM meta")]);
+  };
+  await empty();
+  onTestFinished(empty);
+}
+
+it("the GitHub step of /setup calls the GitHub API through the global fetch of the Worker", async () => {
+  await withEmptyCredentials();
+  const github = githubDouble();
+  vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => github.fetch(new Request(input, init)));
+  const workerEnv = { ...env, GITHUB_WEBHOOK_SECRET: "" };
+  const loginPage = await worker.fetch(new Request("https://example.com/setup"), workerEnv);
+  const csrf = /name="csrf" value="([^"]*)"/.exec(await loginPage.text())?.[1] ?? "";
+  const signedIn = await worker.fetch(
+    new Request("https://example.com/setup/login", {
+      method: "POST",
+      headers: { cookie: cookieHeader(loginPage), "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ csrf, secret: SETUP_SECRET }).toString(),
+    }),
+    workerEnv,
+  );
+  const cookies = cookieHeader(signedIn);
+  const session = /seluna_session=([^;\s]+)/.exec(cookies)?.[1] ?? "";
+  const state = await stateFor(
+    await signingKeyFor(SETUP_SECRET, "setup-github"),
+    session,
+    { type: "personal", account: "github" },
+    new Date(),
+  );
+
+  const response = await worker.fetch(
+    new Request("https://example.com/setup/github/callback", {
+      method: "POST",
+      headers: { cookie: cookies, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ code: FIXTURE_CODE, state }).toString(),
+    }),
+    workerEnv,
+  );
+
+  expect(signedIn.status, "login status").toBe(303);
+  expect(session, "session token").not.toBe("");
+  expect(response.status, "status").toBe(200);
+  expect(
+    github.requests.map((request) => request.code),
+    "converted codes",
+  ).toEqual([FIXTURE_CODE]);
+});
+
+it("POST /webhook uses the webhook secret stored in D1 through the Worker", async () => {
+  await withEmptyCredentials();
+  const stored = await writeSecret(env.DB, await keyFor(SETUP_SECRET), "github_webhook_secret", "my-secret");
+  const workerEnv = { ...env, GITHUB_WEBHOOK_SECRET: "" };
+
+  const response = await worker.fetch(
+    new Request("https://example.com/webhook", { method: "POST", body, headers }),
+    workerEnv,
+  );
+
+  expect(stored, "storing the webhook secret").toEqual({ kind: "ok" });
+  expect(response.status, "status").toBe(202);
 });

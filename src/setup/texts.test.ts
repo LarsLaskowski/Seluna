@@ -23,7 +23,7 @@ describe("TEXTS", () => {
     expect(TEXTS.en.notConfiguredParagraphs.length, "English not-configured paragraphs").toBeGreaterThan(0);
     expect(TEXTS.de.notConfiguredParagraphs.length, "German not-configured paragraphs").toBeGreaterThan(0);
     expect(Object.keys(TEXTS.de.notices), "German notice keys").toEqual(Object.keys(TEXTS.en.notices));
-    expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(13);
+    expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(21);
   });
 
   it("texts word the English notices as the area document does", () => {
@@ -50,6 +50,22 @@ describe("TEXTS", () => {
         "The code does not match the test message. Check the code in your chat and enter it again.",
       "telegram-code-expired":
         "The code has expired or the form is no longer valid. Search for chats again and send a new test message.",
+      "github-invalid-account":
+        "Choose your personal account or an organization and enter its name: 1 to 39 letters, digits and hyphens, not starting or ending with a hyphen.",
+      "github-return-invalid":
+        "This page needs the code and state GitHub sends back after creating the app. Start again from the GitHub App step.",
+      "github-state-invalid":
+        "This return from GitHub does not belong to your current sign-in or is older than one hour, so nothing was saved. If GitHub created an app, delete it on GitHub and start again.",
+      "github-code-rejected":
+        "GitHub no longer accepts this return: the code was already used or is older than one hour. Open the GitHub App step and compare the App ID saved there with the one GitHub shows in the app's settings: if they match, the app is saved; otherwise delete the app on GitHub and start again.",
+      "github-unavailable":
+        "GitHub could not be reached. Select Finish again in a moment; the return stays valid for one hour.",
+      "github-answer-invalid":
+        "GitHub created the app, but its answer could not be read, so nothing was saved. Delete the app on GitHub and start again.",
+      "github-owner-mismatch":
+        "This app does not belong to the account you chose in Seluna, so nothing was saved. If you created it yourself, delete it on GitHub and start again with the name of the account you are signed in to on GitHub, or of the organization.",
+      "github-store-failed":
+        "GitHub created the app, but saving its credentials failed, so nothing was saved. Delete the app on GitHub and start again.",
     });
   });
 
@@ -101,6 +117,80 @@ describe("TEXTS", () => {
         "Enter the six-digit code from that message to save the chat. If no message arrived, the chat is not yours: search again and choose another.",
       telegramCodeLabel: "Code",
       telegramCodeButton: "Save chat",
+    });
+  });
+
+  it("texts word the English GitHub step as the area document does", () => {
+    const { en } = TEXTS;
+
+    expect(
+      {
+        githubHeading: en.githubHeading,
+        githubIntro: en.githubIntro,
+        githubWorkerSecrets: en.githubWorkerSecrets,
+        githubPartialWorkerSecrets: en.githubPartialWorkerSecrets,
+        githubResetNeeded: en.githubResetNeeded,
+        githubSavedApp: en.githubSavedApp,
+        githubNoSavedApp: en.githubNoSavedApp,
+        githubReplaceHint: en.githubReplaceHint,
+        githubPersonal: en.githubPersonal,
+        githubOrganization: en.githubOrganization,
+        githubAccountLabel: en.githubAccountLabel,
+        githubNextButton: en.githubNextButton,
+        githubReviewIntro: en.githubReviewIntro,
+        githubReviewAccountLabel: en.githubReviewAccountLabel,
+        githubAppNameLabel: en.githubAppNameLabel,
+        githubPermissionsLabel: en.githubPermissionsLabel,
+        githubPermissionsList: en.githubPermissionsList,
+        githubEventsLabel: en.githubEventsLabel,
+        githubEventsList: en.githubEventsList,
+        githubToGitHubButton: en.githubToGitHubButton,
+        githubFinishIntro: en.githubFinishIntro,
+        githubFinishButton: en.githubFinishButton,
+        githubCreated: en.githubCreated,
+        githubInstallIntro: en.githubInstallIntro,
+        githubInstallLink: en.githubInstallLink,
+        githubInstallManual: en.githubInstallManual,
+        githubBackLink: en.githubBackLink,
+      },
+      "English GitHub step texts",
+    ).toEqual({
+      githubHeading: "GitHub App",
+      githubIntro:
+        "Seluna receives the events of your repositories through a private GitHub App of its own. Create it here for your personal account or for an organization: Seluna sends GitHub a manifest with the app's name, the webhook address of this instance and read-only permissions, and saves the app's credentials encrypted once you have confirmed on GitHub.",
+      githubWorkerSecrets:
+        "The GitHub App is set by the Worker secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET, which take precedence over an app created here. To create the app here, delete those secrets.",
+      githubPartialWorkerSecrets:
+        "Some, but not all, of the Worker secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET are set. Set all three to configure the app by hand, or delete them to create the app here.",
+      githubResetNeeded:
+        "The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. Set the earlier SELUNA_SECRET again, or delete the saved credentials in the Cloudflare dashboard (the rows of the D1 table secrets and the row key_check of the table meta), then create the app again.",
+      githubSavedApp: "Saved GitHub App, App ID:",
+      githubNoSavedApp: "No GitHub App is saved yet.",
+      githubReplaceHint:
+        "Creating a new app replaces the saved one. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps.",
+      githubPersonal: "My personal account",
+      githubOrganization: "An organization",
+      githubAccountLabel: "Name of the account or organization, as in github.com/name",
+      githubNextButton: "Next",
+      githubReviewIntro:
+        "Seluna asks GitHub to create this app. On GitHub, check the details and select Create GitHub App; GitHub then sends you back here. Seluna saves the app only if GitHub created it for the account shown here.",
+      githubReviewAccountLabel: "Account:",
+      githubAppNameLabel: "App name:",
+      githubPermissionsLabel: "Permissions, all read-only:",
+      githubPermissionsList:
+        "Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata",
+      githubEventsLabel: "Events:",
+      githubEventsList: "Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert",
+      githubToGitHubButton: "Continue to GitHub",
+      githubFinishIntro: "GitHub has created the app. Select Finish so that Seluna fetches and saves its credentials.",
+      githubFinishButton: "Finish",
+      githubCreated: "The GitHub App is saved.",
+      githubInstallIntro:
+        "Now install it on your account or organization. Choosing All repositories is recommended, so that new repositories are covered too.",
+      githubInstallLink: "Install the app on GitHub",
+      githubInstallManual:
+        "Install it on GitHub: in the settings of your account or organization, open Developer settings, then GitHub Apps, choose the app and select Install App. Choosing All repositories is recommended, so that new repositories are covered too.",
+      githubBackLink: "Back to the GitHub App step",
     });
   });
 });

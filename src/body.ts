@@ -67,3 +67,18 @@ export async function readBodyWithLimit(message: Request | Response, maxBytes: n
   }
   return { kind: "ok", body };
 }
+
+/** The parsed JSON of a body of at most `maxBytes` bytes (counted before decoding) that is UTF-8 JSON, else `undefined`. Never throws. */
+export async function readJsonWithLimit(message: Request | Response, maxBytes: number): Promise<unknown> {
+  const result = await readBodyWithLimit(message, maxBytes);
+  if (result.kind !== "ok") {
+    return undefined;
+  }
+  try {
+    const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(result.body);
+    const parsed: unknown = JSON.parse(text);
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}

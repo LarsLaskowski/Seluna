@@ -51,6 +51,11 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
 - The `settings` key `telegram_chat_id` holds the decimal text of the Telegram chat id (negative for a group). Only
   the setup wizard writes it, and only after the owner typed back the code of a successful test message
   ([Setup wizard](setup-wizard.md#telegram-chat)); a stored value that is not a chat id counts as no chat.
+- The three `secrets` rows are written together, in one transaction, by the setup wizard's GitHub App step
+  ([Setup wizard](setup-wizard.md#github-app)): `github_app_id` holds the decimal App ID, `github_private_key` the
+  private key as a PKCS#8 PEM and `github_webhook_secret` the webhook secret as GitHub generated it. The Worker
+  secrets `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_WEBHOOK_SECRET` take precedence over the stored value
+  of the same credential.
 - `meta` holds the last notified release, the time of the last delivery, the key check value
   (`key_check`, below) and the setup login's failed-attempt count (`login_attempts`, format and rules in
   [Setup wizard](setup-wizard.md#failed-attempts-and-the-lock)).
@@ -73,7 +78,8 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
 - The key is used only for the values in D1. Any other key taken from `SELUNA_SECRET` is derived with an HKDF
   info of its own, never this one: the setup login's session and CSRF keys use `seluna/setup-session/v1` and
   `seluna/setup-csrf/v1` as salt and info ([Setup wizard](setup-wizard.md#session)); the Telegram chat proof's key uses
-  `seluna/setup-telegram/v1` ([Setup wizard](setup-wizard.md#chat-proof)).
+  `seluna/setup-telegram/v1` ([Setup wizard](setup-wizard.md#chat-proof)); the GitHub manifest flow's state key uses
+  `seluna/setup-github/v1` ([Setup wizard](setup-wizard.md#github-app)).
 - Each value is bound to its place as additional authenticated data, the UTF-8 bytes of:
   - `secrets/<key>` for a row of `secrets`;
   - `token_cache/<installation_id>/<expires_at>` for a row of `token_cache`, both numbers in decimal without
@@ -125,6 +131,11 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
   reports what it finds (stored, **secret changed** or **corrupt**). So no credential is ever stored without a
   key check value that covers it: two first writes under the same `SELUNA_SECRET` both succeed, and a first
   write under another `SELUNA_SECRET` at the same moment reports **secret changed** and writes nothing.
+- The three credentials of the GitHub App are written in **one batch** in which every statement is guarded by the
+  checked key check value, so either all three are stored or none. The write counts as stored only when each of the
+  three upserts changed one row (the key check insert of a first write is not counted); any other result is tried
+  once more from the check and then reported as **corrupt**, with nothing of the three left half written by the
+  attempt.
 - **Secret changed** is the dedicated result the setup wizard shows; its remedy is a reset that clears the
   stored credentials and the key check value and runs the setup again. **Corrupt** leads to the same reset.
   The reset always creates new GitHub App credentials and never stores old ones again: D1's Time Travel keeps
@@ -142,6 +153,8 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
 - [`decisions/0007-github-app-credentials-encrypted-in-d1.md`](../decisions/0007-github-app-credentials-encrypted-in-d1.md)
   — credentials and installation tokens encrypted in D1, the key derivation, the binding to the row and the key
   check.
+- [`decisions/0017-github-app-manifest-flow.md`](../decisions/0017-github-app-manifest-flow.md) — the three
+  credentials written in one batch by the manifest flow, and the Worker secrets that take precedence.
 - [`decisions/0014-d1-schema-and-data-access.md`](../decisions/0014-d1-schema-and-data-access.md) — one schema
   migration for all tables, data access only through `src/store/`, times in milliseconds, text columns for
   encrypted values, migrations frozen once on `main`.
