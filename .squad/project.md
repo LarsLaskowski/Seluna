@@ -13,7 +13,8 @@ files or endpoints.
 - **Webhook signature:** `POST /webhook` verifies `X-Hub-Signature-256` (HMAC-SHA256 over the raw body, constant-time
   comparison) before any parsing; an invalid or missing signature is rejected without a body that explains why.
 - **Setup login:** `/setup` and every path below it (`src/setup/`) answer only the login page — or, without a
-  `SELUNA_SECRET` of at least 32 characters, a page that explains how to set it — until the owner signs in with
+  `SELUNA_SECRET` of at least 32 characters, a page that explains how to set it; and on `GET /setup/github/callback`, GitHub's signed-out return, the finish
+  page or a fixed notice, calling neither GitHub nor D1 (decision 0017) — until the owner signs in with
   `SELUNA_SECRET`, compared in constant time (`verifySelunaSecret` in `src/crypto.ts`). The session is an
   HMAC-SHA256-signed token with a 12-hour expiry (`src/setup/session.ts`, key from `signingKeyFromEnv`) in a cookie
   with `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/setup`; every form carries a signed double-submit CSRF token, which on the

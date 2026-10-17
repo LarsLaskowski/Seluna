@@ -307,8 +307,8 @@ encrypted ([Storage](storage.md)). The Worker secrets `GITHUB_APP_ID`, `GITHUB_A
      with a code of their own app and the owner's state;
   8. the private key is converted to PKCS#8 and must import as an RS256 signing key, else **502** with _answer
      invalid_;
-  9. the three credentials are stored in one transaction ([Storage](storage.md)); anything but a stored result or a D1
-     failure answers **503** with _store failed_;
+  9. the three credentials are stored in one transaction ([Storage](storage.md)); a result other than stored, or a D1
+     failure, answers **503** with _store failed_;
   10. stored: **200** with the **created page**: _app saved_, the _install intro_ and a link to
       `https://github.com/apps/<slug>/installations/new`, or, when the answer has no slug that passes the allow-list,
       the _install manually_ text and no link.

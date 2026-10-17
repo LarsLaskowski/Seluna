@@ -19,3 +19,4 @@ are quoted in full.
 | 2026-10-17 13:00 | 6 Coverage pass | squad-tester | task 20 done; 1248 tests pass; coverage 96.9% new / 96.7% overall (sonnet/medium · 9,597 tokens · 5 tool uses · 140 s · continued) |
 | 2026-10-17 13:00 | 7 Code check | Orchestrator | main merged (up to date); format, analyzer 0 findings, test, coverage, scope-check, decision-check pass |
 | 2026-10-17 13:01 | 8 Review (security diff) | squad-security | APPROVED, no findings (code SHA 4a3d9d0) (opus/medium · 61,932 tokens · 11 tool uses · 66 s) |
+| 2026-10-17 13:03 | 8 Review round 1 | squad-reviewer | BLOCKING 2 \| NON-BLOCKING 2 (code SHA 4a3d9d0): github-code-rejected text falsely claims 'already saved'; project.md Setup login entry omits the signed-out callback; two doc nits. The three documentation findings applied verbatim by the orchestrator |

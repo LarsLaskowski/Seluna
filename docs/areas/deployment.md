@@ -40,7 +40,7 @@ bindings) rely on it.
 | `TELEGRAM_BOT_TOKEN`     | The token of the user's Telegram bot from @BotFather                                                                                  | Deploy form                                  |
 | `GITHUB_APP_ID`          | The App ID of the GitHub App, optional; takes precedence over the app the wizard created ([Setup wizard](setup-wizard.md#github-app)) | By hand; the deploy form does not ask for it |
 | `GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub App, optional; takes precedence over the stored key                                                     | By hand; the deploy form does not ask for it |
-| `GITHUB_WEBHOOK_SECRET`  | The webhook secret, optional; takes precedence over the stored one ([HTTP routes](http-routes.md#webhook-signature))                  | By hand, or stored by the setup wizard       |
+| `GITHUB_WEBHOOK_SECRET`  | The webhook secret, optional; takes precedence over the stored one ([HTTP routes](http-routes.md#webhook-signature))                  | By hand; the deploy form does not ask for it |
 | `TELEGRAM_CHAT_ID`       | The id of the chat to send to, optional; takes precedence over the wizard's choice ([Setup wizard](setup-wizard.md#telegram-chat))    | By hand; the deploy form does not ask for it |
 
 - The deploy form asks for exactly `SELUNA_SECRET` and `TELEGRAM_BOT_TOKEN`; `.dev.vars.example` names them with
