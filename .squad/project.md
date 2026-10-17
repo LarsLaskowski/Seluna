@@ -106,7 +106,11 @@ otherwise):
   (not a stub on `globalThis.fetch`) that records every request and answers `getUpdates` and `sendMessage` from
   fixtures, a status and body, or a rejection (a rate limit, a server error); it fails the test on any other method.
   Its `getUpdates` answers come from `test/fixtures/telegram/`, which are written from the Bot API reference, not
-  captured (see the `README.md` there); no real bot is ever called.
+  captured (see the `README.md` there); no real bot is ever called. Squad sessions have no egress to
+  `api.telegram.org` (the session proxy refuses it), so a real answer cannot be fetched during a run: the
+  fixtures stay reference-built until they are replaced by captured answers, and a plan that reads a new Bot API
+  answer either asks the Product Manager for a captured sample up front or plans a live check on a deployed copy
+  before the pull request is marked ready (decision 0016).
 - **Clock** — an injected `() => Date` (or `vi.useFakeTimers()`) so rules, retries and token expiry are tested
   without waiting; code under test never calls `Date.now()` directly.
 - **Real GitHub payloads** — captured events stored as `test/fixtures/<event>/<action>.json`, with secrets and
