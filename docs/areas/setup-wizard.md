@@ -136,7 +136,7 @@ it and add their pages behind the login.
   Worker secret TELEGRAM_CHAT_ID_ (no value shown) when that secret is a non-empty string, or _none saved yet_;
   _GitHub App:_ a link `https://github.com/apps/<slug>` with the slug as text and `(App ID <id>)` when the `meta` slug
   row belongs to the saved App ID, the App ID alone otherwise, the _Worker secrets_ or _partial Worker secrets_ text
-  when those are set (no value shown), _none saved yet_, or _cannot be read_ when a reset is needed; _Last delivery
+  when those are set (no value shown), _none saved yet_, or _cannot be read_ when the saved App ID cannot be read with the current `SELUNA_SECRET` (a reset can also be needed while the App ID is still shown, when another saved credential does not decrypt); _Last delivery
   from GitHub:_ the time in the configured time zone as `YYYY-MM-DD HH:MM (<time zone>)` (24-hour), or _none
   received yet_ until the webhook handler writes `last_delivery` (issue 12). When the runtime rejects the zone or the
   time at render, the time is written in UTC from its UTC fields, as `(UTC)`; the page never fails on it.
