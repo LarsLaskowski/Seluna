@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Releases are created on GitHub's release page as a pre-release; the release workflow starts on publishing, runs its checks and then turns the pre-release into the latest full release, keeping the release text as written. It no longer creates a draft release on a tag push.
+
 ## [0.1.0] - 2026-10-16
 
 ### Added
