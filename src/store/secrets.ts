@@ -211,3 +211,18 @@ export function writeSecrets(
     ["github_webhook_secret", values.github_webhook_secret],
   ]);
 }
+
+/** Whether the saved credentials cannot be read with `key` (changed or corrupt key check, or a credential that does not decrypt). D1 errors are not caught. */
+export async function needsReset(db: D1Database, key: CryptoKey): Promise<boolean> {
+  throw new Error("Not implemented");
+}
+
+export type ResetResult = "reset" | "not-needed";
+
+/**
+ * Deletes the credentials, the installation tokens and the key check value while the credentials cannot be read
+ * with `key` and are unchanged since the check. D1 errors are not caught.
+ */
+export async function resetCredentials(db: D1Database, key: CryptoKey): Promise<ResetResult> {
+  throw new Error("Not implemented");
+}

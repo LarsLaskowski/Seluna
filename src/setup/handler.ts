@@ -27,7 +27,7 @@ import {
   renderStartPage,
   renderTelegramPage,
 } from "./pages";
-import type { GitHubPageView, TelegramPageView } from "./pages";
+import type { GitHubPageView, StartPageView, TelegramPageView } from "./pages";
 import {
   ACCOUNT_FIELD,
   ACCOUNT_TYPE_FIELD,
@@ -89,7 +89,7 @@ interface Context {
 /** Which form a page carries or a submission belongs to; a signed-in form names the session its token is bound to. */
 type SetupForm =
   | { readonly kind: "login" }
-  | { readonly kind: "start"; readonly session: string }
+  | { readonly kind: "start"; readonly session: string; readonly view: StartPageView }
   | { readonly kind: "telegram"; readonly session: string; readonly view: TelegramPageView }
   | { readonly kind: "github"; readonly session: string; readonly view: GitHubPageView };
 
@@ -123,6 +123,7 @@ async function formPage(context: Context, form: SetupForm, status: number, notic
       html = renderStartPage(
         context.language,
         await sessionCsrfTokenFor(context.csrfKey, form.session, cookieValue),
+        form.view,
         notice,
       );
       break;
@@ -226,7 +227,7 @@ async function signIn(context: Context): Promise<Response> {
 }
 
 async function signOut(context: Context, session: string): Promise<Response> {
-  const start: SetupForm = { kind: "start", session };
+  const start: SetupForm = { kind: "start", session, view: { kind: "notice-only" } };
   const form = await readForm(context);
   if (form instanceof Response) {
     return form;
@@ -529,7 +530,7 @@ function stepRoute(context: Context, session: string, pathname: string): Promise
 async function signedIn(context: Context, session: string, pathname: string): Promise<Response> {
   const { method } = context.request;
   if (method === "GET" && pathname === SETUP_PATH) {
-    return formPage(context, { kind: "start", session }, 200);
+    return formPage(context, { kind: "start", session, view: { kind: "notice-only" } }, 200);
   }
   if (method === "POST" && pathname === LOGOUT_PATH) {
     return signOut(context, session);

@@ -52,7 +52,12 @@ const CODE_VIEW: TelegramPageView = {
 /** Every page in each language, with the links it has besides the two language links. */
 const PAGES = LANGUAGES.flatMap((language) => [
   { page: "login", language, links: [] as string[], html: () => renderLoginPage(language, CSRF_TOKEN) },
-  { page: "start", language, links: [TELEGRAM_LINK, GITHUB_LINK], html: () => renderStartPage(language, CSRF_TOKEN) },
+  {
+    page: "start",
+    language,
+    links: [TELEGRAM_LINK, GITHUB_LINK],
+    html: () => renderStartPage(language, CSRF_TOKEN, { kind: "notice-only" }),
+  },
   { page: "not-configured", language, links: [] as string[], html: () => renderNotConfiguredPage(language) },
   {
     page: "telegram chats",
@@ -189,7 +194,7 @@ describe("renderStartPage", () => {
   it.each(LANGUAGES.map((language) => ({ language })))(
     "renderStartPage links to the Telegram step in $language",
     ({ language }) => {
-      const page = renderStartPage(language, CSRF_TOKEN);
+      const page = renderStartPage(language, CSRF_TOKEN, { kind: "notice-only" });
 
       expect(page, "link to the Telegram step with the Telegram heading as text").toContain(
         `<a href="/setup/telegram">${escapeHtml(TEXTS[language].telegramHeading)}</a>`,
@@ -251,7 +256,7 @@ describe("renderStartPage GitHub step", () => {
   it.each(LANGUAGES.map((language) => ({ language })))(
     "renderStartPage links to the GitHub step in $language",
     ({ language }) => {
-      const page = renderStartPage(language, CSRF_TOKEN);
+      const page = renderStartPage(language, CSRF_TOKEN, { kind: "notice-only" });
 
       expect(page, "link to the GitHub step with the GitHub heading as text").toContain(
         `<a href="/setup/github">${escapeHtml(TEXTS[language].githubHeading)}</a>`,

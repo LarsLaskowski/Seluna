@@ -2,6 +2,7 @@ import type { AccountChoice } from "../github/manifest";
 import type { Language } from "./language";
 import type { TelegramChat } from "../telegram";
 import type { GitHubStepView } from "./github-step";
+import type { StatusView } from "./status";
 import type { TelegramProblem, TelegramStepView } from "./telegram-step";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
@@ -78,17 +79,12 @@ export function renderLoginPage(language: Language, csrfToken: string, notice?: 
   );
 }
 
-/** The start page of the signed-in owner; links like the login page. */
-export function renderStartPage(language: Language, csrfToken: string, notice?: Notice): string {
-  const texts = TEXTS[language];
-  return layout(
-    language,
-    `<h1>${escapeHtml(texts.startHeading)}</h1>\n<p>${escapeHtml(texts.startBody)}</p>\n${noticeHtml(language, notice)}\n` +
-      `<ul>\n<li><a href="/setup/telegram">${escapeHtml(texts.telegramHeading)}</a></li>\n` +
-      `<li><a href="/setup/github">${escapeHtml(texts.githubHeading)}</a></li>\n</ul>\n` +
-      `<form method="post" action="/setup/logout">\n${csrfInput(csrfToken)}\n` +
-      `<button type="submit">${escapeHtml(texts.logoutButton)}</button>\n</form>`,
-  );
+/** What the start page shows: the status and the settings, or only the notice, the step links and sign-out. */
+export type StartPageView = { readonly kind: "status"; readonly status: StatusView } | { readonly kind: "notice-only" };
+
+/** The start page of the signed-in owner: status, reset when needed, step links, settings form and sign-out. */
+export function renderStartPage(language: Language, csrfToken: string, view: StartPageView, notice?: Notice): string {
+  throw new Error("Not implemented");
 }
 
 /** The page that explains how to set `SELUNA_SECRET`; links like the login page. */
