@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-17
+
 ### Added
 
 - Start page of the setup wizard: shows the status (version, Telegram chat, GitHub App with a link, time of the last delivery) and the settings (notification language, time zone, quiet hours, one switch for each kind of notification, update notice), which take effect without a new deployment; after a changed `SELUNA_SECRET` it offers a reset that deletes the saved GitHub credentials and leads through the GitHub App step again.
