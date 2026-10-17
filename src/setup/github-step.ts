@@ -4,6 +4,7 @@ import { appManifest, appName, isAccountName, manifestFormAction, parseAccountTy
 import type { AccountChoice } from "../github/manifest";
 import { toPkcs8Pem } from "../github/private-key";
 import { workerCredentials } from "../github/worker-secrets";
+import { writeAppSlug } from "../store/meta";
 import { checkKey, readSecret, writeSecrets } from "../store/secrets";
 import { createGitHubState, isWellFormedGitHubState, verifyGitHubState } from "./github-state";
 
@@ -217,9 +218,25 @@ async function storeApp(
       github_private_key: privateKey,
       github_webhook_secret: app.webhookSecret,
     });
-    return written.kind === "ok" ? { kind: "created", slug: app.slug } : { kind: "store-failed" };
+    if (written.kind !== "ok") {
+      return { kind: "store-failed" };
+    }
   } catch {
     // The error is deliberately dropped: it must reach neither the log nor the response.
     return { kind: "store-failed" };
+  }
+  await keepSlug(db, app);
+  return { kind: "created", slug: app.slug };
+}
+
+/** Keeps the app's slug beside its App ID; a failure is dropped, the app is created either way. */
+async function keepSlug(db: D1Database, app: ConvertedApp): Promise<void> {
+  if (app.slug === undefined) {
+    return;
+  }
+  try {
+    await writeAppSlug(db, app.appId, app.slug);
+  } catch {
+    // The error is deliberately dropped: it must reach neither the log nor the response.
   }
 }

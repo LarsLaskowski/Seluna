@@ -22,13 +22,15 @@ it and add their pages behind the login.
   3. **`GET /setup/github/callback`**: GitHub's return ([GitHub App](#github-app)), with or without a session.
   4. **No valid session**: **200** with the login page, for every other method and path (a `POST
 /setup/github/callback` without a session included).
-  5. **With a valid session**: `GET /setup` answers **200** with the start page, `POST /setup/logout` signs out
-     (below), `GET` and `POST /setup/telegram` and `POST /setup/telegram/verify` are the Telegram step
+  5. **With a valid session**: `GET /setup` answers **200** with the status page, `POST /setup/logout` signs out
+     (below), `POST /setup/settings` saves the settings and `POST /setup/reset` resets the saved credentials
+     ([Status and settings](#status-and-settings), [Reset](#reset)), `GET` and `POST /setup/telegram` and `POST /setup/telegram/verify` are the Telegram step
      ([Telegram chat](#telegram-chat)), `GET` and `POST /setup/github` and `POST /setup/github/callback` are the
      GitHub App step ([GitHub App](#github-app)), everything else answers **404** with an empty body.
-- The start page says that the owner is signed in, lists the setup steps as links (today two: _Telegram chat_, to
-  `/setup/telegram`, and _GitHub App_, to `/setup/github`) and carries the sign-out form. The wizard steps add their
-  pages in this branch.
+- The start page (`GET /setup`) is the status page. In this order it shows: the heading and the _start body_, a
+  notice if any, the status section, the reset section when a reset is needed ([Reset](#reset)), the setup steps as
+  links (_Telegram chat_, to `/setup/telegram`, and _GitHub App_, to `/setup/github`), the settings form and the
+  sign-out form. `GET` on `/setup/settings` or `/setup/reset` answers **404** with a session.
 
 ### Login
 
@@ -105,7 +107,7 @@ it and add their pages behind the login.
 
 - Every form carries the hidden field `csrf`. There are two kinds of form: the **login form** (the login page) and
   the **signed-in forms** (every form on a page answered with a valid session; today the sign-out form on the start
-  page, the confirm and verify forms of the Telegram step and the account form of the GitHub App step). The key is
+  page, the settings and reset forms of the start page, the confirm and verify forms of the Telegram step and the account form of the GitHub App step). The key is
   derived like the session key with salt and info `seluna/setup-csrf/v1`. Two forms carry no `csrf` field: the form
   of the GitHub review page, which posts to github.com, and the GitHub finish form, which is protected by its
   session-bound state instead ([GitHub App](#github-app)).
@@ -127,6 +129,54 @@ it and add their pages behind the login.
   Worker of the same account under `<subdomain>.workers.dev`) is useless on a signed-in form, because its token needs
   the owner's session. On the login form it still yields a valid token, which is harmless there because a login also
   needs `SELUNA_SECRET`.
+
+### Status and settings
+
+- The status section lists: _Version:_ (the version of the build); _Telegram chat:_ the saved chat id, _set by the
+  Worker secret TELEGRAM_CHAT_ID_ (no value shown) when that secret is a non-empty string, or _none saved yet_;
+  _GitHub App:_ a link `https://github.com/apps/<slug>` with the slug as text and `(App ID <id>)` when the `meta` slug
+  row belongs to the saved App ID, the App ID alone otherwise, the _Worker secrets_ or _partial Worker secrets_ text
+  when those are set (no value shown), _none saved yet_, or _cannot be read_ when a reset is needed; _Last delivery
+  from GitHub:_ the time in the configured time zone as `YYYY-MM-DD HH:MM (<time zone>)` (24-hour), or _none
+  received yet_ until the webhook handler writes `last_delivery` (issue 12). When the runtime rejects the zone or the
+  time at render, the time is written in UTC from its UTC fields, as `(UTC)`; the page never fails on it.
+- The settings form posts to `POST /setup/settings` with the session-bound `csrf` field and these fields:
+  `notification_language` (`en` or `de`), `time_zone` (an option per name the runtime lists, plus `UTC`), the
+  checkboxes `quiet_hours`, `update_notice` and `rule_<id>` for the eight rules (each posts the value `on` when
+  checked, nothing otherwise), and the times `quiet_start` and `quiet_end` (`type=time`, no `step`, shown as `22:00`
+  and `07:00` while quiet hours are off). The form shows the stored values.
+- Validation: the body is read with the 1 MiB limit (413, 400), then the CSRF token is checked (**403**, notice-only
+  start page, _form expired_). `notification_language` and `time_zone` must occur once, the language `en` or `de`,
+  the time zone exactly a listed name; a checkbox is absent (off) or occurs once with the value `on`; with
+  `quiet_hours` on, `quiet_start` and `quiet_end` occur once each, are `HH:MM` from `00:00` to `23:59` and differ,
+  with it off they are ignored. Anything else answers **400** with the status page, the stored settings and the
+  _settings invalid_ notice, and stores nothing. Valid settings are written in one batch and answer **303** with
+  `Location: /setup`; they apply to the next read, nothing is cached. A D1 failure answers **503** with the
+  notice-only start page and _unavailable_.
+- Quiet hours are stored as one value (`off`, or `<start>-<end>`), so switching them off drops the times and the form
+  shows 22:00 and 07:00 again when they are next switched on.
+- `GET /setup` with a D1 failure answers **503** with the notice-only start page (notice, step links, sign-out form)
+  and _unavailable_. The 403 answers of the sign-out, settings and reset forms render the notice-only page too and
+  read no D1.
+
+### Reset
+
+- Precondition (`needsReset`, [Storage](storage.md#key-check)): the key check value reports a changed
+  `SELUNA_SECRET` or is damaged, it is absent beside stored credentials, or a stored credential does not decrypt.
+  `GET /setup` then answers **200**, never an error status, with the reset section: the _reset heading_, the _reset
+  text_ and a form `POST /setup/reset` with the session-bound `csrf` field and the _reset button_.
+- `POST /setup/reset` reads its body (413, 400), checks the CSRF token (**403**, notice-only start page, _form
+  expired_) and then calls `resetCredentials`: `reset` deletes every `secrets` and `token_cache` row and the `meta`
+  row `key_check` and answers **303** with `Location: /setup/github`; `not-needed` answers **409** with the status
+  page and _reset not needed_ and deletes nothing; a D1 failure answers **503** with _unavailable_.
+- The settings, the Telegram chat, `login_attempts` and `last_delivery` stay. Nothing outside D1 is called; the old
+  GitHub App stays on GitHub and the _reset text_ tells the owner to delete it there.
+- Guard: the delete runs only while the key check value and the fingerprint of the `secrets` rows are the ones the
+  reset read, so a credential written between the check and the delete leaves everything in place. The three
+  deletes run in one batch in this order: `token_cache` and `secrets` while both pins hold, then `key_check` while
+  its value is the one read and no `secrets` row is left ([Storage](storage.md#key-check)). The answer is _reset_
+  whether or not the guarded batch deleted anything; the next `GET /setup` shows the true state.
+- Afterwards `GET /setup/github` shows the form.
 
 ### Telegram chat
 
@@ -311,7 +361,9 @@ encrypted ([Storage](storage.md)). The Worker secrets `GITHUB_APP_ID`, `GITHUB_A
      failure, answers **503** with _store failed_;
   10. stored: **200** with the **created page**: _app saved_, the _install intro_ and a link to
       `https://github.com/apps/<slug>/installations/new`, or, when the answer has no slug that passes the allow-list,
-      the _install manually_ text and no link.
+      the _install manually_ text and no link. After the three credentials were stored, the slug is kept in `meta`
+      `github_app_slug` as `<appId>:<slug>` (only when the answer has an allow-listed slug); a failure of that write
+      is dropped and the page is still _created_.
 - **The conversion:** one `POST https://api.github.com/app-manifests/<code>/conversions` with `Accept:
 application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, `User-Agent: seluna/<version>`, no
   `Authorization`, no body, `redirect: "manual"` and a 10 second abort signal. A 2xx answer of at most 1 MiB (counted in
@@ -405,6 +457,25 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
 - _code expired_: "The code has expired or the form is no longer valid. Search for chats again and send a new test
   message."
 - Start page: "Set up your instance step by step:" and the links "Telegram chat" and "GitHub App".
+- Status: the heading "Status"; "Version:"; "Telegram chat:" with "None saved yet." or "Set by the Worker secret
+  TELEGRAM_CHAT_ID."; "GitHub App:" with "None saved yet.", "Set by the Worker secrets GITHUB_APP_ID,
+  GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET.", "Only some of the Worker secrets GITHUB_APP_ID,
+  GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET are set.", "App ID" or "Cannot be read with the current
+  SELUNA_SECRET."; "Last delivery from GitHub:" with "None received yet.".
+- Reset: the heading "The saved credentials cannot be read"; the text "The saved GitHub credentials cannot be read
+  with the current SELUNA_SECRET: it was changed, or the saved values are damaged. If you still know the earlier
+  SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials and installation
+  tokens, and you create the GitHub App again. Delete the old app on GitHub afterwards: in the settings of your
+  account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are
+  kept."; the button "Reset and create the GitHub App again"; the link "Open the start page".
+- Settings: the heading "Settings"; "Language of the notifications"; "Time zone"; "Quiet hours: notifications arrive
+  without sound" with "Start" and "End"; "Notify me about" with "New pull request", "Pull request ready for review",
+  "Review requested", "CI failed on the default branch", "CI failed in a pull request", "Dependabot alert", "Code
+  scanning alert" and "Secret scanning alert"; "Tell me when a new Seluna release is available"; the button "Save
+  settings".
+- _settings invalid_: "The settings were not saved. Check the values: quiet hours need a start and an end in the
+  form 22:00, and the two must differ."; _reset not needed_: "The saved credentials can be read with the current
+  SELUNA_SECRET, so nothing was reset."
 - _intro_: "Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the
   bot to a group. Then search for chats."
 - _search_: "Search for chats".
@@ -431,8 +502,7 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET are set. Set all three to configure the app
   by hand, or delete them to create the app here."; _reset needed_ "The saved GitHub credentials cannot be read with
   the current SELUNA_SECRET: it was changed, or the saved values are damaged. Set the earlier SELUNA_SECRET again, or
-  delete the saved credentials in the Cloudflare dashboard (the rows of the D1 table secrets and the row key_check of
-  the table meta), then create the app again."; _Saved GitHub App, App ID:_ (followed by the id) and _No GitHub App is
+  reset the saved credentials on the start page and create the app again."; _Saved GitHub App, App ID:_ (followed by the id) and _No GitHub App is
   saved yet._; _replace hint_ "Creating a new app replaces the saved one. Delete the old app on GitHub afterwards: in
   the settings of your account or organization, under Developer settings, then GitHub Apps."; _My personal account_,
   _An organization_, the account label "Name of the account or organization, as in github.com/name" and the button
@@ -494,7 +564,8 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   owner's chat out of the newest 100 updates (_no chats_: send `/start` again just before searching) or make the
   answer exceed 1 MiB (_Telegram unavailable_ until 100 newer, smaller updates arrived); both fail closed, and the
   workaround for both is the `TELEGRAM_CHAT_ID` Worker secret.
-- A login, logout, Telegram or GitHub form body is limited to 1 MiB counted in bytes before decoding; the parsed text is never longer than
+- After a reset the old GitHub App stays on GitHub; the owner deletes it there by hand.
+- A login, logout, settings, reset, Telegram or GitHub form body is limited to 1 MiB counted in bytes before decoding; the parsed text is never longer than
   that number of bytes.
 - At most four values per cookie name are looked at; the `Accept-Language` and `Cookie` headers are otherwise
   limited only by the platform's header size, and reading them takes time proportional to their length, also for

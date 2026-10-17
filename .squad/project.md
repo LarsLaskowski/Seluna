@@ -29,6 +29,11 @@ files or endpoints.
   Wrangler and never committed (`.gitignore` ignores `.dev.vars*` and `.env*`, the files Wrangler loads local secrets
   from, except `.dev.vars.example` and `.env.example`, which hold names and descriptions only). Nothing secret is
   logged, returned in a response or kept in plain text in D1 (decision 0007).
+  The reset (`resetCredentials` in `src/store/secrets.ts`) deletes `secrets`, `token_cache` and the key check value
+  only while the credentials cannot be read, behind the session and its CSRF token, in one batch that deletes
+  `token_cache` and then `secrets` only while the key check value and the `secrets` rows are the ones checked, and
+  then the key check value only while it is the one checked and no `secrets` row is left (a credential written in
+  between leaves everything).
 - **Minimal GitHub App permissions:** the manifest requests read-only access to exactly what the rules read (Actions,
   Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts and Metadata, `src/github/manifest.ts`);
   a new permission is a `security`-tier change.
