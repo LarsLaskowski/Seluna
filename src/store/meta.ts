@@ -38,3 +38,9 @@ export async function writeAppSlug(db: D1Database, appId: number, slug: string):
     .bind(GITHUB_APP_SLUG_META_KEY, `${String(appId)}:${slug}`)
     .run();
 }
+
+/** Upsert of `last_delivery` with `time`, for a batch. */
+export function lastDeliveryUpsert(db: D1Database, time: Date): D1PreparedStatement {
+  void [db, time];
+  throw new Error("Not implemented");
+}

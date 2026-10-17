@@ -88,7 +88,7 @@ it("the Telegram step of /setup calls the Bot API through the global fetch of th
   vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => telegram.fetch(new Request(input, init)));
   const workerEnv = { ...env, TELEGRAM_BOT_TOKEN: BOT_TOKEN };
   const ctx = createExecutionContext();
-  const loginPage = await worker.fetch(new Request("https://example.com/setup"), workerEnv);
+  const loginPage = await worker.fetch(new Request("https://example.com/setup"), workerEnv, ctx);
   const csrf = /name="csrf" value="([^"]*)"/.exec(await loginPage.text())?.[1] ?? "";
   const signedIn = await worker.fetch(
     new Request("https://example.com/setup/login", {
@@ -97,11 +97,13 @@ it("the Telegram step of /setup calls the Bot API through the global fetch of th
       body: new URLSearchParams({ csrf, secret: SETUP_SECRET }).toString(),
     }),
     workerEnv,
+    ctx,
   );
 
   const response = await worker.fetch(
     new Request("https://example.com/setup/telegram", { headers: { cookie: cookieHeader(signedIn) } }),
     workerEnv,
+    ctx,
   );
 
   await waitOnExecutionContext(ctx);
@@ -121,11 +123,12 @@ async function withEmptyCredentials(): Promise<void> {
 }
 
 it("the GitHub step of /setup calls the GitHub API through the global fetch of the Worker", async () => {
+  const ctx = createExecutionContext();
   await withEmptyCredentials();
   const github = githubDouble();
   vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => github.fetch(new Request(input, init)));
   const workerEnv = { ...env, GITHUB_WEBHOOK_SECRET: "" };
-  const loginPage = await worker.fetch(new Request("https://example.com/setup"), workerEnv);
+  const loginPage = await worker.fetch(new Request("https://example.com/setup"), workerEnv, ctx);
   const csrf = /name="csrf" value="([^"]*)"/.exec(await loginPage.text())?.[1] ?? "";
   const signedIn = await worker.fetch(
     new Request("https://example.com/setup/login", {
@@ -134,6 +137,7 @@ it("the GitHub step of /setup calls the GitHub API through the global fetch of t
       body: new URLSearchParams({ csrf, secret: SETUP_SECRET }).toString(),
     }),
     workerEnv,
+    ctx,
   );
   const cookies = cookieHeader(signedIn);
   const session = /seluna_session=([^;\s]+)/.exec(cookies)?.[1] ?? "";
@@ -151,6 +155,7 @@ it("the GitHub step of /setup calls the GitHub API through the global fetch of t
       body: new URLSearchParams({ code: FIXTURE_CODE, state }).toString(),
     }),
     workerEnv,
+    ctx,
   );
 
   expect(signedIn.status, "login status").toBe(303);
@@ -163,6 +168,7 @@ it("the GitHub step of /setup calls the GitHub API through the global fetch of t
 });
 
 it("POST /webhook uses the webhook secret stored in D1 through the Worker", async () => {
+  const ctx = createExecutionContext();
   await withEmptyCredentials();
   const stored = await writeSecret(env.DB, await keyFor(SETUP_SECRET), "github_webhook_secret", "my-secret");
   const workerEnv = { ...env, GITHUB_WEBHOOK_SECRET: "" };
@@ -170,6 +176,7 @@ it("POST /webhook uses the webhook secret stored in D1 through the Worker", asyn
   const response = await worker.fetch(
     new Request("https://example.com/webhook", { method: "POST", body, headers }),
     workerEnv,
+    ctx,
   );
 
   expect(stored, "storing the webhook secret").toEqual({ kind: "ok" });

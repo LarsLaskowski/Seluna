@@ -231,3 +231,33 @@ export async function sendMessage(
   }
   return answer.ok && isRecord(answer.body) && answer.body.ok === true ? "sent" : "failed";
 }
+
+/** Longest `retry_after`, in seconds, waited for within one attempt. */
+export const MAX_RETRY_AFTER_SECONDS = 5;
+
+export interface OutgoingMessage {
+  readonly text: string;
+  readonly buttonText: string;
+  readonly buttonUrl: string | undefined;
+  readonly silent: boolean;
+}
+
+export type SendNotificationResult = "sent" | "token-rejected" | "rate-limited" | "failed";
+
+/** `parameters.retry_after` of an unsuccessful answer as a positive safe integer, else `undefined`. */
+export function parseRetryAfter(body: unknown): number | undefined {
+  void body;
+  throw new Error("Not implemented");
+}
+
+/** One `sendMessage` with `parse_mode` HTML, retried once after a 429 of 1–5 s. Never throws. */
+export async function sendNotification(
+  token: string,
+  chatId: number,
+  message: OutgoingMessage,
+  fetcher: TelegramFetch,
+  sleep: (milliseconds: number) => Promise<void>,
+): Promise<SendNotificationResult> {
+  void [token, chatId, message, fetcher, sleep];
+  return Promise.reject(new Error("Not implemented"));
+}

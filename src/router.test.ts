@@ -52,6 +52,7 @@ function makeDeps(
       entries.push(entry);
     },
     webhookSecret: source,
+    webhook: () => Promise.resolve({ status: 202, decision: "no-match", action: null, repository: null }),
     setup,
   };
 }

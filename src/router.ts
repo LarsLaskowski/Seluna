@@ -3,6 +3,7 @@ import { handleSetup, isSetupPath } from "./setup/handler";
 import type { SetupDeps } from "./setup/handler";
 import { SIGNATURE_HEADER, verifySignature } from "./signature";
 import type { WebhookSecretSource } from "./webhook-secret";
+import type { SignedDelivery, WebhookDecision, WebhookOutcome } from "./webhook";
 
 /** One log entry per request; nothing else about the request is logged. */
 export interface RequestLogEntry {
@@ -13,6 +14,12 @@ export interface RequestLogEntry {
   readonly delivery?: string | null;
   /** `POST /webhook` only: `X-GitHub-Event` when it matches its pattern, otherwise `null`. */
   readonly event?: string | null;
+  /** `POST /webhook` only: from the outcome, `null` when the processor did not run. */
+  readonly action?: string | null;
+  /** `POST /webhook` only: from the outcome, `null` when the processor did not run. */
+  readonly repository?: string | null;
+  /** `POST /webhook` only: from the outcome, `null` when the processor did not run. */
+  readonly decision?: WebhookDecision | null;
 }
 
 /** What the routes need from outside. */
@@ -20,6 +27,7 @@ export interface RouteDeps {
   readonly version: string;
   readonly log: (entry: RequestLogEntry) => void;
   readonly webhookSecret: WebhookSecretSource;
+  readonly webhook: (delivery: SignedDelivery) => Promise<WebhookOutcome>;
   readonly setup: SetupDeps;
 }
 
