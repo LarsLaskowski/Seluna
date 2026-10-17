@@ -1,6 +1,8 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { readSetting, writeSetting } from "./settings";
+import { readNotificationSettings, readSetting, writeNotificationSettings, writeSetting } from "./settings";
+import { DEFAULT_SETTINGS } from "../settings";
+import type { NotificationSettings } from "../settings";
 import { applyMigrations, migrationTestDb } from "../../test/d1";
 
 const KEY = "example_key";
@@ -78,5 +80,67 @@ describe("readSetting and writeSetting with a failing database", () => {
     await expect(writeSetting(migrationTestDb(), KEY, "value"), "write on a database without tables").rejects.toThrow(
       /no such table/i,
     );
+  });
+});
+
+const CHANGED_SETTINGS: NotificationSettings = {
+  language: "de",
+  timeZone: "Europe/Berlin",
+  quietHours: { start: "22:00", end: "07:00" },
+  rules: { ...DEFAULT_SETTINGS.rules, dependabot_alert: false, ci_failed_pull_request: false },
+  updateNotice: false,
+};
+
+describe("readNotificationSettings", () => {
+  it("readNotificationSettings returns the defaults on an empty table", async () => {
+    const settings = await readNotificationSettings(env.DB);
+
+    expect(settings, "settings").toEqual(DEFAULT_SETTINGS);
+  });
+
+  it("readNotificationSettings returns a value written after an earlier read", async () => {
+    await readNotificationSettings(env.DB);
+    await writeSetting(env.DB, "notification_language", "de");
+
+    const settings = await readNotificationSettings(env.DB);
+
+    expect(settings.language, "language").toBe("de");
+  });
+});
+
+describe("writeNotificationSettings", () => {
+  it("writeNotificationSettings then readNotificationSettings round-trips every field", async () => {
+    await writeNotificationSettings(env.DB, CHANGED_SETTINGS);
+
+    const settings = await readNotificationSettings(env.DB);
+
+    expect(settings, "settings").toEqual(CHANGED_SETTINGS);
+  });
+
+  it("writeNotificationSettings writes the twelve settings in one batch", async () => {
+    const batchSizes: number[] = [];
+    const db: D1Database = {
+      prepare: (query) => env.DB.prepare(query),
+      exec: (query) => env.DB.exec(query),
+      withSession: (constraintOrBookmark) => env.DB.withSession(constraintOrBookmark),
+      dump: () => Promise.reject(new Error("dump is deprecated and not forwarded")),
+      batch: <T = unknown>(statements: D1PreparedStatement[]) => {
+        batchSizes.push(statements.length);
+        return env.DB.batch<T>(statements);
+      },
+    };
+
+    await writeNotificationSettings(db, CHANGED_SETTINGS);
+
+    expect(batchSizes, "batch calls and their statement counts").toEqual([12]);
+    expect(await rowCount(), "number of rows").toBe(12);
+  });
+
+  it("writeNotificationSettings leaves the Telegram chat row alone", async () => {
+    await writeSetting(env.DB, "telegram_chat_id", "5001001");
+
+    await writeNotificationSettings(env.DB, CHANGED_SETTINGS);
+
+    expect(await storedValue("telegram_chat_id"), "chat row").toBe("5001001");
   });
 });

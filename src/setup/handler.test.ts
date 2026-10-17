@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_BODY_BYTES } from "../body";
 import { LOGIN_ATTEMPTS_META_KEY, LOGIN_LOCK_MS } from "../store/login-attempts";
 import { readSecret, writeSecret } from "../store/secrets";
+import { readNotificationSettings, writeNotificationSettings } from "../store/settings";
+import { DEFAULT_SETTINGS } from "../settings";
+import type { NotificationSettings } from "../settings";
 import { CSRF_COOKIE, csrfTokenFor, sessionCsrfTokenFor } from "./csrf";
 import { createChatProof } from "./chat-proof";
 import { verifyGitHubState } from "./github-state";
@@ -10,6 +13,7 @@ import { handleSetup, isSetupPath } from "./handler";
 import type { SetupDeps } from "./handler";
 import { contentSecurityPolicy, escapeHtml } from "./pages";
 import { createSessionToken, SESSION_COOKIE, SESSION_LIFETIME_MS } from "./session";
+import { RESET_PATH, SETTINGS_PATH } from "./settings-form";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 import { applyMigrations, migrationTestDb, unusedDb } from "../../test/d1";
@@ -46,7 +50,8 @@ beforeEach(async () => {
   await env.DB.prepare("DELETE FROM settings").run();
   await env.DB.batch([
     env.DB.prepare("DELETE FROM secrets"),
-    env.DB.prepare("DELETE FROM meta WHERE key = 'key_check'"),
+    env.DB.prepare("DELETE FROM token_cache"),
+    env.DB.prepare("DELETE FROM meta WHERE key IN ('key_check', 'last_delivery', 'github_app_slug')"),
   ]);
 });
 
@@ -2594,5 +2599,305 @@ describe("handleSetup GitHub forms: bodies, sign-in and failures", () => {
     expect(response.status, "status").toBe(400);
     expectGitHubNoticeOnlyPage(await response.text(), "github-return-invalid");
     expect(github.requests, "GitHub requests").toEqual([]);
+  });
+});
+
+const VALID_SETTINGS_FIELDS: readonly (readonly [string, string])[] = [
+  ["notification_language", "de"],
+  ["time_zone", "Europe/Berlin"],
+  ["quiet_hours", "on"],
+  ["quiet_start", "22:00"],
+  ["quiet_end", "07:00"],
+  ["rule_pull_request_opened", "on"],
+  ["rule_pull_request_ready_for_review", "on"],
+  ["rule_pull_request_review_requested", "on"],
+  ["rule_ci_failed_default_branch", "on"],
+  ["rule_ci_failed_pull_request", "on"],
+  ["rule_code_scanning_alert", "on"],
+  ["rule_secret_scanning_alert", "on"],
+  ["update_notice", "on"],
+];
+
+/** The settings `VALID_SETTINGS_FIELDS` submit: every rule on but the Dependabot alert. */
+const SUBMITTED_SETTINGS: NotificationSettings = {
+  language: "de",
+  timeZone: "Europe/Berlin",
+  quietHours: { start: "22:00", end: "07:00" },
+  rules: { ...DEFAULT_SETTINGS.rules, dependabot_alert: false },
+  updateNotice: true,
+};
+
+/** The fields of a settings form with a valid session-bound token and `extra` appended to the valid fields. */
+async function settingsFormFields(extra: FormFields = []): Promise<FormFields> {
+  return [["csrf", await validCsrf()], ...VALID_SETTINGS_FIELDS, ...extra];
+}
+
+async function tokenCacheCount(): Promise<unknown> {
+  const row = await env.DB.prepare("SELECT COUNT(*) AS total FROM token_cache").first();
+  return row?.total;
+}
+
+async function seedTokenCache(): Promise<void> {
+  await env.DB.prepare("INSERT INTO token_cache (installation_id, iv, ciphertext, expires_at) VALUES (1, ?1, 'x', 1)")
+    .bind("AAAAAAAAAAAAAAAA")
+    .run();
+}
+
+async function putMeta(key: string, value: string): Promise<void> {
+  await env.DB.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES (?1, ?2)").bind(key, value).run();
+}
+
+/** The first `<input>` tag of `html` with the given name, or an empty text. */
+function inputTagOf(html: string, name: string): string {
+  return new RegExp(`<input\\b(?=[^>]*name="${name}")[^>]*>`).exec(html)?.[0] ?? "";
+}
+
+describe("handleSetup status page", () => {
+  it("GET /setup shows version, chat, app and last delivery", async () => {
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('telegram_chat_id', '5001001')").run();
+    await seedAppId(SECRET, "12345");
+    await putMeta("github_app_slug", "12345:seluna-demo");
+    await putMeta("last_delivery", "1792240440000");
+
+    const response = await stepPage(depsAt(), "/setup");
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expectStartPage(html);
+    expect(html, "status heading").toContain(escapeHtml(TEXTS.en.statusHeading));
+    expect(html, "version").toContain("0.0.0-test");
+    expect(html, "chat line").toMatch(new RegExp(`${escapeRegExp(TEXTS.en.telegramChatLabel)}[\\s\\S]{0,40}5001001`));
+    expect(html, "app link").toContain('<a href="https://github.com/apps/seluna-demo">seluna-demo</a>');
+    expect(html, "App ID").toContain(`(${escapeHtml(TEXTS.en.appIdLabel)} 12345)`);
+    expect(html, "last delivery").toContain("2026-10-17 12:34 (UTC)");
+    expect(html, "reset form").not.toContain('action="/setup/reset"');
+    expect(html, "settings form").toContain('action="/setup/settings"');
+  });
+
+  it("GET /setup shows the saved settings as selected", async () => {
+    await writeNotificationSettings(env.DB, SUBMITTED_SETTINGS);
+
+    const response = await stepPage(depsAt(), "/setup");
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "language").toContain('<option value="de" selected>');
+    expect(html, "time zone").toContain('<option value="Europe/Berlin" selected>');
+    expect(inputTagOf(html, "quiet_hours"), "quiet hours").toMatch(/\bchecked\b/);
+    expect(inputTagOf(html, "quiet_start"), "quiet start").toContain('value="22:00"');
+    expect(inputTagOf(html, "quiet_end"), "quiet end").toContain('value="07:00"');
+    expect(inputTagOf(html, "rule_dependabot_alert"), "disabled rule").not.toMatch(/\bchecked\b/);
+    expect(inputTagOf(html, "rule_ci_failed_pull_request"), "enabled rule").toMatch(/\bchecked\b/);
+  });
+
+  it("GET /setup answers 503 with the unavailable notice when D1 fails", async () => {
+    const response = await stepPage(depsAt(NOW.getTime(), { db: migrationTestDb() }), "/setup");
+
+    expect(response.status, "status").toBe(503);
+    const html = await response.text();
+    expectStartPage(html);
+    expect(html, "unavailable notice").toContain(noticeText("unavailable"));
+    expect(html, "Telegram link").toContain(`<a href="/setup/telegram">${escapeHtml(TEXTS.en.telegramHeading)}</a>`);
+    expect(html, "settings form").not.toContain('action="/setup/settings"');
+    expect(html.toLowerCase(), "error text").not.toContain("no such table");
+  });
+});
+
+describe("handleSetup settings form", () => {
+  it("POST /setup/settings stores the settings and answers 303 to /setup", async () => {
+    const deps = depsAt();
+
+    const response = await postSignedIn(SETTINGS_PATH, await settingsFormFields(), deps);
+
+    expect(response.status, "status").toBe(303);
+    expect(response.headers.get("Location"), "Location").toBe("/setup");
+    expect(await readNotificationSettings(env.DB), "stored settings").toEqual(SUBMITTED_SETTINGS);
+  });
+
+  it("POST /setup/settings answers 400 with the settings invalid notice and stores nothing", async () => {
+    const fields: FormFields = [
+      ["csrf", await validCsrf()],
+      ...VALID_SETTINGS_FIELDS.filter(([name]) => name !== "notification_language"),
+      ["notification_language", "fr"],
+    ];
+
+    const response = await postSignedIn(SETTINGS_PATH, fields, depsAt());
+
+    expect(response.status, "status").toBe(400);
+    const html = await response.text();
+    expect(html, "notice").toContain(noticeText("settings-invalid"));
+    expect(html, "status heading").toContain(escapeHtml(TEXTS.en.statusHeading));
+    expect(html, "settings form").toContain('action="/setup/settings"');
+    expect(await settingsRowCount(), "number of settings rows").toBe(0);
+  });
+
+  it("POST /setup/settings answers 503 with the unavailable notice when D1 fails", async () => {
+    const response = await postSignedIn(
+      SETTINGS_PATH,
+      await settingsFormFields(),
+      depsAt(NOW.getTime(), { db: migrationTestDb() }),
+    );
+
+    expect(response.status, "status").toBe(503);
+    const html = await response.text();
+    expect(html, "unavailable notice").toContain(noticeText("unavailable"));
+    expect(html.toLowerCase(), "error text").not.toContain("no such table");
+  });
+});
+
+describe("handleSetup reset form", () => {
+  it("GET /setup shows the reset form when the key check was sealed under another SELUNA_SECRET", async () => {
+    await seedAppId(OTHER_SECRET, "12345");
+
+    const response = await stepPage(depsAt(), "/setup");
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "reset heading").toContain(escapeHtml(TEXTS.en.resetHeading));
+    expect(html, "reset text").toContain(escapeHtml(TEXTS.en.resetText));
+    expect(html, "reset button").toContain(escapeHtml(TEXTS.en.resetButton));
+    expect(html, "reset form").toMatch(/<form\b(?=[^>]*method="post")(?=[^>]*action="\/setup\/reset")[^>]*>/);
+    const resetForm = html.slice(html.indexOf('action="/setup/reset"'));
+    expect(resetForm, "session-bound csrf field").toContain(`name="csrf" value="${await validCsrf()}"`);
+    expect(html, "cannot be read line").toContain(escapeHtml(TEXTS.en.cannotBeRead));
+  });
+
+  it("POST /setup/reset clears the credentials and answers 303 to /setup/github", async () => {
+    await seedAppId(OTHER_SECRET, "12345");
+    await seedTokenCache();
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('telegram_chat_id', '5001001')").run();
+    await putMeta("last_delivery", "1792240440000");
+
+    const response = await postSignedIn(RESET_PATH, [["csrf", await validCsrf()]], depsAt());
+
+    expect(response.status, "status").toBe(303);
+    expect(response.headers.get("Location"), "Location").toBe("/setup/github");
+    expect(await secretsCount(), "number of secrets rows").toBe(0);
+    expect(await keyCheckCount(), "number of key check rows").toBe(0);
+    expect(await tokenCacheCount(), "number of token_cache rows").toBe(0);
+    expect(await savedChat(), "saved chat").toBe("5001001");
+    const delivery = await env.DB.prepare("SELECT value FROM meta WHERE key = 'last_delivery'").first();
+    expect(delivery?.value, "last delivery").toBe("1792240440000");
+  });
+
+  it("GET /setup/github shows the form after a reset", async () => {
+    await seedAppId(OTHER_SECRET, "12345");
+    await postSignedIn(RESET_PATH, [["csrf", await validCsrf()]], depsAt());
+
+    const response = await stepPage(githubDeps(githubDouble()), GITHUB_PATH);
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "account form").toMatch(/<form\b(?=[^>]*method="post")(?=[^>]*action="\/setup\/github")[^>]*>/);
+    expect(html, "reset text").not.toContain(escapeHtml(TEXTS.en.githubResetNeeded));
+  });
+
+  it("POST /setup/reset answers 409 and deletes nothing when no reset is needed", async () => {
+    await seedAppId(SECRET, "12345");
+    await seedTokenCache();
+
+    const response = await postSignedIn(RESET_PATH, [["csrf", await validCsrf()]], depsAt());
+
+    expect(response.status, "status").toBe(409);
+    expect(await response.text(), "notice").toContain(noticeText("reset-not-needed"));
+    expect(await secretsCount(), "number of secrets rows").toBe(1);
+    expect(await keyCheckCount(), "number of key check rows").toBe(1);
+    expect(await tokenCacheCount(), "number of token_cache rows").toBe(1);
+  });
+
+  it("POST /setup/reset answers 403 with a token of another session", async () => {
+    await seedAppId(OTHER_SECRET, "12345");
+    const token = await sessionCsrfToken(await sessionToken(new Date(NOW.getTime() - 3_600_000)));
+
+    const response = await postSignedIn(RESET_PATH, [["csrf", token]], depsAt());
+
+    expect(response.status, "status").toBe(403);
+    expect(await response.text(), "notice").toContain(noticeText("form-expired"));
+    expect(await secretsCount(), "number of secrets rows").toBe(1);
+  });
+
+  it("POST /setup/reset answers 503 with the unavailable notice when D1 fails", async () => {
+    const response = await postSignedIn(
+      RESET_PATH,
+      [["csrf", await validCsrf()]],
+      depsAt(NOW.getTime(), { db: migrationTestDb() }),
+    );
+
+    expect(response.status, "status").toBe(503);
+    const html = await response.text();
+    expect(html, "unavailable notice").toContain(noticeText("unavailable"));
+    expect(html.toLowerCase(), "error text").not.toContain("no such table");
+  });
+});
+
+describe("handleSetup GitHub start with credentials but no key check", () => {
+  it("POST /setup/github answers 409 reset needed when secrets holds a row but no key check", async () => {
+    await seedAppId(SECRET, "12345");
+    await env.DB.prepare("DELETE FROM meta WHERE key = 'key_check'").run();
+    const github = githubDouble();
+
+    const response = await startGitHub(["personal"], ["github"], githubDeps(github));
+
+    expect(response.status, "status").toBe(409);
+    expect(await response.text(), "reset text").toContain(escapeHtml(TEXTS.en.githubResetNeeded));
+    expect(github.requests, "GitHub requests").toEqual([]);
+  });
+});
+
+describe("handleSetup settings and reset forms: protection", () => {
+  const PATHS = [SETTINGS_PATH, RESET_PATH];
+
+  /** The fields of a form to `path` with the given csrf `tokens`: the valid settings fields for the settings form. */
+  function fieldsFor(path: string, tokens: readonly string[]): FormFields {
+    const csrf = tokens.map((token): [string, string] => ["csrf", token]);
+    return path === SETTINGS_PATH ? [...csrf, ...VALID_SETTINGS_FIELDS] : csrf;
+  }
+
+  it.each(
+    PATHS.flatMap((path) => CSRF_FAILURES.map((failure) => ({ path, token: failure.name, tokens: failure.tokens }))),
+  )("POST $path rejects $token with 403", async ({ path, tokens: tokensOf }) => {
+    await seedAppId(OTHER_SECRET, "12345");
+
+    const response = await postSignedIn(path, fieldsFor(path, await tokensOf()), depsAt());
+
+    expect(response.status, "status").toBe(403);
+    const html = await response.text();
+    expectStartPage(html);
+    expect(html, "notice").toContain(noticeText("form-expired"));
+    expect(html, "settings form").not.toContain('action="/setup/settings"');
+    expect(await settingsRowCount(), "number of settings rows").toBe(0);
+    expect(await secretsCount(), "number of secrets rows").toBe(1);
+  });
+
+  it.each(PATHS)("POST %s without a session answers the login page and changes nothing", async (path) => {
+    const response = await call(
+      path,
+      { method: "POST", body: form(fieldsFor(path, [])) },
+      depsAt(NOW.getTime(), { db: unusedDb() }),
+    );
+
+    expect(response.status, "status").toBe(200);
+    expectLoginPage(await response.text());
+  });
+
+  it.each(PATHS)("GET %s answers 404 when signed in", async (path) => {
+    const response = await call(path, { cookies: await signedInCookies() });
+
+    expect(response.status, "status").toBe(404);
+    expect(await response.text(), "body").toBe("");
+  });
+
+  it.each(PATHS)("POST %s answers a body over 1 MiB with 413", async (path) => {
+    await seedAppId(OTHER_SECRET, "12345");
+
+    const response = await call(path, {
+      method: "POST",
+      cookies: await signedInCookies(),
+      body: "a".repeat(MAX_BODY_BYTES + 1),
+    });
+
+    expect(response.status, "status").toBe(413);
+    expect(await response.text(), "body").toBe("");
+    expect(await secretsCount(), "number of secrets rows").toBe(1);
   });
 });

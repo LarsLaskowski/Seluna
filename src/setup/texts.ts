@@ -1,3 +1,4 @@
+import type { RuleId } from "../settings";
 import type { Language } from "./language";
 
 export type Notice =
@@ -21,7 +22,9 @@ export type Notice =
   | "github-unavailable"
   | "github-answer-invalid"
   | "github-owner-mismatch"
-  | "github-store-failed";
+  | "github-store-failed"
+  | "settings-invalid"
+  | "reset-not-needed";
 
 export interface SetupTexts {
   readonly pageTitle: string;
@@ -76,6 +79,32 @@ export interface SetupTexts {
   readonly githubInstallLink: string;
   readonly githubInstallManual: string;
   readonly githubBackLink: string;
+  readonly statusHeading: string;
+  readonly versionLabel: string;
+  readonly telegramChatLabel: string;
+  readonly noneSavedYet: string;
+  readonly chatSecret: string;
+  readonly githubAppLabel: string;
+  readonly appSecrets: string;
+  readonly appPartial: string;
+  readonly appIdLabel: string;
+  readonly cannotBeRead: string;
+  readonly lastDeliveryLabel: string;
+  readonly noneReceivedYet: string;
+  readonly resetHeading: string;
+  readonly resetText: string;
+  readonly resetButton: string;
+  readonly startPageLink: string;
+  readonly settingsHeading: string;
+  readonly notificationLanguageLabel: string;
+  readonly timeZoneLabel: string;
+  readonly quietHoursLabel: string;
+  readonly quietStartLabel: string;
+  readonly quietEndLabel: string;
+  readonly rulesLabel: string;
+  readonly updateNoticeLabel: string;
+  readonly saveSettingsButton: string;
+  readonly ruleLabels: Readonly<Record<RuleId, string>>;
   readonly notConfiguredHeading: string;
   readonly notConfiguredParagraphs: readonly string[];
   readonly notices: Readonly<Record<Notice, string>>;
@@ -121,7 +150,7 @@ const ENGLISH: SetupTexts = {
   githubPartialWorkerSecrets:
     "Some, but not all, of the Worker secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET are set. Set all three to configure the app by hand, or delete them to create the app here.",
   githubResetNeeded:
-    "The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. Set the earlier SELUNA_SECRET again, or delete the saved credentials in the Cloudflare dashboard (the rows of the D1 table secrets and the row key_check of the table meta), then create the app again.",
+    "The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. Set the earlier SELUNA_SECRET again, or reset the saved credentials on the start page and create the app again.",
   githubSavedApp: "Saved GitHub App, App ID:",
   githubNoSavedApp: "No GitHub App is saved yet.",
   githubReplaceHint:
@@ -149,6 +178,43 @@ const ENGLISH: SetupTexts = {
   githubInstallManual:
     "Install it on GitHub: in the settings of your account or organization, open Developer settings, then GitHub Apps, choose the app and select Install App. Choosing All repositories is recommended, so that new repositories are covered too.",
   githubBackLink: "Back to the GitHub App step",
+  statusHeading: "Status",
+  versionLabel: "Version:",
+  telegramChatLabel: "Telegram chat:",
+  noneSavedYet: "None saved yet.",
+  chatSecret: "Set by the Worker secret TELEGRAM_CHAT_ID.",
+  githubAppLabel: "GitHub App:",
+  appSecrets: "Set by the Worker secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET.",
+  appPartial:
+    "Only some of the Worker secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET are set.",
+  appIdLabel: "App ID",
+  cannotBeRead: "Cannot be read with the current SELUNA_SECRET.",
+  lastDeliveryLabel: "Last delivery from GitHub:",
+  noneReceivedYet: "None received yet.",
+  resetHeading: "The saved credentials cannot be read",
+  resetText:
+    "The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials and installation tokens, and you create the GitHub App again. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept.",
+  resetButton: "Reset and create the GitHub App again",
+  startPageLink: "Open the start page",
+  settingsHeading: "Settings",
+  notificationLanguageLabel: "Language of the notifications",
+  timeZoneLabel: "Time zone",
+  quietHoursLabel: "Quiet hours: notifications arrive without sound",
+  quietStartLabel: "Start",
+  quietEndLabel: "End",
+  rulesLabel: "Notify me about",
+  updateNoticeLabel: "Tell me when a new Seluna release is available",
+  saveSettingsButton: "Save settings",
+  ruleLabels: {
+    pull_request_opened: "New pull request",
+    pull_request_ready_for_review: "Pull request ready for review",
+    pull_request_review_requested: "Review requested",
+    ci_failed_default_branch: "CI failed on the default branch",
+    ci_failed_pull_request: "CI failed in a pull request",
+    dependabot_alert: "Dependabot alert",
+    code_scanning_alert: "Code scanning alert",
+    secret_scanning_alert: "Secret scanning alert",
+  },
   notConfiguredHeading: "SELUNA_SECRET is not set",
   notConfiguredParagraphs: [
     "The setup cannot start because the Worker secret SELUNA_SECRET is missing or shorter than 32 characters.",
@@ -194,6 +260,9 @@ const ENGLISH: SetupTexts = {
       "This app does not belong to the account you chose in Seluna, so nothing was saved. If you created it yourself, delete it on GitHub and start again with the name of the account you are signed in to on GitHub, or of the organization.",
     "github-store-failed":
       "GitHub created the app, but saving its credentials failed, so nothing was saved. Delete the app on GitHub and start again.",
+    "settings-invalid":
+      "The settings were not saved. Check the values: quiet hours need a start and an end in the form 22:00, and the two must differ.",
+    "reset-not-needed": "The saved credentials can be read with the current SELUNA_SECRET, so nothing was reset.",
   },
 };
 
@@ -237,7 +306,7 @@ const GERMAN: SetupTexts = {
   githubPartialWorkerSecrets:
     "Einige, aber nicht alle der Worker-Secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY und GITHUB_WEBHOOK_SECRET sind gesetzt. Setze alle drei, um die App von Hand zu konfigurieren, oder lösche sie, um die App hier zu erstellen.",
   githubResetNeeded:
-    "Die gespeicherten GitHub-Zugangsdaten lassen sich mit dem aktuellen SELUNA_SECRET nicht lesen: Es wurde geändert, oder die gespeicherten Werte sind beschädigt. Setze das frühere SELUNA_SECRET wieder, oder lösche die gespeicherten Zugangsdaten im Cloudflare-Dashboard (die Zeilen der D1-Tabelle secrets und die Zeile key_check der Tabelle meta) und erstelle die App danach erneut.",
+    "Die gespeicherten GitHub-Zugangsdaten lassen sich mit dem aktuellen SELUNA_SECRET nicht lesen: Es wurde geändert, oder die gespeicherten Werte sind beschädigt. Setze das frühere SELUNA_SECRET wieder, oder setze die gespeicherten Zugangsdaten auf der Startseite zurück und erstelle die App danach erneut.",
   githubSavedApp: "Gespeicherte GitHub-App, App-ID:",
   githubNoSavedApp: "Es ist noch keine GitHub-App gespeichert.",
   githubReplaceHint:
@@ -266,6 +335,43 @@ const GERMAN: SetupTexts = {
   githubInstallManual:
     "Installiere sie auf GitHub: Öffne in den Einstellungen deines Kontos oder deiner Organisation Developer settings, dann GitHub Apps, wähle die App und klicke auf Install App. Empfohlen ist die Auswahl All repositories, damit auch neue Repositories erfasst werden.",
   githubBackLink: "Zurück zum Schritt GitHub-App",
+  statusHeading: "Status",
+  versionLabel: "Version:",
+  telegramChatLabel: "Telegram-Chat:",
+  noneSavedYet: "Noch nichts gespeichert.",
+  chatSecret: "Gesetzt durch das Worker-Secret TELEGRAM_CHAT_ID.",
+  githubAppLabel: "GitHub-App:",
+  appSecrets: "Gesetzt durch die Worker-Secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY und GITHUB_WEBHOOK_SECRET.",
+  appPartial:
+    "Nur einige der Worker-Secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY und GITHUB_WEBHOOK_SECRET sind gesetzt.",
+  appIdLabel: "App-ID",
+  cannotBeRead: "Mit dem aktuellen SELUNA_SECRET nicht lesbar.",
+  lastDeliveryLabel: "Letzte Zustellung von GitHub:",
+  noneReceivedYet: "Noch nichts empfangen.",
+  resetHeading: "Die gespeicherten Zugangsdaten sind nicht lesbar",
+  resetText:
+    "Die gespeicherten GitHub-Zugangsdaten sind mit dem aktuellen SELUNA_SECRET nicht lesbar: Es wurde geändert, oder die gespeicherten Werte sind beschädigt. Wenn du das frühere SELUNA_SECRET noch kennst, setze es stattdessen wieder. Andernfalls setze zurück: Seluna löscht die gespeicherten GitHub-Zugangsdaten und Installations-Tokens, und du erstellst die GitHub-App neu. Lösche die alte App danach auf GitHub: in den Einstellungen deines Kontos oder deiner Organisation unter Developer settings, dann GitHub Apps. Der Telegram-Chat und die Einstellungen bleiben erhalten.",
+  resetButton: "Zurücksetzen und GitHub-App neu erstellen",
+  startPageLink: "Startseite öffnen",
+  settingsHeading: "Einstellungen",
+  notificationLanguageLabel: "Sprache der Benachrichtigungen",
+  timeZoneLabel: "Zeitzone",
+  quietHoursLabel: "Ruhezeiten: Benachrichtigungen kommen ohne Ton",
+  quietStartLabel: "Beginn",
+  quietEndLabel: "Ende",
+  rulesLabel: "Benachrichtige mich über",
+  updateNoticeLabel: "Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist",
+  saveSettingsButton: "Einstellungen speichern",
+  ruleLabels: {
+    pull_request_opened: "Neuer Pull Request",
+    pull_request_ready_for_review: "Pull Request bereit zum Review",
+    pull_request_review_requested: "Review angefordert",
+    ci_failed_default_branch: "CI auf dem Standard-Branch fehlgeschlagen",
+    ci_failed_pull_request: "CI in einem Pull Request fehlgeschlagen",
+    dependabot_alert: "Dependabot-Warnung",
+    code_scanning_alert: "Code-Scanning-Warnung",
+    secret_scanning_alert: "Secret-Scanning-Warnung",
+  },
   notConfiguredHeading: "SELUNA_SECRET ist nicht gesetzt",
   notConfiguredParagraphs: [
     "Die Einrichtung kann nicht starten, weil das Worker-Secret SELUNA_SECRET fehlt oder kürzer als 32 Zeichen ist.",
@@ -312,6 +418,10 @@ const GERMAN: SetupTexts = {
       "Diese App gehört nicht zu dem Konto, das du in Seluna gewählt hast, daher wurde nichts gespeichert. Wenn du sie selbst erstellt hast, lösche sie auf GitHub und beginne erneut mit dem Namen des Kontos, bei dem du auf GitHub angemeldet bist, oder der Organisation.",
     "github-store-failed":
       "GitHub hat die App erstellt, aber das Speichern ihrer Zugangsdaten ist fehlgeschlagen, daher wurde nichts gespeichert. Lösche die App auf GitHub und beginne erneut.",
+    "settings-invalid":
+      "Die Einstellungen wurden nicht gespeichert. Prüfe die Werte: Ruhezeiten brauchen einen Beginn und ein Ende in der Form 22:00, und beide müssen sich unterscheiden.",
+    "reset-not-needed":
+      "Die gespeicherten Zugangsdaten sind mit dem aktuellen SELUNA_SECRET lesbar, daher wurde nichts zurückgesetzt.",
   },
 };
 

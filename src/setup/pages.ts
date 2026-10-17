@@ -2,15 +2,24 @@ import type { AccountChoice } from "../github/manifest";
 import type { Language } from "./language";
 import type { TelegramChat } from "../telegram";
 import type { GitHubStepView } from "./github-step";
+import { RULE_IDS, timeZones } from "../settings";
+import type { NotificationSettings } from "../settings";
+import { RESET_PATH, SETTINGS_PATH } from "./settings-form";
+import { formatDeliveryTime } from "./status";
+import type { AppStatus, ChatStatus, StatusView } from "./status";
 import type { TelegramProblem, TelegramStepView } from "./telegram-step";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
+
+const DEFAULT_QUIET_START = "22:00";
+const DEFAULT_QUIET_END = "07:00";
 
 /** The content of every page's single `<style>` element. */
 export const STYLE =
   "body{font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem;line-height:1.5}" +
   "label,input{display:block;width:100%;box-sizing:border-box}input{margin:.25rem 0 1rem;padding:.5rem}" +
-  "input[type=radio]{display:inline;width:auto;margin:0 .5rem 0 0}" +
+  "select{display:block;width:100%;box-sizing:border-box;margin:.25rem 0 1rem;padding:.5rem}" +
+  "input[type=radio],input[type=checkbox]{display:inline;width:auto;margin:0 .5rem 0 0}" +
   "button{padding:.5rem 1rem}.notice{padding:.5rem;border:1px solid currentcolor}nav{font-size:.9rem}";
 
 const SECURITY_HEADERS: Readonly<Record<string, string>> = {
@@ -78,17 +87,142 @@ export function renderLoginPage(language: Language, csrfToken: string, notice?: 
   );
 }
 
-/** The start page of the signed-in owner; links like the login page. */
-export function renderStartPage(language: Language, csrfToken: string, notice?: Notice): string {
+/** What the start page shows: the status and the settings, or only the notice, the step links and sign-out. */
+export type StartPageView = { readonly kind: "status"; readonly status: StatusView } | { readonly kind: "notice-only" };
+
+function stepLinksHtml(language: Language): string {
   const texts = TEXTS[language];
-  return layout(
-    language,
-    `<h1>${escapeHtml(texts.startHeading)}</h1>\n<p>${escapeHtml(texts.startBody)}</p>\n${noticeHtml(language, notice)}\n` +
-      `<ul>\n<li><a href="/setup/telegram">${escapeHtml(texts.telegramHeading)}</a></li>\n` +
-      `<li><a href="/setup/github">${escapeHtml(texts.githubHeading)}</a></li>\n</ul>\n` +
-      `<form method="post" action="/setup/logout">\n${csrfInput(csrfToken)}\n` +
-      `<button type="submit">${escapeHtml(texts.logoutButton)}</button>\n</form>`,
+  return (
+    `<ul>\n<li><a href="/setup/telegram">${escapeHtml(texts.telegramHeading)}</a></li>\n` +
+    `<li><a href="/setup/github">${escapeHtml(texts.githubHeading)}</a></li>\n</ul>`
   );
+}
+
+function logoutFormHtml(language: Language, csrfToken: string): string {
+  return (
+    `<form method="post" action="/setup/logout">\n${csrfInput(csrfToken)}\n` +
+    `<button type="submit">${escapeHtml(TEXTS[language].logoutButton)}</button>\n</form>`
+  );
+}
+
+function chatStatusHtml(language: Language, chat: ChatStatus): string {
+  const texts = TEXTS[language];
+  switch (chat.kind) {
+    case "secret":
+      return escapeHtml(texts.chatSecret);
+    case "saved":
+      return `<code>${String(chat.chatId)}</code>`;
+    case "none":
+      return escapeHtml(texts.noneSavedYet);
+    default: {
+      const unreachable: never = chat;
+      return unreachable;
+    }
+  }
+}
+
+function appStatusHtml(language: Language, app: AppStatus): string {
+  const texts = TEXTS[language];
+  switch (app.kind) {
+    case "worker-secrets":
+      return escapeHtml(texts.appSecrets);
+    case "partial-worker-secrets":
+      return escapeHtml(texts.appPartial);
+    case "saved": {
+      const appId = `${escapeHtml(texts.appIdLabel)} ${String(app.appId)}`;
+      return app.slug === undefined
+        ? appId
+        : `<a href="https://github.com/apps/${escapeHtml(app.slug)}">${escapeHtml(app.slug)}</a> (${appId})`;
+    }
+    case "none":
+      return escapeHtml(texts.noneSavedYet);
+    case "unreadable":
+      return escapeHtml(texts.cannotBeRead);
+    default: {
+      const unreachable: never = app;
+      return unreachable;
+    }
+  }
+}
+
+function statusHtml(language: Language, status: StatusView): string {
+  const texts = TEXTS[language];
+  const delivery =
+    status.lastDelivery === undefined
+      ? escapeHtml(texts.noneReceivedYet)
+      : escapeHtml(formatDeliveryTime(status.lastDelivery, status.settings.timeZone));
+  return (
+    `<h2>${escapeHtml(texts.statusHeading)}</h2>\n` +
+    `<p>${escapeHtml(texts.versionLabel)} <code>${escapeHtml(status.version)}</code></p>\n` +
+    `<p>${escapeHtml(texts.telegramChatLabel)} ${chatStatusHtml(language, status.chat)}</p>\n` +
+    `<p>${escapeHtml(texts.githubAppLabel)} ${appStatusHtml(language, status.app)}</p>\n` +
+    `<p>${escapeHtml(texts.lastDeliveryLabel)} ${delivery}</p>`
+  );
+}
+
+function resetHtml(language: Language, csrfToken: string): string {
+  const texts = TEXTS[language];
+  return (
+    `<h2>${escapeHtml(texts.resetHeading)}</h2>\n<p>${escapeHtml(texts.resetText)}</p>\n` +
+    `<form method="post" action="${RESET_PATH}">\n${csrfInput(csrfToken)}\n` +
+    `<button type="submit">${escapeHtml(texts.resetButton)}</button>\n</form>`
+  );
+}
+
+function optionHtml(value: string, label: string, selected: boolean): string {
+  return `<option value="${escapeHtml(value)}"${selected ? " selected" : ""}>${escapeHtml(label)}</option>`;
+}
+
+function checkboxHtml(name: string, label: string, checked: boolean): string {
+  return `<label><input type="checkbox" name="${name}" value="on"${checked ? " checked" : ""}> ${escapeHtml(label)}</label>`;
+}
+
+function settingsFormHtml(language: Language, csrfToken: string, settings: NotificationSettings): string {
+  const texts = TEXTS[language];
+  const { quietHours } = settings;
+  const zones = timeZones().map((zone) => optionHtml(zone, zone, zone === settings.timeZone));
+  const rules = RULE_IDS.map((id) => checkboxHtml(`rule_${id}`, texts.ruleLabels[id], settings.rules[id]));
+  return (
+    `<h2>${escapeHtml(texts.settingsHeading)}</h2>\n<form method="post" action="${SETTINGS_PATH}">\n${csrfInput(csrfToken)}\n` +
+    `<label for="notification_language">${escapeHtml(texts.notificationLanguageLabel)}</label>\n` +
+    `<select id="notification_language" name="notification_language">\n` +
+    `${optionHtml("en", "English", settings.language === "en")}\n${optionHtml("de", "Deutsch", settings.language === "de")}\n</select>\n` +
+    `<label for="time_zone">${escapeHtml(texts.timeZoneLabel)}</label>\n` +
+    `<select id="time_zone" name="time_zone">\n${zones.join("\n")}\n</select>\n` +
+    `${checkboxHtml("quiet_hours", texts.quietHoursLabel, quietHours !== undefined)}\n` +
+    `<label for="quiet_start">${escapeHtml(texts.quietStartLabel)}</label>\n` +
+    `<input id="quiet_start" type="time" name="quiet_start" value="${quietHours?.start ?? DEFAULT_QUIET_START}">\n` +
+    `<label for="quiet_end">${escapeHtml(texts.quietEndLabel)}</label>\n` +
+    `<input id="quiet_end" type="time" name="quiet_end" value="${quietHours?.end ?? DEFAULT_QUIET_END}">\n` +
+    `<p>${escapeHtml(texts.rulesLabel)}</p>\n${rules.join("\n")}\n` +
+    `${checkboxHtml("update_notice", texts.updateNoticeLabel, settings.updateNotice)}\n` +
+    `<button type="submit">${escapeHtml(texts.saveSettingsButton)}</button>\n</form>`
+  );
+}
+
+/** The start page of the signed-in owner: status, reset when needed, step links, settings form and sign-out. */
+export function renderStartPage(language: Language, csrfToken: string, view: StartPageView, notice?: Notice): string {
+  const texts = TEXTS[language];
+  const head = `<h1>${escapeHtml(texts.startHeading)}</h1>\n<p>${escapeHtml(texts.startBody)}</p>\n${noticeHtml(language, notice)}`;
+  switch (view.kind) {
+    case "notice-only":
+      return layout(language, `${head}\n${stepLinksHtml(language)}\n${logoutFormHtml(language, csrfToken)}`);
+    case "status": {
+      const sections = [
+        head,
+        statusHtml(language, view.status),
+        ...(view.status.resetNeeded ? [resetHtml(language, csrfToken)] : []),
+        stepLinksHtml(language),
+        settingsFormHtml(language, csrfToken, view.status.settings),
+        logoutFormHtml(language, csrfToken),
+      ];
+      return layout(language, sections.join("\n"));
+    }
+    default: {
+      const unreachable: never = view;
+      return unreachable;
+    }
+  }
 }
 
 /** The page that explains how to set `SELUNA_SECRET`; links like the login page. */
@@ -283,7 +417,7 @@ export function renderGitHubPage(language: Language, csrfToken: string, view: Gi
       body = `${heading}\n<p>${escapeHtml(texts.githubPartialWorkerSecrets)}</p>`;
       break;
     case "reset-needed":
-      body = `${heading}\n<p>${escapeHtml(texts.githubResetNeeded)}</p>`;
+      body = `${heading}\n<p>${escapeHtml(texts.githubResetNeeded)}</p>\n<p><a href="/setup">${escapeHtml(texts.startPageLink)}</a></p>`;
       break;
     case "notice-only":
       body = `${heading}\n${noticeHtml(language, notice)}\n${githubBackLink(language)}`;

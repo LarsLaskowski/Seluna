@@ -14,6 +14,9 @@ import {
   STYLE,
 } from "./pages";
 import type { GitHubPageView, TelegramPageView } from "./pages";
+import { DEFAULT_SETTINGS, RULE_IDS } from "../settings";
+import type { NotificationSettings } from "../settings";
+import type { StatusView } from "./status";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 import type { TelegramChat } from "../telegram";
@@ -32,6 +35,8 @@ const NOTICES: readonly Notice[] = [
   "github-answer-invalid",
   "github-owner-mismatch",
   "github-store-failed",
+  "settings-invalid",
+  "reset-not-needed",
 ];
 const CSRF_TOKEN = "T".repeat(43);
 
@@ -52,7 +57,12 @@ const CODE_VIEW: TelegramPageView = {
 /** Every page in each language, with the links it has besides the two language links. */
 const PAGES = LANGUAGES.flatMap((language) => [
   { page: "login", language, links: [] as string[], html: () => renderLoginPage(language, CSRF_TOKEN) },
-  { page: "start", language, links: [TELEGRAM_LINK, GITHUB_LINK], html: () => renderStartPage(language, CSRF_TOKEN) },
+  {
+    page: "start",
+    language,
+    links: [TELEGRAM_LINK, GITHUB_LINK],
+    html: () => renderStartPage(language, CSRF_TOKEN, { kind: "notice-only" }),
+  },
   { page: "not-configured", language, links: [] as string[], html: () => renderNotConfiguredPage(language) },
   {
     page: "telegram chats",
@@ -189,7 +199,7 @@ describe("renderStartPage", () => {
   it.each(LANGUAGES.map((language) => ({ language })))(
     "renderStartPage links to the Telegram step in $language",
     ({ language }) => {
-      const page = renderStartPage(language, CSRF_TOKEN);
+      const page = renderStartPage(language, CSRF_TOKEN, { kind: "notice-only" });
 
       expect(page, "link to the Telegram step with the Telegram heading as text").toContain(
         `<a href="/setup/telegram">${escapeHtml(TEXTS[language].telegramHeading)}</a>`,
@@ -251,7 +261,7 @@ describe("renderStartPage GitHub step", () => {
   it.each(LANGUAGES.map((language) => ({ language })))(
     "renderStartPage links to the GitHub step in $language",
     ({ language }) => {
-      const page = renderStartPage(language, CSRF_TOKEN);
+      const page = renderStartPage(language, CSRF_TOKEN, { kind: "notice-only" });
 
       expect(page, "link to the GitHub step with the GitHub heading as text").toContain(
         `<a href="/setup/github">${escapeHtml(TEXTS[language].githubHeading)}</a>`,
@@ -304,7 +314,7 @@ const GITHUB_PAGES = LANGUAGES.flatMap((language) => {
     {
       page: "github reset-needed",
       language,
-      links: [GITHUB_LINK],
+      links: [GITHUB_LINK, "/setup"],
       external: [] as string[],
       html: view({ kind: "reset-needed" }),
     },
@@ -395,6 +405,19 @@ describe("the GitHub pages", () => {
 
 describe("renderGitHubPage", () => {
   it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderGitHubPage reset-needed view links to the start page in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+
+      const page = renderGitHubPage(language, CSRF_TOKEN, { kind: "reset-needed" });
+
+      expect(page, "reset text followed by the start page link").toContain(
+        `<p>${escapeHtml(texts.githubResetNeeded)}</p>\n<p><a href="/setup">${escapeHtml(texts.startPageLink)}</a></p>`,
+      );
+    },
+  );
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
     "renderGitHubPage shows the heading and the notice of a notice-only view with a link back to the step in $language",
     ({ language }) => {
       const page = renderGitHubPage(language, CSRF_TOKEN, { kind: "notice-only" }, "github-state-invalid");
@@ -464,3 +487,222 @@ function hiddenInput(name: string, value: string): RegExp {
 function escapeRegExp(text: string): string {
   return text.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
+
+const DELIVERY_AT_UTC = new Date(Date.UTC(2026, 9, 17, 12, 34));
+
+function statusViewWith(changes: Partial<StatusView> = {}): StatusView {
+  return {
+    version: "1.2.3-test",
+    chat: { kind: "saved", chatId: -1_001_234_567_890 },
+    app: { kind: "saved", appId: 12_345, slug: "seluna-demo" },
+    lastDelivery: DELIVERY_AT_UTC,
+    resetNeeded: false,
+    settings: DEFAULT_SETTINGS,
+    ...changes,
+  };
+}
+
+function startPage(language: Language, changes: Partial<StatusView> = {}, notice?: Notice): string {
+  return renderStartPage(language, CSRF_TOKEN, { kind: "status", status: statusViewWith(changes) }, notice);
+}
+
+/** The first `<input>` tag of `html` with the given name, or an empty text. */
+function inputTag(html: string, name: string): string {
+  return new RegExp(`<input\\b(?=[^>]*name="${name}")[^>]*>`).exec(html)?.[0] ?? "";
+}
+
+describe("renderStartPage status", () => {
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderStartPage shows the status lines in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+
+      const page = startPage(language);
+
+      expect(page, "status heading").toContain(escapeHtml(texts.statusHeading));
+      expect(page, "version line").toMatch(new RegExp(`${escapeHtml(texts.versionLabel)}[\\s\\S]{0,40}1\\.2\\.3-test`));
+      expect(page, "chat line").toMatch(
+        new RegExp(`${escapeHtml(texts.telegramChatLabel)}[\\s\\S]{0,40}-1001234567890`),
+      );
+      expect(page, "app line").toContain(escapeHtml(texts.githubAppLabel));
+      expect(page, "App ID").toContain(`(${escapeHtml(texts.appIdLabel)} 12345)`);
+      expect(page, "delivery line").toMatch(
+        new RegExp(`${escapeHtml(texts.lastDeliveryLabel)}[\\s\\S]{0,40}2026-10-17 12:34 \\(UTC\\)`),
+      );
+      const order = [
+        texts.statusHeading,
+        texts.versionLabel,
+        texts.telegramChatLabel,
+        texts.githubAppLabel,
+        texts.lastDeliveryLabel,
+        texts.settingsHeading,
+      ].map((text) => page.indexOf(escapeHtml(text)));
+      expect(order, "the status lines come in this order and before the settings").toEqual(
+        [...order].sort((a, b) => a - b),
+      );
+      expect(Math.min(...order), "every text is on the page").toBeGreaterThanOrEqual(0);
+    },
+  );
+
+  it("renderStartPage writes the last delivery in the time zone of the settings", () => {
+    const settings: NotificationSettings = { ...DEFAULT_SETTINGS, timeZone: "Europe/Berlin" };
+
+    const page = startPage("en", { settings });
+
+    expect(page, "delivery time").toContain("2026-10-17 14:34 (Europe/Berlin)");
+  });
+
+  it("renderStartPage links and escapes the app slug", () => {
+    const linked = startPage("en");
+    const hostile = startPage("en", { app: { kind: "saved", appId: 12_345, slug: 'x"><script>y' } });
+
+    expect(linked, "link to the app").toContain('<a href="https://github.com/apps/seluna-demo">seluna-demo</a>');
+    expect(hostile, "raw script tag").not.toContain("<script>");
+  });
+
+  it.each([
+    { case: "the Worker secret for the chat", changes: { chat: { kind: "secret" } }, key: "chatSecret" },
+    { case: "no saved chat", changes: { chat: { kind: "none" } }, key: "noneSavedYet" },
+    { case: "the GitHub Worker secrets", changes: { app: { kind: "worker-secrets" } }, key: "appSecrets" },
+    { case: "some GitHub Worker secrets", changes: { app: { kind: "partial-worker-secrets" } }, key: "appPartial" },
+    { case: "no saved app", changes: { app: { kind: "none" } }, key: "noneSavedYet" },
+    { case: "an unreadable app", changes: { app: { kind: "unreadable" } }, key: "cannotBeRead" },
+    { case: "no delivery yet", changes: { lastDelivery: undefined }, key: "noneReceivedYet" },
+  ] as const)("renderStartPage shows the text for $case in English and German", ({ changes, key }) => {
+    const english = startPage("en", changes);
+    const german = startPage("de", changes);
+
+    expect(english, "English text").toContain(escapeHtml(TEXTS.en[key]));
+    expect(german, "German text").toContain(escapeHtml(TEXTS.de[key]));
+  });
+
+  it("renderStartPage shows an app without a slug by its App ID alone", () => {
+    const page = startPage("en", { app: { kind: "saved", appId: 12_345, slug: undefined } });
+
+    expect(page, "App ID").toContain(`${escapeHtml(TEXTS.en.appIdLabel)} 12345`);
+    expect(page, "link to an app").not.toContain("https://github.com/apps/");
+  });
+
+  it("renderStartPage notice-only view carries the notice, the step links and the sign-out form", () => {
+    const page = renderStartPage("en", CSRF_TOKEN, { kind: "notice-only" }, "unavailable");
+
+    expect(page, "notice").toContain(escapeHtml(TEXTS.en.notices.unavailable));
+    expect(page, "Telegram link").toContain(`<a href="/setup/telegram">${escapeHtml(TEXTS.en.telegramHeading)}</a>`);
+    expect(page, "GitHub link").toContain(`<a href="/setup/github">${escapeHtml(TEXTS.en.githubHeading)}</a>`);
+    expect(page, "sign-out form").toContain('action="/setup/logout"');
+    expect(page, "settings form").not.toContain('action="/setup/settings"');
+    expect(page, "status heading").not.toContain(escapeHtml(TEXTS.en.statusHeading));
+  });
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderStartPage shows the notice above the status page in $language",
+    ({ language }) => {
+      const page = startPage(language, {}, "settings-invalid");
+
+      expect(page, "notice").toContain(escapeHtml(TEXTS[language].notices["settings-invalid"]));
+      expect(page, "status heading").toContain(escapeHtml(TEXTS[language].statusHeading));
+    },
+  );
+});
+
+describe("renderStartPage reset section", () => {
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderStartPage shows the reset section with its form when a reset is needed in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+
+      const page = startPage(language, { resetNeeded: true, app: { kind: "unreadable" } });
+
+      expect(page, "reset heading").toContain(escapeHtml(texts.resetHeading));
+      expect(page, "reset text").toContain(escapeHtml(texts.resetText));
+      expect(page, "reset button").toContain(escapeHtml(texts.resetButton));
+      expect(page, "reset form").toMatch(/<form\b(?=[^>]*method="post")(?=[^>]*action="\/setup\/reset")[^>]*>/);
+      const afterForm = page.slice(page.indexOf('action="/setup/reset"'));
+      expect(afterForm, "csrf field in the reset form").toContain(`name="csrf" value="${CSRF_TOKEN}"`);
+    },
+  );
+
+  it("renderStartPage shows no reset form when no reset is needed", () => {
+    const page = startPage("en", { resetNeeded: false });
+
+    expect(page, "reset form").not.toContain('action="/setup/reset"');
+    expect(page, "reset heading").not.toContain(escapeHtml(TEXTS.en.resetHeading));
+  });
+});
+
+describe("renderStartPage settings form", () => {
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderStartPage renders the settings form with the defaults in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+
+      const page = startPage(language);
+
+      expect(page, "settings heading").toContain(escapeHtml(texts.settingsHeading));
+      expect(page, "form").toMatch(/<form\b(?=[^>]*method="post")(?=[^>]*action="\/setup\/settings")[^>]*>/);
+      expect(page, "language label").toContain(escapeHtml(texts.notificationLanguageLabel));
+      expect(page, "English option selected").toContain('<option value="en" selected>');
+      expect(page, "German option").toContain('<option value="de">');
+      expect(page, "time zone label").toContain(escapeHtml(texts.timeZoneLabel));
+      expect(page, "UTC selected").toContain('<option value="UTC" selected>');
+      expect(page, "another time zone").toContain('<option value="Europe/Berlin">');
+      expect(inputTag(page, "quiet_hours"), "quiet hours checkbox").toMatch(/type="checkbox"/);
+      expect(inputTag(page, "quiet_hours"), "quiet hours checkbox").toMatch(/value="on"/);
+      expect(inputTag(page, "quiet_hours"), "quiet hours off").not.toMatch(/\bchecked\b/);
+      expect(inputTag(page, "quiet_start"), "start field").toMatch(
+        /type="time"[^>]*value="22:00"|value="22:00"[^>]*type="time"/,
+      );
+      expect(inputTag(page, "quiet_end"), "end field").toMatch(
+        /type="time"[^>]*value="07:00"|value="07:00"[^>]*type="time"/,
+      );
+      expect(inputTag(page, "quiet_start"), "start field is not required").not.toMatch(/\brequired\b/);
+      expect(inputTag(page, "update_notice"), "update notice on").toMatch(/\bchecked\b/);
+      expect(page, "rules label").toContain(escapeHtml(texts.rulesLabel));
+      expect(page, "update notice label").toContain(escapeHtml(texts.updateNoticeLabel));
+      expect(page, "save button").toContain(escapeHtml(texts.saveSettingsButton));
+    },
+  );
+
+  it.each(LANGUAGES.flatMap((language) => RULE_IDS.map((id) => ({ language, id }))))(
+    "renderStartPage renders a checked checkbox and a label for the rule $id in $language",
+    ({ language, id }) => {
+      const page = startPage(language);
+
+      expect(inputTag(page, `rule_${id}`), "checkbox").toMatch(
+        /type="checkbox"[^>]*value="on"|value="on"[^>]*type="checkbox"/,
+      );
+      expect(inputTag(page, `rule_${id}`), "rule is on").toMatch(/\bchecked\b/);
+      expect(page, "label").toContain(escapeHtml(TEXTS[language].ruleLabels[id]));
+    },
+  );
+
+  it("renderStartPage renders the saved settings as selected and checked", () => {
+    const settings: NotificationSettings = {
+      language: "de",
+      timeZone: "Europe/Berlin",
+      quietHours: { start: "21:30", end: "06:15" },
+      rules: { ...DEFAULT_SETTINGS.rules, dependabot_alert: false },
+      updateNotice: false,
+    };
+
+    const page = startPage("en", { settings });
+
+    expect(page, "German selected").toContain('<option value="de" selected>');
+    expect(page, "English not selected").toContain('<option value="en">');
+    expect(page, "zone selected").toContain('<option value="Europe/Berlin" selected>');
+    expect(page, "UTC not selected").toContain('<option value="UTC">');
+    expect(inputTag(page, "quiet_hours"), "quiet hours on").toMatch(/\bchecked\b/);
+    expect(inputTag(page, "quiet_start"), "start").toContain('value="21:30"');
+    expect(inputTag(page, "quiet_end"), "end").toContain('value="06:15"');
+    expect(inputTag(page, "rule_dependabot_alert"), "switched-off rule").not.toMatch(/\bchecked\b/);
+    expect(inputTag(page, "rule_code_scanning_alert"), "rule still on").toMatch(/\bchecked\b/);
+    expect(inputTag(page, "update_notice"), "update notice off").not.toMatch(/\bchecked\b/);
+  });
+
+  it("renderStartPage puts the session-bound token into the settings form", () => {
+    const page = startPage("en");
+
+    const afterForm = page.slice(page.indexOf('action="/setup/settings"'));
+    expect(afterForm, "csrf field").toContain(`name="csrf" value="${CSRF_TOKEN}"`);
+  });
+});

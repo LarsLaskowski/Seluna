@@ -23,7 +23,7 @@ describe("TEXTS", () => {
     expect(TEXTS.en.notConfiguredParagraphs.length, "English not-configured paragraphs").toBeGreaterThan(0);
     expect(TEXTS.de.notConfiguredParagraphs.length, "German not-configured paragraphs").toBeGreaterThan(0);
     expect(Object.keys(TEXTS.de.notices), "German notice keys").toEqual(Object.keys(TEXTS.en.notices));
-    expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(21);
+    expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(23);
   });
 
   it("texts word the English notices as the area document does", () => {
@@ -66,6 +66,9 @@ describe("TEXTS", () => {
         "This app does not belong to the account you chose in Seluna, so nothing was saved. If you created it yourself, delete it on GitHub and start again with the name of the account you are signed in to on GitHub, or of the organization.",
       "github-store-failed":
         "GitHub created the app, but saving its credentials failed, so nothing was saved. Delete the app on GitHub and start again.",
+      "settings-invalid":
+        "The settings were not saved. Check the values: quiet hours need a start and an end in the form 22:00, and the two must differ.",
+      "reset-not-needed": "The saved credentials can be read with the current SELUNA_SECRET, so nothing was reset.",
     });
   });
 
@@ -163,7 +166,7 @@ describe("TEXTS", () => {
       githubPartialWorkerSecrets:
         "Some, but not all, of the Worker secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET are set. Set all three to configure the app by hand, or delete them to create the app here.",
       githubResetNeeded:
-        "The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. Set the earlier SELUNA_SECRET again, or delete the saved credentials in the Cloudflare dashboard (the rows of the D1 table secrets and the row key_check of the table meta), then create the app again.",
+        "The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. Set the earlier SELUNA_SECRET again, or reset the saved credentials on the start page and create the app again.",
       githubSavedApp: "Saved GitHub App, App ID:",
       githubNoSavedApp: "No GitHub App is saved yet.",
       githubReplaceHint:
@@ -191,6 +194,80 @@ describe("TEXTS", () => {
       githubInstallManual:
         "Install it on GitHub: in the settings of your account or organization, open Developer settings, then GitHub Apps, choose the app and select Install App. Choosing All repositories is recommended, so that new repositories are covered too.",
       githubBackLink: "Back to the GitHub App step",
+    });
+  });
+
+  it("texts word the English status page and settings as the area document does", () => {
+    const { en } = TEXTS;
+
+    expect(
+      {
+        statusHeading: en.statusHeading,
+        versionLabel: en.versionLabel,
+        telegramChatLabel: en.telegramChatLabel,
+        noneSavedYet: en.noneSavedYet,
+        chatSecret: en.chatSecret,
+        githubAppLabel: en.githubAppLabel,
+        appSecrets: en.appSecrets,
+        appPartial: en.appPartial,
+        appIdLabel: en.appIdLabel,
+        cannotBeRead: en.cannotBeRead,
+        lastDeliveryLabel: en.lastDeliveryLabel,
+        noneReceivedYet: en.noneReceivedYet,
+        resetHeading: en.resetHeading,
+        resetText: en.resetText,
+        resetButton: en.resetButton,
+        startPageLink: en.startPageLink,
+        settingsHeading: en.settingsHeading,
+        notificationLanguageLabel: en.notificationLanguageLabel,
+        timeZoneLabel: en.timeZoneLabel,
+        quietHoursLabel: en.quietHoursLabel,
+        quietStartLabel: en.quietStartLabel,
+        quietEndLabel: en.quietEndLabel,
+        rulesLabel: en.rulesLabel,
+        updateNoticeLabel: en.updateNoticeLabel,
+        saveSettingsButton: en.saveSettingsButton,
+        ruleLabels: en.ruleLabels,
+      },
+      "English status and settings texts",
+    ).toEqual({
+      statusHeading: "Status",
+      versionLabel: "Version:",
+      telegramChatLabel: "Telegram chat:",
+      noneSavedYet: "None saved yet.",
+      chatSecret: "Set by the Worker secret TELEGRAM_CHAT_ID.",
+      githubAppLabel: "GitHub App:",
+      appSecrets: "Set by the Worker secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET.",
+      appPartial:
+        "Only some of the Worker secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET are set.",
+      appIdLabel: "App ID",
+      cannotBeRead: "Cannot be read with the current SELUNA_SECRET.",
+      lastDeliveryLabel: "Last delivery from GitHub:",
+      noneReceivedYet: "None received yet.",
+      resetHeading: "The saved credentials cannot be read",
+      resetText:
+        "The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials and installation tokens, and you create the GitHub App again. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept.",
+      resetButton: "Reset and create the GitHub App again",
+      startPageLink: "Open the start page",
+      settingsHeading: "Settings",
+      notificationLanguageLabel: "Language of the notifications",
+      timeZoneLabel: "Time zone",
+      quietHoursLabel: "Quiet hours: notifications arrive without sound",
+      quietStartLabel: "Start",
+      quietEndLabel: "End",
+      rulesLabel: "Notify me about",
+      updateNoticeLabel: "Tell me when a new Seluna release is available",
+      saveSettingsButton: "Save settings",
+      ruleLabels: {
+        pull_request_opened: "New pull request",
+        pull_request_ready_for_review: "Pull request ready for review",
+        pull_request_review_requested: "Review requested",
+        ci_failed_default_branch: "CI failed on the default branch",
+        ci_failed_pull_request: "CI failed in a pull request",
+        dependabot_alert: "Dependabot alert",
+        code_scanning_alert: "Code scanning alert",
+        secret_scanning_alert: "Secret scanning alert",
+      },
     });
   });
 });

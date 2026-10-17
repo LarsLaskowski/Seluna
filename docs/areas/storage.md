@@ -46,8 +46,23 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
 |               | `value`           | TEXT    | The value as text                                                                    |
 
 - `settings` holds the owner's choices: the language, the time zone, the quiet hours, the enabled rules, the
-  update notice and the Telegram chat id. The keys and their formats are defined by the change that introduces
-  each setting.
+  update notice and the Telegram chat id. The notification settings are twelve rows with these keys and formats;
+  an absent row, or a value that does not fit its format, reads as the default of that row alone (code:
+  `settingsFromStored` in `src/settings.ts`), and the twelve rows are written in one batch:
+
+| Key                     | Value                                                                                                                                                                                                                                        | Default |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `notification_language` | `en` or `de`                                                                                                                                                                                                                                 | `en`    |
+| `time_zone`             | a name of `Intl.supportedValuesOf("timeZone")` of the runtime, or `UTC` (exact, case-sensitive)                                                                                                                                              | `UTC`   |
+| `quiet_hours`           | `off`, or `<start>-<end>` with two different `HH:MM` times (24-hour, `00:00` to `23:59`)                                                                                                                                                     | `off`   |
+| `rule_<id>`             | `on` or `off`, for each of `pull_request_opened`, `pull_request_ready_for_review`, `pull_request_review_requested`, `ci_failed_default_branch`, `ci_failed_pull_request`, `dependabot_alert`, `code_scanning_alert`, `secret_scanning_alert` | `on`    |
+| `update_notice`         | `on` or `off`                                                                                                                                                                                                                                | `on`    |
+
+The quiet hours are one row: switching them off stores `off` and drops the times. Consumers read them only
+through `readNotificationSettings` or `settingsFromStored`, as `quietHours` (start inclusive, end exclusive).
+The runtime of this repository (the Workers test pool) lists 418 names and does not list `UTC`, which is
+therefore added; aliases such as `US/Pacific` are accepted or rejected exactly as the runtime's list says.
+
 - The `settings` key `telegram_chat_id` holds the decimal text of the Telegram chat id (negative for a group). Only
   the setup wizard writes it, and only after the owner typed back the code of a successful test message
   ([Setup wizard](setup-wizard.md#telegram-chat)); a stored value that is not a chat id counts as no chat.
@@ -57,8 +72,15 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
   secrets `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_WEBHOOK_SECRET` take precedence over the stored value
   of the same credential.
 - `meta` holds the last notified release, the time of the last delivery, the key check value
-  (`key_check`, below) and the setup login's failed-attempt count (`login_attempts`, format and rules in
-  [Setup wizard](setup-wizard.md#failed-attempts-and-the-lock)).
+  (`key_check`, below), the GitHub App's slug and the setup login's failed-attempt count (`login_attempts`, format
+  and rules in [Setup wizard](setup-wizard.md#failed-attempts-and-the-lock)).
+- The `meta` row `last_delivery` is the time of the last received webhook delivery, as decimal milliseconds since
+  1970-01-01 UTC matching `^(0|[1-9]\d{0,15})$` and at most `8640000000000000` (the latest time a JavaScript `Date`
+  holds); a value that does not fit counts as no delivery. The webhook handler writes it (issue 12); the setup
+  wizard only reads it.
+- The `meta` row `github_app_slug` is `<appId>:<slug>`: `<appId>` the decimal App ID, `<slug>` matching
+  `^[a-z0-9-]{1,100}$`. It is plain text (a slug is public) and is written by the GitHub App step after the three
+  credentials were stored; it counts only for the App ID in its value, any other value reads as absent.
 - Wrangler keeps its own record of the applied migrations in the table `d1_migrations`; no Seluna code reads or
   writes it.
 
@@ -136,8 +158,23 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
   three upserts changed one row (the key check insert of a first write is not counted); any other result is tried
   once more from the check and then reported as **corrupt**, with nothing of the three left half written by the
   attempt.
+- `checkKey` reports the same states: **corrupt** for an absent key check value beside a stored credential (it used
+  to report _unset_, after which every write failed), **unset** only while `secrets` is empty.
 - **Secret changed** is the dedicated result the setup wizard shows; its remedy is a reset that clears the
-  stored credentials and the key check value and runs the setup again. **Corrupt** leads to the same reset.
+  stored credentials, the installation tokens and the key check value and runs the setup again. **Corrupt** leads
+  to the same reset.
+- The reset (`resetCredentials`) is needed when the key check value is **secret changed** or **corrupt**, when it is
+  absent beside a stored credential, or when a stored credential does not decrypt under a matching key check value
+  (`needsReset`). It reads the key check value (as SQLite's `quote()` text), every `secrets` row and the secrets
+  fingerprint (`quote(key) || ':' || quote(iv)` of every row in key order, computed by SQLite) in one batch, decides
+  from what it read and then runs one batch of three deletes in this order: (1) `token_cache` and (2) `secrets`,
+  each only while the key check value and the fingerprint are still the ones read; (3) the `key_check` row, only
+  while its value is the one read and no `secrets` row is left. Each statement sees the changes of the earlier ones,
+  which is why the shared guard stands only on the first two. Every credential write draws a new IV, so a write
+  between the read and the delete, also one that keeps the key check value, changes the fingerprint: the first two
+  deletes remove nothing, the rows stay, and the third finds `secrets` not empty and removes nothing. The reset
+  answers _reset_ whether or not the guarded batch deleted rows. It keeps the settings, the other `meta` rows (the
+  Telegram chat is a setting) and `login_attempts`.
   The reset always creates new GitHub App credentials and never stores old ones again: D1's Time Travel keeps
   earlier states of the database, including the deleted rows, for a while after the reset (Cloudflare documents
   up to 30 days).

@@ -81,6 +81,9 @@ process entry point) is added to both with a decision record — never to `sonar
 from the analysis too. Vitest's `coverage.include` (Istanbul) covers the same production files, so a file no test
 imports still counts as uncovered instead of missing from the report.
 
+Duplication exclusions live in `sonar.cpd.exclusions` in `sonar-project.properties`, only for files that hold
+nothing but data, each with a decision record (0019); never use `sonar.exclusions` for this.
+
 ## Writing code
 
 - ES modules; `import type` for type-only imports (`verbatimModuleSyntax`).

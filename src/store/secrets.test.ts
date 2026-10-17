@@ -1,7 +1,16 @@
 import { env } from "cloudflare:workers";
 import { assert, beforeEach, describe, expect, it } from "vitest";
 import { encrypt } from "../crypto";
-import { checkKey, KEY_CHECK_META_KEY, KEY_CHECK_PLAINTEXT, readSecret, writeSecret, writeSecrets } from "./secrets";
+import {
+  checkKey,
+  KEY_CHECK_META_KEY,
+  KEY_CHECK_PLAINTEXT,
+  needsReset,
+  readSecret,
+  resetCredentials,
+  writeSecret,
+  writeSecrets,
+} from "./secrets";
 import type { SecretName } from "./secrets";
 import { applyMigrations } from "../../test/d1";
 import { keyFor, withFirstCharacterChanged } from "../../test/keys";
@@ -15,7 +24,12 @@ const KEY_CHECK_FORM = /^[A-Za-z0-9+/]{16}\.[A-Za-z0-9+/]+={0,2}$/;
 
 beforeEach(async () => {
   await applyMigrations(env.DB);
-  await env.DB.batch([env.DB.prepare("DELETE FROM secrets"), env.DB.prepare("DELETE FROM meta")]);
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM secrets"),
+    env.DB.prepare("DELETE FROM meta"),
+    env.DB.prepare("DELETE FROM token_cache"),
+    env.DB.prepare("DELETE FROM settings"),
+  ]);
 });
 
 async function allRows(sql: string): Promise<Record<string, unknown>[]> {
@@ -568,5 +582,193 @@ describe("writeSecrets", () => {
 
     expect(result, "write result").toEqual({ kind: "ok" });
     expect(batchSizes, "one attempt of the key check insert and three upserts").toEqual([4]);
+  });
+});
+
+describe("checkKey beside stored credentials", () => {
+  it("checkKey reports corrupt when the key check is absent but secrets holds a row", async () => {
+    await seed(SECRET_A, "github_app_id", "12345");
+    await env.DB.prepare("DELETE FROM meta WHERE key = ?1").bind(KEY_CHECK_META_KEY).run();
+
+    const result = await checkKey(env.DB, await keyFor(SECRET_A));
+
+    expect(result, "key check result").toBe("corrupt");
+  });
+});
+
+/** Stores two installation tokens; their content is irrelevant to the tests. */
+async function seedTokenCache(): Promise<void> {
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO token_cache (installation_id, iv, ciphertext, expires_at) VALUES (1, ?1, 'x', 1)").bind(
+      "AAAAAAAAAAAAAAAA",
+    ),
+    env.DB.prepare("INSERT INTO token_cache (installation_id, iv, ciphertext, expires_at) VALUES (2, ?1, 'y', 2)").bind(
+      "BBBBBBBBBBBBBBBB",
+    ),
+  ]);
+}
+
+function tokenCacheRows(): Promise<Record<string, unknown>[]> {
+  return allRows("SELECT installation_id, iv, ciphertext, expires_at FROM token_cache ORDER BY installation_id");
+}
+
+/** Replaces the ciphertext of the stored credential `name` by an altered one. */
+async function alterCiphertext(name: SecretName): Promise<void> {
+  const stored = await rawSecret(name);
+  await runSql(
+    "UPDATE secrets SET ciphertext = ?1 WHERE key = ?2",
+    withFirstCharacterChanged(stored.ciphertext),
+    name,
+  )();
+}
+
+/**
+ * A D1 double over `env.DB` that runs `step` (SQL on `env.DB`) before the second `batch` call, which is the guarded
+ * delete after the one batch that reads the state, and forwards everything.
+ */
+function interferingBeforeDelete(step: () => Promise<void>): D1Database {
+  let batches = 0;
+  return {
+    prepare: (query) => env.DB.prepare(query),
+    exec: (query) => env.DB.exec(query),
+    withSession: (constraintOrBookmark) => env.DB.withSession(constraintOrBookmark),
+    dump: () => Promise.reject(new Error("dump is deprecated and not forwarded")),
+    batch: async <T = unknown>(statements: D1PreparedStatement[]) => {
+      batches += 1;
+      if (batches === 2) {
+        await step();
+      }
+      return env.DB.batch<T>(statements);
+    },
+  };
+}
+
+describe("needsReset", () => {
+  it.each([
+    { case: "false for an empty database", prepare: () => Promise.resolve(), expected: false },
+    {
+      case: "false when the key check and the credentials match",
+      prepare: () => seedAll(SECRET_A, OLD_CREDENTIALS),
+      expected: false,
+    },
+    {
+      case: "true when the key check was sealed under another secret",
+      prepare: () => seedAll(SECRET_B, OLD_CREDENTIALS),
+      expected: true,
+    },
+    {
+      case: "true when the key check is absent but secrets holds a row",
+      prepare: async () => {
+        await seed(SECRET_A, "github_app_id", "12345");
+        await env.DB.prepare("DELETE FROM meta").run();
+      },
+      expected: true,
+    },
+    {
+      case: "true when the key matches but a credential was altered",
+      prepare: async () => {
+        await seedAll(SECRET_A, OLD_CREDENTIALS);
+        await alterCiphertext("github_private_key");
+      },
+      expected: true,
+    },
+  ])("needsReset reports $case", async ({ prepare, expected }) => {
+    await prepare();
+
+    const result = await needsReset(env.DB, await keyFor(SECRET_A));
+
+    expect(result, "result").toBe(expected);
+  });
+});
+
+describe("resetCredentials", () => {
+  it("resetCredentials deletes secrets, token_cache and key_check and keeps settings and other meta rows", async () => {
+    await seedAll(SECRET_B, OLD_CREDENTIALS);
+    await seedTokenCache();
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('telegram_chat_id', '5001001')").run();
+    await env.DB.prepare("INSERT INTO meta (key, value) VALUES ('last_delivery', '1792240440000')").run();
+
+    const result = await resetCredentials(env.DB, await keyFor(SECRET_A));
+
+    expect(result, "result").toBe("reset");
+    expect(await secretRows(), "secrets rows").toEqual([]);
+    expect(await tokenCacheRows(), "token_cache rows").toEqual([]);
+    expect(await storedKeyCheck(), "key check row").toBeUndefined();
+    expect(await metaRows(), "other meta rows").toEqual([{ key: "last_delivery", value: "1792240440000" }]);
+    expect(await allRows("SELECT key, value FROM settings"), "settings rows").toEqual([
+      { key: "telegram_chat_id", value: "5001001" },
+    ]);
+  });
+
+  it("resetCredentials returns not-needed and deletes nothing when the key matches", async () => {
+    await seedAll(SECRET_A, OLD_CREDENTIALS);
+    await seedTokenCache();
+    const secretsBefore = await secretRows();
+    const metaBefore = await metaRows();
+    const tokensBefore = await tokenCacheRows();
+
+    const result = await resetCredentials(env.DB, await keyFor(SECRET_A));
+
+    expect(result, "result").toBe("not-needed");
+    expect(await secretRows(), "secrets rows").toEqual(secretsBefore);
+    expect(await metaRows(), "meta rows").toEqual(metaBefore);
+    expect(await tokenCacheRows(), "token_cache rows").toEqual(tokensBefore);
+  });
+
+  it("resetCredentials deletes nothing when the key check changed after its check", async () => {
+    await seedAll(SECRET_B, OLD_CREDENTIALS);
+    await seedTokenCache();
+    const secretsBefore = await secretRows();
+    const tokensBefore = await tokenCacheRows();
+    const replaced = await seedKeyCheck(SECRET_B, KEY_CHECK_PLAINTEXT);
+    const db = interferingBeforeDelete(async () => {
+      await putKeyCheck(replaced);
+    });
+
+    const result = await resetCredentials(db, await keyFor(SECRET_A));
+
+    expect(result, "result").toBe("reset");
+    expect(await secretRows(), "secrets rows").toEqual(secretsBefore);
+    expect(await tokenCacheRows(), "token_cache rows").toEqual(tokensBefore);
+    expect(await storedKeyCheck(), "replaced key check row").toBe(replaced);
+  });
+
+  it("resetCredentials deletes nothing when a credential was rewritten after its check", async () => {
+    const key = await keyFor(SECRET_A);
+    await seedAll(SECRET_A, OLD_CREDENTIALS);
+    await alterCiphertext("github_private_key");
+    await seedTokenCache();
+    const keyCheckBefore = await storedKeyCheck();
+    const tokensBefore = await tokenCacheRows();
+    const db = interferingBeforeDelete(async () => {
+      const written = await writeSecrets(env.DB, key, CREDENTIALS);
+      expect(written, "rewriting the credentials").toEqual({ kind: "ok" });
+    });
+
+    const result = await resetCredentials(db, key);
+
+    expect(result, "result").toBe("reset");
+    expect(await secretRows(), "number of secrets rows").toHaveLength(3);
+    expect(await readSecret(env.DB, key, "github_app_id"), "App ID").toEqual({ kind: "ok", value: "12345" });
+    expect(await readSecret(env.DB, key, "github_private_key"), "private key").toEqual({ kind: "ok", value: PEM });
+    expect(await readSecret(env.DB, key, "github_webhook_secret"), "webhook secret").toEqual({
+      kind: "ok",
+      value: "whsec-0123456789",
+    });
+    expect(await tokenCacheRows(), "token_cache rows").toEqual(tokensBefore);
+    expect(await storedKeyCheck(), "key check row").toBe(keyCheckBefore);
+  });
+
+  it("resetCredentials deletes when the stored key check value is not text", async () => {
+    await seedAll(SECRET_A, OLD_CREDENTIALS);
+    await env.DB.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES (?1, ?2)")
+      .bind(KEY_CHECK_META_KEY, new Uint8Array([1, 2, 3]))
+      .run();
+
+    const result = await resetCredentials(env.DB, await keyFor(SECRET_A));
+
+    expect(result, "result").toBe("reset");
+    expect(await secretRows(), "secrets rows").toEqual([]);
+    expect(await storedKeyCheck(), "key check row").toBeUndefined();
   });
 });

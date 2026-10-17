@@ -85,12 +85,6 @@ async function evaluateKeyCheck(key: CryptoKey, row: unknown): Promise<KeyCheckE
   return plaintext === KEY_CHECK_PLAINTEXT ? { result: "match", stored: value } : { result: "corrupt" };
 }
 
-/** Compares the stored key check value with `key` (the key from `keyFromEnv`). */
-export async function checkKey(db: D1Database, key: CryptoKey): Promise<KeyCheckResult> {
-  const row = await db.prepare(SELECT_KEY_CHECK).bind(KEY_CHECK_META_KEY).first();
-  return (await evaluateKeyCheck(key, row)).result;
-}
-
 /** The first row of the results of one batched statement, or `undefined`. */
 function firstRow(result: unknown): unknown {
   const rows: unknown = typeof result === "object" && result !== null && "results" in result ? result.results : [];
@@ -103,6 +97,23 @@ function sealedOf(row: unknown): { readonly iv: string; readonly ciphertext: str
   }
   const { iv, ciphertext } = row;
   return typeof iv === "string" && typeof ciphertext === "string" ? { iv, ciphertext } : undefined;
+}
+
+const SELECT_SECRETS_PRESENT = "SELECT EXISTS (SELECT 1 FROM secrets) AS present";
+
+/** Compares the stored key check value with `key` (the key from `keyFromEnv`); an absent key check beside stored credentials is `corrupt`. */
+export async function checkKey(db: D1Database, key: CryptoKey): Promise<KeyCheckResult> {
+  const [keyCheckResult, presentResult] = await db.batch([
+    db.prepare(SELECT_KEY_CHECK).bind(KEY_CHECK_META_KEY),
+    db.prepare(SELECT_SECRETS_PRESENT),
+  ]);
+  const { result } = await evaluateKeyCheck(key, firstRow(keyCheckResult));
+  if (result !== "unset") {
+    return result;
+  }
+  const present: unknown = firstRow(presentResult);
+  const flag: unknown = typeof present === "object" && present !== null && "present" in present ? present.present : 0;
+  return flag === 1 ? "corrupt" : "unset";
 }
 
 /** Reads and decrypts one credential in one D1 round trip. D1 errors are not caught. */
@@ -210,4 +221,103 @@ export function writeSecrets(
     ["github_private_key", values.github_private_key],
     ["github_webhook_secret", values.github_webhook_secret],
   ]);
+}
+
+const SELECT_KEY_CHECK_PINNED = "SELECT value, quote(value) AS pinned FROM meta WHERE key = ?1";
+const SELECT_ALL_SECRETS = "SELECT key, iv, ciphertext FROM secrets";
+/** The SQLite expression of the credentials' fingerprint: key and IV of every `secrets` row, in key order. */
+const FINGERPRINT =
+  "(SELECT group_concat(quote(key) || ':' || quote(iv), ',') FROM (SELECT key, iv FROM secrets ORDER BY key))";
+const SELECT_FINGERPRINT = `SELECT ${FINGERPRINT} AS fingerprint`;
+const RESET_GUARD = `(SELECT quote(value) FROM meta WHERE key = 'key_check') IS ?1 AND ${FINGERPRINT} IS ?2`;
+const DELETE_TOKEN_CACHE = `DELETE FROM token_cache WHERE ${RESET_GUARD}`;
+const DELETE_SECRETS = `DELETE FROM secrets WHERE ${RESET_GUARD}`;
+const DELETE_KEY_CHECK =
+  "DELETE FROM meta WHERE key = 'key_check' AND (SELECT quote(value) FROM meta WHERE key = 'key_check') IS ?1 " +
+  "AND NOT EXISTS (SELECT 1 FROM secrets)";
+
+interface CredentialState {
+  readonly needsReset: boolean;
+  /** `quote(value)` of the key check row, `null` when the row is absent. */
+  readonly pinned: string | null;
+  /** The fingerprint of the `secrets` rows, `null` for an empty table. */
+  readonly fingerprint: string | null;
+}
+
+function textOf(row: unknown, name: string): string | null {
+  if (typeof row !== "object" || row === null || !(name in row)) {
+    return null;
+  }
+  const value: unknown = Reflect.get(row, name);
+  return typeof value === "string" ? value : null;
+}
+
+function allRows(result: unknown): readonly unknown[] {
+  const rows: unknown = typeof result === "object" && result !== null && "results" in result ? result.results : [];
+  return Array.isArray(rows) ? rows : [];
+}
+
+/** Whether a stored credential row decrypts under `key`. */
+async function decryptsUnder(key: CryptoKey, row: unknown): Promise<boolean> {
+  const name = textOf(row, "key");
+  const sealed = sealedOf(row);
+  return name !== null && sealed !== undefined && (await decrypt(key, sealed, `secrets/${name}`)) !== undefined;
+}
+
+/** Reads the key check, the credentials and the pins of the reset guard in one batch. */
+async function readCredentialState(db: D1Database, key: CryptoKey): Promise<CredentialState> {
+  const [keyCheckResult, secretsResult, fingerprintResult] = await db.batch([
+    db.prepare(SELECT_KEY_CHECK_PINNED).bind(KEY_CHECK_META_KEY),
+    db.prepare(SELECT_ALL_SECRETS),
+    db.prepare(SELECT_FINGERPRINT),
+  ]);
+  const keyCheckRow = firstRow(keyCheckResult);
+  const rows = allRows(secretsResult);
+  const { result } = await evaluateKeyCheck(key, keyCheckRow);
+  let reset: boolean;
+  switch (result) {
+    case "changed":
+    case "corrupt":
+      reset = true;
+      break;
+    case "unset":
+      reset = rows.length > 0;
+      break;
+    case "match":
+      reset = !(await Promise.all(rows.map((row) => decryptsUnder(key, row)))).every(Boolean);
+      break;
+    default: {
+      const unreachable: never = result;
+      return unreachable;
+    }
+  }
+  return {
+    needsReset: reset,
+    pinned: textOf(keyCheckRow, "pinned"),
+    fingerprint: textOf(firstRow(fingerprintResult), "fingerprint"),
+  };
+}
+
+/** Whether the saved credentials cannot be read with `key` (changed or corrupt key check, or a credential that does not decrypt). D1 errors are not caught. */
+export async function needsReset(db: D1Database, key: CryptoKey): Promise<boolean> {
+  return (await readCredentialState(db, key)).needsReset;
+}
+
+export type ResetResult = "reset" | "not-needed";
+
+/**
+ * Deletes the credentials, the installation tokens and the key check value while the credentials cannot be read
+ * with `key` and are unchanged since the check. D1 errors are not caught.
+ */
+export async function resetCredentials(db: D1Database, key: CryptoKey): Promise<ResetResult> {
+  const state = await readCredentialState(db, key);
+  if (!state.needsReset) {
+    return "not-needed";
+  }
+  await db.batch([
+    db.prepare(DELETE_TOKEN_CACHE).bind(state.pinned, state.fingerprint),
+    db.prepare(DELETE_SECRETS).bind(state.pinned, state.fingerprint),
+    db.prepare(DELETE_KEY_CHECK).bind(state.pinned),
+  ]);
+  return "reset";
 }

@@ -1,5 +1,7 @@
 import { MAX_BODY_BYTES, readBodyWithLimit } from "../body";
 import { isSelunaSecretConfigured, keyFromEnv, signingKeyFromEnv, verifySelunaSecret } from "../crypto";
+import { resetCredentials } from "../store/secrets";
+import { writeNotificationSettings } from "../store/settings";
 import { clearLoginAttempts, reserveLoginAttempt } from "../store/login-attempts";
 import type { GitHubFetch } from "../github/conversion";
 import type { TelegramFetch } from "../telegram";
@@ -27,7 +29,7 @@ import {
   renderStartPage,
   renderTelegramPage,
 } from "./pages";
-import type { GitHubPageView, TelegramPageView } from "./pages";
+import type { GitHubPageView, StartPageView, TelegramPageView } from "./pages";
 import {
   ACCOUNT_FIELD,
   ACCOUNT_TYPE_FIELD,
@@ -40,6 +42,8 @@ import {
   returnFields,
   startGitHubApp,
 } from "./github-step";
+import { parseSettingsForm, RESET_PATH, SETTINGS_PATH } from "./settings-form";
+import { statusView } from "./status";
 import { createSessionToken, isValidSessionToken, SESSION_COOKIE, SESSION_LIFETIME_MS } from "./session";
 import {
   CHAT_FIELD,
@@ -89,7 +93,7 @@ interface Context {
 /** Which form a page carries or a submission belongs to; a signed-in form names the session its token is bound to. */
 type SetupForm =
   | { readonly kind: "login" }
-  | { readonly kind: "start"; readonly session: string }
+  | { readonly kind: "start"; readonly session: string; readonly view: StartPageView }
   | { readonly kind: "telegram"; readonly session: string; readonly view: TelegramPageView }
   | { readonly kind: "github"; readonly session: string; readonly view: GitHubPageView };
 
@@ -123,6 +127,7 @@ async function formPage(context: Context, form: SetupForm, status: number, notic
       html = renderStartPage(
         context.language,
         await sessionCsrfTokenFor(context.csrfKey, form.session, cookieValue),
+        form.view,
         notice,
       );
       break;
@@ -226,7 +231,7 @@ async function signIn(context: Context): Promise<Response> {
 }
 
 async function signOut(context: Context, session: string): Promise<Response> {
-  const start: SetupForm = { kind: "start", session };
+  const start: SetupForm = { kind: "start", session, view: { kind: "notice-only" } };
   const form = await readForm(context);
   if (form instanceof Response) {
     return form;
@@ -526,10 +531,83 @@ function stepRoute(context: Context, session: string, pathname: string): Promise
     : undefined;
 }
 
+const START_NOTICE_ONLY: StartPageView = { kind: "notice-only" };
+
+/** The start page with the status view at `status`; a D1 failure answers 503 with the notice-only page. */
+async function startPage(context: Context, session: string, status: number, notice?: Notice): Promise<Response> {
+  const { env, db, version } = context.deps;
+  let view: StartPageView;
+  try {
+    view = { kind: "status", status: await statusView(env, db, context.storageKey, version) };
+  } catch {
+    // The error is deliberately dropped: it must reach neither the log nor the response.
+    return formPage(context, { kind: "start", session, view: START_NOTICE_ONLY }, 503, "unavailable");
+  }
+  return formPage(context, { kind: "start", session, view }, status, notice);
+}
+
+/** The fields of a signed-in start page form whose CSRF token is valid, or the response that ends the request. */
+async function readStartForm(context: Context, session: string): Promise<URLSearchParams | Response> {
+  const form = await readForm(context);
+  if (form instanceof Response) {
+    return form;
+  }
+  const start: SetupForm = { kind: "start", session, view: START_NOTICE_ONLY };
+  return (await hasValidCsrf(context, form, start)) ? form : formPage(context, start, 403, "form-expired");
+}
+
+async function saveSettings(context: Context, session: string): Promise<Response> {
+  const form = await readStartForm(context, session);
+  if (form instanceof Response) {
+    return form;
+  }
+  const settings = parseSettingsForm(form);
+  if (settings === undefined) {
+    return startPage(context, session, 400, "settings-invalid");
+  }
+  try {
+    await writeNotificationSettings(context.deps.db, settings);
+  } catch {
+    // The error is deliberately dropped: it must reach neither the log nor the response.
+    return formPage(context, { kind: "start", session, view: START_NOTICE_ONLY }, 503, "unavailable");
+  }
+  return plain(context, 303, [], SETUP_PATH);
+}
+
+async function resetSaved(context: Context, session: string): Promise<Response> {
+  const form = await readStartForm(context, session);
+  if (form instanceof Response) {
+    return form;
+  }
+  let result: Awaited<ReturnType<typeof resetCredentials>>;
+  try {
+    result = await resetCredentials(context.deps.db, context.storageKey);
+  } catch {
+    // The error is deliberately dropped: it must reach neither the log nor the response.
+    return formPage(context, { kind: "start", session, view: START_NOTICE_ONLY }, 503, "unavailable");
+  }
+  switch (result) {
+    case "reset":
+      return plain(context, 303, [], GITHUB_STEP_PATH);
+    case "not-needed":
+      return startPage(context, session, 409, "reset-not-needed");
+    default: {
+      const unreachable: never = result;
+      return unreachable;
+    }
+  }
+}
+
 async function signedIn(context: Context, session: string, pathname: string): Promise<Response> {
   const { method } = context.request;
   if (method === "GET" && pathname === SETUP_PATH) {
-    return formPage(context, { kind: "start", session }, 200);
+    return startPage(context, session, 200);
+  }
+  if (method === "POST" && pathname === SETTINGS_PATH) {
+    return saveSettings(context, session);
+  }
+  if (method === "POST" && pathname === RESET_PATH) {
+    return resetSaved(context, session);
   }
   if (method === "POST" && pathname === LOGOUT_PATH) {
     return signOut(context, session);

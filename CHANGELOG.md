@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Start page of the setup wizard: shows the status (version, Telegram chat, GitHub App with a link, time of the last delivery) and the settings (notification language, time zone, quiet hours, one switch for each kind of notification, update notice), which take effect without a new deployment; after a changed `SELUNA_SECRET` it offers a reset that deletes the saved GitHub credentials and leads through the GitHub App step again.
 - Setup wizard step _GitHub App_: creates a private GitHub App for your personal account or an organization through GitHub's manifest flow, with read-only access to Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts and Metadata, and saves its App ID, private key (converted to PKCS#8) and webhook secret encrypted in one step; the app GitHub returns must belong to the account you chose. The optional Worker secrets `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_WEBHOOK_SECRET` take precedence over the saved credentials.
 - Webhook signature check: without the `GITHUB_WEBHOOK_SECRET` Worker secret, `POST /webhook` verifies deliveries with the webhook secret the setup wizard saved; it still answers 503 when no secret is usable.
 

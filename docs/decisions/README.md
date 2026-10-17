@@ -69,5 +69,7 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0015](0015-setup-login.md) | Setup login | Accepted | 2026-10-15 |
 | [0016](0016-telegram-chat-in-the-setup-wizard.md) | Telegram chat in the setup wizard | Accepted | 2026-10-16 |
 | [0017](0017-github-app-manifest-flow.md) | GitHub App creation through the manifest flow in the setup wizard | Accepted | 2026-10-17 |
+| [0018](0018-settings-and-status-page.md) | Settings, status page and reset in the setup wizard | Accepted | 2026-10-17 |
+| [0019](0019-language-tables-excluded-from-duplication.md) | Language tables of the setup wizard excluded from duplication detection | Accepted | 2026-10-17 |
 
 <!-- project:end index -->

@@ -15,7 +15,7 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 | Worker `fetch` handler | `POST /webhook`, `GET /health` (returns the version), `/setup` (the setup wizard) |
 | Rules | Pure functions from a parsed GitHub event to zero or one notification; no I/O, no clock |
 | Outbox | The D1 `outbox` table and delivery to the Telegram Bot API, with retry |
-| Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram chat, the setup login |
+| Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram chat, the setup login, the status page with the settings and the reset after a changed `SELUNA_SECRET` ([decision 0018](decisions/0018-settings-and-status-page.md)) |
 | Cron (`scheduled` handler) | Every 10 minutes: retry the outbox and clean up D1. Daily: check for a new Seluna release |
 | D1 (`src/store/`) | `settings`, `secrets` (AES-256-GCM), `deliveries`, `outbox`, `token_cache` (AES-256-GCM), `meta`; the only code that reads or writes D1 |
 
@@ -80,7 +80,7 @@ only. The rules are in [`areas/http-routes.md`](areas/http-routes.md)
 | `deliveries` | Processed `X-GitHub-Delivery` ids, for deduplication |
 | `outbox` | Notifications waiting for, or past, delivery |
 | `token_cache` | Short-lived GitHub installation tokens, AES-256-GCM ciphertext |
-| `meta` | The last notified release, the time of the last delivery, the key check value that detects a changed `SELUNA_SECRET` and the setup login's failed-attempt count |
+| `meta` | The last notified release, the time of the last delivery, the key check value that detects a changed `SELUNA_SECRET`, the setup login's failed-attempt count and the slug of the GitHub App the setup wizard created |
 
 All six tables come from the first migration; only the modules under `src/store/` access them. The key for the
 encrypted columns is derived from `SELUNA_SECRET` and never stored, so a reader of the database alone learns no
@@ -90,7 +90,8 @@ credential. Columns, formats and the key check are in [`areas/storage.md`](areas
 
 ## Configuration
 
-Settings are stored in D1 (`settings`) and written by the setup wizard; the values outside D1 are Worker
+Settings are stored in D1 (`settings`), written by the setup wizard and read on every use, so a change takes effect
+without a deployment ([decision 0018](decisions/0018-settings-and-status-page.md)); the values outside D1 are Worker
 secrets — `SELUNA_SECRET` (the password of the setup login and the source of the encryption and signing keys) and `TELEGRAM_BOT_TOKEN`, both asked for by the
 deploy form, the optional `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_WEBHOOK_SECRET` (a GitHub App set by hand; each
 takes precedence over the credential of the same name that the setup wizard stores in D1,
