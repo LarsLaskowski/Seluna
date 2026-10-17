@@ -381,8 +381,10 @@ The GitHub notice-only page: heading, the notice, and a link to `/setup/github` 
   from the GitHub App step."; _state invalid_ `github-state-invalid`: "This return from GitHub does not belong to your
   current sign-in or is older than one hour, so nothing was saved. If GitHub created an app, delete it on GitHub and
   start again."; _code rejected_ `github-code-rejected`: "GitHub no longer accepts this return: the code was already
-  used or is older than one hour. If you have just created the app, it is already saved; otherwise delete it on GitHub
-  and start again."; _GitHub unavailable_ `github-unavailable`: "GitHub could not be reached. Select Finish again in a
+  used or is older than one hour. Open the GitHub App step and compare the App ID saved there with the one GitHub
+  shows in the app's settings: if they match, the app is saved; otherwise delete the app on GitHub and start again."
+  (Lead decision after review round 1: an earlier attempt can have used the code while its answer was lost, so the
+  notice must not claim the app is saved); _GitHub unavailable_ `github-unavailable`: "GitHub could not be reached. Select Finish again in a
   moment; the return stays valid for one hour."; _answer invalid_ `github-answer-invalid`: "GitHub created the app, but
   its answer could not be read, so nothing was saved. Delete the app on GitHub and start again."; _owner mismatch_
   `github-owner-mismatch`: "This app does not belong to the account you chose in Seluna, so nothing was saved. If you

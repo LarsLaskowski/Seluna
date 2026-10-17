@@ -123,8 +123,10 @@ document [`areas/setup-wizard.md`](../areas/setup-wizard.md).
 - The page that hands the manifest to GitHub is the only one whose `form-action` is `https://github.com`; its form
   carries no CSRF token.
 - An app GitHub created but Seluna could not save (a session that expired during the detour, an unreadable answer,
-  an app of another account than the one entered, a failed write) stays on GitHub and is deleted by hand; the notices say so. GitHub's own one-hour limit bounds the
-  return.
+  an app of another account than the one entered, a failed write, a code an earlier attempt used while its answer was
+  lost) stays on GitHub and is deleted by hand; the notices say so. Seluna cannot tell from GitHub's rejection of a
+  used code whether an earlier attempt saved the app, so that notice has the owner compare the saved App ID with the
+  app's own before deleting it, and never claims the app is saved. GitHub's own one-hour limit bounds the return.
 - A webhook delivery now derives the storage key and reads D1 when `GITHUB_WEBHOOK_SECRET` is not set; a D1 error or an
   unreadable stored secret still answers 503, never 202 (0012). Because the secret is needed before the signature can
   be checked, every `POST /webhook` — signed or not — then costs D1 reads and a decryption, which count against the
