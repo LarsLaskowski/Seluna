@@ -53,7 +53,7 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | #   | Title | Status | Date |
 | --- | ----- | ------ | ---- |
 | [0001](0001-quality-gates-before-the-pull-request.md) | Quality gates before the pull request | Accepted | 2026-10-14 |
-| [0002](0002-squad-working-records-off-main.md) | Squad working records stay off main, and product PRs never change the squad | Accepted | 2026-10-14 |
+| [0002](0002-squad-working-records-off-main.md) | Squad working records stay off main, and product PRs never change the squad | Superseded by [0022](0022-squad-working-records-off-main.md) | 2026-10-14 |
 | [0003](0003-squash-merge-pull-requests.md) | Squash-merge pull requests | Accepted | 2026-10-14 |
 | [0004](0004-typescript-instead-of-go.md) | TypeScript instead of Go | Accepted | 2026-10-14 |
 | [0005](0005-one-instance-per-user.md) | One instance per user instead of a central service | Accepted | 2026-10-14 |
@@ -73,5 +73,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0019](0019-language-tables-excluded-from-duplication.md) | Language tables of the setup wizard excluded from duplication detection | Accepted | 2026-10-17 |
 | [0020](0020-deploy-command-checked-in-the-setup-guide.md) | Deploy command checked in the setup guide | Accepted | 2026-10-17 |
 | [0021](0021-missing-tables-notice-on-the-setup-login.md) | Missing-tables notice on the setup login | Accepted | 2026-10-17 |
+| [0022](0022-squad-working-records-off-main.md) | Squad working records stay off main, and product PRs never change the squad | Accepted | 2026-10-17 |
 
 <!-- project:end index -->

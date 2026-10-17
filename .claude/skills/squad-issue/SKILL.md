@@ -39,7 +39,7 @@ action yourself — including follow-up issues the Lead decides on.
   continuations of one agent or once its reported tokens pass 300,000, launch the member fresh with a short
   hand-over (*Continuing a member*). A continued member keeps its role's limits (`.squad/team.md`).
 - **The squad does not change itself in a product PR.** An issue or feature PR never touches `.squad/`
-  (`team.md`, `routing.md`, tools), `.claude/`, `CLAUDE.md` or `.github/copilot-instructions.md`. Lessons about the squad are filed in step 12 as `.squad/routing.md`,
+  (`team.md`, `routing.md`, tools), `.claude/`, `AGENTS.md`, `CLAUDE.md` or `.github/copilot-instructions.md`. Lessons about the squad are filed in step 12 as `.squad/routing.md`,
   *Squad lessons*, says — template-managed files in the template repository, project knowledge here. If the
   change itself genuinely needs one of those files (e.g. a new build command every contributor must know),
   the Lead escalates instead and the Product Manager decides: `.squad/stack.md` and `.squad/project.md` may
@@ -54,7 +54,7 @@ action yourself — including follow-up issues the Lead decides on.
   break each other (`.squad/routing.md`). Launch them one after another; only `squad-devils-advocate` and
   `squad-security` may run together in steps 2–3, and `squad-reviewer` and `squad-security` in step 8,
   because they are read-only and the reviewer's own build happens in a scratch copy.
-- **Commits and pushes** to the work branch are always allowed (`CLAUDE.md`, golden rules): commit and
+- **Commits and pushes** to the work branch are always allowed (`AGENTS.md`, golden rules): commit and
   push `specs/<folder>/log.md` right after intake (step 1), so a stop hook or a crashed session finds no
   untracked files, and after every further completed step. PRs are merged with *Squash and merge*, so only
   the PR title and description reach `main`; intermediate commit messages may name the step, but never
@@ -79,8 +79,9 @@ action yourself — including follow-up issues the Lead decides on.
 
 1. **Intake.** Read the issue in full, including comments; note the reported environment (versions of the
    software involved, image tag or release, host OS, configuration). If it is closed, stop and report that. Start
-   from a clean working tree on a new branch off the latest `main` (run `git fetch origin main` first: a
-   stale local `origin/main` makes `scope-check.py` report files that are not yours), e.g.
+   from a clean working tree on a new branch off the latest `main` (run `git fetch origin main --tags` first: a
+   stale local `origin/main` makes `scope-check.py` report files that are not yours, and a checkout without the
+   release tags makes every decision record look unreleased), e.g.
    `fix-issue-<number>-<short-slug>` (or the branch the session prescribes). Create
    `specs/issue-<number>/log.md` from `specs/_template/log.md`, commit and push it (the first `squad-log.py` row replaces the heading placeholder with
    the work folder's name). Only you (the
@@ -89,7 +90,7 @@ action yourself — including follow-up issues the Lead decides on.
    ending, escapes pipes and control characters, and stamps the row with date and time of day (UTC), so the
    wrap-up can measure your own share of the run. For a subagent launch add the metrics:
    `--agent squad-<role> --tokens <subagent_tokens> --tool-uses <tool_uses> --seconds <duration_ms / 1000>`
-   (`--agent` reads the model and effort from the agent file; `--launch <model>/<effort>` only when the launch
+   (a decimal such as `495.4` is rounded to whole seconds; `--agent` reads the model and effort from the agent file; `--launch <model>/<effort>` only when the launch
    overrode them). The three numbers come from the usage block of the launch's **task notification**, not
    from the member's hand-back message, and that notification may arrive after you have already read the
    report: write the row as soon as the report is in, **without any metric option** (no `--agent`,
