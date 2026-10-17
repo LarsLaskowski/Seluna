@@ -15,4 +15,4 @@ are quoted in full.
 | 2026-10-17 12:28 | 3 Plan security review (delta) | squad-security | APPROVED (delta, plan 319977b); Lead's rejections of single-use state and permissions compare accepted (opus/medium · 32,577 tokens · 4 tool uses · 29 s · continued) |
 | 2026-10-17 12:30 | 4 Skeleton | squad-dev | task 1 done; typecheck ok; deviations: CSP formTarget implemented (not stubbed), index.ts keeps secretFromEnv until task 6, German texts placeholder until task 11 (sonnet/medium · 140,254 tokens · 24 tool uses · 139 s) |
 | 2026-10-17 12:47 | 5 Tests first | squad-tester | tasks 2-3 done; 467 failed/764 passed on skeleton; 5 named tests cannot fail on skeleton (left for coverage pass); typecheck ok (sonnet/medium · 336,359 tokens · 63 tool uses · 966 s) |
-| 2026-10-17 12:56 | 6 Implement | squad-dev | tasks 4-19 done; npm test 1232 passed; analyzer 0 findings; coverage 95.4% new / 96.2% overall; scope-check PASS |
+| 2026-10-17 12:56 | 6 Implement | squad-dev | tasks 4-19 done; npm test 1232 passed; analyzer 0 findings; coverage 95.4% new / 96.2% overall; scope-check PASS (sonnet/medium · 275,111 tokens · 47 tool uses · 470 s) |
