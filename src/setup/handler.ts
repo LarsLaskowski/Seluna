@@ -3,6 +3,7 @@ import { isSelunaSecretConfigured, keyFromEnv, signingKeyFromEnv, verifySelunaSe
 import { resetCredentials } from "../store/secrets";
 import { writeNotificationSettings } from "../store/settings";
 import { clearLoginAttempts, reserveLoginAttempt } from "../store/login-attempts";
+import { readSchemaState } from "../store/schema";
 import type { GitHubFetch } from "../github/conversion";
 import type { TelegramFetch } from "../telegram";
 import { cookieValues, setupCookie } from "./cookies";
@@ -205,8 +206,12 @@ const LOGIN_FORM: SetupForm = { kind: "login" };
 
 /** The notice of a D1 failure on the login: _migrations missing_ when a schema table is absent, otherwise — also when that check fails — _unavailable_. No error is read. */
 async function d1FailureNotice(db: D1Database): Promise<Extract<Notice, "unavailable" | "migrations-missing">> {
-  void db;
-  return Promise.reject(new Error("Not implemented"));
+  try {
+    return (await readSchemaState(db)) === "tables-missing" ? "migrations-missing" : "unavailable";
+  } catch {
+    // The error is deliberately dropped, as everywhere in the wizard.
+    return "unavailable";
+  }
 }
 
 async function signIn(context: Context): Promise<Response> {

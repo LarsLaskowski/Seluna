@@ -9,12 +9,12 @@ export type SchemaState = "complete" | "tables-missing";
 
 /** The state for the `name` values of the `sqlite_master` table rows; a value that is not a string is ignored. */
 export function schemaStateOf(tableNames: readonly unknown[]): SchemaState {
-  void tableNames;
-  throw new Error("Not implemented");
+  const present = new Set(tableNames.filter((name): name is string => typeof name === "string"));
+  return SCHEMA_TABLES.every((table) => present.has(table)) ? "complete" : "tables-missing";
 }
 
 /** Reads the table names from `sqlite_master` and returns their state. D1 errors are not caught. */
 export async function readSchemaState(db: D1Database): Promise<SchemaState> {
-  void db;
-  return Promise.reject(new Error("Not implemented"));
+  const { results } = await db.prepare(SCHEMA_TABLES_SQL).all();
+  return schemaStateOf(results.map((row) => row.name));
 }

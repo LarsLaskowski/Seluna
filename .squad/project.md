@@ -20,7 +20,9 @@ files or endpoints.
   with `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/setup`; every form carries a signed double-submit CSRF token, which on the
   signed-in forms is also bound to the session (`src/setup/csrf.ts`), except the GitHub finish form, which is protected
   by the session-bound state of the manifest flow instead (`src/setup/github-state.ts`, decision 0017); attempts are counted in the `meta` row `login_attempts` before the secret is checked and
-  lock the login for 15 minutes after 5 failures (`src/store/login-attempts.ts`); pages have no script or external
+  lock the login for 15 minutes after 5 failures (`src/store/login-attempts.ts`); a D1 failure there answers a fixed notice
+  (_migrations missing_ when `sqlite_master` lacks a schema table, `src/store/schema.ts`, decision 0021, else
+  _unavailable_) and never the error; pages have no script or external
   resource and a strict Content-Security-Policy (`src/setup/pages.ts`) (decision 0015).
 - **Encrypted credentials:** the GitHub App ID, private key and webhook secret live in the D1 table `secrets` as
   AES-256-GCM ciphertext (random 96-bit nonce per value; code in `src/crypto.ts` and `src/store/secrets.ts`, the three
@@ -96,7 +98,7 @@ change with it.
 
 **A new or changed D1 table or column** touches:
 - a new migration (never an edited one), the access module under `src/store/` and its tests, the cleanup cron if rows expire
-- the D1 table list in `docs/ARCHITECTURE.md`
+- the D1 table list in `docs/ARCHITECTURE.md`, `SCHEMA_TABLES` in `src/store/schema.ts`
 
 **A new or changed cron job** touches:
 - the `triggers.crons` entry in `wrangler.jsonc`, the `scheduled` handler dispatch, `docs/ARCHITECTURE.md` (cron triggers)

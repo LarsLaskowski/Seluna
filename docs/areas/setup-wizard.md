@@ -50,8 +50,10 @@ it and add their pages behind the login.
      a wrong secret.
   6. Correct: the count is reset, and the answer is **303** with `Location: /setup` and the session cookie. Wrong:
      **403** with the login page and the _wrong secret_ notice.
-- A D1 failure while counting or resetting answers **503** with the login page and the _unavailable_ notice; no
-  session is set.
+- A D1 failure while counting or resetting answers **503** with the login page and no session. The notice is
+  _migrations missing_ when the database lacks a table of the schema (the table names are read from `sqlite_master`
+  after the failure; no error is read), otherwise _unavailable_, which is also the answer when that read fails. The
+  secret is not checked when counting failed, so the answer is the same for a wrong secret.
 - A browser's password field cannot hold a line break, so a `SELUNA_SECRET` that contains one cannot be entered.
 
 ### Failed attempts and the lock
@@ -435,6 +437,9 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   again later."
 - _form expired_: "The form has expired. Please submit it again."
 - _unavailable_: "The setup is unavailable right now. Please try again in a moment."
+- _migrations missing_: "The database of this instance is missing its tables: the database migrations have not
+  run. In the Cloudflare dashboard open Workers & Pages, this Worker, Settings and Build, set the Deploy command to
+  npm run deploy and retry the latest build, as the setup guide describes."
 - _token missing_: "The Worker secret TELEGRAM_BOT_TOKEN is not set. In Telegram, send /newbot to @BotFather and
   copy the token it returns. In the Cloudflare dashboard open this Worker, then Settings, then Variables and
   Secrets, and add a secret named TELEGRAM_BOT_TOKEN with that token. Or run: npx wrangler secret put
@@ -564,6 +569,11 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   owner's chat out of the newest 100 updates (_no chats_: send `/start` again just before searching) or make the
   answer exceed 1 MiB (_Telegram unavailable_ until 100 newer, smaller updates arrived); both fail closed, and the
   workaround for both is the `TELEGRAM_CHAT_ID` Worker secret.
+- The _migrations missing_ notice is shown to anyone who submits the login form with a valid CSRF token, before the
+  secret is checked; it tells them only that the database has no tables. A database with every table but an outdated
+  column still shows _unavailable_, and the signed-in pages show _unavailable_ for every D1 failure. The table names
+  are read after the failure and an error of that read answers _unavailable_; how production D1 answers that read
+  has not been checked (decision 0021).
 - After a reset the old GitHub App stays on GitHub; the owner deletes it there by hand.
 - A login, logout, settings, reset, Telegram or GitHub form body is limited to 1 MiB counted in bytes before decoding; the parsed text is never longer than
   that number of bytes.
@@ -581,6 +591,8 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
 - [`decisions/0015-setup-login.md`](../decisions/0015-setup-login.md) — stateless signed session, signed
   double-submit CSRF token bound to the session on signed-in forms, one global attempt count taken before the check, the lock's timing, the hashed inline
   style, the language cookie.
+- [`decisions/0021-missing-tables-notice-on-the-setup-login.md`](../decisions/0021-missing-tables-notice-on-the-setup-login.md)
+  — the _migrations missing_ notice on the login, the table names read after a failed D1 access.
 - [`decisions/0016-telegram-chat-in-the-setup-wizard.md`](../decisions/0016-telegram-chat-in-the-setup-wizard.md) —
   `getUpdates` on page load with a negative offset, the token allow-list, the chat stored only after its code is
   typed back, the pending chat in a signed session-bound token.
