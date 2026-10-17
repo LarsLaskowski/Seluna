@@ -13,8 +13,9 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 | Component | Owns |
 | --------- | ---- |
 | Worker `fetch` handler | `POST /webhook`, `GET /health` (returns the version), `/setup` (the setup wizard) |
-| Rules | Pure functions from a parsed GitHub event to zero or one notification; no I/O, no clock |
-| Outbox | The D1 `outbox` table and delivery to the Telegram Bot API, with retry |
+| Webhook processing | Deduplication by `X-GitHub-Delivery`, the rules, the outbox rows and the first send attempt of each row ([`areas/notifications.md`](areas/notifications.md), [decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)) |
+| Rules | Pure functions of the event name, the payload and the settings to zero or one notification; no I/O, no clock |
+| Outbox | The D1 `outbox` table holding each message as rendered Telegram HTML, and delivery to the Telegram Bot API, with one retry after a 429 and the cron's retry |
 | Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram chat, the setup login, the status page with the settings and the reset after a changed `SELUNA_SECRET` ([decision 0018](decisions/0018-settings-and-status-page.md)) |
 | Cron (`scheduled` handler) | Every 10 minutes: retry the outbox and clean up D1. Daily: check for a new Seluna release |
 | D1 (`src/store/`) | `settings`, `secrets` (AES-256-GCM), `deliveries`, `outbox`, `token_cache` (AES-256-GCM), `meta`; the only code that reads or writes D1 |
@@ -36,17 +37,21 @@ flowchart LR
    (or when reading it fails) every delivery is answered 503, so a setup gap is told apart from a forged request
    ([decision 0012](decisions/0012-webhook-signature-verification.md),
    [decision 0017](decisions/0017-github-app-manifest-flow.md)).
-2. The delivery id (`X-GitHub-Delivery`) is recorded in `deliveries`; a redelivery of the same id is acknowledged
-   and ignored.
-3. The parsed event goes through the rules. A draft pull request, and any event no rule matches, produces nothing.
-4. A matching event becomes a row in the `outbox` ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md)),
-   delivery to the Telegram Bot API is attempted at once, and the cron trigger retries rows that are still pending.
+2. A delivery id (`X-GitHub-Delivery`) that `deliveries` already holds is answered 200 and ignored.
+3. The payload goes through the rules, each a pure function of event name, payload and settings. A draft pull
+   request, and any event no rule matches, produces nothing.
+4. In one D1 transaction the delivery id is recorded in `deliveries`, each notification becomes a row in the
+   `outbox` as escaped Telegram HTML ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md)) and `meta`
+   records the time of the delivery; then the Worker answers 202. Delivery to the Telegram Bot API is attempted
+   right after the answer (`waitUntil`), once more after a short 429 wait, and the cron trigger retries rows that are
+   still pending. The rules per step are in [`areas/notifications.md`](areas/notifications.md)
+   ([decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)).
 
 Guarantees along the way (also in [`.squad/project.md`](../.squad/project.md), *Guarantees*): an invalid signature
 has no effect, a delivery is processed once, a matched event is stored before it is sent, and Telegram never calls
 the Worker: it has no webhook and no route, the Worker calls only `getUpdates` and `sendMessage`, and the input it
 takes from Telegram is the `getUpdates` answer of the setup wizard's signed-in Telegram step and the status of each
-`sendMessage` answer, both read bounded and narrowed; a chat is stored only after the owner typed back the code of
+`sendMessage` answer (for a 429 also its `retry_after`), both read bounded and narrowed; a chat is stored only after the owner typed back the code of
 its test message ([decision 0016](decisions/0016-telegram-chat-in-the-setup-wizard.md)).
 
 ## Endpoints
