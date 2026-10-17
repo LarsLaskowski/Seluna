@@ -89,4 +89,23 @@ describe("recordDelivery", () => {
     expect(await count("deliveries"), "deliveries rows").toBe(1);
     expect(await readLastDelivery(env.DB), "last_delivery").toBeUndefined();
   });
+
+  it("recordDelivery rejects when the batch fails for a new delivery id", async () => {
+    const failingBatch: D1Database = {
+      prepare: (query: string) => env.DB.prepare(query),
+      batch: () => Promise.reject(new Error("The batch failed")),
+      exec: () => Promise.reject(new Error("Not supported")),
+      dump: () => Promise.reject(new Error("Not supported")),
+      withSession: () => {
+        throw new Error("Not supported");
+      },
+    };
+
+    const recording = recordDelivery(failingBatch, { id: "new-9", event: "ping", receivedAt: RECEIVED_AT }, [
+      { text: "never stored", buttonUrl: undefined, silent: false },
+    ]);
+
+    await expect(recording, "result").rejects.toThrow("The batch failed");
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+  });
 });

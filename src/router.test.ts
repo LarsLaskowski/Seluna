@@ -435,6 +435,19 @@ describe("handleRequest", () => {
     ]);
   });
 
+  it("handleRequest does not call the webhook processor for a wrong signature", async () => {
+    const processor = vi.fn<RouteDeps["webhook"]>(() =>
+      Promise.resolve({ status: 202, decision: "no-match", action: null, repository: null }),
+    );
+    const wrong = `${headers["x-hub-signature-256"].slice(0, -1)}6`;
+    const request = webhook(body, deliveryHeaders("x-hub-signature-256", wrong));
+
+    const response = await handleRequest(request, makeDeps([], FIXTURE_SECRET_SOURCE, undefined, processor));
+
+    expect(response.status, "status").toBe(401);
+    expect(processor, "processor calls").not.toHaveBeenCalled();
+  });
+
   it("handleRequest never logs the webhook body or signature", async () => {
     const entries: RequestLogEntry[] = [];
     const request = webhook(body, headers);

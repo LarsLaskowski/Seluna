@@ -361,6 +361,12 @@ describe("parseWebhookPayload", () => {
     expect(fullNameOf(payload), "repository.full_name").toBe("LarsLaskowski/test");
   });
 
+  it("parseWebhookPayload reads a percent-encoded invalid UTF-8 byte of the form framing as U+FFFD", () => {
+    const payload = parseWebhookPayload(encoder.encode("payload=%7B%22a%22%3A%22%FF%22%7D"), FORM);
+
+    expect(isRecord(payload) ? payload.a : undefined, "field a").toBe("\uFFFD");
+  });
+
   it("parseWebhookPayload reads a JSON body as JSON when Content-Type is text/plain", () => {
     const payload = parseWebhookPayload(encoder.encode(PING_JSON), "text/plain");
 

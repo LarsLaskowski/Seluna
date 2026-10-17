@@ -653,6 +653,16 @@ describe("sendNotification", () => {
     expect(telegram.requests.length, "number of requests").toBe(2);
   });
 
+  it("sendNotification returns failed and sends no second request when the wait throws", async () => {
+    const telegram = telegramDouble({ sendMessage: retryAfter(2) });
+    const sleep = vi.fn<(milliseconds: number) => Promise<void>>(() => Promise.reject(new Error("timer failed")));
+
+    const result = await sendNotification(TOKEN, 5_001_001, MESSAGE, telegram.fetch, sleep);
+
+    expect(result, "result").toBe("failed");
+    expect(telegram.requests.length, "number of requests").toBe(1);
+  });
+
   it("sendNotification returns token-rejected for a 401 after a 429 wait", async () => {
     const telegram = telegramDouble({ sendMessage: [retryAfter(1), jsonAnswer(401, FIXTURES.unauthorized)] });
     const sleep = sleepSpy();
