@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Setup wizard step _GitHub App_: creates a private GitHub App for your personal account or an organization through GitHub's manifest flow, with read-only access to Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts and Metadata, and saves its App ID, private key (converted to PKCS#8) and webhook secret encrypted in one step; the app GitHub returns must belong to the account you chose. The optional Worker secrets `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_WEBHOOK_SECRET` take precedence over the saved credentials.
 - Webhook signature check: without the `GITHUB_WEBHOOK_SECRET` Worker secret, `POST /webhook` verifies deliveries with the webhook secret the setup wizard saved; it still answers 503 when no secret is usable.
 
+### Fixed
+
+- Setup guide: after the Deploy to Cloudflare button's deploy, check that the **Deploy command** in the Worker's build settings is `npm run deploy`; the button may set `npx wrangler deploy`, which skips the D1 migrations and leaves the database without tables (issue #46).
+
 ## [0.1.0] - 2026-10-17
 
 ### Added
