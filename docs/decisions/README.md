@@ -74,6 +74,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0020](0020-deploy-command-checked-in-the-setup-guide.md) | Deploy command checked in the setup guide | Accepted | 2026-10-17 |
 | [0021](0021-missing-tables-notice-on-the-setup-login.md) | Missing-tables notice on the setup login | Accepted | 2026-10-17 |
 | [0022](0022-squad-working-records-off-main.md) | Squad working records stay off main, and product PRs never change the squad | Accepted | 2026-10-17 |
-| [0023](0023-webhook-processing-and-delivery-through-the-outbox.md) | Webhook processing, message format and delivery through the outbox | Proposed | 2026-10-17 |
+| [0023](0023-webhook-processing-and-delivery-through-the-outbox.md) | Webhook processing, message format and delivery through the outbox | Accepted | 2026-10-17 |
 
 <!-- project:end index -->

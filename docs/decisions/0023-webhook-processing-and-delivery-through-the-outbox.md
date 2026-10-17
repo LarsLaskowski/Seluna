@@ -1,6 +1,6 @@
 # 0023: Webhook processing, message format and delivery through the outbox
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-17
 - **Area:** Notifications
 - **Source:** Issue #12
