@@ -9,3 +9,5 @@ are quoted in full.
 | 2026-10-17 15:25 | 2 Plan | Lead | DONE, tier trivial, docs-only; challenge skipped (tier trivial); steps 3-5 not applicable (no code/tests) (opus/medium · 64,170 tokens · 15 tool uses · 206 s) |
 | 2026-10-17 15:25 | 6 Implement | Dev | docs edits applied (setup.md, deployment.md, ARCHITECTURE.md); no deviation (sonnet/medium · 69,494 tokens · 15 tool uses · 25 s) |
 | 2026-10-17 15:25 | 7 Code check | Orchestrator | format:check, scope-check, decision-check, config-check PASS; no analyzer/tests (docs only) |
+| 2026-10-17 15:27 | 8 Review round 1 | Reviewer | BLOCKING 1 (0013 released in v0.1.0, must be superseded by new record), NON-BLOCKING 1 verbatim (setup.md wording) (opus/medium · 46,774 tokens · 13 tool uses · 82 s) |
+| 2026-10-17 15:27 | 8 Verbatim fix | Orchestrator | setup.md:15 wording applied as proposed by reviewer |
