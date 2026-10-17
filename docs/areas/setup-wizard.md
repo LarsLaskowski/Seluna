@@ -570,7 +570,7 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   answer exceed 1 MiB (_Telegram unavailable_ until 100 newer, smaller updates arrived); both fail closed, and the
   workaround for both is the `TELEGRAM_CHAT_ID` Worker secret.
 - The _migrations missing_ notice is shown to anyone who submits the login form with a valid CSRF token, before the
-  secret is checked; it tells them only that the database has no tables. A database with every table but an outdated
+  secret is checked; it tells them only that the database lacks a table of the schema. A database with every table but an outdated
   column still shows _unavailable_, and the signed-in pages show _unavailable_ for every D1 failure. The table names
   are read after the failure and an error of that read answers _unavailable_; how production D1 answers that read
   has not been checked (decision 0021).
