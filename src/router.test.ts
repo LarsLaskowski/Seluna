@@ -27,6 +27,8 @@ const SETUP_DEPS: SetupDeps = {
   db: env.DB,
   now: () => new Date(1_700_000_000_000),
   fetch: () => Promise.reject(new Error("unexpected Telegram call")),
+  githubFetch: () => Promise.reject(new Error("unexpected GitHub call")),
+  version: "0.0.0-test",
 };
 
 function makeDeps(
@@ -37,6 +39,8 @@ function makeDeps(
     db: env.DB,
     now: () => new Date(0),
     fetch: () => Promise.reject(new Error("unexpected Telegram call")),
+    githubFetch: () => Promise.reject(new Error("unexpected GitHub call")),
+    version: "0.0.0-test",
   },
 ): RouteDeps {
   return {

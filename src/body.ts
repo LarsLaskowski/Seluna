@@ -67,3 +67,8 @@ export async function readBodyWithLimit(message: Request | Response, maxBytes: n
   }
   return { kind: "ok", body };
 }
+
+/** The parsed JSON of a body of at most `maxBytes` bytes (counted before decoding) that is UTF-8 JSON, else `undefined`. Never throws. */
+export async function readJsonWithLimit(_message: Request | Response, _maxBytes: number): Promise<unknown> {
+  throw new Error("Not implemented");
+}

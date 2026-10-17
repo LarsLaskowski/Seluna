@@ -1,5 +1,7 @@
+import type { AccountChoice } from "../github/manifest";
 import type { Language } from "./language";
 import type { TelegramChat } from "../telegram";
+import type { GitHubStepView } from "./github-step";
 import type { TelegramProblem, TelegramStepView } from "./telegram-step";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
@@ -31,12 +33,15 @@ export function escapeHtml(text: string): string {
   return text.replaceAll(/[&<>"']/g, (character) => ENTITIES[character] ?? character);
 }
 
-/** `default-src 'none'; style-src 'sha256-<base64 SHA-256 of STYLE>'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`. */
-export async function contentSecurityPolicy(): Promise<string> {
+/** Where a page's forms may post to: this origin, or (the manifest review page) `https://github.com`. */
+export type FormTarget = "self" | "github";
+
+/** `default-src 'none'; style-src 'sha256-<base64 SHA-256 of STYLE>'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`; `form-action https://github.com` for the `github` target. */
+export async function contentSecurityPolicy(formTarget: FormTarget = "self"): Promise<string> {
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(STYLE)));
   // The policy wants standard base64 with padding, not base64url.
   const hash = btoa(Array.from(digest, (byte) => String.fromCodePoint(byte)).join(""));
-  return `default-src 'none'; style-src 'sha256-${hash}'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`;
+  return `default-src 'none'; style-src 'sha256-${hash}'; form-action ${formTarget === "github" ? "https://github.com" : "'self'"}; frame-ancestors 'none'; base-uri 'none'`;
 }
 
 function noticeHtml(language: Language, notice: Notice | undefined): string {
@@ -92,9 +97,9 @@ export function renderNotConfiguredPage(language: Language): string {
   return layout(language, `<h1>${escapeHtml(texts.notConfiguredHeading)}</h1>\n${paragraphs}`);
 }
 
-async function securityHeaders(): Promise<Headers> {
+async function securityHeaders(formTarget: FormTarget = "self"): Promise<Headers> {
   const headers = new Headers(SECURITY_HEADERS);
-  headers.set("Content-Security-Policy", await contentSecurityPolicy());
+  headers.set("Content-Security-Policy", await contentSecurityPolicy(formTarget));
   return headers;
 }
 
@@ -110,8 +115,9 @@ export async function htmlResponse(
   status: number,
   language: Language,
   cookies: readonly string[],
+  formTarget: FormTarget = "self",
 ): Promise<Response> {
-  const headers = await securityHeaders();
+  const headers = await securityHeaders(formTarget);
   headers.set("Content-Type", "text/html; charset=utf-8");
   headers.set("Content-Language", language);
   addCookies(headers, cookies);
@@ -224,4 +230,33 @@ export function renderTelegramPage(
     }
   }
   return layout(language, body);
+}
+
+export type GitHubPageView =
+  GitHubStepView | { readonly kind: "notice-only" } | { readonly kind: "created"; readonly slug: string | undefined };
+
+/** The GitHub App step page; links like the login page. */
+export function renderGitHubPage(
+  _language: Language,
+  _csrfToken: string,
+  _view: GitHubPageView,
+  _notice?: Notice,
+): string {
+  throw new Error("Not implemented");
+}
+
+/** The review page whose form posts the manifest to GitHub; links like the login page. */
+export function renderGitHubReviewPage(
+  _language: Language,
+  _choice: AccountChoice,
+  _appName: string,
+  _formAction: string,
+  _manifest: string,
+): string {
+  throw new Error("Not implemented");
+}
+
+/** The finish page whose form posts the return's `code` and `state` back; links like the login page. */
+export function renderGitHubFinishPage(_language: Language, _code: string, _state: string, _notice?: Notice): string {
+  throw new Error("Not implemented");
 }

@@ -171,3 +171,15 @@ export async function writeSecret(
   }
   return { kind: "corrupt" };
 }
+
+/**
+ * Encrypts and stores all three credentials in one batch, storing the key check value with the first write; writes
+ * only while the checked key check value is still stored, with one retry. D1 errors are not caught.
+ */
+export async function writeSecrets(
+  _db: D1Database,
+  _key: CryptoKey,
+  _values: Readonly<Record<SecretName, string>>,
+): Promise<SecretWriteResult> {
+  throw new Error("Not implemented");
+}

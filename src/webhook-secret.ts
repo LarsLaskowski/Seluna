@@ -12,3 +12,8 @@ export function secretFromEnv(env: object): WebhookSecretSource {
   const secret = typeof value === "string" && value !== "" ? value : undefined;
   return { webhookSecret: () => Promise.resolve(secret) };
 }
+
+/** `GITHUB_WEBHOOK_SECRET` when set, else the webhook secret stored in D1; D1 errors reject. */
+export function webhookSecretSource(_env: object, _db: D1Database): WebhookSecretSource {
+  throw new Error("Not implemented");
+}

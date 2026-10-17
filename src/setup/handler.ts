@@ -1,6 +1,7 @@
 import { MAX_BODY_BYTES, readBodyWithLimit } from "../body";
 import { isSelunaSecretConfigured, signingKeyFromEnv, verifySelunaSecret } from "../crypto";
 import { clearLoginAttempts, reserveLoginAttempt } from "../store/login-attempts";
+import type { GitHubFetch } from "../github/conversion";
 import type { TelegramFetch } from "../telegram";
 import { cookieValues, setupCookie } from "./cookies";
 import {
@@ -23,7 +24,7 @@ import {
   renderStartPage,
   renderTelegramPage,
 } from "./pages";
-import type { TelegramPageView } from "./pages";
+import type { GitHubPageView, TelegramPageView } from "./pages";
 import { createSessionToken, isValidSessionToken, SESSION_COOKIE, SESSION_LIFETIME_MS } from "./session";
 import {
   CHAT_FIELD,
@@ -45,6 +46,10 @@ export interface SetupDeps {
   readonly now: () => Date;
   /** Reaches the Telegram Bot API. */
   readonly fetch: TelegramFetch;
+  /** Reaches the GitHub API. */
+  readonly githubFetch: GitHubFetch;
+  /** The build's version, sent in the GitHub API's User-Agent. */
+  readonly version: string;
 }
 
 export const SETUP_PATH = "/setup";
@@ -67,7 +72,8 @@ interface Context {
 type SetupForm =
   | { readonly kind: "login" }
   | { readonly kind: "start"; readonly session: string }
-  | { readonly kind: "telegram"; readonly session: string; readonly view: TelegramPageView };
+  | { readonly kind: "telegram"; readonly session: string; readonly view: TelegramPageView }
+  | { readonly kind: "github"; readonly session: string; readonly view: GitHubPageView };
 
 /** Whether `pathname` is `/setup` or starts with `/setup/`. */
 export function isSetupPath(pathname: string): boolean {
@@ -110,6 +116,8 @@ async function formPage(context: Context, form: SetupForm, status: number, notic
         notice,
       );
       break;
+    case "github":
+      throw new Error("Not implemented");
     default: {
       const unreachable: never = form;
       return unreachable;
@@ -156,6 +164,8 @@ async function hasValidCsrf(context: Context, fields: URLSearchParams, form: Set
     case "start":
     case "telegram":
       return isValidSessionCsrfToken(context.csrfKey, token ?? null, form.session, context.csrfValues);
+    case "github":
+      throw new Error("Not implemented");
     default: {
       const unreachable: never = form;
       return unreachable;

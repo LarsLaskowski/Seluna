@@ -36,6 +36,8 @@ function depsAt(milliseconds = NOW.getTime(), overrides: Partial<SetupDeps> = {}
     db: env.DB,
     now: () => new Date(milliseconds),
     fetch: () => Promise.reject(new Error("unexpected Telegram call")),
+    githubFetch: () => Promise.reject(new Error("unexpected GitHub call")),
+    version: "0.0.0-test",
     ...overrides,
   };
 }
