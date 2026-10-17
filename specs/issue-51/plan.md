@@ -260,3 +260,12 @@ migration; data access stays in `src/store/` (decision 0014).
 
 - The missing-tables check on the signed-in pages (option 6), to revisit with the first migration that adds a table.
 - Detecting an outdated column.
+
+## Challenge notes
+
+Minor objections of the Devil's Advocate (verbatim) and non-blocking notes of the Security plan review:
+
+1. **Stale line numbers.** The plan cites `signIn` at `handler.ts:211-230`, the count at line 219 and the secret check at 224. On the current branch `signIn` is at 206-231, the count is at 216, the secret check at 221 and `clearLoginAttempts` at 224. Only the `catch` at 225 matches. The Dev should locate the code by symbol, not by these numbers. The same applies to "line 53" in `setup-wizard.md` and the `handler.test.ts` line numbers: re-check them before editing.
+2. **The "Before the Dev starts" merge is already done.** HEAD is `864923a Merge main into fix-issue-51`. The orchestrator should confirm that decision 0020, the `docs/setup.md` step 3 and the deploy-command bullet in `docs/areas/deployment.md` are present, then skip the merge step. The README index should list both 0020 and 0021, with 0020 first.
+3. (Security) The text planned for `docs/areas/setup-wizard.md` *Limits and errors* should keep saying "the table names are read". It should not claim that production D1 answers the query until the live check has been run.
+4. (Security) `schemaOnlyDb` in `test/d1.ts` should recognize a `sqlite_master` read by exactly the statement `readSchemaState` sends. If it matches on a substring instead, a later login statement that contains `sqlite_master` would reach the migrated database and quietly weaken the AC4 test.
