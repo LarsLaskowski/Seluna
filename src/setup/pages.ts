@@ -417,7 +417,7 @@ export function renderGitHubPage(language: Language, csrfToken: string, view: Gi
       body = `${heading}\n<p>${escapeHtml(texts.githubPartialWorkerSecrets)}</p>`;
       break;
     case "reset-needed":
-      body = `${heading}\n<p>${escapeHtml(texts.githubResetNeeded)}</p>`;
+      body = `${heading}\n<p>${escapeHtml(texts.githubResetNeeded)}</p>\n<p><a href="/setup">${escapeHtml(texts.startPageLink)}</a></p>`;
       break;
     case "notice-only":
       body = `${heading}\n${noticeHtml(language, notice)}\n${githubBackLink(language)}`;
