@@ -23,7 +23,7 @@ describe("TEXTS", () => {
     expect(TEXTS.en.notConfiguredParagraphs.length, "English not-configured paragraphs").toBeGreaterThan(0);
     expect(TEXTS.de.notConfiguredParagraphs.length, "German not-configured paragraphs").toBeGreaterThan(0);
     expect(Object.keys(TEXTS.de.notices), "German notice keys").toEqual(Object.keys(TEXTS.en.notices));
-    expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(23);
+    expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(24);
   });
 
   it("texts word the English notices as the area document does", () => {
@@ -33,6 +33,8 @@ describe("TEXTS", () => {
         "Too many failed attempts. Signing in is locked for 15 minutes after the fifth failed attempt; try again later.",
       "form-expired": "The form has expired. Please submit it again.",
       unavailable: "The setup is unavailable right now. Please try again in a moment.",
+      "migrations-missing":
+        "The database of this instance is missing its tables: the database migrations have not run. In the Cloudflare dashboard open Workers & Pages, this Worker, Settings and Build, set the Deploy command to npm run deploy and retry the latest build, as the setup guide describes.",
       "telegram-token-missing":
         "The Worker secret TELEGRAM_BOT_TOKEN is not set. In Telegram, send /newbot to @BotFather and copy the token it returns. In the Cloudflare dashboard open this Worker, then Settings, then Variables and Secrets, and add a secret named TELEGRAM_BOT_TOKEN with that token. Or run: npx wrangler secret put TELEGRAM_BOT_TOKEN",
       "telegram-token-malformed":

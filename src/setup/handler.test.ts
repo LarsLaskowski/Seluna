@@ -16,7 +16,7 @@ import { createSessionToken, SESSION_COOKIE, SESSION_LIFETIME_MS } from "./sessi
 import { RESET_PATH, SETTINGS_PATH } from "./settings-form";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
-import { applyMigrations, migrationTestDb, unusedDb } from "../../test/d1";
+import { applyMigrations, migrationTestDb, schemaOnlyDb, unusedDb } from "../../test/d1";
 import {
   conversionAnswer,
   conversionOwnedBy,
@@ -164,6 +164,14 @@ function expectLoginPage(html: string): void {
   expect(html, "login form method").toMatch(/method="post"/i);
   expect(html, "password input").toMatch(/<input\b(?=[^>]*type="password")(?=[^>]*name="secret")[^>]*>/);
   expect(html, "hidden csrf input").toMatch(/<input\b(?=[^>]*type="hidden")(?=[^>]*name="csrf")[^>]*>/);
+}
+
+/** Asserts that `html` carries no database error text. */
+function expectNoErrorText(html: string): void {
+  const lowered = html.toLowerCase();
+  expect(lowered, "no such table").not.toContain("no such table");
+  expect(lowered, "D1_ERROR").not.toContain("d1_error");
+  expect(lowered, "sqlite").not.toContain("sqlite");
 }
 
 function expectStartPage(html: string): void {
@@ -731,14 +739,64 @@ describe("handleSetup bodies and failures", () => {
     expect(await storedAttempts(), "stored attempts").toBeUndefined();
   });
 
-  it("handleSetup answers a login with 503 and the unavailable notice when D1 fails", async () => {
+  it("handleSetup answers a login with 503 and the migrations-missing notice when the database has no tables", async () => {
     const response = await login(SECRET, depsAt(NOW.getTime(), { db: migrationTestDb() }));
 
     expect(response.status, "status").toBe(503);
     const html = await response.text();
     expectLoginPage(html);
+    expect(html, "migrations-missing notice").toContain(noticeText("migrations-missing"));
+    expect(html, "unavailable notice").not.toContain(noticeText("unavailable"));
+    expectNoErrorText(html);
+    expect(setCookiesOf(response, SESSION_COOKIE), "session cookies").toEqual([]);
+  });
+
+  it("handleSetup answers a wrong secret with the migrations-missing notice when the database has no tables", async () => {
+    const response = await login("wrong", depsAt(NOW.getTime(), { db: migrationTestDb() }));
+
+    expect(response.status, "status").toBe(503);
+    const html = await response.text();
+    expectLoginPage(html);
+    expect(html, "migrations-missing notice").toContain(noticeText("migrations-missing"));
+    expect(html, "wrong-secret notice").not.toContain(noticeText("wrong-secret"));
+    expectNoErrorText(html);
+    expect(setCookiesOf(response, SESSION_COOKIE), "session cookies").toEqual([]);
+  });
+
+  it("handleSetup shows the migrations-missing notice in German", async () => {
+    const init = await loginInit();
+
+    const response = await call(
+      "/setup/login",
+      { ...init, headers: { "accept-language": "de" } },
+      depsAt(NOW.getTime(), { db: migrationTestDb() }),
+    );
+
+    expect(response.status, "status").toBe(503);
+    const html = await response.text();
+    expect(html, "German notice").toContain(noticeText("migrations-missing", "de"));
+    expect(html, "English notice").not.toContain(noticeText("migrations-missing"));
+  });
+
+  it("handleSetup answers a login with 503 and the unavailable notice when D1 fails with every table present", async () => {
+    const response = await login(SECRET, depsAt(NOW.getTime(), { db: schemaOnlyDb(env.DB) }));
+
+    expect(response.status, "status").toBe(503);
+    const html = await response.text();
+    expectLoginPage(html);
     expect(html, "unavailable notice").toContain(noticeText("unavailable"));
-    expect(html.toLowerCase(), "error text").not.toContain("no such table");
+    expect(html, "migrations-missing notice").not.toContain(noticeText("migrations-missing"));
+    expect(setCookiesOf(response, SESSION_COOKIE), "session cookies").toEqual([]);
+  });
+
+  it("handleSetup answers a login with 503 and the unavailable notice when the schema check fails too", async () => {
+    const response = await login(SECRET, depsAt(NOW.getTime(), { db: unusedDb() }));
+
+    expect(response.status, "status").toBe(503);
+    const html = await response.text();
+    expectLoginPage(html);
+    expect(html, "unavailable notice").toContain(noticeText("unavailable"));
+    expect(html, "migrations-missing notice").not.toContain(noticeText("migrations-missing"));
     expect(setCookiesOf(response, SESSION_COOKIE), "session cookies").toEqual([]);
   });
 });

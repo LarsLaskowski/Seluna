@@ -1,6 +1,7 @@
 import { applyD1Migrations } from "cloudflare:test";
 import type { D1Migration } from "cloudflare:test";
 import { env } from "cloudflare:workers";
+import { SCHEMA_TABLES_SQL } from "../src/store/schema";
 
 function isMigration(value: unknown): value is D1Migration {
   return (
@@ -28,7 +29,11 @@ export async function applyMigrations(db: D1Database): Promise<void> {
   await applyD1Migrations(db, testMigrations());
 }
 
-/** The second database binding of `vitest.config.ts`, which only `test/migrations.test.ts` uses. */
+/**
+ * The second database binding of `vitest.config.ts`: a database that no test file migrates, so it has no tables
+ * unless a test of the same file applies the migrations to it. It stays empty because the test pool isolates the
+ * storage per test file; `test/migrations.test.ts` migrates it, the other files use it as a database without tables.
+ */
 export function migrationTestDb(): D1Database {
   const db: unknown = "MIGRATION_TEST_DB" in env ? env.MIGRATION_TEST_DB : undefined;
   if (typeof db !== "object" || db === null || !("prepare" in db) || !("batch" in db)) {
@@ -44,4 +49,21 @@ export function unusedDb(): D1Database {
     throw new Error("The database must not be used");
   };
   return { prepare: fail, batch: fail, exec: fail, dump: fail, withSession: fail };
+}
+
+/**
+ * A `D1Database` whose `prepare` passes exactly the statement `SCHEMA_TABLES_SQL` to `db` and throws for every other
+ * statement; every other member throws.
+ */
+export function schemaOnlyDb(db: D1Database): D1Database {
+  const fail = (): never => {
+    throw new Error("The database may only answer the schema check");
+  };
+  return {
+    prepare: (query: string) => (query === SCHEMA_TABLES_SQL ? db.prepare(query) : fail()),
+    batch: fail,
+    exec: fail,
+    dump: fail,
+    withSession: fail,
+  };
 }

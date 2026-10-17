@@ -78,8 +78,9 @@ bindings) rely on it.
 ## Limits and errors
 
 - With any other deploy command, such as Workers Builds' default `npx wrangler deploy`, no migration is applied: the
-  Worker deploys against a missing or outdated schema, `/setup` answers with the _unavailable_ notice where it reads
-  D1 ([Setup wizard](setup-wizard.md#login)), and `/health`, which reads no D1, still answers. Setting the command
+  Worker deploys against a missing or outdated schema: when a table of the schema is missing, `/setup` answers the
+  sign-in with the _migrations missing_ notice ([Setup wizard](setup-wizard.md#login)), otherwise it answers with the
+  _unavailable_ notice where it reads D1, and `/health`, which reads no D1, still answers. Setting the command
   to `npm run deploy` and retrying the build applies the missing migrations.
 - A deploy against an account in which the database does not exist yet fails at the migration step with
   Wrangler's message and deploys nothing.

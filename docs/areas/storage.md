@@ -83,6 +83,9 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   credentials were stored; it counts only for the App ID in its value, any other value reads as absent.
 - Wrangler keeps its own record of the applied migrations in the table `d1_migrations`; no Seluna code reads or
   writes it.
+- The setup login reads the table names from `sqlite_master` after a failed D1 access to tell a database without its
+  tables from another failure ([Setup wizard](setup-wizard.md#login)); the list of the schema's tables sits beside
+  the store modules (`src/store/schema.ts`) and a test pins it to the migrations.
 
 ### Encryption
 

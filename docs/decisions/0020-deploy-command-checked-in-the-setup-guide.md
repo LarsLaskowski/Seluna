@@ -48,6 +48,6 @@ user make sure the copy's build settings use `npm run deploy` after the button's
 
 Until the user corrects the deploy command, every build deploys without migrations; `/health` reads no D1 and does
 not show it, so the guide points to the build log instead. The check stays in the guide even if a later version of
-the button pre-fills `npm run deploy` as documented, since that cannot be told from the repository. A clearer notice
-on `/setup` for a database without tables is a separate follow-up. Revisiting this needs a setting the button reads
+the button pre-fills `npm run deploy` as documented, since that cannot be told from the repository. The setup login
+names a database without tables ([decision 0021](0021-missing-tables-notice-on-the-setup-login.md)). Revisiting this needs a setting the button reads
 for the deploy command, or a migration path outside the deploy command that does not run for unmerged branches.
