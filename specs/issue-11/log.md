@@ -15,3 +15,5 @@ are quoted in full.
 | 2026-10-17 14:10 | 3 Plan decide | Lead | RESULT: ESCALATE - reset batch order is a logic defect, outside the accept-and-fix exception; options (a) one more revision with the reorder fix + one Security delta, (b) split reset off, (c) abort; recommends (a) (opus/medium · 25,578 tokens · 5 tool uses · 44 s) |
 | 2026-10-17 14:28 | 3 Escalation answer | Product Manager | (a) one more plan revision with the reorder fix, then one Security delta; a further rejection back to the PM |
 | 2026-10-17 14:30 | 3 Plan revise (PM a) | Lead | RESULT: DONE; reset batch reordered token_cache, secrets, key_check (NOT EXISTS secrets); AC6 tests pin all three; 0018 option 8 updated (opus/medium · 34,792 tokens · 5 tool uses · 62 s) |
+| 2026-10-17 14:31 | 3 Security plan delta 2 | Security | APPROVED: reset batch order resolved (measured on SQLite, D1 left to AC6 tests); no new findings (opus/medium · 23,201 tokens · 4 tool uses · 40 s) |
+| 2026-10-17 14:31 | 4 Skeleton | Orchestrator | launch squad-dev skeleton |
