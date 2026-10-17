@@ -291,7 +291,7 @@ encrypted ([Storage](storage.md)). The Worker secrets `GITHUB_APP_ID`, `GITHUB_A
 
 - `GET /setup/github` (signed in) answers **200** with one of: the _Worker secrets_ view, the _partial Worker
   secrets_ view, the _reset needed_ view (the stored `github_app_id` cannot be read with the current `SELUNA_SECRET`,
-  or the key check value is damaged; no form), or the form. The form shows the saved App ID (or _no saved app_ and,
+  or the key check value is damaged; no form, and a link to the start page, `/setup`), or the form. The form shows the saved App ID (or _no saved app_ and,
   with an app, the _replace hint_), two radio inputs `account_type` (`personal`, `organization`), a text input
   `account`, the session-bound CSRF field and the _next_ button. A stored value that is not an App ID is shown as _no
   saved app_. The view reads D1 only when none of the Worker secrets is set; a D1 failure answers **503** with the
@@ -467,7 +467,7 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials and installation
   tokens, and you create the GitHub App again. Delete the old app on GitHub afterwards: in the settings of your
   account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are
-  kept."; the button "Reset and create the GitHub App again"; the link "Open the start page".
+  kept."; the button "Reset and create the GitHub App again".
 - Settings: the heading "Settings"; "Language of the notifications"; "Time zone"; "Quiet hours: notifications arrive
   without sound" with "Start" and "End"; "Notify me about" with "New pull request", "Pull request ready for review",
   "Review requested", "CI failed on the default branch", "CI failed in a pull request", "Dependabot alert", "Code
@@ -502,7 +502,7 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET are set. Set all three to configure the app
   by hand, or delete them to create the app here."; _reset needed_ "The saved GitHub credentials cannot be read with
   the current SELUNA_SECRET: it was changed, or the saved values are damaged. Set the earlier SELUNA_SECRET again, or
-  reset the saved credentials on the start page and create the app again."; _Saved GitHub App, App ID:_ (followed by the id) and _No GitHub App is
+  reset the saved credentials on the start page and create the app again.", followed by the link "Open the start page"; _Saved GitHub App, App ID:_ (followed by the id) and _No GitHub App is
   saved yet._; _replace hint_ "Creating a new app replaces the saved one. Delete the old app on GitHub afterwards: in
   the settings of your account or organization, under Developer settings, then GitHub Apps."; _My personal account_,
   _An organization_, the account label "Name of the account or organization, as in github.com/name" and the button
