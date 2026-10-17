@@ -16,7 +16,7 @@ does the setup wizard under `/setup`.
 | `GET /health`        | 200                                 | JSON `{"status":"ok","version":"<version>"}`, `Content-Type: application/json` |
 | `POST /webhook`      | 202                                 | empty (valid signature)                                                        |
 | `POST /webhook`      | 401                                 | empty (missing or wrong signature)                                             |
-| `POST /webhook`      | 503                                 | empty (no webhook secret configured)                                           |
+| `POST /webhook`      | 503                                 | empty (no webhook secret usable, or reading it failed)                         |
 | `/setup`, `/setup/…` | see [Setup wizard](setup-wizard.md) | see [Setup wizard](setup-wizard.md)                                            |
 | anything else        | 404                                 | empty                                                                          |
 
@@ -36,9 +36,16 @@ does the setup wizard under `/setup`.
   (`crypto.subtle.verify`). Any other form (uppercase digits or prefix, another length, another algorithm, two
   joined values, an empty value) answers 401.
 - `X-Hub-Signature` (SHA-1) is ignored: a delivery that carries only that header is unsigned and answers 401.
-- The secret is the `GITHUB_WEBHOOK_SECRET` Worker secret, used verbatim (surrounding whitespace is part of it).
-  An absent, empty or non-string value counts as not configured and answers 503, also for a validly signed
-  request; a secret source that fails answers 503 as well.
+- The secret is the `GITHUB_WEBHOOK_SECRET` Worker secret when it is a non-empty string, used verbatim (surrounding
+  whitespace is part of it); else the webhook secret the setup wizard stored in D1 ([Storage](storage.md)), when
+  `SELUNA_SECRET` is usable and the stored value reads. Neither: absent, empty or non-string Worker secret and nothing
+  stored, a stored secret that cannot be read with the current `SELUNA_SECRET`, or `SELUNA_SECRET` not configured,
+  counts as not configured and answers 503, also for a validly signed request; a secret source that fails (a D1
+  error) answers 503 as well.
+- Without `GITHUB_WEBHOOK_SECRET`, every `POST /webhook`, signed or not, reads D1 (the key check value and the stored
+  secret) and decrypts the secret before the signature is checked. These reads count against the account's D1 read
+  allowance. With the Worker secret set no D1 access happens. The secret is not cached; a cache would need its own
+  decision.
 - A 202 has no further effect yet; processing of the event follows in a later change.
 
 ### Request body size
@@ -55,8 +62,10 @@ does the setup wizard under `/setup`.
   about 2 MiB of memory.
 - A route that reads no body (`GET /health`, every 404) never reads it, so its size does not matter there. Under
   `/setup` only the form submissions `POST /setup/login`, `POST /setup/logout`, `POST /setup/telegram` and
-  `POST /setup/telegram/verify` read a body, with this limit. The Telegram Bot API answers read by the setup
-  wizard are limited the same way, through the same reader ([Setup wizard](setup-wizard.md#telegram-chat)).
+  `POST /setup/telegram/verify`, `POST /setup/github` and `POST /setup/github/callback` read a body, with this
+  limit. The Telegram Bot API answers and the GitHub conversion answer read by the setup wizard are limited the same
+  way, through the same reader ([Setup wizard](setup-wizard.md#telegram-chat), [GitHub
+  App](setup-wizard.md#github-app)).
 
 ### Logging
 
@@ -65,13 +74,14 @@ does the setup wizard under `/setup`.
   `X-GitHub-Delivery` value when it matches `^[0-9A-Za-z-]{1,64}$`) and `event` (the `X-GitHub-Event` value when
   it matches `^[a-z_]{1,64}$`), each `null` otherwise.
 - The path is the URL path without the query string and without the fragment. Request bodies, signatures, query
-  strings and headers other than the two values above are never logged.
+  strings and headers other than the two values above are never logged; so the `code` and `state` of GitHub's return
+  to `GET /setup/github/callback` never reach a log.
 
 ## Limits and errors
 
 - A body that cannot be read to the end (the client aborts, the stream fails) answers **400** with an empty body.
 - Outside `/setup`, 404, 413, 400, 401 and 503 never carry a body, so no response reveals a reason, the
-  configuration or a secret. Under `/setup` 404, 413 and the 400 of an unreadable body carry no body either; the pages the wizard answers with (also the Telegram step's 400, 409 and 502) carry fixed texts only ([Setup wizard](setup-wizard.md#limits-and-errors)).
+  configuration or a secret. Under `/setup` 404, 413 and the 400 of an unreadable body carry no body either; the pages the wizard answers with (also the Telegram and GitHub steps' 400, 403, 409, 502 and 503) carry fixed texts only ([Setup wizard](setup-wizard.md#limits-and-errors)).
 
 ## Related decisions
 
@@ -80,6 +90,8 @@ does the setup wizard under `/setup`.
   holds.
 - [`decisions/0012-webhook-signature-verification.md`](../decisions/0012-webhook-signature-verification.md) — the
   accepted signature form, the check order and the secret source.
+- [`decisions/0017-github-app-manifest-flow.md`](../decisions/0017-github-app-manifest-flow.md) — the secret comes
+  from the Worker secret when it is set, else from D1; what that costs per delivery.
 
 ## Not here
 

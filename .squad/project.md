@@ -17,17 +17,30 @@ files or endpoints.
   `SELUNA_SECRET`, compared in constant time (`verifySelunaSecret` in `src/crypto.ts`). The session is an
   HMAC-SHA256-signed token with a 12-hour expiry (`src/setup/session.ts`, key from `signingKeyFromEnv`) in a cookie
   with `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/setup`; every form carries a signed double-submit CSRF token, which on the
-  signed-in forms is also bound to the session (`src/setup/csrf.ts`); attempts are counted in the `meta` row `login_attempts` before the secret is checked and
+  signed-in forms is also bound to the session (`src/setup/csrf.ts`), except the GitHub finish form, which is protected
+  by the session-bound state of the manifest flow instead (`src/setup/github-state.ts`, decision 0017); attempts are counted in the `meta` row `login_attempts` before the secret is checked and
   lock the login for 15 minutes after 5 failures (`src/store/login-attempts.ts`); pages have no script or external
   resource and a strict Content-Security-Policy (`src/setup/pages.ts`) (decision 0015).
 - **Encrypted credentials:** the GitHub App ID, private key and webhook secret live in the D1 table `secrets` as
-  AES-256-GCM ciphertext (random 96-bit nonce per value; code in `src/crypto.ts` and `src/store/secrets.ts`); the key comes from the Worker secret `SELUNA_SECRET`. The D1 table `token_cache` holds installation tokens encrypted the same way, each ciphertext is bound to its row (additional data), and a key check value in `meta` reports a changed `SELUNA_SECRET`. The
+  AES-256-GCM ciphertext (random 96-bit nonce per value; code in `src/crypto.ts` and `src/store/secrets.ts`, the three
+  credentials of the manifest flow together through `writeSecrets`); the key comes from the Worker secret `SELUNA_SECRET`. The D1 table `token_cache` holds installation tokens encrypted the same way, each ciphertext is bound to its row (additional data), and a key check value in `meta` reports a changed `SELUNA_SECRET`. The
   Telegram bot token is the Worker secret `TELEGRAM_BOT_TOKEN`. Worker secrets are set through the deploy form or
   Wrangler and never committed (`.gitignore` ignores `.dev.vars*` and `.env*`, the files Wrangler loads local secrets
   from, except `.dev.vars.example` and `.env.example`, which hold names and descriptions only). Nothing secret is
   logged, returned in a response or kept in plain text in D1 (decision 0007).
-- **Minimal GitHub App permissions:** the manifest requests read-only access to exactly what the rules read (pull
-  requests, checks/statuses, security alerts, metadata); a new permission is a `security`-tier change.
+- **Minimal GitHub App permissions:** the manifest requests read-only access to exactly what the rules read (Actions,
+  Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts and Metadata, `src/github/manifest.ts`);
+  a new permission is a `security`-tier change.
+- **GitHub App manifest flow:** the setup wizard hands GitHub a manifest and finishes the flow on GitHub's signed-out
+  return (`src/setup/github-step.ts`, `src/setup/github-state.ts`, decision 0017). The `state` is an HMAC (key
+  `seluna/setup-github/v1`) over the owner's session, the chosen account type and account, a nonce and an expiry
+  one hour ahead; the finish form is accepted only with a state of the request's session. The app returned by
+  `POST /app-manifests/{code}/conversions` must belong to the chosen account (`isAppOwner` in
+  `src/github/conversion.ts`) before anything is stored or an install link is shown. Account name, code and slug are
+  allow-listed before they enter a URL, the conversion answer is read bounded (1 MiB) and narrowed, the private key
+  is converted to PKCS#8 and must import as an RS256 key (`src/github/private-key.ts`), the three credentials are
+  written in one transaction, and the client secret is discarded. Only the review page has `form-action
+  https://github.com`.
 - **Outbound-only Telegram:** the Worker calls only the Telegram Bot API methods `getUpdates` (in the setup wizard's
   Telegram step, `src/setup/telegram-step.ts`) and `sendMessage` (`src/telegram.ts`); it never sets or deletes a
   webhook and exposes no Telegram route; the input it takes from Telegram is the `getUpdates` answer of the signed-in
@@ -100,8 +113,11 @@ review and not after the PR is opened:
 The hand-written fakes and stubs the tests reuse (no mocking library unless `docs/UNIT_TESTS.md` says
 otherwise):
 
-- **GitHub API double** — a `fetch` stub (`vi.fn` on `globalThis.fetch`, typed against the client's signature) that
-  answers installation-token, pull request and check-run requests from fixtures under `test/fixtures/`.
+- **GitHub API double** — `test/github.ts`: a `vi.fn<GitHubFetch>()` passed as the injected `GitHubFetch` (not a
+  stub on `globalThis.fetch`) that records every request and answers `POST /app-manifests/<code>/conversions` from
+  the reference-built fixtures under `test/fixtures/github/` (written from GitHub's documentation, not captured,
+  decision 0017), a status and body, or a rejection; it fails the test on any other URL. The installation-token,
+  pull request and check-run answers of the later API clients get their fixtures beside these.
 - **Telegram Bot API double** — `test/telegram.ts`: a `vi.fn<TelegramFetch>()` passed as the injected `TelegramFetch`
   (not a stub on `globalThis.fetch`) that records every request and answers `getUpdates` and `sendMessage` from
   fixtures, a status and body, or a rejection (a rate limit, a server error); it fails the test on any other method.

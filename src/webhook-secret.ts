@@ -1,3 +1,6 @@
+import { keyFromEnv } from "./crypto";
+import { readSecret } from "./store/secrets";
+
 /** Name of the Worker secret that holds the webhook secret. */
 export const WEBHOOK_SECRET_NAME = "GITHUB_WEBHOOK_SECRET";
 
@@ -14,6 +17,20 @@ export function secretFromEnv(env: object): WebhookSecretSource {
 }
 
 /** `GITHUB_WEBHOOK_SECRET` when set, else the webhook secret stored in D1; D1 errors reject. */
-export function webhookSecretSource(_env: object, _db: D1Database): WebhookSecretSource {
-  throw new Error("Not implemented");
+export function webhookSecretSource(env: object, db: D1Database): WebhookSecretSource {
+  const fromEnv = secretFromEnv(env);
+  return {
+    webhookSecret: async () => {
+      const workerSecret = await fromEnv.webhookSecret();
+      if (workerSecret !== undefined) {
+        return workerSecret;
+      }
+      const key = await keyFromEnv(env);
+      if (key === undefined) {
+        return undefined;
+      }
+      const stored = await readSecret(db, key, "github_webhook_secret");
+      return stored.kind === "ok" ? stored.value : undefined;
+    },
+  };
 }

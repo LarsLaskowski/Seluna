@@ -130,19 +130,23 @@ export async function readSecret(db: D1Database, key: CryptoKey, name: SecretNam
   return value === undefined ? { kind: "corrupt" } : { kind: "ok", value };
 }
 
-function changesOfLast(results: readonly D1Result[]): number | undefined {
-  return results.at(-1)?.meta.changes;
+type SecretEntry = readonly [name: SecretName, value: string];
+
+/** Whether the last `count` results, the upserts of a batch, each changed exactly one row. */
+function eachUpsertChangedOne(results: readonly D1Result[], count: number): boolean {
+  const upserts = results.slice(-count);
+  return upserts.length === count && upserts.every((result) => result.meta.changes === 1);
 }
 
 /**
- * Encrypts and stores one credential, storing the key check value with the first one; writes only while the
- * checked key check value is still stored, with one retry. D1 errors are not caught.
+ * Encrypts `entries` and stores them in one batch, with the key check value when none is stored yet; writes only
+ * while the checked key check value is still stored, with one retry. The batch is `ok` when each upsert changed one
+ * row; the key check insert is not counted.
  */
-export async function writeSecret(
+async function writeEntries(
   db: D1Database,
   key: CryptoKey,
-  name: SecretName,
-  value: string,
+  entries: readonly SecretEntry[],
 ): Promise<SecretWriteResult> {
   for (let attempt = 0; attempt < WRITE_ATTEMPTS; attempt++) {
     const row = await db.prepare(SELECT_KEY_CHECK).bind(KEY_CHECK_META_KEY).first();
@@ -153,7 +157,6 @@ export async function writeSecret(
     if (check.result === "corrupt") {
       return { kind: "corrupt" };
     }
-    const sealed = await encrypt(key, value, `secrets/${name}`);
     const statements: D1PreparedStatement[] = [];
     let expected: string;
     if (check.stored === undefined) {
@@ -163,9 +166,12 @@ export async function writeSecret(
     } else {
       expected = check.stored;
     }
-    statements.push(db.prepare(UPSERT_SECRET).bind(name, sealed.iv, sealed.ciphertext, KEY_CHECK_META_KEY, expected));
+    for (const [name, value] of entries) {
+      const sealed = await encrypt(key, value, `secrets/${name}`);
+      statements.push(db.prepare(UPSERT_SECRET).bind(name, sealed.iv, sealed.ciphertext, KEY_CHECK_META_KEY, expected));
+    }
     const results = await db.batch(statements);
-    if (changesOfLast(results) === 1) {
+    if (eachUpsertChangedOne(results, entries.length)) {
       return { kind: "ok" };
     }
   }
@@ -173,13 +179,30 @@ export async function writeSecret(
 }
 
 /**
+ * Encrypts and stores one credential, storing the key check value with the first one; writes only while the
+ * checked key check value is still stored, with one retry. D1 errors are not caught.
+ */
+export function writeSecret(
+  db: D1Database,
+  key: CryptoKey,
+  name: SecretName,
+  value: string,
+): Promise<SecretWriteResult> {
+  return writeEntries(db, key, [[name, value]]);
+}
+
+/**
  * Encrypts and stores all three credentials in one batch, storing the key check value with the first write; writes
  * only while the checked key check value is still stored, with one retry. D1 errors are not caught.
  */
-export async function writeSecrets(
-  _db: D1Database,
-  _key: CryptoKey,
-  _values: Readonly<Record<SecretName, string>>,
+export function writeSecrets(
+  db: D1Database,
+  key: CryptoKey,
+  values: Readonly<Record<SecretName, string>>,
 ): Promise<SecretWriteResult> {
-  throw new Error("Not implemented");
+  return writeEntries(db, key, [
+    ["github_app_id", values.github_app_id],
+    ["github_private_key", values.github_private_key],
+    ["github_webhook_secret", values.github_webhook_secret],
+  ]);
 }

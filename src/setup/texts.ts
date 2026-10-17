@@ -197,9 +197,6 @@ const ENGLISH: SetupTexts = {
   },
 };
 
-/** Skeleton placeholder for the German GitHub texts; the implementation translates them. */
-const NOT_TRANSLATED = "Not implemented";
-
 const GERMAN: SetupTexts = {
   pageTitle: "Seluna-Einrichtung",
   languageLabel: "Sprache",
@@ -232,33 +229,43 @@ const GERMAN: SetupTexts = {
     "Gib den sechsstelligen Code aus dieser Nachricht ein, um den Chat zu speichern. Ist keine Nachricht angekommen, ist der Chat nicht deiner: Suche erneut und wähle einen anderen.",
   telegramCodeLabel: "Code",
   telegramCodeButton: "Chat speichern",
-  githubHeading: NOT_TRANSLATED,
-  githubIntro: NOT_TRANSLATED,
-  githubWorkerSecrets: NOT_TRANSLATED,
-  githubPartialWorkerSecrets: NOT_TRANSLATED,
-  githubResetNeeded: NOT_TRANSLATED,
-  githubSavedApp: NOT_TRANSLATED,
-  githubNoSavedApp: NOT_TRANSLATED,
-  githubReplaceHint: NOT_TRANSLATED,
-  githubPersonal: NOT_TRANSLATED,
-  githubOrganization: NOT_TRANSLATED,
-  githubAccountLabel: NOT_TRANSLATED,
-  githubNextButton: NOT_TRANSLATED,
-  githubReviewIntro: NOT_TRANSLATED,
-  githubReviewAccountLabel: NOT_TRANSLATED,
-  githubAppNameLabel: NOT_TRANSLATED,
-  githubPermissionsLabel: NOT_TRANSLATED,
-  githubPermissionsList: NOT_TRANSLATED,
-  githubEventsLabel: NOT_TRANSLATED,
-  githubEventsList: NOT_TRANSLATED,
-  githubToGitHubButton: NOT_TRANSLATED,
-  githubFinishIntro: NOT_TRANSLATED,
-  githubFinishButton: NOT_TRANSLATED,
-  githubCreated: NOT_TRANSLATED,
-  githubInstallIntro: NOT_TRANSLATED,
-  githubInstallLink: NOT_TRANSLATED,
-  githubInstallManual: NOT_TRANSLATED,
-  githubBackLink: NOT_TRANSLATED,
+  githubHeading: "GitHub-App",
+  githubIntro:
+    "Seluna empfängt die Ereignisse deiner Repositories über eine eigene, private GitHub-App. Erstelle sie hier für dein persönliches Konto oder für eine Organisation: Seluna sendet GitHub ein Manifest mit dem Namen der App, der Webhook-Adresse dieser Instanz und reinen Leserechten und speichert die Zugangsdaten der App verschlüsselt, sobald du auf GitHub bestätigt hast.",
+  githubWorkerSecrets:
+    "Die GitHub-App wird durch die Worker-Secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY und GITHUB_WEBHOOK_SECRET festgelegt, die Vorrang vor einer hier erstellten App haben. Um die App hier zu erstellen, lösche diese Secrets.",
+  githubPartialWorkerSecrets:
+    "Einige, aber nicht alle der Worker-Secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY und GITHUB_WEBHOOK_SECRET sind gesetzt. Setze alle drei, um die App von Hand zu konfigurieren, oder lösche sie, um die App hier zu erstellen.",
+  githubResetNeeded:
+    "Die gespeicherten GitHub-Zugangsdaten lassen sich mit dem aktuellen SELUNA_SECRET nicht lesen: Es wurde geändert, oder die gespeicherten Werte sind beschädigt. Setze das frühere SELUNA_SECRET wieder, oder lösche die gespeicherten Zugangsdaten im Cloudflare-Dashboard (die Zeilen der D1-Tabelle secrets und die Zeile key_check der Tabelle meta) und erstelle die App danach erneut.",
+  githubSavedApp: "Gespeicherte GitHub-App, App-ID:",
+  githubNoSavedApp: "Es ist noch keine GitHub-App gespeichert.",
+  githubReplaceHint:
+    "Eine neue App ersetzt die gespeicherte. Lösche die alte App danach auf GitHub: in den Einstellungen deines Kontos oder deiner Organisation unter Developer settings, dann GitHub Apps.",
+  githubPersonal: "Mein persönliches Konto",
+  githubOrganization: "Eine Organisation",
+  githubAccountLabel: "Name des Kontos oder der Organisation, wie in github.com/name",
+  githubNextButton: "Weiter",
+  githubReviewIntro:
+    "Seluna bittet GitHub, diese App zu erstellen. Prüfe auf GitHub die Angaben und wähle Create GitHub App; GitHub schickt dich danach hierher zurück. Seluna speichert die App nur, wenn GitHub sie für das hier gezeigte Konto erstellt hat.",
+  githubReviewAccountLabel: "Konto:",
+  githubAppNameLabel: "App-Name:",
+  githubPermissionsLabel: "Berechtigungen, alle nur lesend:",
+  githubPermissionsList:
+    "Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata",
+  githubEventsLabel: "Ereignisse:",
+  githubEventsList: "Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert",
+  githubToGitHubButton: "Weiter zu GitHub",
+  githubFinishIntro:
+    "GitHub hat die App erstellt. Wähle Abschließen, damit Seluna ihre Zugangsdaten abruft und speichert.",
+  githubFinishButton: "Abschließen",
+  githubCreated: "Die GitHub-App ist gespeichert.",
+  githubInstallIntro:
+    "Installiere sie jetzt auf deinem Konto oder deiner Organisation. Empfohlen ist die Auswahl All repositories, damit auch neue Repositories erfasst werden.",
+  githubInstallLink: "App auf GitHub installieren",
+  githubInstallManual:
+    "Installiere sie auf GitHub: Öffne in den Einstellungen deines Kontos oder deiner Organisation Developer settings, dann GitHub Apps, wähle die App und klicke auf Install App. Empfohlen ist die Auswahl All repositories, damit auch neue Repositories erfasst werden.",
+  githubBackLink: "Zurück zum Schritt GitHub-App",
   notConfiguredHeading: "SELUNA_SECRET ist nicht gesetzt",
   notConfiguredParagraphs: [
     "Die Einrichtung kann nicht starten, weil das Worker-Secret SELUNA_SECRET fehlt oder kürzer als 32 Zeichen ist.",
@@ -289,14 +296,22 @@ const GERMAN: SetupTexts = {
       "Der Code passt nicht zur Testnachricht. Prüfe den Code in deinem Chat und gib ihn erneut ein.",
     "telegram-code-expired":
       "Der Code ist abgelaufen oder das Formular ist nicht mehr gültig. Suche erneut nach Chats und sende eine neue Testnachricht.",
-    "github-invalid-account": NOT_TRANSLATED,
-    "github-return-invalid": NOT_TRANSLATED,
-    "github-state-invalid": NOT_TRANSLATED,
-    "github-code-rejected": NOT_TRANSLATED,
-    "github-unavailable": NOT_TRANSLATED,
-    "github-answer-invalid": NOT_TRANSLATED,
-    "github-owner-mismatch": NOT_TRANSLATED,
-    "github-store-failed": NOT_TRANSLATED,
+    "github-invalid-account":
+      "Wähle dein persönliches Konto oder eine Organisation und gib den Namen ein: 1 bis 39 Buchstaben, Ziffern und Bindestriche, ohne Bindestrich am Anfang oder Ende.",
+    "github-return-invalid":
+      "Diese Seite braucht den Code und den State, die GitHub nach dem Erstellen der App zurückschickt. Beginne erneut beim Schritt GitHub-App.",
+    "github-state-invalid":
+      "Diese Rückkehr von GitHub gehört nicht zu deiner aktuellen Anmeldung oder ist älter als eine Stunde, daher wurde nichts gespeichert. Falls GitHub eine App erstellt hat, lösche sie auf GitHub und beginne erneut.",
+    "github-code-rejected":
+      "GitHub akzeptiert diese Rückkehr nicht mehr: Der Code wurde schon verwendet oder ist älter als eine Stunde. Wenn du die App gerade erst erstellt hast, ist sie bereits gespeichert; andernfalls lösche sie auf GitHub und beginne erneut.",
+    "github-unavailable":
+      "GitHub war nicht erreichbar. Wähle gleich noch einmal Abschließen; die Rückkehr bleibt eine Stunde lang gültig.",
+    "github-answer-invalid":
+      "GitHub hat die App erstellt, aber ihre Antwort ließ sich nicht lesen, daher wurde nichts gespeichert. Lösche die App auf GitHub und beginne erneut.",
+    "github-owner-mismatch":
+      "Diese App gehört nicht zu dem Konto, das du in Seluna gewählt hast, daher wurde nichts gespeichert. Wenn du sie selbst erstellt hast, lösche sie auf GitHub und beginne erneut mit dem Namen des Kontos, bei dem du auf GitHub angemeldet bist, oder der Organisation.",
+    "github-store-failed":
+      "GitHub hat die App erstellt, aber das Speichern ihrer Zugangsdaten ist fehlgeschlagen, daher wurde nichts gespeichert. Lösche die App auf GitHub und beginne erneut.",
   },
 };
 

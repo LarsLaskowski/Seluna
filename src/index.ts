@@ -1,7 +1,7 @@
 import { version } from "../package.json";
 import { handleRequest } from "./router";
 import type { RequestLogEntry } from "./router";
-import { secretFromEnv } from "./webhook-secret";
+import { webhookSecretSource } from "./webhook-secret";
 
 /** Forwards a request to the global `fetch`; the one outbound path of the setup wizard. */
 function outboundFetch(request: Request): Promise<Response> {
@@ -17,7 +17,7 @@ export default {
     return handleRequest(request, {
       version,
       log,
-      webhookSecret: secretFromEnv(env),
+      webhookSecret: webhookSecretSource(env, env.DB),
       setup: { env, db: env.DB, now: () => new Date(), fetch: outboundFetch, githubFetch: outboundFetch, version },
     });
   },

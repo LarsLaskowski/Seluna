@@ -34,12 +34,14 @@ bindings) rely on it.
 
 ### Worker secrets
 
-| Secret                  | Holds                                                                                                                              | Set                                          |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `SELUNA_SECRET`         | A random string of at least 32 characters chosen by the user                                                                       | Deploy form                                  |
-| `TELEGRAM_BOT_TOKEN`    | The token of the user's Telegram bot from @BotFather                                                                               | Deploy form                                  |
-| `GITHUB_WEBHOOK_SECRET` | The webhook secret, optional ([HTTP routes](http-routes.md#webhook-signature))                                                     | By hand, until the setup wizard stores it    |
-| `TELEGRAM_CHAT_ID`      | The id of the chat to send to, optional; takes precedence over the wizard's choice ([Setup wizard](setup-wizard.md#telegram-chat)) | By hand; the deploy form does not ask for it |
+| Secret                   | Holds                                                                                                                                 | Set                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `SELUNA_SECRET`          | A random string of at least 32 characters chosen by the user                                                                          | Deploy form                                  |
+| `TELEGRAM_BOT_TOKEN`     | The token of the user's Telegram bot from @BotFather                                                                                  | Deploy form                                  |
+| `GITHUB_APP_ID`          | The App ID of the GitHub App, optional; takes precedence over the app the wizard created ([Setup wizard](setup-wizard.md#github-app)) | By hand; the deploy form does not ask for it |
+| `GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub App, optional; takes precedence over the stored key                                                     | By hand; the deploy form does not ask for it |
+| `GITHUB_WEBHOOK_SECRET`  | The webhook secret, optional; takes precedence over the stored one ([HTTP routes](http-routes.md#webhook-signature))                  | By hand, or stored by the setup wizard       |
+| `TELEGRAM_CHAT_ID`       | The id of the chat to send to, optional; takes precedence over the wizard's choice ([Setup wizard](setup-wizard.md#telegram-chat))    | By hand; the deploy form does not ask for it |
 
 - The deploy form asks for exactly `SELUNA_SECRET` and `TELEGRAM_BOT_TOKEN`; `.dev.vars.example` names them with
   a description each and holds no value.
@@ -71,7 +73,8 @@ bindings) rely on it.
 
 - A deploy against an account in which the database does not exist yet fails at the migration step with
   Wrangler's message and deploys nothing.
-- Without `GITHUB_WEBHOOK_SECRET` an instance answers every `POST /webhook` with 503
+- Without `GITHUB_WEBHOOK_SECRET` and without a webhook secret stored by the setup wizard an instance answers every
+  `POST /webhook` with 503, and so it does when the stored secret cannot be read or D1 fails
   ([HTTP routes](http-routes.md#webhook-signature)).
 - Without a `SELUNA_SECRET` of at least 32 characters every request under `/setup` answers 503 with a page that
   explains how to set it ([Setup wizard](setup-wizard.md#paths)).
@@ -81,6 +84,8 @@ bindings) rely on it.
 - [`decisions/0013-deploy-to-cloudflare-and-workers-builds.md`](../decisions/0013-deploy-to-cloudflare-and-workers-builds.md)
   — the button and Workers Builds, the binding without a database id, migrations before the deploy, the Telegram
   bot token as a Worker secret.
+- [`decisions/0017-github-app-manifest-flow.md`](../decisions/0017-github-app-manifest-flow.md) — the optional
+  GitHub Worker secrets and their precedence over the credentials the wizard stores.
 
 ## Not here
 
