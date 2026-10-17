@@ -90,6 +90,27 @@ async function deliverOne(
   return sent;
 }
 
+/** Delivers `messages[index]` and then the rows after it, one after the other. Never rejects. */
+async function deliverFrom(
+  messages: readonly PendingMessage[],
+  index: number,
+  target: Target,
+  buttonText: string,
+  deps: DeliveryDeps,
+): Promise<void> {
+  const message = messages[index];
+  if (message === undefined) {
+    return;
+  }
+  const result = target.kind === "ready" ? await deliverOne(message, target, buttonText, deps) : target.result;
+  try {
+    deps.log({ outbox: message.id, result });
+  } catch {
+    // A failing log sink must not stop the next row.
+  }
+  await deliverFrom(messages, index + 1, target, buttonText, deps);
+}
+
 /** Sends each row once, in order, updates it and logs it. Never rejects. */
 export async function deliverMessages(
   messages: readonly PendingMessage[],
@@ -97,15 +118,7 @@ export async function deliverMessages(
   deps: DeliveryDeps,
 ): Promise<void> {
   const target = await resolveTarget(deps);
-  const buttonText = MESSAGE_TEXTS[language].openOnGitHub;
-  for (const message of messages) {
-    const result = target.kind === "ready" ? await deliverOne(message, target, buttonText, deps) : target.result;
-    try {
-      deps.log({ outbox: message.id, result });
-    } catch {
-      // A failing log sink must not stop the next row.
-    }
-  }
+  await deliverFrom(messages, 0, target, MESSAGE_TEXTS[language].openOnGitHub, deps);
 }
 
 /** Resolves after `milliseconds` (a timer). */
