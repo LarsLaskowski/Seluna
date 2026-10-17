@@ -7,9 +7,12 @@ import type { RequestLogEntry, RouteDeps } from "./router";
 import { CSRF_COOKIE, csrfTokenFor } from "./setup/csrf";
 import type { SetupDeps } from "./setup/handler";
 import { LOGIN_ATTEMPTS_META_KEY } from "./store/login-attempts";
+import { writeSecrets } from "./store/secrets";
+import { webhookSecretSource } from "./webhook-secret";
 import type { WebhookSecretSource } from "./webhook-secret";
-import { applyMigrations } from "../test/d1";
-import { signingKeyFor } from "../test/keys";
+import { applyMigrations, migrationTestDb } from "../test/d1";
+import { FIXTURE_CODE } from "../test/github";
+import { keyFor, signingKeyFor } from "../test/keys";
 
 const ORIGIN = "https://example.com";
 const HALF = MAX_BODY_BYTES / 2;
@@ -406,5 +409,47 @@ describe("handleRequest", () => {
     await handleRequest(request, makeDeps(entries, FIXTURE_SECRET_SOURCE, SETUP_DEPS));
 
     expect(entries, "log entries").toStrictEqual([{ method: "POST", path: "/setup/login", status: 403 }]);
+  });
+});
+
+describe("handleRequest with the webhook secret stored in D1", () => {
+  it("POST /webhook answers 202 for the real ping delivery signed with the webhook secret stored in D1", async () => {
+    await applyMigrations(env.DB);
+    await env.DB.batch([env.DB.prepare("DELETE FROM secrets"), env.DB.prepare("DELETE FROM meta")]);
+    const stored = await writeSecrets(env.DB, await keyFor(SETUP_SECRET), {
+      github_app_id: "1",
+      github_private_key: "key",
+      github_webhook_secret: secret,
+    });
+    const source = webhookSecretSource({ SELUNA_SECRET: SETUP_SECRET }, env.DB);
+
+    const response = await handleRequest(webhook(body, headers), makeDeps([], source));
+
+    expect(stored, "storing the credentials").toEqual({ kind: "ok" });
+    expect(response.status, "status").toBe(202);
+    expect(await response.text(), "body").toBe("");
+  });
+
+  it("POST /webhook answers 503 when reading the stored webhook secret fails", async () => {
+    const source = webhookSecretSource({ SELUNA_SECRET: SETUP_SECRET }, migrationTestDb());
+
+    const response = await handleRequest(webhook(body, headers), makeDeps([], source));
+
+    expect(response.status, "status").toBe(503);
+    expect(await response.text(), "body").toBe("");
+  });
+});
+
+describe("handleRequest logging of the GitHub return", () => {
+  it("handleRequest logs GET /setup/github/callback as method, path and status without the query", async () => {
+    const entries: RequestLogEntry[] = [];
+    const state = `v1.personal.octocat.1700003600000.${"A".repeat(22)}.${"B".repeat(43)}`;
+    const request = new Request(`${ORIGIN}/setup/github/callback?code=${FIXTURE_CODE}&state=${state}`);
+
+    const response = await handleRequest(request, makeDeps(entries, FIXTURE_SECRET_SOURCE, SETUP_DEPS));
+
+    expect(await response.text(), "finish page").toContain('action="/setup/github/callback"');
+    expect(entries, "log entries").toStrictEqual([{ method: "GET", path: "/setup/github/callback", status: 200 }]);
+    expect(JSON.stringify(entries), "logged text").not.toContain(FIXTURE_CODE);
   });
 });

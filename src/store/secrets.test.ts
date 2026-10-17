@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { assert, beforeEach, describe, expect, it } from "vitest";
 import { encrypt } from "../crypto";
-import { checkKey, KEY_CHECK_META_KEY, KEY_CHECK_PLAINTEXT, readSecret, writeSecret } from "./secrets";
+import { checkKey, KEY_CHECK_META_KEY, KEY_CHECK_PLAINTEXT, readSecret, writeSecret, writeSecrets } from "./secrets";
 import type { SecretName } from "./secrets";
 import { applyMigrations } from "../../test/d1";
 import { keyFor, withFirstCharacterChanged } from "../../test/keys";
@@ -412,5 +412,161 @@ describe("writeSecret racing a reset or another write", () => {
     expect(result, "write result").toEqual({ kind: "corrupt" });
     expect(calls.batchSizes, "batch calls: two attempts").toHaveLength(2);
     expect(await secretRows(), "secrets rows").toEqual(secretsBefore);
+  });
+});
+
+const CREDENTIALS = { github_app_id: "12345", github_private_key: PEM, github_webhook_secret: "whsec-0123456789" };
+const OLD_CREDENTIALS = { github_app_id: "old", github_private_key: "old-key", github_webhook_secret: "old-hook" };
+const NAMES = ["github_app_id", "github_private_key", "github_webhook_secret"] as const;
+
+/** `changes` as the results of a batch: one D1 result per entry. */
+function resultsOf<T>(changes: readonly number[]): D1Result<T>[] {
+  return changes.map((count) => ({
+    success: true,
+    results: [],
+    meta: {
+      duration: 0,
+      size_after: 0,
+      rows_read: 0,
+      rows_written: count,
+      last_row_id: 0,
+      changed_db: count > 0,
+      changes: count,
+    },
+  }));
+}
+
+/** A D1 double over `env.DB` that forwards `prepare` and answers every `batch` with the canned `changes` without running it. */
+function cannedBatchDb(changes: readonly number[]): { readonly db: D1Database; readonly batchSizes: number[] } {
+  const batchSizes: number[] = [];
+  const db: D1Database = {
+    prepare: (query) => env.DB.prepare(query),
+    exec: (query) => env.DB.exec(query),
+    withSession: (constraintOrBookmark) => env.DB.withSession(constraintOrBookmark),
+    dump: () => Promise.reject(new Error("dump is deprecated and not forwarded")),
+    batch: <T = unknown>(statements: D1PreparedStatement[]) => {
+      batchSizes.push(statements.length);
+      return Promise.resolve(resultsOf<T>(changes));
+    },
+  };
+  return { db, batchSizes };
+}
+
+async function seedAll(secret: string, values: Readonly<Record<(typeof NAMES)[number], string>>): Promise<void> {
+  for (const name of NAMES) {
+    await seed(secret, name, values[name]);
+  }
+}
+
+describe("writeSecrets", () => {
+  it("writeSecrets stores the three credentials and the key check value on the first write", async () => {
+    const key = await keyFor(SECRET_A);
+    const { db, calls } = forwardingDb(undefined, "every");
+
+    const result = await writeSecrets(db, key, CREDENTIALS);
+
+    expect(result, "write result").toEqual({ kind: "ok" });
+    expect(calls.batchSizes, "one batch: the key check insert and the three upserts").toEqual([4]);
+    expect(await readSecret(env.DB, key, "github_app_id"), "App ID").toEqual({ kind: "ok", value: "12345" });
+    expect(await readSecret(env.DB, key, "github_private_key"), "private key").toEqual({ kind: "ok", value: PEM });
+    expect(await readSecret(env.DB, key, "github_webhook_secret"), "webhook secret").toEqual({
+      kind: "ok",
+      value: "whsec-0123456789",
+    });
+    expect(String(await storedKeyCheck()), "key check value").toMatch(KEY_CHECK_FORM);
+    expect(await checkKey(env.DB, key), "key check result").toBe("match");
+    expect(
+      (await secretRows()).map((row) => row.key),
+      "secrets keys",
+    ).toEqual(["github_app_id", "github_private_key", "github_webhook_secret"]);
+  });
+
+  it("writeSecrets replaces earlier values of all three", async () => {
+    await seedAll(SECRET_A, OLD_CREDENTIALS);
+    const key = await keyFor(SECRET_A);
+    const keyCheckBefore = await storedKeyCheck();
+    const { db, calls } = forwardingDb(undefined, "every");
+
+    const result = await writeSecrets(db, key, CREDENTIALS);
+
+    expect(result, "write result").toEqual({ kind: "ok" });
+    expect(calls.batchSizes, "one batch of the three upserts").toEqual([3]);
+    expect(await readSecret(env.DB, key, "github_app_id"), "App ID").toEqual({ kind: "ok", value: "12345" });
+    expect(await readSecret(env.DB, key, "github_private_key"), "private key").toEqual({ kind: "ok", value: PEM });
+    expect(await readSecret(env.DB, key, "github_webhook_secret"), "webhook secret").toEqual({
+      kind: "ok",
+      value: "whsec-0123456789",
+    });
+    expect(await storedKeyCheck(), "key check value").toBe(keyCheckBefore);
+    expect(await secretRows(), "number of secrets rows").toHaveLength(3);
+  });
+
+  it("writeSecrets writes none of the three under a changed SELUNA_SECRET", async () => {
+    await seedAll(SECRET_A, OLD_CREDENTIALS);
+    const secretsBefore = await secretRows();
+    const metaBefore = await metaRows();
+
+    const result = await writeSecrets(env.DB, await keyFor(SECRET_B), CREDENTIALS);
+
+    expect(result, "write result").toEqual({ kind: "secret-changed" });
+    expect(await secretRows(), "secrets rows").toEqual(secretsBefore);
+    expect(await metaRows(), "meta rows").toEqual(metaBefore);
+  });
+
+  it.each([
+    {
+      name: "malformed",
+      prepare: async () => {
+        await putKeyCheck("not-a-key-check");
+      },
+    },
+    {
+      name: "absent while a credential is stored",
+      prepare: async () => {
+        await seed(SECRET_A, "github_app_id", "old");
+        await env.DB.prepare("DELETE FROM meta").run();
+      },
+    },
+  ])("writeSecrets writes none of the three when the key check value is corrupt: $name", async ({ prepare }) => {
+    await prepare();
+    const secretsBefore = await secretRows();
+
+    const result = await writeSecrets(env.DB, await keyFor(SECRET_A), CREDENTIALS);
+
+    expect(result, "write result").toEqual({ kind: "corrupt" });
+    expect(await secretRows(), "secrets rows").toEqual(secretsBefore);
+  });
+
+  it.each([
+    { name: "the third upsert changed no row", changes: [1, 1, 0] },
+    { name: "the first upsert changed no row while the last changed one", changes: [0, 1, 1] },
+    { name: "the second upsert changed no row", changes: [1, 0, 1] },
+  ])("writeSecrets reports ok only when each of the three upserts changed one row: $name", async ({ changes }) => {
+    await seed(SECRET_A, "github_app_id", "old");
+    const { db, batchSizes } = cannedBatchDb(changes);
+
+    const result = await writeSecrets(db, await keyFor(SECRET_A), CREDENTIALS);
+
+    expect(result, "write result").toEqual({ kind: "corrupt" });
+    expect(batchSizes, "two attempts of three statements").toEqual([3, 3]);
+  });
+
+  it("writeSecrets reports ok when each upsert changed one row", async () => {
+    await seed(SECRET_A, "github_app_id", "old");
+    const { db, batchSizes } = cannedBatchDb([1, 1, 1]);
+
+    const result = await writeSecrets(db, await keyFor(SECRET_A), CREDENTIALS);
+
+    expect(result, "write result").toEqual({ kind: "ok" });
+    expect(batchSizes, "one attempt").toEqual([3]);
+  });
+
+  it("writeSecrets leaves the key check insert out of the change count", async () => {
+    const { db, batchSizes } = cannedBatchDb([0, 1, 1, 1]);
+
+    const result = await writeSecrets(db, await keyFor(SECRET_A), CREDENTIALS);
+
+    expect(result, "write result").toEqual({ kind: "ok" });
+    expect(batchSizes, "one attempt of the key check insert and three upserts").toEqual([4]);
   });
 });

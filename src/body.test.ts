@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseContentLength, readBodyWithLimit } from "./body";
+import { parseContentLength, readBodyWithLimit, readJsonWithLimit } from "./body";
 
 const MAX_BYTES = 8;
 const URL = "https://example.com/webhook";
@@ -182,4 +182,43 @@ describe("readBodyWithLimit", () => {
 
     expect(result, "too-large result").toEqual({ kind: "too-large" });
   });
+});
+
+describe("readJsonWithLimit", () => {
+  it("readJsonWithLimit parses a UTF-8 JSON body within the limit", async () => {
+    const response = new Response('{"a":["ä",1]}');
+
+    const result = await readJsonWithLimit(response, 64);
+
+    expect(result, "parsed JSON").toEqual({ a: ["ä", 1] });
+  });
+
+  it("readJsonWithLimit parses the JSON body of a request that is exactly maxBytes long", async () => {
+    const request = postWith("[1,2,3,4]");
+
+    const result = await readJsonWithLimit(request, 9);
+
+    expect(result, "parsed JSON").toEqual([1, 2, 3, 4]);
+  });
+
+  it.each([
+    { name: "a body above the limit", body: new TextEncoder().encode('"aaaaaaa"'), maxBytes: 8 },
+    {
+      name: "a body above the limit counted in bytes, not characters",
+      body: new TextEncoder().encode('"äääää"'),
+      maxBytes: 8,
+    },
+    { name: "a body that is not UTF-8", body: new Uint8Array([0x22, 0xff, 0x22]), maxBytes: 8 },
+    { name: "text that is not JSON", body: new TextEncoder().encode("not json"), maxBytes: 64 },
+    { name: "an empty body", body: new Uint8Array(0), maxBytes: 64 },
+  ])(
+    "readJsonWithLimit returns undefined above the limit, for invalid UTF-8 and for text that is not JSON: $name",
+    async ({ body, maxBytes }) => {
+      const response = new Response(body);
+
+      const result = await readJsonWithLimit(response, maxBytes);
+
+      expect(result, "parsed JSON").toBeUndefined();
+    },
+  );
 });

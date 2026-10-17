@@ -23,7 +23,7 @@ describe("TEXTS", () => {
     expect(TEXTS.en.notConfiguredParagraphs.length, "English not-configured paragraphs").toBeGreaterThan(0);
     expect(TEXTS.de.notConfiguredParagraphs.length, "German not-configured paragraphs").toBeGreaterThan(0);
     expect(Object.keys(TEXTS.de.notices), "German notice keys").toEqual(Object.keys(TEXTS.en.notices));
-    expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(13);
+    expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(21);
   });
 
   it("texts word the English notices as the area document does", () => {
@@ -50,6 +50,22 @@ describe("TEXTS", () => {
         "The code does not match the test message. Check the code in your chat and enter it again.",
       "telegram-code-expired":
         "The code has expired or the form is no longer valid. Search for chats again and send a new test message.",
+      "github-invalid-account":
+        "Choose your personal account or an organization and enter its name: 1 to 39 letters, digits and hyphens, not starting or ending with a hyphen.",
+      "github-return-invalid":
+        "This page needs the code and state GitHub sends back after creating the app. Start again from the GitHub App step.",
+      "github-state-invalid":
+        "This return from GitHub does not belong to your current sign-in or is older than one hour, so nothing was saved. If GitHub created an app, delete it on GitHub and start again.",
+      "github-code-rejected":
+        "GitHub no longer accepts this return: the code was already used or is older than one hour. If you have just created the app, it is already saved; otherwise delete it on GitHub and start again.",
+      "github-unavailable":
+        "GitHub could not be reached. Select Finish again in a moment; the return stays valid for one hour.",
+      "github-answer-invalid":
+        "GitHub created the app, but its answer could not be read, so nothing was saved. Delete the app on GitHub and start again.",
+      "github-owner-mismatch":
+        "This app does not belong to the account you chose in Seluna, so nothing was saved. If you created it yourself, delete it on GitHub and start again with the name of the account you are signed in to on GitHub, or of the organization.",
+      "github-store-failed":
+        "GitHub created the app, but saving its credentials failed, so nothing was saved. Delete the app on GitHub and start again.",
     });
   });
 
