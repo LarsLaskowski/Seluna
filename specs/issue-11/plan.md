@@ -168,6 +168,9 @@ Test names are the Tester's step-5 tests; files per *Test files*.
   *Texts* below.
   - `src/setup/texts.test.ts`: the existing exact-text test extended with the new keys (Tester adapts it, including
     the changed `githubResetNeeded`).
+  - `src/setup/pages.test.ts`: "renderGitHubPage reset-needed view links to the start page in $language" (the
+    _reset needed_ text followed by `<a href="/setup">` with _to the start page_); the existing
+    "its own links only" table entry `github reset-needed` lists `/setup` among its links (Lead decision, below).
 
 ## Approach
 
@@ -574,3 +577,30 @@ Plan delta review, CHANGES_REQUIRED:
   concurrent first write into an empty table after the read (fingerprint no longer `NULL`; rows block (3)).
   Decision 0018 option 8, `docs/areas/storage.md`, `docs/areas/setup-wizard.md` and `.squad/project.md` describe the
   per-statement guard and order.
+
+## Lead decisions
+
+Decide, after the implementation (b72c715):
+
+1. **The _reset needed_ link to the start page stays (option a).** The plan (*Approach* step 5, *Texts*, *Affected
+   projects*, *Areas*) asks for it, and the text sends the owner to "the start page", so the page should lead there;
+   the language links that also reach `/setup` are a language switch, not that step. The failing assertion was the
+   `github reset-needed` entry of the "its own links only" table in `src/setup/pages.test.ts`, written before the
+   link was planned into it — a test defect, not a plan defect. Dropping the link would leave `startPageLink`, a text
+   added only for it, unused. Owners:
+   - **Tester** (`src/setup/pages.test.ts`): the `github reset-needed` table entry gets
+     `links: [GITHUB_LINK, "/setup"]`; new test "renderGitHubPage reset-needed view links to the start page in
+     $language" asserting `<p><a href="/setup">${escapeHtml(TEXTS[language].startPageLink)}</a></p>` after the
+     _reset needed_ text (AC10). Written first, so it fails before the Dev's fix.
+   - **Dev** (`src/setup/pages.ts`): the `reset-needed` case renders the text followed by
+     `<p><a href="/setup">` _to the start page_ `</a></p>`.
+   - **Dev** (`docs/areas/setup-wizard.md`): *The step page* — the _reset needed_ view has no form and a link to the
+     start page (`/setup`); *Texts* — the _reset needed_ text is followed by _to the start page_ "Open the start
+     page"; and the *Reset* bullet of the start-page texts loses "the link "Open the start page"", which belongs to
+     the GitHub step page, not to the reset section (the start page renders no such link).
+   - Then *Format* by each member on its files, the Code Officer's analyzer gate and a Reviewer round over the delta.
+2. **`needsReset` reusing the read of `resetCredentials` is accepted.** `needsReset` and `resetCredentials` now
+   decide from the same function (`readCredentialState`, `src/store/secrets.ts`), so the status page's
+   "reset needed" and the reset's precondition cannot drift apart; the extra cost is the fingerprint and the
+   `secrets` rows read on `GET /setup`, a handful of rows in one batch. Behavior is the planned one; AC6's tests
+   cover it unchanged. No record change: decision 0018 is about the guard, not about how the check is shared.
