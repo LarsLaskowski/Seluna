@@ -1,6 +1,8 @@
 import { version } from "../package.json";
 import { handleRequest } from "./router";
 import { wait } from "./delivery";
+import type { DeliveryLogEntry } from "./delivery";
+import type { RequestLogEntry } from "./router";
 import { RULES } from "./rules/registry";
 import { processWebhook } from "./webhook";
 import { webhookSecretSource } from "./webhook-secret";
@@ -10,7 +12,7 @@ function outboundFetch(request: Request): Promise<Response> {
   return fetch(request);
 }
 
-function log(entry: unknown): void {
+function log(entry: RequestLogEntry | DeliveryLogEntry): void {
   console.log(entry);
 }
 
