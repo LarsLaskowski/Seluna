@@ -1,6 +1,6 @@
 # 0018: Settings, status page and reset in the setup wizard
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-17
 - **Area:** Setup wizard
 - **Source:** Issue #11
