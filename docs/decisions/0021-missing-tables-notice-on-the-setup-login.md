@@ -54,6 +54,6 @@ the secret is checked. That is accepted: such an instance holds no data, its log
 _unavailable_ notice already told the same visitor that D1 fails. The list of schema tables lives beside the store
 modules and a test pins it to the tables the migrations create, so a migration that adds a table fails that test
 until the list is extended. A database that has every table but an outdated column is not detected and still shows
-_unavailable_. Whether production D1 answers the `sqlite_master` read as the test pool does is unverified; if it
-fails there, the login shows _unavailable_ as before, and a live check on a deployed copy
-(`npx wrangler d1 execute DB --remote --command "SELECT name FROM sqlite_master WHERE type = 'table'"`) settles it.
+_unavailable_. A live check on a deployed copy (`npx wrangler d1 execute DB --remote --command "SELECT name FROM
+sqlite_master WHERE type = 'table'"`) lists the tables, so production D1 answers the `sqlite_master` read as the test
+pool does; if that read failed, the login would still show _unavailable_ as before.
