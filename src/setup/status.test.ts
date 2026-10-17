@@ -78,6 +78,11 @@ describe("statusView", () => {
       expected: { app: { kind: "saved", appId: 12_345, slug: undefined } },
     },
     {
+      case: "a stored App ID that is not a number as no saved app",
+      prepare: () => seedAppId(SECRET, "not-a-number"),
+      expected: { app: { kind: "none" } },
+    },
+    {
       case: "all three GitHub Worker secrets",
       prepare: () => Promise.resolve(),
       workerEnv: WORKER_SECRETS,

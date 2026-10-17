@@ -2869,6 +2869,24 @@ describe("handleSetup settings and reset forms: protection", () => {
     expect(await secretsCount(), "number of secrets rows").toBe(1);
   });
 
+  it.each(PATHS)("POST %s without a session answers the login page and changes nothing", async (path) => {
+    const response = await call(
+      path,
+      { method: "POST", body: form(fieldsFor(path, [])) },
+      depsAt(NOW.getTime(), { db: unusedDb() }),
+    );
+
+    expect(response.status, "status").toBe(200);
+    expectLoginPage(await response.text());
+  });
+
+  it.each(PATHS)("GET %s answers 404 when signed in", async (path) => {
+    const response = await call(path, { cookies: await signedInCookies() });
+
+    expect(response.status, "status").toBe(404);
+    expect(await response.text(), "body").toBe("");
+  });
+
   it.each(PATHS)("POST %s answers a body over 1 MiB with 413", async (path) => {
     await seedAppId(OTHER_SECRET, "12345");
 

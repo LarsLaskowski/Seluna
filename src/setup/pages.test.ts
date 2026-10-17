@@ -314,7 +314,7 @@ const GITHUB_PAGES = LANGUAGES.flatMap((language) => {
     {
       page: "github reset-needed",
       language,
-      links: [GITHUB_LINK],
+      links: [GITHUB_LINK, "/setup"],
       external: [] as string[],
       html: view({ kind: "reset-needed" }),
     },
@@ -404,6 +404,19 @@ describe("the GitHub pages", () => {
 });
 
 describe("renderGitHubPage", () => {
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderGitHubPage reset-needed view links to the start page in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+
+      const page = renderGitHubPage(language, CSRF_TOKEN, { kind: "reset-needed" });
+
+      expect(page, "reset text followed by the start page link").toContain(
+        `<p>${escapeHtml(texts.githubResetNeeded)}</p>\n<p><a href="/setup">${escapeHtml(texts.startPageLink)}</a></p>`,
+      );
+    },
+  );
+
   it.each(LANGUAGES.map((language) => ({ language })))(
     "renderGitHubPage shows the heading and the notice of a notice-only view with a link back to the step in $language",
     ({ language }) => {
