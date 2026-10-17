@@ -2,7 +2,7 @@
 
 Source: Issue #46
 Status: Draft
-Tier: trivial — the fix is documentation that needs a decision record and an area document (setup guide, `docs/areas/deployment.md`, decision 0013, `docs/ARCHITECTURE.md`); no production code, test code, configuration or behavior of the Worker changes.
+Tier: trivial — the fix is documentation that needs a decision record and an area document (setup guide, `docs/areas/deployment.md`, new decision 0020 amending the released 0013, `docs/ARCHITECTURE.md`); no production code, test code, configuration or behavior of the Worker changes.
 
 ## Problem / root cause
 
@@ -18,7 +18,8 @@ taken. Workers Builds runs exactly the deploy command stored in the Worker's bui
 the root cause is outside the repository (the button did not pre-fill the documented value), and what the
 repository gets wrong is its documentation: `docs/setup.md` lines 15 and 21, `docs/areas/deployment.md` lines 17-18
 and 30-33, `docs/ARCHITECTURE.md` line 124 and decision 0013 (*Context*, option 5, *Decision*) state as fact that
-the button picks up `npm run deploy`.
+the button picks up `npm run deploy`. Decision 0013 is released (its commit is contained in tag `v0.1.0`), so it
+stays unedited; the correction is the new record 0020, which amends it.
 
 Claims of the issue, checked:
 
@@ -67,9 +68,11 @@ show the migrations.
   command; the push bullet still refers to "the deploy command below".
 - [ ] AC6: `docs/ARCHITECTURE.md` *Deployment* (line 122-124) says the Workers Build applies the migrations with the
   deploy command `npm run deploy`, which the setup guide has the user check.
-- [ ] AC7: decision 0013 records issue #46's finding, the options for getting the deploy command right and the
-  chosen one, and links the area document (done by the Lead in this plan step; status `Proposed`, index row
-  `Proposed`).
+- [ ] AC7: decision 0013 (released in `v0.1.0`) and its index row are byte-identical to `origin/main` (status
+  `Accepted`); a new record `docs/decisions/0020-deploy-command-checked-in-the-setup-guide.md` (status `Proposed`,
+  index row `Proposed`, *Supersedes* names 0013 and says in one sentence what it amends) records issue #46's
+  finding, the options for getting the deploy command right and the chosen one, and links the area document
+  (done by the Lead in the revise step). `python3 .squad/tools/decision-check.py` passes.
 - [ ] AC8: No other file changes: no production code, test code, `package.json`, `wrangler.jsonc` or workflow.
 
 ## Verification without tests
@@ -121,12 +124,22 @@ check the button does not do reliably. Exact edits for the Dev:
      `/setup` answers with the _unavailable_ notice where it reads D1 ([Setup wizard](setup-wizard.md#login)), and
      `/health`, which reads no D1, still answers. Setting the command to `npm run deploy` and retrying the build
      applies the missing migrations."
-   - *Related decisions*, 0013 bullet: append "and the deploy command the user checks after the button's deploy".
+   - *Related decisions*, 0013 bullet: revert to its `origin/main` text, i.e. remove the appended
+     ", and the deploy command the user checks after the button's deploy" so the bullet ends
+     "... the Telegram bot token as a Worker secret." (exactly as on `origin/main`).
+   - *Related decisions*: add after the 0013 bullet:
+     "- [`decisions/0020-deploy-command-checked-in-the-setup-guide.md`](../decisions/0020-deploy-command-checked-in-the-setup-guide.md)
+     — why the setup guide has the user check the deploy command after the button's deploy, and why the
+     migrations stay out of the build command."
 4. `docs/ARCHITECTURE.md` *Deployment* (inside the project block): replace "that copy starts a Workers Build that
    applies the D1 migrations and then deploys" with "that copy starts a Workers Build whose deploy command,
    `npm run deploy`, applies the D1 migrations and then deploys (the setup guide has the user check that command,
-   which the button does not always set)".
-5. Decision 0013: already extended by the Lead in this step (see *Decision records*).
+   which the button does not always set)" (already applied), and change the link that follows from
+   "([decision 0013](decisions/0013-deploy-to-cloudflare-and-workers-builds.md), rules in" to
+   "([decision 0013](decisions/0013-deploy-to-cloudflare-and-workers-builds.md),
+   [decision 0020](decisions/0020-deploy-command-checked-in-the-setup-guide.md), rules in".
+5. Decisions: 0013 restored to `origin/main` and new record 0020 written by the Lead in the revise step (see
+   *Decision records*); the Dev edits no record.
 
 Wording may be adjusted by the Dev for Prettier and flow; the facts above are fixed. The anchor
 `setup-wizard.md#login` must exist (the heading *Login* in `docs/areas/setup-wizard.md`); the Dev checks it.
@@ -154,7 +167,7 @@ Wording may be adjusted by the Dev for Prettier and flow; the facts above are fi
 | docs | `docs/setup.md` | Deploy steps 2-4, *Updates* (Dev) |
 | docs | `docs/areas/deployment.md` | *Deploy to Cloudflare*, *Deploy command*, *Limits and errors*, *Related decisions* (Dev) |
 | docs | `docs/ARCHITECTURE.md` | *Deployment* sentence (Dev) |
-| docs | `docs/decisions/0013-deploy-to-cloudflare-and-workers-builds.md`, `docs/decisions/README.md` | Extended, `Proposed` (Lead, done) |
+| docs | `docs/decisions/0020-deploy-command-checked-in-the-setup-guide.md`, `docs/decisions/README.md` | New record and index row, `Proposed` (Lead, done); 0013 unchanged against `origin/main` |
 
 ## Signatures (for the Dev's skeleton)
 
@@ -174,8 +187,8 @@ None. Existing test call sites affected: none. Files no unit test can cover: non
 - `docs/setup.md` — Dev.
 - `docs/areas/deployment.md` — Dev.
 - `docs/ARCHITECTURE.md` — Dev.
-- `docs/decisions/0013-deploy-to-cloudflare-and-workers-builds.md` and its index row — Lead (done; approval sets
-  `Accepted`).
+- `docs/decisions/0020-deploy-command-checked-in-the-setup-guide.md` and its index row — Lead (done; approval sets
+  `Accepted`). `docs/decisions/0013-...` stays as on `origin/main`.
 - `README.md` — none (the button link is unchanged).
 
 ## Architecture check
@@ -192,10 +205,22 @@ stops the deploy" is untouched. Migrations stay frozen once on `main`.
 
 ## Decision records
 
-- `docs/decisions/0013-deploy-to-cloudflare-and-workers-builds.md` (Proposed; unreleased — no `v*` tag exists, so it
-  is extended in place): *Context* records the documented pre-fill and issue #46's live result, option 5 no longer
-  claims the button takes the script, new options 13-16 on how the deploy command gets set, *Decision* and
-  *Consequences* updated. Index row set to `Proposed`.
+- `docs/decisions/0013-deploy-to-cloudflare-and-workers-builds.md` — **released** (its commit is contained in tag
+  `v0.1.0`; the first plan's claim that no `v*` tag exists was wrong, made without the remote tags fetched). It is
+  append-only: restored to `origin/main`, status `Accepted`, index row `Accepted`. It is not superseded — the
+  button, Workers Builds, the binding, migrations before the deploy, the secrets and preview URLs all still hold.
+- `docs/decisions/0020-deploy-command-checked-in-the-setup-guide.md` (new, `Proposed`, index row `Proposed`,
+  *Area:* Deployment, *Supersedes:* 0013 with one sentence on what it amends): *Context* records the documented
+  pre-fill and issue #46's live result, five options (the earlier options 13-16 plus "a repository setting the
+  button reads"), the choice of option 1 and the link to `areas/deployment.md`. The behavior statements that
+  `docs/areas/deployment.md` holds (the command, the failure with any other command) are only referenced, not
+  restated. `decision-check.py`: PASS (20 records).
+
+## Challenge
+
+- Review round 1, blocking: decision 0013 is released in `v0.1.0` and was edited. Accepted: 0013 and its index row
+  restored to `origin/main`; the content moved to the new record 0020, which amends 0013; AC7, *Approach* steps 3-5
+  and *Decision records* revised; the Dev reverts the *Related decisions* phrase and adds the 0020 bullet and link.
 
 ## Out of scope / follow-ups
 

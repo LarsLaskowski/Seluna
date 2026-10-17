@@ -1,9 +1,9 @@
 # 0013: Deployment through the Deploy to Cloudflare button and Workers Builds
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-14
 - **Area:** Deployment
-- **Source:** Issue #6, issue #46
+- **Source:** Issue #6
 - **Supersedes:** —
 
 ## Context
@@ -12,15 +12,10 @@ Every user runs their own instance ([decision 0005](0005-one-instance-per-user.m
 Cloudflare account has to work without a command line and without the maintainer. Cloudflare's Deploy to Cloudflare
 button copies a public repository into the user's GitHub account (an independent copy, not a fork), provisions the
 resources the Wrangler configuration declares, asks for the Worker secrets listed in `.dev.vars.example`, and
-connects the copy to Workers Builds, which builds and deploys every push to the production branch. According to
-Cloudflare's documentation the button pre-fills the build and deploy commands from the `build` and `deploy` scripts
-in `package.json` and falls back to `npx wrangler deploy` without a `deploy` script; descriptions for the secrets
+connects the copy to Workers Builds, which builds and deploys every push to the production branch. Its build and
+deploy commands are taken from the `build` and `deploy` scripts in `package.json`; descriptions for the secrets
 come from `cloudflare.bindings` in `package.json` (Cloudflare documentation, `workers/platform/deploy-buttons`,
-read at cloudflare-docs commit `7b23ded` and again for issue #46). The first real deployment (issue #46) took the
-`build` script but set the deploy command to `npx wrangler deploy`, so no migration ran and the database stayed
-empty; with the deploy command changed to `npm run deploy` in the Worker's build settings, the next build applied
-the migrations with the token Workers Builds generates. Workers Builds runs whatever deploy command is stored in
-those settings; the repository has no other place to set it. Issue #6 asks for a D1 binding `DB` without a fixed database id, cron
+read at cloudflare-docs commit `7b23ded`). Issue #6 asks for a D1 binding `DB` without a fixed database id, cron
 triggers every 10 minutes and once a day (no-ops until issue #18), exactly the secrets `SELUNA_SECRET` and
 `TELEGRAM_BOT_TOKEN` in the deploy form, and D1 migrations applied before each deploy. Issues #7 and #9 likewise
 keep the Telegram bot token out of the D1 table `secrets`, which [decision 0007](0007-github-app-credentials-encrypted-in-d1.md)
@@ -45,10 +40,9 @@ How the database is declared:
 
 How the migrations run:
 
-5. **A `deploy` script that applies the migrations by binding name, then deploys** — `npm run deploy` is the deploy
-   command (the button is documented to pre-fill it, and the setup guide has the user check it, below), the binding
-   name survives a database renamed in the form, and a failed migration stops the deploy (the old version keeps
-   running). Chosen.
+5. **A `deploy` script that applies the migrations by binding name, then deploys** — the button and Workers Builds
+   pick it up as the deploy command, the binding name survives a database renamed in the form, and a failed
+   migration stops the deploy (the old version keeps running). Chosen.
 6. **Deploy first, then migrate** — succeeds on a database that does not exist yet, but new code would run against
    the old schema until the migration finishes.
 
@@ -78,29 +72,11 @@ Preview URLs:
 12. **Cloudflare's default** — less configuration, but an unreviewed branch of the copy could answer requests and
     write to the instance's data.
 
-How the deploy command `npm run deploy` gets into the copy's build settings (issue #46):
-
-13. **The setup guide has the user check the deploy command after the button's deploy** and set it to
-    `npm run deploy` and retry the build if it reads anything else — works whatever the button pre-fills, and the
-    retry was verified in issue #46. Chosen; the first build may run without migrations, which the retry repairs.
-14. **Apply the migrations in the `build` script** — the button did take `npm run build`, but the build command also
-    runs in CI (`npm run build` in `ci.yml` and `release.yml`, without Cloudflare credentials) and, when preview
-    builds are on, in Workers Builds for branches other than `main`, so an unmerged migration would reach the
-    instance's database.
-    Rejected.
-15. **Apply the migrations from Wrangler's custom build (`build.command` in `wrangler.jsonc`)** — runs on every
-    `wrangler deploy`, whatever the deploy command, but also on `wrangler dev`, on `--dry-run` in CI and on a
-    preview build of another branch, with the same effects as option 14. Rejected.
-16. **The Worker applies the schema itself at runtime** — needs no deploy command at all, but replaces Wrangler's
-    migration tracking with Seluna's own, and a failed migration no longer stops a deploy: new code would run
-    against the old schema, the risk option 6 rejects. Rejected.
-
 ## Decision
 
 Seluna is deployed through the Deploy to Cloudflare button and kept up to date by Workers Builds: the Wrangler
 configuration declares the D1 binding `DB` without a database id and the two cron triggers, the deploy form asks
-for `SELUNA_SECRET` and `TELEGRAM_BOT_TOKEN`, and the deploy command `npm run deploy` applies the D1 migrations
-before `wrangler deploy`; the setup guide has the user make sure the copy's build settings use that command.
+for `SELUNA_SECRET` and `TELEGRAM_BOT_TOKEN`, and every deploy applies the D1 migrations before `wrangler deploy`.
 The Telegram bot token is a Worker secret, not a value in D1; preview URLs are off, and Git ignores every local
 secret file Wrangler reads. The rules are in
 [`areas/deployment.md`](../areas/deployment.md).
@@ -113,8 +89,5 @@ independent: an update from the upstream repository reaches it only when the use
 the migration step until the database exists (`wrangler deploy` once, or `wrangler d1 create`), which the manual
 setup guide (issue #20) has to say. The flow of the button itself — provisioning before the first build, the
 secrets prompt, the build on a push — can only be verified with a real Cloudflare account after the change is on
-`main`; issue #46 was that verification and found the deploy command not taken from `package.json`. Until the user
-corrects the deploy command, every build deploys without migrations and `/setup` answers with the _unavailable_
-notice; `/health` reads no D1 and does not show it. Whether a later version of the button pre-fills
-`npm run deploy` as documented is not known, so the check stays in the guide either way. Until the setup wizard stores a webhook secret (issue #10), an instance deployed by the button answers
+`main`. Until the setup wizard stores a webhook secret (issue #10), an instance deployed by the button answers
 `POST /webhook` with 503.
