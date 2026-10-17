@@ -57,7 +57,7 @@ describe("TEXTS", () => {
       "github-state-invalid":
         "This return from GitHub does not belong to your current sign-in or is older than one hour, so nothing was saved. If GitHub created an app, delete it on GitHub and start again.",
       "github-code-rejected":
-        "GitHub no longer accepts this return: the code was already used or is older than one hour. If you have just created the app, it is already saved; otherwise delete it on GitHub and start again.",
+        "GitHub no longer accepts this return: the code was already used or is older than one hour. Open the GitHub App step and compare the App ID saved there with the one GitHub shows in the app's settings: if they match, the app is saved; otherwise delete the app on GitHub and start again.",
       "github-unavailable":
         "GitHub could not be reached. Select Finish again in a moment; the return stays valid for one hour.",
       "github-answer-invalid":
