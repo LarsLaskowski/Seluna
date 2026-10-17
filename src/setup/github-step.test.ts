@@ -284,9 +284,18 @@ describe("finishGitHubApp", () => {
       value: FIXTURE_WEBHOOK_SECRET,
     });
     expect(await countOf("secrets"), "number of secrets rows").toBe(SECRET_NAMES.length);
-    expect(await countOf("meta"), "number of meta rows (the key check value)").toBe(1);
+    expect(await countOf("meta"), "number of meta rows (the key check value and the slug)").toBe(2);
     const stored = await env.DB.prepare("SELECT key, iv, ciphertext FROM secrets").all();
     expect(JSON.stringify(stored.results), "stored rows").not.toContain(FIXTURE_CLIENT_SECRET);
+  });
+
+  it("finishGitHubApp keeps the slug with the App ID", async () => {
+    const github = githubDouble();
+
+    await finish(github);
+
+    const row = await env.DB.prepare("SELECT value FROM meta WHERE key = 'github_app_slug'").first();
+    expect(row?.value, "stored slug row").toBe("1:octoapp");
   });
 
   it.each<{ name: string; options: () => Promise<FinishOptions>; expected: string }>([

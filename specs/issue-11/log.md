@@ -18,3 +18,4 @@ are quoted in full.
 | 2026-10-17 14:31 | 3 Security plan delta 2 | Security | APPROVED: reset batch order resolved (measured on SQLite, D1 left to AC6 tests); no new findings (opus/medium · 23,201 tokens · 4 tool uses · 40 s) |
 | 2026-10-17 14:31 | 4 Skeleton | Orchestrator | launch squad-dev skeleton |
 | 2026-10-17 14:33 | 4 Skeleton | Dev | skeleton in: settings.ts, store/meta.ts, setup/settings-form.ts, setup/status.ts, store/settings+secrets additions, renderStartPage(view); texts real (deviation, German open to review); typecheck+build pass (sonnet/medium · 97,917 tokens · 12 tool uses · 113 s) |
+| 2026-10-17 14:41 | 5 Tests first | Tester | AC1-AC10 tests written; confirmed: typecheck passes, 187 failed / 1230 passed on skeleton; deferred to coverage: AC8 slug-failure + no-slug, AC9 no-session + GET 404 (sonnet/medium · 206,692 tokens · 34 tool uses · 467 s) |
