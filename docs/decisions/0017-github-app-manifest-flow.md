@@ -1,6 +1,6 @@
 # 0017: GitHub App creation through the manifest flow in the setup wizard
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-17
 - **Area:** Setup wizard
 - **Source:** Issue #10
