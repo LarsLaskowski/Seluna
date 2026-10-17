@@ -56,7 +56,7 @@ Deliberate behavior that must not change without the Product Manager. Each one i
   — [decision 0008](../docs/decisions/0008-delivery-through-a-d1-outbox.md).
 - The release workflow turns a release into the latest full release only after it has verified its `v*` tag on
   `main`; a release published as a full release by hand is only warned about
-  — [decision 0017](../docs/decisions/0017-releases-as-pre-release-promoted-by-the-workflow.md).
+  — [decision 0009](../docs/decisions/0009-releases-only-by-tag-push.md).
 
 ## Integration surface
 

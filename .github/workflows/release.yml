@@ -1,7 +1,7 @@
 name: Release
 
 # The maintainer creates the release and its tag on GitHub and publishes it as a pre-release; this workflow
-# verifies the tagged commit and only then turns the pre-release into the latest full release (decision 0017).
+# verifies the tagged commit and only then turns the pre-release into the latest full release (decision 0009).
 on:
   release:
     types: [published]

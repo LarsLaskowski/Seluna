@@ -116,7 +116,7 @@ that copy starts a Workers Build that applies the D1 migrations and then deploys
 ([decision 0013](decisions/0013-deploy-to-cloudflare-and-workers-builds.md), rules in
 [`areas/deployment.md`](areas/deployment.md)). A release is published on GitHub as a pre-release with its `v*` tag on `main`; the release workflow
 (`.github/workflows/release.yml`) verifies the tagged commit and only then turns it into the latest full release
-([decision 0017](decisions/0017-releases-as-pre-release-promoted-by-the-workflow.md)).
+([decision 0009](decisions/0009-releases-only-by-tag-push.md)).
 <!-- project:end architecture -->
 
 ## Development process

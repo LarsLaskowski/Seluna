@@ -85,7 +85,7 @@ Versions below 1.0.0 end up as normal releases, not as pre-releases; the pre-rel
 release workflow checks a new release.
 
 A release is cut only on GitHub's release page, as a pre-release that the release workflow promotes
-([decision 0017](decisions/0017-releases-as-pre-release-promoted-by-the-workflow.md)); merging a PR by itself
+([decision 0009](decisions/0009-releases-only-by-tag-push.md)); merging a PR by itself
 never publishes a release. User-visible changes are listed in the `Unreleased` section of
 [`CHANGELOG.md`](../CHANGELOG.md). To release version `A.B.C`:
 
