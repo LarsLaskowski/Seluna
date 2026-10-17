@@ -17,4 +17,4 @@ are quoted in full.
 | 2026-10-17 14:30 | 3 Plan revise (PM a) | Lead | RESULT: DONE; reset batch reordered token_cache, secrets, key_check (NOT EXISTS secrets); AC6 tests pin all three; 0018 option 8 updated (opus/medium · 34,792 tokens · 5 tool uses · 62 s) |
 | 2026-10-17 14:31 | 3 Security plan delta 2 | Security | APPROVED: reset batch order resolved (measured on SQLite, D1 left to AC6 tests); no new findings (opus/medium · 23,201 tokens · 4 tool uses · 40 s) |
 | 2026-10-17 14:31 | 4 Skeleton | Orchestrator | launch squad-dev skeleton |
-| 2026-10-17 14:33 | 4 Skeleton | Dev | skeleton in: settings.ts, store/meta.ts, setup/settings-form.ts, setup/status.ts, store/settings+secrets additions, renderStartPage(view); texts real (deviation, German open to review); typecheck+build pass |
+| 2026-10-17 14:33 | 4 Skeleton | Dev | skeleton in: settings.ts, store/meta.ts, setup/settings-form.ts, setup/status.ts, store/settings+secrets additions, renderStartPage(view); texts real (deviation, German open to review); typecheck+build pass (sonnet/medium · 97,917 tokens · 12 tool uses · 113 s) |
