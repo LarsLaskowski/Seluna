@@ -32,3 +32,4 @@ are quoted in full.
 | 2026-10-17 15:04 | 8 Gates r1 delta | Orchestrator | format, typecheck, analyzer 0/20, 1428/1428, coverage new 95.4% overall 96.4%, scope 32 files, decision-check PASS on a89ca67 |
 | 2026-10-17 15:05 | 8 Review r2 (delta) | Reviewer | APPROVE on a89ca67: both findings fixed, no new defect (opus/medium · 3,738 tokens · 3 tool uses · 20 s · continued) |
 | 2026-10-17 15:05 | 9 PR approval | Orchestrator | approved by checklist: latest review round clean, gates pass on head, area docs in diff, main not moved; decision 0018 set to Accepted |
+| 2026-10-17 15:05 | 10 PR | Orchestrator | posting working record, removing specs/issue-11, opening draft PR |
