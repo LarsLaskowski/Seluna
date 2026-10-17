@@ -24,4 +24,5 @@ are quoted in full.
 | 2026-10-17 13:05 | 8 Fix round 1 (test) | squad-tester | pinned new code-rejected text in texts.test.ts; fails on current texts.ts as intended (sonnet/medium · 1,545 tokens · 3 tool uses · 23 s · continued) |
 | 2026-10-17 13:07 | 8 Fix round 1 (dev) | squad-dev | texts.ts en+de and setup-wizard.md reworded per Lead decision; gates re-run by orchestrator: 1248 tests, analyzer 0, coverage PASS, scope/decision PASS (sonnet/medium · 2,924 tokens · 3 tool uses · 62 s · continued) |
 | 2026-10-17 13:07 | 8 Review round 2 (delta) | squad-reviewer | APPROVE (code SHA 2d5c520): both blocking findings fixed, nothing new (opus/medium · 6,247 tokens · 3 tool uses · 13 s · continued) |
-| 2026-10-17 13:09 | 9 PR approval | squad-lead | APPROVED; Dev deviations 1-4 accepted, 5 not a deviation; PR stays draft until PM live check (task 22) |
+| 2026-10-17 13:09 | 9 PR approval | squad-lead | APPROVED; Dev deviations 1-4 accepted, 5 not a deviation; PR stays draft until PM live check (task 22) (opus/medium · 47,819 tokens · 11 tool uses · 59 s) |
+| 2026-10-17 13:09 | 10 Pull request | Orchestrator | working record posted to issue #10, folder removed, draft PR opened |
