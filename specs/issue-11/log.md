@@ -24,3 +24,4 @@ are quoted in full.
 | 2026-10-17 14:53 | 6 Coverage | Tester | link test added (fails en/de as expected; table entry widened); deferred AC8/AC9 tests + status.ts:53 + github-step.ts:222 tests added; 1425/1427 (sonnet/medium · 7,486 tokens · 6 tool uses · 81 s · continued) |
 | 2026-10-17 14:56 | 6 Fix (link) | Dev | link re-added, 3 setup-wizard.md edits; 1427/1427; coverage new 95.4%, overall 96.4%; analyzer 0 (sonnet/medium · 2,600 tokens · 4 tool uses · 101 s · continued) |
 | 2026-10-17 14:57 | 7 Code check | Orchestrator | merged origin/main 2f9a198 (docs only); format, typecheck, build, analyzer 0/20 files, 1427/1427, coverage new 95.4% overall 96.4%, scope 31 files, decision-check all PASS |
+| 2026-10-17 14:59 | 8 Review r1 (security diff) | Security | APPROVED on c5674e9: reset SQL matches step 3 word for word; AC6 race tests real; no findings (opus/medium · 59,804 tokens · 11 tool uses · 92 s) |
