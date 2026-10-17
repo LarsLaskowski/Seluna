@@ -185,7 +185,7 @@ const ENGLISH: SetupTexts = {
     "github-state-invalid":
       "This return from GitHub does not belong to your current sign-in or is older than one hour, so nothing was saved. If GitHub created an app, delete it on GitHub and start again.",
     "github-code-rejected":
-      "GitHub no longer accepts this return: the code was already used or is older than one hour. If you have just created the app, it is already saved; otherwise delete it on GitHub and start again.",
+      "GitHub no longer accepts this return: the code was already used or is older than one hour. Open the GitHub App step and compare the App ID saved there with the one GitHub shows in the app's settings: if they match, the app is saved; otherwise delete the app on GitHub and start again.",
     "github-unavailable":
       "GitHub could not be reached. Select Finish again in a moment; the return stays valid for one hour.",
     "github-answer-invalid":
@@ -303,7 +303,7 @@ const GERMAN: SetupTexts = {
     "github-state-invalid":
       "Diese Rückkehr von GitHub gehört nicht zu deiner aktuellen Anmeldung oder ist älter als eine Stunde, daher wurde nichts gespeichert. Falls GitHub eine App erstellt hat, lösche sie auf GitHub und beginne erneut.",
     "github-code-rejected":
-      "GitHub akzeptiert diese Rückkehr nicht mehr: Der Code wurde schon verwendet oder ist älter als eine Stunde. Wenn du die App gerade erst erstellt hast, ist sie bereits gespeichert; andernfalls lösche sie auf GitHub und beginne erneut.",
+      "GitHub akzeptiert diese Rückkehr nicht mehr: Der Code wurde schon verwendet oder ist älter als eine Stunde. Öffne den Schritt GitHub-App und vergleiche die dort gespeicherte App-ID mit der, die GitHub in den Einstellungen der App zeigt: Stimmen sie überein, ist die App gespeichert; andernfalls lösche die App auf GitHub und beginne erneut.",
     "github-unavailable":
       "GitHub war nicht erreichbar. Wähle gleich noch einmal Abschließen; die Rückkehr bleibt eine Stunde lang gültig.",
     "github-answer-invalid":

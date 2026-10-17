@@ -455,8 +455,9 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   the GitHub App step."
 - _state invalid_: "This return from GitHub does not belong to your current sign-in or is older than one hour, so
   nothing was saved. If GitHub created an app, delete it on GitHub and start again."
-- _code rejected_: "GitHub no longer accepts this return: the code was already used or is older than one hour. If
-  you have just created the app, it is already saved; otherwise delete it on GitHub and start again."
+- _code rejected_: "GitHub no longer accepts this return: the code was already used or is older than one hour. Open
+  the GitHub App step and compare the App ID saved there with the one GitHub shows in the app's settings: if they
+  match, the app is saved; otherwise delete the app on GitHub and start again."
 - _GitHub unavailable_: "GitHub could not be reached. Select Finish again in a moment; the return stays valid for
   one hour."
 - _answer invalid_: "GitHub created the app, but its answer could not be read, so nothing was saved. Delete the app
@@ -477,8 +478,10 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
 
 - 404, 413 and the 400 of an unreadable body under `/setup` carry no body; 503, the 403 and 429 answers and the Telegram and GitHub steps' 400, 409 and 502 answers carry a page with a fixed notice or text and never a reason from the runtime, D1, Telegram or GitHub.
 - An app that GitHub created but Seluna did not save (a session that expired during the detour, an unreadable answer,
-  an app of another account than the one entered, a failed write) stays on GitHub and is deleted there by hand; the
-  notices say so. GitHub's own limit of one hour for the flow, and the state's, bound the return. A session that
+  an app of another account than the one entered, a failed write, a code an earlier attempt used while its answer was
+  lost) stays on GitHub and is deleted there by hand; the notices say so. GitHub's rejection of a used code does not
+  tell whether an earlier attempt saved the app, so the _code rejected_ notice has the owner compare the saved App ID
+  with the app's own before deleting it. GitHub's own limit of one hour for the flow, and the state's, bound the return. A session that
   expires during the detour loses the return: sign in again and start over.
 - The conversion request carries a 10 second timeout and its answer is read up to 1 MiB; no document claims that the
   timeout also bounds reading the body, which is limited by size only.
