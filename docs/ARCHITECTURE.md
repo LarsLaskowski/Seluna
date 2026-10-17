@@ -121,7 +121,8 @@ The concrete areas are listed in [`.squad/project.md`](../.squad/project.md) (*S
 Wrangler bundles the Worker (`npm run build` is `wrangler deploy --dry-run --outdir dist`). A user deploys it to
 their own Cloudflare account with the Deploy to Cloudflare button, which copies the repository into the user's
 GitHub account, provisions the D1 database and asks for the Worker secrets; from then on every push to `main` of
-that copy starts a Workers Build that applies the D1 migrations and then deploys
+that copy starts a Workers Build whose deploy command, `npm run deploy`, applies the D1 migrations and then deploys
+(the setup guide has the user check that command, which the button does not always set)
 ([decision 0013](decisions/0013-deploy-to-cloudflare-and-workers-builds.md), rules in
 [`areas/deployment.md`](areas/deployment.md)). A release is published on GitHub as a pre-release with its `v*` tag on `main`; the release workflow
 (`.github/workflows/release.yml`) verifies the tagged commit and only then turns it into the latest full release

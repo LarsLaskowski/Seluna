@@ -7,3 +7,4 @@ are quoted in full.
 | ---- | ---- | ------ | ------ |
 | 2026-10-17 15:21 | 1 Intake | Orchestrator | Issue 46 read (open, bug/setup); branch claude/dazzling-darwin-qlcwxz |
 | 2026-10-17 15:25 | 2 Plan | Lead | DONE, tier trivial, docs-only; challenge skipped (tier trivial); steps 3-5 not applicable (no code/tests) (opus/medium · 64,170 tokens · 15 tool uses · 206 s) |
+| 2026-10-17 15:25 | 6 Implement | Dev | docs edits applied (setup.md, deployment.md, ARCHITECTURE.md); no deviation |

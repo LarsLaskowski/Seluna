@@ -11,12 +11,13 @@ How to deploy your own Seluna instance. A fuller guide follows in a later versio
 ## Deploy
 
 1. Select the **Deploy to Cloudflare** button in the [README](../README.md) and connect your GitHub account.
-2. The button creates an independent copy of the repository in your GitHub account (not a fork), creates the D1 database, asks for `SELUNA_SECRET` and `TELEGRAM_BOT_TOKEN`, then builds and deploys the Worker.
-3. Open `https://<worker>.<your-subdomain>.workers.dev/health`. It answers with the version.
+2. The button creates an independent copy of the repository in your GitHub account (not a fork), creates the D1 database, asks for `SELUNA_SECRET` and `TELEGRAM_BOT_TOKEN`, then builds and deploys the Worker. If the form lets you edit the deploy command, set it to `npm run deploy`.
+3. In the Cloudflare dashboard open **Workers & Pages**, your Worker, **Settings** and **Build**, and check that the **Deploy command** is `npm run deploy`. The button may set `npx wrangler deploy` instead, which deploys the Worker without creating the database tables; `/setup` then only shows _The setup is unavailable right now_. If it reads anything else, change it to `npm run deploy` and retry the latest build. The build log of a correct deploy shows the line `> wrangler d1 migrations apply DB --remote`.
+4. Open `https://<worker>.<your-subdomain>.workers.dev/health`. It answers with the version; it does not check the database.
 
 ## Updates
 
-Every push to `main` of your copy builds and deploys it, after applying the database migrations.
+Every push to `main` of your copy builds and deploys it; with the deploy command `npm run deploy` it applies the database migrations first.
 
 ## Next steps
 
