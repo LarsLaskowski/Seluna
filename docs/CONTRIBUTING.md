@@ -112,25 +112,27 @@ ruleset; that is the actual control.
 
 ### Release plan up to 1.0.0
 
-A release is due when the last issue of its row has been closed, not earlier and not later. Each row
-is something an owner can try out on a deployed copy. The version in `package.json` stays at the last released
-version until that release pull request; it is never raised on its own.
+The GitHub milestones are the release plan: one milestone is one release. A release is due when the last open
+issue of its milestone has been closed, not earlier and not later. The version in `package.json` stays at the last
+released version until that release pull request; it is never raised on its own.
 
-| Version    | Issues               | What an owner can do afterwards                                                         |
-| ---------- | -------------------- | --------------------------------------------------------------------------------------- |
-| **0.1.0**  | #1–#8, #35           | Deploy an instance with one click, `/health`, signed webhooks, secure `/setup` login    |
-| **0.2.0**  | #9, #10, #11, #40    | Finish the whole setup in the wizard: Telegram chat, GitHub App, settings, status page  |
-| **0.3.0**  | #12, #13             | Receive the first real Telegram messages: pull request rules, outbox, deduplication     |
-| **0.4.0**  | #14, #15, #16        | Quiet hours, GitHub App authentication, CI failure messages                             |
-| **0.5.0**  | #17, #18             | Security alert messages, retry of failed messages, cleanup, notice of new releases      |
-| **0.6.0**  | #19                  | Update a copy with one click                                                            |
-| **1.0.0**  | #20                  | Setup guide, external setup test and one week without a lost or duplicated message      |
+| Milestone                           | Issues            | Version    | What an owner can do afterwards                                          |
+| ----------------------------------- | ----------------- | ---------- | ------------------------------------------------------------------------ |
+| M0 – Repository foundation          | #1–#3             | **0.1.0**  | (released together with M1 and #7–#9)                                    |
+| M1 – Endpoint and deployment        | #4–#6             | **0.1.0**  | Deploy an instance with one click, `/health`, signed webhooks            |
+| M2 – Setup wizard                   | #7–#11, #35, #40  | **0.2.0**  | Finish the whole setup in the wizard, including settings and status page |
+| M3 – Pull request notifications     | #12–#14           | **0.3.0**  | Receive the first real Telegram messages, with quiet hours               |
+| M4 – CI and security alerts         | #15–#17           | **0.4.0**  | Messages for failed CI runs and new security alerts                      |
+| M5 – Ready for everyone             | #18–#20           | **1.0.0**  | Retry, cleanup, update workflow, setup guide and an external setup test  |
 
-- A fix on a released version that cannot wait for the next row is a patch release (for example 0.2.1).
-- Issues opened later join the earliest row that has not been tagged yet, unless the Lead assigns a later one; a row
-  is closed once its version is tagged.
-- Pull requests merged after a row is complete but before its release pull request ship in that release, because the
-  tag contains everything on `main`; cut the release pull request first when the last issue of a row is closed.
+- Version 0.1.0 was published when M0, M1 and the first three issues of M2 (#7–#9) were done, so M0 and M1 share it
+  and 0.2.0 is the release of the rest of M2. Every later milestone has a release of its own.
+- A fix on a released version that cannot wait for the next release is a patch release (for example 0.2.1).
+- An issue opened later gets the milestone of the earliest release that has not been tagged yet, unless the Lead
+  assigns a later one.
+- Pull requests merged after a milestone is complete but before its release pull request ship in that release,
+  because the tag contains everything on `main`; cut the release pull request first when the last issue of a
+  milestone is closed.
 - 1.0.0 is tagged only after the acceptance criteria of #20 are met; nothing else makes a version 1.0.0.
 <!-- project:end releases -->
 
