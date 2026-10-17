@@ -4,6 +4,7 @@ import type { TelegramFetch } from "../src/telegram";
 import getUpdatesConflict from "./fixtures/telegram/get-updates-conflict.json";
 import getUpdatesUnauthorized from "./fixtures/telegram/get-updates-unauthorized.json";
 import getUpdatesFixture from "./fixtures/telegram/get-updates.json";
+import sendMessageTooManyRequestsFixture from "./fixtures/telegram/send-message-too-many-requests.json";
 import sendMessageFixture from "./fixtures/telegram/send-message.json";
 
 /*
@@ -16,11 +17,14 @@ const ALLOWED_METHODS: readonly string[] = ["getUpdates", "sendMessage"];
 const BOT_URL_PATH = /^\/bot([^/]*)\/([^/]*)$/;
 
 /** The answers of the fixtures, as parsed JSON. */
-export const FIXTURES: Readonly<Record<"getUpdates" | "unauthorized" | "conflict" | "sendMessage", unknown>> = {
+export const FIXTURES: Readonly<
+  Record<"getUpdates" | "unauthorized" | "conflict" | "sendMessage" | "tooManyRequests", unknown>
+> = {
   getUpdates: getUpdatesFixture,
   unauthorized: getUpdatesUnauthorized,
   conflict: getUpdatesConflict,
   sendMessage: sendMessageFixture,
+  tooManyRequests: sendMessageTooManyRequestsFixture,
 };
 
 /** How the double answers one Bot API method. */
@@ -62,7 +66,12 @@ export interface TelegramDouble {
 
 export interface TelegramAnswers {
   readonly getUpdates?: TelegramAnswer;
-  readonly sendMessage?: TelegramAnswer;
+  /** One answer for every `sendMessage`, or a sequence: the n-th request gets the n-th answer, the last is repeated. */
+  readonly sendMessage?: TelegramAnswer | readonly TelegramAnswer[];
+}
+
+function isAnswerSequence(answer: TelegramAnswer | readonly TelegramAnswer[]): answer is readonly TelegramAnswer[] {
+  return Array.isArray(answer);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -100,14 +109,18 @@ function parseJson(text: string): unknown {
 
 /**
  * A `fetch` that stands in for `https://api.telegram.org`: it records every request and answers `getUpdates` and
- * `sendMessage` as given (by default with the fixtures, status 200). A request to another origin or Bot API
+ * `sendMessage` as given (by default with the fixtures, status 200; `sendMessage` may be a sequence of answers). A request to another origin or Bot API
  * method is answered with a rejection and fails the test that created the double when the test ends.
  */
 export function telegramDouble(answers: TelegramAnswers = {}): TelegramDouble {
   const requests: RecordedRequest[] = [];
   const unexpected: string[] = [];
   const getUpdatesAnswer = answers.getUpdates ?? jsonAnswer(200, FIXTURES.getUpdates);
-  const sendMessageAnswer = answers.sendMessage ?? jsonAnswer(200, FIXTURES.sendMessage);
+  const sendMessageAnswers = ((): readonly TelegramAnswer[] => {
+    const given = answers.sendMessage ?? jsonAnswer(200, FIXTURES.sendMessage);
+    return isAnswerSequence(given) ? given : [given];
+  })();
+  let sendMessageCount = 0;
 
   const fetcher = vi.fn<TelegramFetch>(async (request) => {
     const url = new URL(request.url);
@@ -127,7 +140,16 @@ export function telegramDouble(answers: TelegramAnswers = {}): TelegramDouble {
       unexpected.push(`${request.method} ${url.origin}${url.pathname}`);
       throw new TypeError("Unexpected Telegram request");
     }
-    return respond(method === "sendMessage" ? sendMessageAnswer : getUpdatesAnswer);
+    if (method === "sendMessage") {
+      const index = Math.min(sendMessageCount, sendMessageAnswers.length - 1);
+      sendMessageCount += 1;
+      const answer = sendMessageAnswers[index];
+      if (answer === undefined) {
+        throw new TypeError("The sendMessage answer sequence is empty");
+      }
+      return respond(answer);
+    }
+    return respond(getUpdatesAnswer);
   });
 
   onTestFinished(() => {
