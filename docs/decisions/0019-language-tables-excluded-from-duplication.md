@@ -1,6 +1,6 @@
 # 0019: Language tables of the setup wizard excluded from duplication detection
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-17
 - **Area:** —
 - **Source:** Issue #11 / PR #50
@@ -39,4 +39,4 @@ the analysis (`sonar.exclusions`) or the coverage measure.
 The duplication condition of the quality gate measures the code again instead of the translations. A file that
 holds code as well as texts must not be added to the list; if `texts.ts` gains logic beyond the tables, that
 logic moves to its own module or this decision is revisited. A further data-only file is added to the list only
-with its own reason recorded here.
+with its own decision record that gives the reason.
