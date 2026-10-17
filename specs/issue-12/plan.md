@@ -631,3 +631,24 @@ Minor objections of the plan challenge, recorded verbatim; Dev and Tester follow
 3. **Test-only rules in the pipeline tests (minor).**
    - AC1 and AC2 are proven only with test rules, because the production `RULES` list is empty. The first real end-to-end check is #13's.
    - The plan acknowledges this, so no plan change is needed. The Tester should keep one `index.test.ts` path that goes through `waitUntil` with a test rule, so the `index.ts` wiring is not the only untested piece.
+
+## Security notes
+
+Non-blocking findings of the Security plan review (verdict APPROVED), recorded verbatim; Dev and Tester follow them or report a deviation.
+
+1. **The form framing lets invalid UTF-8 through as U+FFFD, which contradicts the area document.**
+   - notifications.md (*Payload*) says "The JSON text must be valid UTF-8 (an invalid byte sequence answers 400)". In the plan that holds only for raw bytes: the security considerations say "URLSearchParams over the fatal-decoded text".
+   - Measured in workerd: `new URLSearchParams("?payload=%FF%7B%7D")` yields `payload` = U+FFFD `{}`. A percent-encoded invalid sequence is silently replaced, not rejected. A leading `?` is also stripped.
+   - Not exploitable: the body is signed, and U+FFFD passes through cleaning harmlessly. But the documented guarantee is wrong for the form framing.
+   - Fix: either state in the area document that percent-decoded invalid sequences become U+FFFD, and add an AC6 case pinning it, or reject them.
+   - Related: the AC6 BOM case only holds if the JSON decoder uses `ignoreBOM: true`, as `readJsonWithLimit` does. The default `TextDecoder` silently strips the BOM (measured: length 1 against 2). The plan should name `ignoreBOM: true` for the Dev.
+2. **The bidi cleaning set misses U+061C (ARABIC LETTER MARK).**
+   - U+061C has the Unicode Bidi_Control property, like U+200E/U+200F, which step 3 already removes. Add it to step 3 of *Message format* and to the AC9 `cleanField` table.
+   - The plan's rationale, that a title cannot "reorder line 1 visually", is also stronger than the guard. Ordinary RTL letters in a title or repository still reorder the neutral characters `·` and `#` around them. Either soften the wording or wrap each field in isolates (U+2068 … U+2069) when line 1 is rendered.
+3. **Link previews of attacker-chosen URLs.**
+   - Pull request titles and commit lines are attacker-controlled. With `parse_mode` HTML, Telegram still auto-links a bare URL in the text and builds a link-preview card for it, fetched by Telegram. A title like `Fix https://evil.example/login` would then show a rich preview card for an arbitrary site in the owner's chat.
+   - Recommended: send `link_preview_options: { is_disabled: true }` in `sendNotification` and assert it in the AC12 exact-body test. It is a Bot API reference field, not a new method.
+4. **The signature does not cover the headers.**
+   - `X-GitHub-Delivery` and `X-GitHub-Event` are not covered by the HMAC (it is over the body only).
+   - A captured signed body replayed with a fresh delivery id passes deduplication and produces a second message. A changed event header feeds the payload to rules of another event.
+   - This is inherent to GitHub's webhook design, not a defect of this plan. It deserves one sentence of residual risk in decision 0023 or the area document. The rules of #13, #16 and #17 should also check that the payload's shape matches the event, and not rely on the header alone. The area document already requires every field to be narrowed.
