@@ -31,7 +31,7 @@ latest release, which never is a pre-release.
 ## Decision
 
 The maintainer publishes each release on GitHub's release page as a pre-release with a new `v*` tag on `main`.
-The release workflow runs on the published release, verifies the tag and runs the checks with `contents: read`,
+The release workflow runs on the published release, verifies the tag (format, on `main`, matching `package.json` version, changelog section) and runs the checks with `contents: read`,
 and only then, in a separate job with `contents: write`, turns the pre-release into the latest full release
 without changing its text. The steps are in [`CONTRIBUTING.md`](../CONTRIBUTING.md#versioning-and-releases).
 
