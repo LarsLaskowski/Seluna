@@ -614,3 +614,20 @@ list and the log field lists.
 - The cron resend, marking rows `failed`, cleanup of `deliveries`/`outbox`: #18 (reuses `deliverMessages`).
 - The duplicate-code treatment of `src/i18n/en.ts`/`de.ts` once the rule issues grow them (decision 0023,
   *Consequences*).
+
+## Challenge notes
+
+Minor objections of the plan challenge, recorded verbatim; Dev and Tester follow them or report a deviation.
+
+1. **A throwing rule or `formatMessage` is not specified (minor).**
+   - `processWebhook` maps only D1 errors to 503. The area document (`docs/areas/notifications.md`) and AC8 never say what happens when `rule.evaluate` or `formatMessage` throws.
+   - The rules are separate code that reads untrusted payloads, so an unexpected shape could throw. Without handling, the exception escapes `processWebhook` into the `fetch` handler, and the delivery ends as an unlogged 500. GitHub does not auto-retry, so the message is lost.
+   - Instruction for the Dev and Tester: wrap rule evaluation and formatting so a throw answers 503 with decision `unavailable` and stores nothing. Better still, isolate each rule so one failing rule cannot suppress the others. Add one test with a throwing test rule that asserts no `deliveries` row.
+
+2. **"Never lost" has a gap on the 503 path (minor).**
+   - A 503 (database down) or a 400 stores nothing, and GitHub does not redeliver on its own. A manual redelivery works because the ID is not recorded.
+   - This tradeoff is probably acceptable. Make the area document and decision 0023 say it explicitly, so the Reviewer does not read it as a violation of the "never lost" goal.
+
+3. **Test-only rules in the pipeline tests (minor).**
+   - AC1 and AC2 are proven only with test rules, because the production `RULES` list is empty. The first real end-to-end check is #13's.
+   - The plan acknowledges this, so no plan change is needed. The Tester should keep one `index.test.ts` path that goes through `waitUntil` with a test rule, so the `index.ts` wiring is not the only untested piece.
