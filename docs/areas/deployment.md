@@ -16,6 +16,9 @@ bindings) rely on it.
   asks for the Worker secrets below, and deploys the Worker through Workers Builds.
 - Every push to the production branch (`main`) of the copy starts a Workers Build that runs the deploy command
   below.
+- The button is documented to take the deploy command from the `deploy` script in `package.json`, but it may set
+  Workers Builds' default `npx wrangler deploy` instead (issue #46); the setup guide has the user check the command
+  in the Worker's build settings after the first deploy.
 
 ### D1 database
 
@@ -28,6 +31,9 @@ bindings) rely on it.
 
 ### Deploy command
 
+- The deploy command is `npm run deploy` (the `deploy` script: the `db:migrations:apply` script, then
+  `wrangler deploy`). Workers Builds runs the deploy command stored in the Worker's build settings, not the
+  `package.json` script by itself.
 - A deploy first applies every unapplied migration to the remote database, addressed by the binding name `DB`, and
   then deploys the Worker. A migration that fails stops the deploy; the previously deployed version keeps running.
 - Without unapplied migrations the first step changes nothing, so every deploy runs the same command.
@@ -71,6 +77,10 @@ bindings) rely on it.
 
 ## Limits and errors
 
+- With any other deploy command, such as Workers Builds' default `npx wrangler deploy`, no migration is applied: the
+  Worker deploys against a missing or outdated schema, `/setup` answers with the _unavailable_ notice where it reads
+  D1 ([Setup wizard](setup-wizard.md#login)), and `/health`, which reads no D1, still answers. Setting the command
+  to `npm run deploy` and retrying the build applies the missing migrations.
 - A deploy against an account in which the database does not exist yet fails at the migration step with
   Wrangler's message and deploys nothing.
 - Without `GITHUB_WEBHOOK_SECRET` and without a webhook secret stored by the setup wizard an instance answers every
@@ -84,6 +94,9 @@ bindings) rely on it.
 - [`decisions/0013-deploy-to-cloudflare-and-workers-builds.md`](../decisions/0013-deploy-to-cloudflare-and-workers-builds.md)
   — the button and Workers Builds, the binding without a database id, migrations before the deploy, the Telegram
   bot token as a Worker secret.
+- [`decisions/0020-deploy-command-checked-in-the-setup-guide.md`](../decisions/0020-deploy-command-checked-in-the-setup-guide.md)
+  — why the setup guide has the user check the deploy command after the button's deploy, and why the migrations
+  stay out of the build command.
 - [`decisions/0017-github-app-manifest-flow.md`](../decisions/0017-github-app-manifest-flow.md) — the optional
   GitHub Worker secrets and their precedence over the credentials the wizard stores.
 
