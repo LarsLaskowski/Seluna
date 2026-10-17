@@ -1,6 +1,6 @@
 # 0020: Deploy command checked in the setup guide
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-17
 - **Area:** Deployment
 - **Source:** Issue #46

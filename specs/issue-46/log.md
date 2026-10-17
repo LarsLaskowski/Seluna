@@ -13,3 +13,5 @@ are quoted in full.
 | 2026-10-17 15:27 | 8 Verbatim fix | Orchestrator | setup.md:15 wording applied as proposed by reviewer |
 | 2026-10-17 15:29 | 8 Plan revision | Lead | 0013 restored; new record 0020 (Proposed); plan updated (opus/medium · 40,809 tokens · 20 tool uses · 93 s) |
 | 2026-10-17 15:29 | 8 Fix round 1 | Dev | Related decisions bullet + ARCHITECTURE link for record 0020 (sonnet/medium · 1,386 tokens · 4 tool uses · 11 s · continued) |
+| 2026-10-17 15:30 | 8 Review round 2 (delta) | Reviewer | APPROVE on bb693b0 (opus/medium · 5,903 tokens · 2 tool uses · 13 s · continued) |
+| 2026-10-17 15:30 | 9 PR approval | Orchestrator | approved by checklist; 0020 set Accepted |
