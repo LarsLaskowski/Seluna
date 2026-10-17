@@ -166,10 +166,15 @@ async function writeEntries(
     } else {
       expected = check.stored;
     }
-    for (const [name, value] of entries) {
-      const sealed = await encrypt(key, value, `secrets/${name}`);
-      statements.push(db.prepare(UPSERT_SECRET).bind(name, sealed.iv, sealed.ciphertext, KEY_CHECK_META_KEY, expected));
-    }
+    const sealedValues = await Promise.all(entries.map(([name, value]) => encrypt(key, value, `secrets/${name}`)));
+    entries.forEach(([name], index) => {
+      const sealed = sealedValues[index];
+      if (sealed !== undefined) {
+        statements.push(
+          db.prepare(UPSERT_SECRET).bind(name, sealed.iv, sealed.ciphertext, KEY_CHECK_META_KEY, expected),
+        );
+      }
+    });
     const results = await db.batch(statements);
     if (eachUpsertChangedOne(results, entries.length)) {
       return { kind: "ok" };

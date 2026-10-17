@@ -61,18 +61,32 @@ export type StartGitHubResult =
   | { readonly kind: "invalid-account" }
   | { readonly kind: "reset-needed" };
 
+/** What the step needs from outside: the Worker environment, D1, the storage key and the state key. */
+export interface GitHubStepDeps {
+  readonly env: object;
+  readonly db: D1Database;
+  /** The AES key of the stored credentials, from `keyFromEnv`. */
+  readonly storageKey: CryptoKey;
+  /** The HMAC key of the state, from `signingKeyFromEnv(env, "setup-github")`. */
+  readonly stateKey: CryptoKey;
+}
+
+/** What finishing the flow needs besides the step's: the GitHub client and the build's version for its User-Agent. */
+export interface GitHubFinishDeps extends GitHubStepDeps {
+  readonly fetcher: GitHubFetch;
+  readonly version: string;
+}
+
 /** Starts the manifest flow for the chosen account. D1 errors are not caught. */
 export async function startGitHubApp(
-  env: object,
-  db: D1Database,
-  storageKey: CryptoKey,
-  stateKey: CryptoKey,
+  deps: GitHubStepDeps,
   session: string,
   origin: string,
   typeFields: readonly string[],
   accountFields: readonly string[],
   now: Date,
 ): Promise<StartGitHubResult> {
+  const { env, db, storageKey, stateKey } = deps;
   const credentials = workerCredentials(env);
   if (credentials === "all") {
     return { kind: "worker-secrets" };
@@ -136,17 +150,13 @@ export type FinishGitHubResult =
 
 /** Finishes the flow: exchanges the code and stores the credentials. D1 errors before the conversion are not caught; after it every failure is `store-failed`. */
 export async function finishGitHubApp(
-  env: object,
-  db: D1Database,
-  storageKey: CryptoKey,
-  stateKey: CryptoKey,
+  deps: GitHubFinishDeps,
   session: string,
-  fetcher: GitHubFetch,
-  version: string,
   codeFields: readonly string[],
   stateFields: readonly string[],
   now: Date,
 ): Promise<FinishGitHubResult> {
+  const { env, db, storageKey, stateKey, fetcher, version } = deps;
   const [state] = stateFields;
   const choice =
     stateFields.length === 1 && state !== undefined

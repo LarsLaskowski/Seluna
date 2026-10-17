@@ -412,10 +412,7 @@ async function startGitHub(context: Context, session: string): Promise<Response>
   let view: GitHubPageView | undefined;
   try {
     result = await startGitHubApp(
-      env,
-      db,
-      context.storageKey,
-      context.githubKey,
+      { env, db, storageKey: context.storageKey, stateKey: context.githubKey },
       session,
       new URL(context.request.url).origin,
       form.getAll(ACCOUNT_TYPE_FIELD),
@@ -475,13 +472,8 @@ async function finishGitHub(context: Context, session: string): Promise<Response
   let result: Awaited<ReturnType<typeof finishGitHubApp>>;
   try {
     result = await finishGitHubApp(
-      env,
-      db,
-      context.storageKey,
-      context.githubKey,
+      { env, db, storageKey: context.storageKey, stateKey: context.githubKey, fetcher: githubFetch, version },
       session,
-      githubFetch,
-      version,
       form.getAll(GITHUB_CODE_FIELD),
       form.getAll(GITHUB_STATE_FIELD),
       now(),

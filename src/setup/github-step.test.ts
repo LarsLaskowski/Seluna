@@ -123,10 +123,7 @@ describe("startGitHubApp", () => {
     workerEnv: object = PLAIN_ENV,
   ): Promise<StartGitHubResult> {
     return startGitHubApp(
-      workerEnv,
-      env.DB,
-      await storageKey(),
-      await stateKey(),
+      { env: workerEnv, db: env.DB, storageKey: await storageKey(), stateKey: await stateKey() },
       SESSION,
       ORIGIN,
       typeFields,
@@ -200,10 +197,7 @@ describe("startGitHubApp", () => {
 
   it("startGitHubApp lets a D1 error reach the caller", async () => {
     const pending = startGitHubApp(
-      PLAIN_ENV,
-      migrationTestDb(),
-      await storageKey(),
-      await stateKey(),
+      { env: PLAIN_ENV, db: migrationTestDb(), storageKey: await storageKey(), stateKey: await stateKey() },
       SESSION,
       ORIGIN,
       ["personal"],
@@ -255,13 +249,15 @@ describe("finishGitHubApp", () => {
     const state =
       options.state ?? (await stateFor(await stateKey(), SESSION, { type: "personal", account: "github" }, NOW));
     return finishGitHubApp(
-      options.workerEnv ?? PLAIN_ENV,
-      env.DB,
-      await storageKey(),
-      await stateKey(),
+      {
+        env: options.workerEnv ?? PLAIN_ENV,
+        db: env.DB,
+        storageKey: await storageKey(),
+        stateKey: await stateKey(),
+        fetcher: github.fetch,
+        version: VERSION,
+      },
       options.session ?? SESSION,
-      github.fetch,
-      VERSION,
       options.codeFields ?? [FIXTURE_CODE],
       options.stateFields ?? [state],
       NOW,
