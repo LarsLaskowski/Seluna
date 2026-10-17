@@ -9,4 +9,4 @@ are quoted in full.
 | 2026-10-17 15:41 | 2 Plan | Lead | DONE, tier security; plan.md, decision 0021 Proposed (opus/medium · 114,091 tokens · 27 tool uses · 334 s) |
 | 2026-10-17 15:42 | 2 Merge main | Orchestrator | merged origin/main (PR 52); README index conflict resolved (0020 before 0021) |
 | 2026-10-17 15:43 | 2 Plan challenge | Devil's Advocate | OBJECTIONS 0 major, 2 minor (sonnet/medium · 31,753 tokens · 11 tool uses · 24 s) |
-| 2026-10-17 15:43 | 3 Plan security review | Security | APPROVED, 2 non-blocking notes |
+| 2026-10-17 15:43 | 3 Plan security review | Security | APPROVED, 2 non-blocking notes (opus/medium · 29,983 tokens · 4 tool uses · 53 s) |
