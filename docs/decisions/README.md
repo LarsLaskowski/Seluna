@@ -72,6 +72,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0018](0018-settings-and-status-page.md) | Settings, status page and reset in the setup wizard | Accepted | 2026-10-17 |
 | [0019](0019-language-tables-excluded-from-duplication.md) | Language tables of the setup wizard excluded from duplication detection | Accepted | 2026-10-17 |
 | [0020](0020-deploy-command-checked-in-the-setup-guide.md) | Deploy command checked in the setup guide | Accepted | 2026-10-17 |
-| [0021](0021-missing-tables-notice-on-the-setup-login.md) | Missing-tables notice on the setup login | Proposed | 2026-10-17 |
+| [0021](0021-missing-tables-notice-on-the-setup-login.md) | Missing-tables notice on the setup login | Accepted | 2026-10-17 |
 
 <!-- project:end index -->

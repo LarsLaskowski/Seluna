@@ -1,6 +1,6 @@
 # 0021: Missing-tables notice on the setup login
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-17
 - **Area:** Setup wizard
 - **Source:** Issue #51

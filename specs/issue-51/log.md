@@ -18,3 +18,4 @@ are quoted in full.
 | 2026-10-17 15:51 | 8 Review round 1 | Reviewer | BLOCKING 1 verbatim (deployment.md), NON-BLOCKING 1 verbatim (setup-wizard.md); both applied (opus/medium · 55,385 tokens · 9 tool uses · 77 s) |
 | 2026-10-17 15:51 | 8 Security diff | Security | APPROVED; 2 non-blocking doc notes (hedge production D1 claim in setup.md/CHANGELOG; deployment.md outdated-schema wording fixed by reviewer's verbatim fix) (opus/medium · 36,596 tokens · 4 tool uses · 40 s) |
 | 2026-10-17 15:51 | 8 Verbatim fixes | Orchestrator | applied reviewer verbatim fixes to deployment.md and setup-wizard.md; format/scope/decision PASS |
+| 2026-10-17 15:52 | 9 PR approval | Orchestrator | approved by checklist; 0021 set Accepted |
