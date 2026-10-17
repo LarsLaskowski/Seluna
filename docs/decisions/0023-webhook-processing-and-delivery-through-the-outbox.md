@@ -92,6 +92,11 @@ button label taken from the language at sending. The rules are in [`areas/notifi
   (#13).
 - Every new delivery adds a `deliveries` row and a `meta` write; the cleanup of old rows is the cron's (#18), which
   also resends the rows this change leaves pending, through the same sending code.
+- A delivery answered 400 or 503 stores nothing and GitHub does not redeliver it on its own; a manual redelivery
+  works because its id is not recorded. This is accepted: "never lose a message" covers the rows in the outbox.
+- The signature covers the body only, not the `X-GitHub-Delivery` and `X-GitHub-Event` headers: a replayed signed
+  body with a new delivery id yields a second message, and a changed event header feeds the payload to the rules of
+  another event. This is inherent to GitHub's design; the rules check that the payload's shape matches the event.
 - A row is sent at least once: when Telegram accepted a message but marking the row sent fails, the cron sends it
   again (as decision 0008 accepts).
 - Without a usable bot token or chat a row stays pending without counting an attempt, so a message written before

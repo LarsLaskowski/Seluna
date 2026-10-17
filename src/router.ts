@@ -40,15 +40,21 @@ function boundedHeader(request: Request, name: string, pattern: RegExp): string 
   return value !== null && pattern.test(value) ? value : null;
 }
 
-async function receiveWebhook(request: Request, deps: RouteDeps): Promise<Response> {
+/** A response and, when the webhook processor ran, its outcome. */
+interface Routed {
+  readonly response: Response;
+  readonly outcome?: WebhookOutcome;
+}
+
+async function receiveWebhook(request: Request, deps: RouteDeps): Promise<Routed> {
   const result = await readBodyWithLimit(request, MAX_BODY_BYTES);
   switch (result.kind) {
     case "ok":
       return verifyWebhook(request, result.body, deps);
     case "too-large":
-      return new Response(null, { status: 413 });
+      return { response: new Response(null, { status: 413 }) };
     case "unreadable":
-      return new Response(null, { status: 400 });
+      return { response: new Response(null, { status: 400 }) };
     default: {
       const unreachable: never = result;
       return unreachable;
@@ -56,44 +62,56 @@ async function receiveWebhook(request: Request, deps: RouteDeps): Promise<Respon
   }
 }
 
-async function verifyWebhook(request: Request, body: Uint8Array, deps: RouteDeps): Promise<Response> {
+async function verifyWebhook(request: Request, body: Uint8Array, deps: RouteDeps): Promise<Routed> {
   let secret: string | undefined;
   try {
     secret = await deps.webhookSecret.webhookSecret();
   } catch {
     // The error is deliberately dropped: it must reach neither the log nor the response.
-    return new Response(null, { status: 503 });
+    return { response: new Response(null, { status: 503 }) };
   }
   if (secret === undefined || secret === "") {
-    return new Response(null, { status: 503 });
+    return { response: new Response(null, { status: 503 }) };
   }
   const valid = await verifySignature(body, request.headers.get(SIGNATURE_HEADER), secret);
-  return new Response(null, { status: valid ? 202 : 401 });
+  if (!valid) {
+    return { response: new Response(null, { status: 401 }) };
+  }
+  const outcome = await deps.webhook({
+    delivery: boundedHeader(request, "x-github-delivery", DELIVERY_PATTERN),
+    event: boundedHeader(request, "x-github-event", EVENT_PATTERN),
+    contentType: request.headers.get("content-type"),
+    body,
+  });
+  return { response: new Response(null, { status: outcome.status }), outcome };
 }
 
-async function route(request: Request, pathname: string, deps: RouteDeps): Promise<Response> {
+async function route(request: Request, pathname: string, deps: RouteDeps): Promise<Routed> {
   if (pathname === "/health" && request.method === "GET") {
-    return Response.json({ status: "ok", version: deps.version });
+    return { response: Response.json({ status: "ok", version: deps.version }) };
   }
   if (pathname === "/webhook" && request.method === "POST") {
     return receiveWebhook(request, deps);
   }
   if (isSetupPath(pathname)) {
-    return handleSetup(request, pathname, deps.setup);
+    return { response: await handleSetup(request, pathname, deps.setup) };
   }
-  return new Response(null, { status: 404 });
+  return { response: new Response(null, { status: 404 }) };
 }
 
 /** Answers a request on the Worker's public routes and logs it once. */
 export async function handleRequest(request: Request, deps: RouteDeps): Promise<Response> {
   const { pathname } = new URL(request.url);
-  const response = await route(request, pathname, deps);
+  const { response, outcome } = await route(request, pathname, deps);
   const entry = { method: request.method, path: pathname, status: response.status };
   if (pathname === "/webhook" && request.method === "POST") {
     deps.log({
       ...entry,
       delivery: boundedHeader(request, "x-github-delivery", DELIVERY_PATTERN),
       event: boundedHeader(request, "x-github-event", EVENT_PATTERN),
+      action: outcome?.action ?? null,
+      repository: outcome?.repository ?? null,
+      decision: outcome?.decision ?? null,
     });
   } else {
     deps.log(entry);

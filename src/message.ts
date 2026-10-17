@@ -17,24 +17,70 @@ export interface OutboxMessage {
 
 /** Replaces `&`, `<` and `>` (in this order) so Telegram's HTML parser shows them literally. */
 export function escapeTelegramHtml(text: string): string {
-  void text;
-  throw new Error("Not implemented");
+  return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+/** Whether `codePoint` is a control character or a line or paragraph separator. */
+function isSeparatorOrControl(codePoint: number): boolean {
+  return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f) || codePoint === 0x2028 || codePoint === 0x2029;
+}
+
+/** Whether `codePoint` is a directional formatting or mark character (U+061C, U+200E, U+200F, U+202A-U+202E, U+2066-U+2069). */
+function isDirectional(codePoint: number): boolean {
+  return (
+    codePoint === 0x061c ||
+    codePoint === 0x200e ||
+    codePoint === 0x200f ||
+    (codePoint >= 0x202a && codePoint <= 0x202e) ||
+    (codePoint >= 0x2066 && codePoint <= 0x2069)
+  );
 }
 
 /** `text` cleaned (control and directional characters, lone surrogates) and cut to `maxCharacters` code points; not escaped. */
 export function cleanField(text: string, maxCharacters: number): string {
-  void [text, maxCharacters];
-  throw new Error("Not implemented");
+  let cleaned = "";
+  for (const character of text) {
+    const codePoint = character.codePointAt(0) ?? 0;
+    if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
+      // Iteration yields a lone surrogate as its own element; a well-formed pair is one astral code point.
+      cleaned += "\uFFFD";
+    } else if (isSeparatorOrControl(codePoint)) {
+      cleaned += " ";
+    } else if (!isDirectional(codePoint)) {
+      cleaned += character;
+    }
+  }
+  const characters = Array.from(cleaned.trim());
+  return characters.length > maxCharacters
+    ? `${characters.slice(0, maxCharacters - 1).join("")}…`
+    : characters.join("");
 }
 
 /** The normalized `href` when `url` is an `https://github.com` URL within the length limit, otherwise `undefined`. */
 export function buttonUrl(url: string): string | undefined {
-  void url;
-  throw new Error("Not implemented");
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return undefined;
+  }
+  const allowed =
+    parsed.protocol === "https:" && parsed.host === "github.com" && parsed.username === "" && parsed.password === "";
+  return allowed && parsed.href.length <= MAX_BUTTON_URL_LENGTH ? parsed.href : undefined;
 }
 
 /** Renders a notification as the three-line Telegram HTML text and its button URL. */
 export function formatMessage(notification: Notification): OutboxMessage {
-  void notification;
-  throw new Error("Not implemented");
+  const number = notification.number;
+  const numberText = number !== undefined && Number.isSafeInteger(number) && number >= 1 ? ` #${String(number)}` : "";
+  const lines = [
+    `<b>${escapeTelegramHtml(cleanField(notification.title, MAX_TITLE_CHARACTERS))}</b> · ${escapeTelegramHtml(cleanField(notification.repository, MAX_REPOSITORY_CHARACTERS))}${numberText}`,
+  ];
+  for (const line of [notification.subject, notification.context]) {
+    const cleaned = cleanField(line, MAX_LINE_CHARACTERS);
+    if (cleaned !== "") {
+      lines.push(escapeTelegramHtml(cleaned));
+    }
+  }
+  return { text: lines.join("\n"), buttonUrl: buttonUrl(notification.url) };
 }

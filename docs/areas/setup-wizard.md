@@ -140,7 +140,7 @@ it and add their pages behind the login.
   row belongs to the saved App ID, the App ID alone otherwise, the _Worker secrets_ or _partial Worker secrets_ text
   when those are set (no value shown), _none saved yet_, or _cannot be read_ when the saved App ID cannot be read with the current `SELUNA_SECRET` (a reset can also be needed while the App ID is still shown, when another saved credential does not decrypt); _Last delivery
   from GitHub:_ the time in the configured time zone as `YYYY-MM-DD HH:MM (<time zone>)` (24-hour), or _none
-  received yet_ until the webhook handler writes `last_delivery` (issue 12). When the runtime rejects the zone or the
+  received yet_ until the first delivery from GitHub is recorded ([Notifications](notifications.md)). When the runtime rejects the zone or the
   time at render, the time is written in UTC from its UTC fields, as `(UTC)`; the page never fails on it.
 - The settings form posts to `POST /setup/settings` with the session-bound `csrf` field and these fields:
   `notification_language` (`en` or `de`), `time_zone` (an option per name the runtime lists, plus `UTC`), the

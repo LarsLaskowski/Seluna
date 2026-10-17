@@ -52,14 +52,15 @@ files or endpoints.
 - **Outbound-only Telegram:** the Worker calls only the Telegram Bot API methods `getUpdates` (in the setup wizard's
   Telegram step, `src/setup/telegram-step.ts`) and `sendMessage` (`src/telegram.ts`); it never sets or deletes a
   webhook and exposes no Telegram route; the input it takes from Telegram is the `getUpdates` answer of the signed-in
-  step and the status of each `sendMessage` answer, both read bounded (1 MiB) and narrowed in `src/telegram.ts`; a
+  step and the status of each `sendMessage` answer and, for a 429, its `parameters.retry_after`, all read bounded
+  (1 MiB) and narrowed in `src/telegram.ts` (a notification is sent from `src/delivery.ts`); a
   chat is stored only after the owner typed back the code of its test message (`src/setup/chat-proof.ts`); the bot
   token appears only in the request URL, which Seluna never logs.
-- **Parsing of external input:** webhook bodies are JSON from GitHub and are narrowed from `unknown`; fields are
-  length-limited and escaped (Telegram MarkdownV2/HTML) before they enter a message, because titles and branch names
+- **Parsing of external input:** webhook bodies are JSON from GitHub and are narrowed from `unknown`; the body (JSON or the form field `payload`) is narrowed in `src/webhook.ts`; fields are
+  cleaned, length-limited and escaped (Telegram HTML) in `src/message.ts` before they enter a message, because titles and branch names
   are attacker-controlled text.
 - **Request body size:** every route that reads a request body reads it through the bounded reader in `src/body.ts` (1 MiB; a `Content-Length` above it is rejected before reading, and the body is always counted while read); a route that reads a body any other way is a `security`-tier finding.
-- **Logging of external data:** logs carry event type, action and delivery id, and per request the method, the URL path without query string and the status (`src/router.ts`); never payload text, headers, query strings, tokens or keys.
+- **Logging of external data:** logs carry event type, delivery id, the action and repository (pattern-checked) and the decision of the processing, each sent outbox row logs its id and result, and per request the method, the URL path without query string and the status (`src/router.ts`); never payload text, headers, query strings, tokens or keys.
 
 ## Guarantees
 
@@ -92,7 +93,7 @@ change with it.
 - the test that pins the read/write round trip
 
 **A new or changed rule (a notification kind)** touches:
-- the pure rule function and its tests, with a real payload under `test/fixtures/<event>/<action>.json`
+- the pure rule function and its tests, with a real payload under `test/fixtures/<event>/<action>.json`, its entry in `src/rules/registry.ts` and its texts in `src/i18n/en.ts` and `src/i18n/de.ts`
 - the GitHub App manifest (events and permissions it needs) and the webhook event routing
 - the message formatting and its escaping, the component list in `docs/ARCHITECTURE.md` and the rule list in `README.md`
 
@@ -128,7 +129,7 @@ otherwise):
   pull request and check-run answers of the later API clients get their fixtures beside these.
 - **Telegram Bot API double** — `test/telegram.ts`: a `vi.fn<TelegramFetch>()` passed as the injected `TelegramFetch`
   (not a stub on `globalThis.fetch`) that records every request and answers `getUpdates` and `sendMessage` from
-  fixtures, a status and body, or a rejection (a rate limit, a server error); it fails the test on any other method.
+  fixtures, a status and body (for `sendMessage` also a sequence, one answer per request, the last repeated), or a rejection (a rate limit, a server error; the 429 answer is the reference-built `send-message-too-many-requests.json`); it fails the test on any other method.
   Its `getUpdates` answers come from `test/fixtures/telegram/`, which are written from the Bot API reference, not
   captured (see the `README.md` there); no real bot is ever called. Squad sessions have no egress to
   `api.telegram.org` (the session proxy refuses it), so a real answer cannot be fetched during a run: the

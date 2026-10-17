@@ -37,8 +37,10 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
   `application/x-www-form-urlencoded`, the body is read as UTF-8 form data and must contain exactly one field
   `payload`, whose value is the JSON text. Any other or a missing `Content-Type` means the whole body is the JSON
   text.
-- The JSON text must be valid UTF-8 (an invalid byte sequence answers 400; a byte order mark is not removed and so
-  makes the text invalid JSON) and must parse to a JSON object, not an array or another value.
+- The body must be valid UTF-8 (an invalid byte sequence answers 400; a byte order mark is not removed and so
+  makes the text invalid JSON). In the form framing a percent-encoded invalid sequence inside the `payload` value is
+  not rejected: form decoding turns it into U+FFFD, which cleaning later passes harmlessly. The JSON text must
+  parse to a JSON object, not an array or another value.
 - The payload is passed to the rules as it parsed. The processing itself reads only `action` and
   `repository.full_name`, for the log entry.
 
@@ -67,13 +69,16 @@ A notification is rendered once, when its row is written, and stored as the row'
   1. a lone surrogate is replaced by U+FFFD;
   2. each control character (U+0000 to U+001F, U+007F to U+009F) and the line and paragraph separators U+2028 and
      U+2029 are replaced by a space;
-  3. the directional formatting characters U+200E, U+200F, U+202A to U+202E and U+2066 to U+2069 are removed;
+  3. the directional formatting characters U+061C, U+200E, U+200F, U+202A to U+202E and U+2066 to U+2069 are removed;
   4. leading and trailing spaces are removed;
   5. a text longer than its limit is cut to the limit, its last kept code point replaced by `…` (U+2026). The
      limits count code points of the decoded text, before escaping: title 64, repository 140, line 2 and line 3
      256 each;
   6. `&`, `<` and `>` are replaced by `&amp;`, `&lt;` and `&gt;`, in this order, so a text that already contains
      an entity is shown as written.
+- Cleaning keeps a text from breaking the three-line layout and removes the invisible characters that reorder text
+  around them; it does not stop ordinary right-to-left letters in a title or repository from reordering the
+  neutral characters `·` and `#` of line 1 on screen.
 - The number is shown only when it is a whole number from 1 to 2^53 − 1.
 - The button URL is stored only when it parses as a URL with the scheme `https`, the host `github.com`, no user name
   or password, and at most 2,048 characters in its normalized form, which is what is stored; otherwise the row has
@@ -102,6 +107,7 @@ A notification is rendered once, when its row is written, and stored as the row'
 - Without a usable bot token or chat, Telegram is not called and the row stays `pending` with its attempts
   unchanged.
 - Otherwise one attempt is one `sendMessage` request with `chat_id`, `text`, `parse_mode` `HTML`,
+  `link_preview_options` with `is_disabled` true (a link in an attacker-chosen title builds no preview card),
   `disable_notification` (true when the row is silent) and, when the row has a button URL, an inline keyboard with
   one button (label, URL). An attempt counts one in `attempts`, whatever its outcome:
   - a successful answer (2xx and `ok` true) marks the row `sent`;
@@ -132,6 +138,14 @@ A notification is rendered once, when its row is written, and stored as the row'
 
 ## Limits and errors
 
+- A delivery answered 400 or 503 stores nothing and GitHub does not send it again on its own; the owner can redeliver
+  it from the GitHub App's delivery list, which works because its id was not recorded. This is accepted: the
+  "never lose a message" goal covers rows already in the `outbox`, not deliveries that were never recorded.
+- A throwing rule or formatter answers 503 `unavailable` and stores nothing, like a database failure.
+- The signature covers the body only, not `X-GitHub-Delivery` or `X-GitHub-Event`. Residual risk, inherent to
+  GitHub's webhook design: someone holding a captured signed body can replay it with a new delivery id and cause a
+  second message, or change the event header so the payload reaches the rules of another event. The rules therefore
+  check that the payload's shape matches the event and do not rely on the header alone.
 - 200, 202, 400 and 503 of this processing carry no body, as every answer of `POST /webhook` does.
 - A database failure, a failing send and a Telegram error never reach a response or a log entry with their message;
   only the fixed decision or result above is logged.

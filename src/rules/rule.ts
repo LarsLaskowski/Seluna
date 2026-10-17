@@ -41,6 +41,21 @@ export function runRules(
   payload: WebhookPayload,
   settings: NotificationSettings,
 ): RuleRun {
-  void [rules, event, payload, settings];
-  throw new Error("Not implemented");
+  const notifications: Notification[] = [];
+  let droppedAny = false;
+  for (const rule of rules) {
+    const notification = rule.evaluate(event, payload, settings);
+    if (notification === undefined) {
+      continue;
+    }
+    if (settings.rules[rule.id]) {
+      notifications.push(notification);
+    } else {
+      droppedAny = true;
+    }
+  }
+  if (notifications.length > 0) {
+    return { notifications, decision: "reported" };
+  }
+  return { notifications, decision: droppedAny ? "disabled" : "no-match" };
 }

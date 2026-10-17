@@ -182,7 +182,7 @@ type BotApiAnswer =
   | { readonly kind: "answered"; readonly status: number; readonly ok: boolean; readonly body: unknown }
   | { readonly kind: "failed" };
 
-/** One POST to a Bot API method with a JSON body; never throws. A non-2xx answer is returned without reading its body. */
+/** One POST to a Bot API method with a JSON body; never throws. The body of a non-2xx answer is read only for a 429. */
 async function callBotApi(
   token: string,
   method: string,
@@ -198,6 +198,15 @@ async function callBotApi(
     });
     const response = await fetcher(request);
     if (!response.ok) {
+      if (response.status === 429) {
+        // Only the `retry_after` of a 429 is used; the answer is read within the same bound.
+        return {
+          kind: "answered",
+          status: response.status,
+          ok: false,
+          body: await readJsonWithLimit(response, MAX_TELEGRAM_RESPONSE_BYTES),
+        };
+      }
       await response.body?.cancel().catch(() => undefined);
       return { kind: "answered", status: response.status, ok: false, body: undefined };
     }
@@ -246,8 +255,24 @@ export type SendNotificationResult = "sent" | "token-rejected" | "rate-limited" 
 
 /** `parameters.retry_after` of an unsuccessful answer as a positive safe integer, else `undefined`. */
 export function parseRetryAfter(body: unknown): number | undefined {
-  void body;
-  throw new Error("Not implemented");
+  if (!isRecord(body) || body.ok !== false || !isRecord(body.parameters)) {
+    return undefined;
+  }
+  const seconds = body.parameters.retry_after;
+  return typeof seconds === "number" && Number.isSafeInteger(seconds) && seconds > 0 ? seconds : undefined;
+}
+
+function notificationResult(answer: BotApiAnswer): SendNotificationResult {
+  if (answer.kind === "failed") {
+    return "failed";
+  }
+  if (answer.status === 401 || answer.status === 404) {
+    return "token-rejected";
+  }
+  if (answer.status === 429) {
+    return "rate-limited";
+  }
+  return answer.ok && isRecord(answer.body) && answer.body.ok === true ? "sent" : "failed";
 }
 
 /** One `sendMessage` with `parse_mode` HTML, retried once after a 429 of 1–5 s. Never throws. */
@@ -258,6 +283,27 @@ export async function sendNotification(
   fetcher: TelegramFetch,
   sleep: (milliseconds: number) => Promise<void>,
 ): Promise<SendNotificationResult> {
-  void [token, chatId, message, fetcher, sleep];
-  return Promise.reject(new Error("Not implemented"));
+  const payload = {
+    chat_id: chatId,
+    text: message.text,
+    parse_mode: "HTML",
+    disable_notification: message.silent,
+    link_preview_options: { is_disabled: true },
+    ...(message.buttonUrl === undefined
+      ? {}
+      : { reply_markup: { inline_keyboard: [[{ text: message.buttonText, url: message.buttonUrl }]] } }),
+  };
+  let answer = await callBotApi(token, "sendMessage", payload, fetcher);
+  if (answer.kind === "answered" && answer.status === 429) {
+    const seconds = parseRetryAfter(answer.body);
+    if (seconds !== undefined && seconds <= MAX_RETRY_AFTER_SECONDS) {
+      try {
+        await sleep(seconds * 1000);
+      } catch {
+        return "failed";
+      }
+      answer = await callBotApi(token, "sendMessage", payload, fetcher);
+    }
+  }
+  return notificationResult(answer);
 }

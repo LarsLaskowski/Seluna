@@ -21,29 +21,29 @@ anyone who can only read the database.
 The first migration (`migrations/0001_initial_schema.sql`) creates exactly these six tables. Columns are
 `NOT NULL` unless marked nullable.
 
-| Table         | Column            | Type    | Holds                                                                                |
-| ------------- | ----------------- | ------- | ------------------------------------------------------------------------------------ |
-| `settings`    | `key`             | TEXT    | Primary key: the name of a setting                                                   |
-|               | `value`           | TEXT    | The setting's value as text                                                          |
-| `secrets`     | `key`             | TEXT    | Primary key: `github_app_id`, `github_private_key` or `github_webhook_secret`        |
-|               | `iv`              | TEXT    | Base64 of the 12-byte IV; the table rejects any value that is not 16 characters long |
-|               | `ciphertext`      | TEXT    | Base64 of the AES-256-GCM ciphertext with its 16-byte tag                            |
-| `deliveries`  | `id`              | TEXT    | Primary key: the `X-GitHub-Delivery` value                                           |
-|               | `event`           | TEXT    | The `X-GitHub-Event` value                                                           |
-|               | `received_at`     | INTEGER | When the delivery was received (indexed)                                             |
-| `outbox`      | `id`              | INTEGER | Primary key, assigned by the database                                                |
-|               | `text`            | TEXT    | The message text as sent to Telegram                                                 |
-|               | `button_url`      | TEXT    | Nullable: the URL of the message's button                                            |
-|               | `silent`          | INTEGER | `1` to send without sound, otherwise `0` (default `0`; nothing else is accepted)     |
-|               | `attempts`        | INTEGER | Delivery attempts so far (default `0`, never negative)                               |
-|               | `status`          | TEXT    | `pending` (default), `sent` or `failed`; nothing else is accepted                    |
-|               | `created_at`      | INTEGER | When the row was written; indexed together with `status`                             |
-| `token_cache` | `installation_id` | INTEGER | Primary key: the GitHub App installation id                                          |
-|               | `iv`              | TEXT    | As in `secrets`                                                                      |
-|               | `ciphertext`      | TEXT    | The installation token, encrypted as in `secrets`                                    |
-|               | `expires_at`      | INTEGER | When the token expires                                                               |
-| `meta`        | `key`             | TEXT    | Primary key: the name of a value the instance keeps for itself                       |
-|               | `value`           | TEXT    | The value as text                                                                    |
+| Table         | Column            | Type    | Holds                                                                                                                                                          |
+| ------------- | ----------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `settings`    | `key`             | TEXT    | Primary key: the name of a setting                                                                                                                             |
+|               | `value`           | TEXT    | The setting's value as text                                                                                                                                    |
+| `secrets`     | `key`             | TEXT    | Primary key: `github_app_id`, `github_private_key` or `github_webhook_secret`                                                                                  |
+|               | `iv`              | TEXT    | Base64 of the 12-byte IV; the table rejects any value that is not 16 characters long                                                                           |
+|               | `ciphertext`      | TEXT    | Base64 of the AES-256-GCM ciphertext with its 16-byte tag                                                                                                      |
+| `deliveries`  | `id`              | TEXT    | Primary key: the `X-GitHub-Delivery` value                                                                                                                     |
+|               | `event`           | TEXT    | The `X-GitHub-Event` value                                                                                                                                     |
+|               | `received_at`     | INTEGER | When the delivery was received (indexed)                                                                                                                       |
+| `outbox`      | `id`              | INTEGER | Primary key, assigned by the database                                                                                                                          |
+|               | `text`            | TEXT    | The message text as sent to Telegram: Telegram HTML, rendered when the row is written ([Notifications](notifications.md#message-format))                       |
+|               | `button_url`      | TEXT    | Nullable: the URL of the message's button, only an `https://github.com` URL ([Notifications](notifications.md#message-format)); the button label is not stored |
+|               | `silent`          | INTEGER | `1` to send without sound, otherwise `0` (default `0`; nothing else is accepted)                                                                               |
+|               | `attempts`        | INTEGER | Delivery attempts so far (default `0`, never negative)                                                                                                         |
+|               | `status`          | TEXT    | `pending` (default), `sent` or `failed`; nothing else is accepted                                                                                              |
+|               | `created_at`      | INTEGER | When the row was written; indexed together with `status`                                                                                                       |
+| `token_cache` | `installation_id` | INTEGER | Primary key: the GitHub App installation id                                                                                                                    |
+|               | `iv`              | TEXT    | As in `secrets`                                                                                                                                                |
+|               | `ciphertext`      | TEXT    | The installation token, encrypted as in `secrets`                                                                                                              |
+|               | `expires_at`      | INTEGER | When the token expires                                                                                                                                         |
+| `meta`        | `key`             | TEXT    | Primary key: the name of a value the instance keeps for itself                                                                                                 |
+|               | `value`           | TEXT    | The value as text                                                                                                                                              |
 
 - `settings` holds the owner's choices: the language, the time zone, the quiet hours, the enabled rules, the
   update notice and the Telegram chat id. The notification settings are twelve rows with these keys and formats;
@@ -76,8 +76,8 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   and rules in [Setup wizard](setup-wizard.md#failed-attempts-and-the-lock)).
 - The `meta` row `last_delivery` is the time of the last received webhook delivery, as decimal milliseconds since
   1970-01-01 UTC matching `^(0|[1-9]\d{0,15})$` and at most `8640000000000000` (the latest time a JavaScript `Date`
-  holds); a value that does not fit counts as no delivery. The webhook handler writes it (issue 12); the setup
-  wizard only reads it.
+  holds); a value that does not fit counts as no delivery. The webhook processing writes it, in the same transaction as the `deliveries` and `outbox` rows
+  of a new delivery ([Notifications](notifications.md#processing-a-delivery)); the setup wizard only reads it.
 - The `meta` row `github_app_slug` is `<appId>:<slug>`: `<appId>` the decimal App ID, `<slug>` matching
   `^[a-z0-9-]{1,100}$`. It is plain text (a slug is public) and is written by the GitHub App step after the three
   credentials were stored; it counts only for the App ID in its value, any other value reads as absent.
