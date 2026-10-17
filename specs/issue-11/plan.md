@@ -129,13 +129,19 @@ Test names are the Tester's step-5 tests; files per *Test files*.
   Telegram chat, `login_attempts` and `last_delivery` stay. Afterwards `GET /setup/github` shows the form.
   - `src/store/secrets.test.ts`: "needsReset reports $case" (empty → false; matching key → false; key check under
     another secret → true; key check absent with a `secrets` row → true; key matches but `github_private_key` altered →
-    true); "resetCredentials deletes secrets, token_cache and key_check and keeps settings and other meta rows";
+    true); "resetCredentials deletes secrets, token_cache and key_check and keeps settings and other meta rows"
+    (seeds all three `secrets` rows, at least one `token_cache` row, `key_check` under another secret, a `settings`
+    row and another `meta` row; asserts `secrets`, `token_cache` and `key_check` are all empty afterwards — this is
+    the test that fails on the old order, where the shared guard made the `token_cache` and `key_check` deletes
+    no-ops — and the `settings` and other `meta` rows remain);
     "resetCredentials returns not-needed and deletes nothing when the key matches"; "resetCredentials deletes nothing
     when the key check changed after its check" (a D1 wrapper whose `batch` first replaces `key_check` and then
-    delegates — the guard must leave every row); "resetCredentials deletes nothing when a credential was rewritten
+    delegates — afterwards the `secrets` rows, the `token_cache` rows and the replaced `key_check` all remain);
+    "resetCredentials deletes nothing when a credential was rewritten
     after its check" (key matches, `github_private_key` altered so `needsReset` is true; a D1 wrapper whose `batch`
     first runs `writeSecrets` with the same key — which keeps the `key_check` row — and then delegates; afterwards
-    all three `secrets` rows, the `token_cache` rows and `key_check` remain and `readSecret` of each is `ok`);
+    all three `secrets` rows remain and `readSecret` of each is `ok`, and the test asserts explicitly that the
+    `token_cache` rows and the `key_check` row remain);
     "resetCredentials deletes when the stored key check value is not text" (a `key_check` row holding a blob, inserted with a
     `Uint8Array` bind: the reset deletes it and the `secrets` rows).
   - `src/setup/handler.test.ts`: "GET /setup shows the reset form when the key check was sealed under another
@@ -175,11 +181,22 @@ Test names are the Tester's step-5 tests; files per *Test files*.
 3. **Reset guard.** `resetCredentials` reads, in one batch: the key check row as `SELECT value, quote(value) AS
    pinned FROM meta WHERE key = ?1`, every `secrets` row, and the secrets fingerprint `SELECT <fingerprint> AS
    fingerprint`, where `<fingerprint>` is `(SELECT group_concat(quote(key) || ':' || quote(iv), ',') FROM (SELECT
-   key, iv FROM secrets ORDER BY key))`. It decides `needsReset` from the rows read, and when needed runs one batch:
-   `DELETE FROM secrets WHERE <guard>`, `DELETE FROM token_cache WHERE <guard>`, `DELETE FROM meta WHERE key =
-   'key_check' AND <guard>` (in this order, the `meta` delete last because the guard reads it), where `<guard>` is
-   `(SELECT quote(value) FROM meta WHERE key = 'key_check') IS ?1 AND <fingerprint> IS ?2`, `?1` the `pinned` text
-   read (`NULL` when the row was absent) and `?2` the fingerprint read (`NULL` for an empty table). Both pins are
+   key, iv FROM secrets ORDER BY key))`. It decides `needsReset` from the rows read, and when needed runs one batch
+   of three deletes in exactly this order:
+   (1) `DELETE FROM token_cache WHERE <guard>`;
+   (2) `DELETE FROM secrets WHERE <guard>`;
+   (3) `DELETE FROM meta WHERE key = 'key_check' AND (SELECT quote(value) FROM meta WHERE key = 'key_check') IS ?1
+   AND NOT EXISTS (SELECT 1 FROM secrets)`,
+   where `<guard>` is `(SELECT quote(value) FROM meta WHERE key = 'key_check') IS ?1 AND <fingerprint> IS ?2`, `?1`
+   the `pinned` text read (`NULL` when the row was absent) and `?2` the fingerprint read (`NULL` for an empty table).
+   Each statement evaluates its guard against the state the earlier statements of the batch left, so the shared
+   guard can stand only on statements that run before `secrets` is emptied: `token_cache` first, then `secrets`.
+   Statement (3) cannot reuse `<guard>` (after (2) the fingerprint is `NULL`, not `?2`) and instead pins the key
+   check value and requires `secrets` to be empty. That is equivalent to the shared guard: the batch is one
+   transaction and the reset is the only code that deletes `secrets` rows, so `secrets` is empty at (3) exactly when
+   (2) deleted the rows the reset checked (guard held) or the table was empty at the read and still is; a concurrent
+   write between the read and the batch changes the fingerprint, so (1) and (2) delete nothing, its rows remain, and
+   `NOT EXISTS` blocks (3). Both pins are
    values SQLite computed, bound back as text, so the TypeScript side never rebuilds them; `quote()` makes a `NULL`,
    blob or number `key_check` or `iv` comparable as text, so the earlier `typeof` variant is gone. Every credential
    write draws a fresh random 12-byte IV (`encrypt`, `src/crypto.ts:94`), so any `writeSecret`/`writeSecrets`
@@ -395,6 +412,13 @@ the area documents may state these as fact for the runtime version of `package-l
   and row absent → deletes; row present → 0 changes). The revised guard (`quote(value)`, plus the fingerprint) uses
   the same `IS` semantics; the AC6 race tests run against D1 in the pool and verify it, Security re-reads them in the
   diff review.
+- The statements of one `db.batch` see the changes of the earlier statements. Security measured the previous order
+  (`secrets`, `token_cache`, `meta`, all with the shared guard) on a seeded reset: the changes were **3, 0, 0** — the
+  `secrets` delete emptied the table, the fingerprint became `NULL`, and the `token_cache` and `key_check` deletes
+  were no-ops. Hence the ordered batch of *Approach* step 3 (`token_cache` and `secrets` under the shared guard,
+  then `key_check` under the key check pin plus `NOT EXISTS (SELECT 1 FROM secrets)`). The new order is verified by
+  the AC6 tests in the D1 pool ("resetCredentials deletes secrets, token_cache and key_check …" for the full delete,
+  the two race tests for the no-op), not by a separate measurement.
 
 Design fails closed either way: a missing list leaves only `UTC`; an alias the list lacks is rejected; a zone or time
 `Intl` rejects at render falls back to UTC text instead of an error page.
@@ -405,7 +429,8 @@ Design fails closed either way: a missing list leaves only `UTC`; an alias the l
   start-page bullet becomes the status page (status lines, reset section, step links, settings form, sign-out); new
   sections *Status and settings* (form fields and validation, statuses 303/400/403/503, the time format) and *Reset*
   (precondition, what is deleted and kept, 303/409/403/503, the guard: the key check value and the fingerprint of
-  the `secrets` rows read, so a credential write between the check and the delete leaves everything); *Status and
+  the `secrets` rows read, so a credential write between the check and the delete leaves everything; the three
+  deletes in their order, as in storage.md); *Status and
   settings* also states that quiet hours are stored as one value, so switching them off drops the times and the form
   shows 22:00 and 07:00 again when they are next switched on, and that the delivery time falls back to UTC text when
   the runtime rejects the zone; *CSRF protection* lists the settings and reset
@@ -414,8 +439,9 @@ Design fails closed either way: a missing list leaves only `UTC`; an alias the l
   GitHub after a reset.
 - `docs/areas/storage.md` (**Dev**): the `settings` keys and formats table (from *Stored formats*); the `meta` rows
   `last_delivery` (written by #12) and `github_app_slug`; *Key check*: `checkKey` reports corrupt for an absent key
-  check beside a credential; the reset bullet states exactly what is deleted and the guard (key check value and
-  secrets fingerprint); `token_cache` cleared by the reset; `last_delivery` bounded by `8640000000000000`;
+  check beside a credential; the reset bullet states exactly what is deleted and the per-statement guard in its
+  order: `token_cache`, then `secrets`, each only while the key check value and the secrets fingerprint are the ones
+  read, then the key check row only while its value is the one read and `secrets` is empty; `token_cache` cleared by the reset; `last_delivery` bounded by `8640000000000000`;
   `quiet_hours` is one row (`off` or `<start>-<end>`), read only through `settingsFromStored`.
 
 ## Documentation updates
@@ -432,8 +458,9 @@ Design fails closed either way: a missing list leaves only `UTC`; an alias the l
   surface's setting table; README has none yet).
 - `.squad/project.md` (**Dev**): *Encrypted credentials* gains one sentence — the reset (`resetCredentials` in
   `src/store/secrets.ts`) deletes `secrets`, `token_cache` and the key check value only while the credentials cannot
-  be read, behind the session and its CSRF token, guarded by the checked key check value and the `secrets` rows read
-  (a credential written in between leaves everything). *Setup login* needs no
+  be read, behind the session and its CSRF token, in one batch that deletes `token_cache` and then `secrets` only
+  while the key check value and the `secrets` rows are the ones checked, and then the key check value only while it
+  is the one checked and no `secrets` row is left (a credential written in between leaves everything). *Setup login* needs no
   change (every form already carries the token).
 
 ## Architecture check
@@ -500,6 +527,13 @@ Devil's Advocate, 0 major, 3 minor:
    fix** of Security finding 1: the guard now also pins the `secrets` rows read, so the window is closed rather than
    documented. The area documents describe the closed guard; there is no "accepted window" line.
 
+## Product Manager decision
+
+After Security's second plan rejection (the reset batch order) the Lead escalated. The Product Manager chose option
+(a): one more plan revision with exactly that fix (*Approach* step 3, AC6 tests, *Runtime behavior (measured)*,
+the area documents, `.squad/project.md` and 0018 option 8), then one Security delta confirmation; a further
+rejection goes back to the Product Manager.
+
 ## Security review
 
 Plan review, CHANGES_REQUIRED:
@@ -522,3 +556,21 @@ Plan review, CHANGES_REQUIRED:
   on any `Intl` error it writes the same format in UTC from the `getUTC*` fields (signature comment, AC5 tests
   "falls back to UTC when the runtime rejects the zone" and "writes the latest valid time without throwing").
 - *Drop the Dev's measuring step.* — **Accepted**; see *Runtime behavior (measured)*.
+
+Plan delta review, CHANGES_REQUIRED:
+
+- **Blocking (delta round) — reset batch order.** The shared fingerprint guard on all three deletes makes the
+  `token_cache` and `key_check` deletes no-ops once `secrets` is emptied (measured changes 3, 0, 0), so a reset
+  leaves the old `token_cache` rows and the old key check, and the GitHub step would keep reporting a changed key. —
+  **Accepted.** *Approach* step 3 now deletes (1) `token_cache` and (2) `secrets` under the shared guard, then (3)
+  `key_check` under the key check pin and `NOT EXISTS (SELECT 1 FROM secrets)`, with the reason why (3) is
+  equivalent; the "meta delete last because the guard reads it" sentence is gone. AC6: the full-delete test seeds
+  several `secrets` rows and at least one `token_cache` row and asserts all three empty; both race tests assert that
+  `secrets`, `token_cache` and `key_check` remain. *Runtime behavior (measured)* records the old order's
+  measurement as the reason. Re-check of the precondition list against the new statements: key check changed or
+  corrupt (pin `?1` on all three), key check absent beside rows (`?1` `NULL` plus fingerprint; (3) has no row to
+  delete), a credential that does not decrypt under a matching key check and a concurrent rewrite (fingerprint
+  blocks (1) and (2); the remaining rows block (3)), a row added or removed (fingerprint; rows block (3)), a
+  concurrent first write into an empty table after the read (fingerprint no longer `NULL`; rows block (3)).
+  Decision 0018 option 8, `docs/areas/storage.md`, `docs/areas/setup-wizard.md` and `.squad/project.md` describe the
+  per-statement guard and order.

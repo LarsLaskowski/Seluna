@@ -53,6 +53,11 @@ When the reset is offered and what guards it:
    A guard on the key check value alone was weighed and lost: it misses the "key matches, a credential does not
    decrypt" case, where a concurrent write keeps the key check value and the reset would delete the new app's
    credentials, orphaning the app; documenting that window as accepted was rejected for a destructive operation.
+   Because each statement of the delete batch sees what the earlier ones changed, one guard on every delete fails:
+   once `secrets` is emptied the fingerprint no longer matches and the later deletes do nothing. The batch therefore
+   deletes `token_cache` and then `secrets` under both pins, and then the key check value under its own pin and only
+   while no `secrets` row is left — equivalent, since only the reset deletes `secrets` rows, so rows left by a
+   concurrent write block that last delete too.
 9. **A reset that is always available** — more general, but an accidental click deletes working credentials and
    leaves an orphaned app on GitHub.
 
