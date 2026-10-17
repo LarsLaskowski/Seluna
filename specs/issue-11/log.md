@@ -27,4 +27,4 @@ are quoted in full.
 | 2026-10-17 14:59 | 8 Review r1 (security diff) | Security | APPROVED on c5674e9: reset SQL matches step 3 word for word; AC6 race tests real; no findings (opus/medium · 59,804 tokens · 11 tool uses · 92 s) |
 | 2026-10-17 15:01 | 8 Review r1 | Reviewer | BLOCKING 2: (1) verbatim http-routes.md body-reading route list lacks POST /setup/settings and /setup/reset; (2) setup-wizard.md + AC5 say App line 'cannot be read' when reset needed, code only when github_app_id unreadable - Lead decides doc (a) vs code (b); German texts fine (opus/medium · 131,919 tokens · 23 tool uses · 218 s) |
 | 2026-10-17 15:02 | 8 Decide (finding 2) | Lead | RESULT: DONE; option (a) doc only: setup-wizard.md first bullet + AC5 reworded; Tester adds statusView case 'key matches, github_private_key altered'; finding 1 applied verbatim by orchestrator (opus/medium · 29,794 tokens · 4 tool uses · 40 s) |
-| 2026-10-17 15:03 | 8 Fix r1 (doc) | Dev | setup-wizard.md first bullet reworded per Lead (a) |
+| 2026-10-17 15:03 | 8 Fix r1 (doc) | Dev | setup-wizard.md first bullet reworded per Lead (a) (sonnet/medium · 1,059 tokens · 3 tool uses · 24 s · continued) |
