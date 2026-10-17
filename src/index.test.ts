@@ -2,6 +2,7 @@ import { createExecutionContext, createScheduledController, waitOnExecutionConte
 import { env, exports } from "cloudflare:workers";
 import { afterEach, expect, it, onTestFinished, vi } from "vitest";
 import worker from "./index";
+import type { Rule } from "./rules/rule";
 import { version } from "../package.json";
 import { body, headers } from "../test/fixtures/ping/form-delivery.json";
 import { applyMigrations } from "../test/d1";
@@ -9,6 +10,28 @@ import { telegramDouble } from "../test/telegram";
 import { FIXTURE_CODE, githubDouble, stateFor } from "../test/github";
 import { keyFor, signingKeyFor } from "../test/keys";
 import { writeSecret } from "./store/secrets";
+
+const { WIRING_ZEN } = vi.hoisted(() => ({ WIRING_ZEN: "Seluna wiring test" }));
+
+// The registry holds no rule yet: this one reports only the `ping` whose zen is WIRING_ZEN (never the real ping), so
+// the wiring of the Worker (waitUntil, the Telegram fetch) is tested end to end.
+vi.mock("./rules/registry", () => {
+  const rule: Rule = {
+    id: "pull_request_opened",
+    evaluate: (event, payload) =>
+      event === "ping" && payload.zen === WIRING_ZEN
+        ? {
+            title: "Wiring",
+            repository: "octo/repo",
+            number: 1,
+            subject: "Subject",
+            context: "Context",
+            url: "https://github.com/octo/repo/pull/1",
+          }
+        : undefined,
+  };
+  return { RULES: [rule] };
+});
 
 // The throwaway SELUNA_SECRET of vitest.config.ts.
 const SETUP_SECRET = "throwaway-test-secret-for-the-setup-login-0000";
@@ -52,15 +75,68 @@ it("GET /setup answers the login page through the Worker", async () => {
   expect(page, "password input").toMatch(/type="password"/);
 });
 
-it("POST /webhook answers 202 for the real GitHub ping delivery with the configured secret", async () => {
-  const response = await exports.default.fetch("https://example.com/webhook", {
+/** Empties the tables of the webhook processing now and when the test ends, so a delivery id is new in every test. */
+async function withEmptyDeliveries(): Promise<void> {
+  await applyMigrations(env.DB);
+  const empty = async (): Promise<void> => {
+    await env.DB.batch([env.DB.prepare("DELETE FROM deliveries"), env.DB.prepare("DELETE FROM outbox")]);
+  };
+  await empty();
+  onTestFinished(empty);
+}
+
+it("POST /webhook through the Worker answers 202 to the real ping delivery and 200 to its redelivery", async () => {
+  await withEmptyDeliveries();
+
+  const first = await exports.default.fetch("https://example.com/webhook", { method: "POST", body, headers });
+  const second = await exports.default.fetch("https://example.com/webhook", { method: "POST", body, headers });
+
+  expect(first.status, "status of the delivery").toBe(202);
+  expect(await first.text(), "body of the delivery").toBe("");
+  expect(second.status, "status of the redelivery").toBe(200);
+  expect(await second.text(), "body of the redelivery").toBe("");
+});
+
+/** `sha256=<hex>` of the HMAC-SHA256 of `text` under the throwaway secret of the real delivery. */
+async function signatureOf(text: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode("my-secret"),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const digest = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(text)));
+  return `sha256=${Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+it("POST /webhook through the Worker sends the message of a matching rule to Telegram after the response", async () => {
+  await withEmptyDeliveries();
+  const telegram = telegramDouble();
+  vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => telegram.fetch(new Request(input, init)));
+  const workerEnv = { ...env, TELEGRAM_BOT_TOKEN: BOT_TOKEN, TELEGRAM_CHAT_ID: "5001001" };
+  const ctx = createExecutionContext();
+  const text = JSON.stringify({ zen: WIRING_ZEN, repository: { full_name: "octo/repo" } });
+  const request = new Request("https://example.com/webhook", {
     method: "POST",
-    body,
-    headers,
+    body: text,
+    headers: {
+      "content-type": "application/json",
+      "x-github-event": "ping",
+      "x-github-delivery": "wiring-test-1",
+      "x-hub-signature-256": await signatureOf(text),
+    },
   });
 
+  const response = await worker.fetch(request, workerEnv, ctx);
+  await waitOnExecutionContext(ctx);
+
   expect(response.status, "status").toBe(202);
-  expect(await response.text(), "body").toBe("");
+  expect(telegram.methods(), "Bot API methods called").toEqual(["sendMessage"]);
+  expect(await env.DB.prepare("SELECT status, attempts FROM outbox").first(), "outbox row").toEqual({
+    status: "sent",
+    attempts: 1,
+  });
 });
 
 const FIXED_SCHEDULED_TIME = 1_700_000_000_000;
@@ -170,6 +246,7 @@ it("the GitHub step of /setup calls the GitHub API through the global fetch of t
 it("POST /webhook uses the webhook secret stored in D1 through the Worker", async () => {
   const ctx = createExecutionContext();
   await withEmptyCredentials();
+  await withEmptyDeliveries();
   const stored = await writeSecret(env.DB, await keyFor(SETUP_SECRET), "github_webhook_secret", "my-secret");
   const workerEnv = { ...env, GITHUB_WEBHOOK_SECRET: "" };
 
