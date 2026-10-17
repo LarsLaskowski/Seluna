@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { body, headers, secret } from "../test/fixtures/ping/form-delivery.json";
 import { MAX_BODY_BYTES } from "./body";
 import { handleRequest } from "./router";
@@ -45,6 +45,8 @@ function makeDeps(
     githubFetch: () => Promise.reject(new Error("unexpected GitHub call")),
     version: "0.0.0-test",
   },
+  webhook: RouteDeps["webhook"] = () =>
+    Promise.resolve({ status: 202, decision: "no-match", action: null, repository: null }),
 ): RouteDeps {
   return {
     version: "1.2.3",
@@ -52,6 +54,7 @@ function makeDeps(
       entries.push(entry);
     },
     webhookSecret: source,
+    webhook,
     setup,
   };
 }
@@ -275,7 +278,16 @@ describe("handleRequest", () => {
     await handleRequest(request, makeDeps(entries));
 
     expect(entries, "log entries").toEqual([
-      { method: "POST", path: "/webhook", status: 413, delivery: null, event: null },
+      {
+        method: "POST",
+        path: "/webhook",
+        status: 413,
+        delivery: null,
+        event: null,
+        action: null,
+        repository: null,
+        decision: null,
+      },
     ]);
   });
 
@@ -286,7 +298,16 @@ describe("handleRequest", () => {
     await handleRequest(request, makeDeps(entries));
 
     expect(entries, "log entries").toEqual([
-      { method: "POST", path: "/webhook", status: 202, delivery: DELIVERY_ID, event: "ping" },
+      {
+        method: "POST",
+        path: "/webhook",
+        status: 202,
+        delivery: DELIVERY_ID,
+        event: "ping",
+        action: null,
+        repository: null,
+        decision: "no-match",
+      },
     ]);
   });
 
@@ -298,7 +319,16 @@ describe("handleRequest", () => {
     await handleRequest(request, makeDeps(entries));
 
     expect(entries, "log entries").toEqual([
-      { method: "POST", path: "/webhook", status: 401, delivery: DELIVERY_ID, event: "ping" },
+      {
+        method: "POST",
+        path: "/webhook",
+        status: 401,
+        delivery: DELIVERY_ID,
+        event: "ping",
+        action: null,
+        repository: null,
+        decision: null,
+      },
     ]);
   });
 
@@ -347,7 +377,75 @@ describe("handleRequest", () => {
 
     await handleRequest(request, makeDeps(entries));
 
-    expect(entries, "log entries").toEqual([{ method: "POST", path: "/webhook", status: 202, ...expected }]);
+    expect(entries, "log entries").toEqual([
+      {
+        method: "POST",
+        path: "/webhook",
+        status: 202,
+        ...expected,
+        action: null,
+        repository: null,
+        decision: "no-match",
+      },
+    ]);
+  });
+
+  it("handleRequest logs delivery, event, action, repository and decision of a processed webhook", async () => {
+    const entries: RequestLogEntry[] = [];
+    const request = webhook(body, headers);
+    const deps = makeDeps(entries, FIXTURE_SECRET_SOURCE, undefined, () =>
+      Promise.resolve({ status: 202, decision: "reported", action: "opened", repository: "octo/repo" }),
+    );
+
+    await handleRequest(request, deps);
+
+    expect(entries, "log entries").toEqual([
+      {
+        method: "POST",
+        path: "/webhook",
+        status: 202,
+        delivery: DELIVERY_ID,
+        event: "ping",
+        action: "opened",
+        repository: "octo/repo",
+        decision: "reported",
+      },
+    ]);
+  });
+
+  it("handleRequest passes delivery, event, content type and body of a signed webhook to the webhook processor and answers its status", async () => {
+    const processor = vi.fn<RouteDeps["webhook"]>(() =>
+      Promise.resolve({ status: 200, decision: "duplicate", action: null, repository: null }),
+    );
+    const request = webhook(body, headers);
+
+    const response = await handleRequest(request, makeDeps([], FIXTURE_SECRET_SOURCE, undefined, processor));
+
+    expect(response.status, "status").toBe(200);
+    expect(await response.text(), "body").toBe("");
+    expect(processor.mock.calls, "processor calls").toEqual([
+      [
+        {
+          delivery: DELIVERY_ID,
+          event: "ping",
+          contentType: "application/x-www-form-urlencoded",
+          body: new TextEncoder().encode(body),
+        },
+      ],
+    ]);
+  });
+
+  it("handleRequest does not call the webhook processor for a wrong signature", async () => {
+    const processor = vi.fn<RouteDeps["webhook"]>(() =>
+      Promise.resolve({ status: 202, decision: "no-match", action: null, repository: null }),
+    );
+    const wrong = `${headers["x-hub-signature-256"].slice(0, -1)}6`;
+    const request = webhook(body, deliveryHeaders("x-hub-signature-256", wrong));
+
+    const response = await handleRequest(request, makeDeps([], FIXTURE_SECRET_SOURCE, undefined, processor));
+
+    expect(response.status, "status").toBe(401);
+    expect(processor, "processor calls").not.toHaveBeenCalled();
   });
 
   it("handleRequest never logs the webhook body or signature", async () => {

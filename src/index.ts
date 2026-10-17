@@ -1,6 +1,10 @@
 import { version } from "../package.json";
 import { handleRequest } from "./router";
+import { wait } from "./delivery";
+import type { DeliveryLogEntry } from "./delivery";
 import type { RequestLogEntry } from "./router";
+import { RULES } from "./rules/registry";
+import { processWebhook } from "./webhook";
 import { webhookSecretSource } from "./webhook-secret";
 
 /** Forwards a request to the global `fetch`; the one outbound path of the setup wizard. */
@@ -8,16 +12,29 @@ function outboundFetch(request: Request): Promise<Response> {
   return fetch(request);
 }
 
-function log(entry: RequestLogEntry): void {
+function log(entry: RequestLogEntry | DeliveryLogEntry): void {
   console.log(entry);
 }
 
 export default {
-  fetch(request: Request, env: Env): Promise<Response> {
+  fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     return handleRequest(request, {
       version,
       log,
       webhookSecret: webhookSecretSource(env, env.DB),
+      webhook: (delivery) =>
+        processWebhook(delivery, {
+          db: env.DB,
+          env,
+          now: () => new Date(),
+          rules: RULES,
+          waitUntil: (promise) => {
+            ctx.waitUntil(promise);
+          },
+          telegramFetch: outboundFetch,
+          sleep: wait,
+          log,
+        }),
       setup: { env, db: env.DB, now: () => new Date(), fetch: outboundFetch, githubFetch: outboundFetch, version },
     });
   },

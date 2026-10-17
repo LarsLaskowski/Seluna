@@ -1,6 +1,13 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { GITHUB_APP_SLUG_META_KEY, LAST_DELIVERY_META_KEY, readAppSlug, readLastDelivery, writeAppSlug } from "./meta";
+import {
+  GITHUB_APP_SLUG_META_KEY,
+  LAST_DELIVERY_META_KEY,
+  lastDeliveryUpsert,
+  readAppSlug,
+  readLastDelivery,
+  writeAppSlug,
+} from "./meta";
 import { applyMigrations } from "../../test/d1";
 
 beforeEach(async () => {
@@ -87,5 +94,17 @@ describe("writeAppSlug", () => {
 
     expect(await storedMeta(GITHUB_APP_SLUG_META_KEY), "stored value").toBe("2:second-app");
     expect(await readAppSlug(env.DB, 2), "slug read back").toBe("second-app");
+  });
+});
+
+describe("lastDeliveryUpsert", () => {
+  it("lastDeliveryUpsert stores the time readLastDelivery reads", async () => {
+    await putMeta(LAST_DELIVERY_META_KEY, "1000");
+    const time = new Date(1_792_240_440_000);
+
+    await env.DB.batch([lastDeliveryUpsert(env.DB, time)]);
+
+    expect(await storedMeta(LAST_DELIVERY_META_KEY), "stored text").toBe("1792240440000");
+    expect((await readLastDelivery(env.DB))?.getTime(), "time read back").toBe(1_792_240_440_000);
   });
 });

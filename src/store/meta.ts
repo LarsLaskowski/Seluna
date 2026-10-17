@@ -38,3 +38,10 @@ export async function writeAppSlug(db: D1Database, appId: number, slug: string):
     .bind(GITHUB_APP_SLUG_META_KEY, `${String(appId)}:${slug}`)
     .run();
 }
+
+/** Upsert of `last_delivery` with `time`, for a batch. */
+export function lastDeliveryUpsert(db: D1Database, time: Date): D1PreparedStatement {
+  return db
+    .prepare("INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value")
+    .bind(LAST_DELIVERY_META_KEY, String(time.getTime()));
+}

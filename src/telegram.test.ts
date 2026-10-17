@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   botTokenFromEnv,
   findChats,
@@ -7,7 +7,9 @@ import {
   MAX_TELEGRAM_RESPONSE_BYTES,
   parseChatId,
   parseChats,
+  parseRetryAfter,
   sendMessage,
+  sendNotification,
 } from "./telegram";
 import type { TelegramChat } from "./telegram";
 import {
@@ -542,5 +544,151 @@ describe("sendMessage", () => {
     const result = await sendMessage(TOKEN, 5_001_001, "text", telegram.fetch);
 
     expect(result, "result").toBe("failed");
+  });
+});
+
+describe("sendNotification", () => {
+  const URL_ON_GITHUB = "https://github.com/o/r/pull/7";
+  const MESSAGE = { text: "<b>T</b> · o/r #7", buttonText: "Open on GitHub", buttonUrl: URL_ON_GITHUB, silent: false };
+  const NO_BUTTON = { ...MESSAGE, buttonUrl: undefined };
+
+  function retryAfter(seconds: unknown): TelegramAnswer {
+    return jsonAnswer(429, { ok: false, error_code: 429, parameters: { retry_after: seconds } });
+  }
+
+  function sleepSpy() {
+    return vi.fn<(milliseconds: number) => Promise<void>>(() => Promise.resolve());
+  }
+
+  it("sendNotification posts chat_id, text, parse_mode HTML, disable_notification and the inline button as JSON to sendMessage", async () => {
+    const telegram = telegramDouble();
+
+    const result = await sendNotification(TOKEN, -1_001_234_567_890, MESSAGE, telegram.fetch, sleepSpy());
+
+    expect(result, "result").toBe("sent");
+    expect(telegram.requests.length, "number of requests").toBe(1);
+    const [request] = telegram.requests;
+    expect(request?.method, "Bot API method").toBe("sendMessage");
+    expect(request?.token, "token in the URL").toBe(TOKEN);
+    expect(request?.origin, "origin").toBe("https://api.telegram.org");
+    expect(request?.httpMethod, "HTTP method").toBe("POST");
+    expect(request?.contentType, "Content-Type").toBe("application/json");
+    expect(request?.body, "JSON body").toEqual({
+      chat_id: -1_001_234_567_890,
+      text: "<b>T</b> · o/r #7",
+      parse_mode: "HTML",
+      disable_notification: false,
+      link_preview_options: { is_disabled: true },
+      reply_markup: { inline_keyboard: [[{ text: "Open on GitHub", url: URL_ON_GITHUB }]] },
+    });
+    expect(request?.signal.aborted, "abort signal not yet aborted").toBe(false);
+  });
+
+  it("sendNotification sends disable_notification true and no reply_markup for a silent message without a button", async () => {
+    const telegram = telegramDouble();
+
+    const result = await sendNotification(TOKEN, 5_001_001, { ...NO_BUTTON, silent: true }, telegram.fetch, sleepSpy());
+
+    expect(result, "result").toBe("sent");
+    expect(telegram.requests[0]?.body, "JSON body").toEqual({
+      chat_id: 5_001_001,
+      text: "<b>T</b> · o/r #7",
+      parse_mode: "HTML",
+      disable_notification: true,
+      link_preview_options: { is_disabled: true },
+    });
+  });
+
+  it("sendNotification waits retry_after seconds and sends once more after a 429", async () => {
+    const telegram = telegramDouble({ sendMessage: [retryAfter(2), jsonAnswer(200, FIXTURES.sendMessage)] });
+    const sleep = sleepSpy();
+
+    const result = await sendNotification(TOKEN, 5_001_001, MESSAGE, telegram.fetch, sleep);
+
+    expect(result, "result").toBe("sent");
+    expect(sleep.mock.calls, "sleep calls").toEqual([[2000]]);
+    expect(telegram.requests.length, "number of requests").toBe(2);
+    expect(telegram.requests[1]?.body, "the same request is sent again").toEqual(telegram.requests[0]?.body);
+  });
+
+  it("sendNotification waits for the retry_after of the 429 fixture", async () => {
+    const telegram = telegramDouble({
+      sendMessage: [jsonAnswer(429, FIXTURES.tooManyRequests), jsonAnswer(200, FIXTURES.sendMessage)],
+    });
+    const sleep = sleepSpy();
+
+    const result = await sendNotification(TOKEN, 5_001_001, MESSAGE, telegram.fetch, sleep);
+
+    expect(result, "result").toBe("sent");
+    expect(sleep.mock.calls, "sleep calls").toEqual([[3000]]);
+  });
+
+  it.each<{ name: string; answer: TelegramAnswer }>([
+    { name: "missing", answer: jsonAnswer(429, { ok: false, error_code: 429 }) },
+    { name: "0", answer: retryAfter(0) },
+    { name: "6", answer: retryAfter(6) },
+    { name: "1.5", answer: retryAfter(1.5) },
+    { name: 'the text "2"', answer: retryAfter("2") },
+    { name: "-1", answer: retryAfter(-1) },
+    { name: "in a body that is not JSON", answer: { kind: "raw", status: 429, body: "not json" } },
+  ])("sendNotification returns rate-limited without waiting when retry_after is $name", async ({ answer }) => {
+    const telegram = telegramDouble({ sendMessage: answer });
+    const sleep = sleepSpy();
+
+    const result = await sendNotification(TOKEN, 5_001_001, MESSAGE, telegram.fetch, sleep);
+
+    expect(result, "result").toBe("rate-limited");
+    expect(sleep, "sleep").not.toHaveBeenCalled();
+    expect(telegram.requests.length, "number of requests").toBe(1);
+  });
+
+  it("sendNotification returns rate-limited after a second 429 without a second wait", async () => {
+    const telegram = telegramDouble({ sendMessage: [retryAfter(1), retryAfter(1)] });
+    const sleep = sleepSpy();
+
+    const result = await sendNotification(TOKEN, 5_001_001, MESSAGE, telegram.fetch, sleep);
+
+    expect(result, "result").toBe("rate-limited");
+    expect(sleep.mock.calls, "sleep calls").toEqual([[1000]]);
+    expect(telegram.requests.length, "number of requests").toBe(2);
+  });
+
+  it("sendNotification returns failed and sends no second request when the wait throws", async () => {
+    const telegram = telegramDouble({ sendMessage: retryAfter(2) });
+    const sleep = vi.fn<(milliseconds: number) => Promise<void>>(() => Promise.reject(new Error("timer failed")));
+
+    const result = await sendNotification(TOKEN, 5_001_001, MESSAGE, telegram.fetch, sleep);
+
+    expect(result, "result").toBe("failed");
+    expect(telegram.requests.length, "number of requests").toBe(1);
+  });
+
+  it("sendNotification returns token-rejected for a 401 after a 429 wait", async () => {
+    const telegram = telegramDouble({ sendMessage: [retryAfter(1), jsonAnswer(401, FIXTURES.unauthorized)] });
+    const sleep = sleepSpy();
+
+    const result = await sendNotification(TOKEN, 5_001_001, MESSAGE, telegram.fetch, sleep);
+
+    expect(result, "result").toBe("token-rejected");
+    expect(sleep.mock.calls, "sleep calls").toEqual([[1000]]);
+  });
+});
+
+describe("parseRetryAfter", () => {
+  it.each([
+    { case: "a 429 body with retry_after 3", body: { ok: false, parameters: { retry_after: 3 } }, expected: 3 },
+    { case: "a body with ok true", body: { ok: true, parameters: { retry_after: 3 } }, expected: undefined },
+    {
+      case: "a retry_after of 2 ** 53",
+      body: { ok: false, parameters: { retry_after: 2 ** 53 } },
+      expected: undefined,
+    },
+    { case: "a text", body: "retry_after", expected: undefined },
+    { case: "null", body: null, expected: undefined },
+    { case: "a list", body: [{ ok: false, parameters: { retry_after: 3 } }], expected: undefined },
+  ])("parseRetryAfter returns $expected for $case", ({ body, expected }) => {
+    const seconds = parseRetryAfter(body);
+
+    expect(seconds, "seconds").toBe(expected);
   });
 });

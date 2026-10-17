@@ -11,14 +11,16 @@ does the setup wizard under `/setup`.
 
 ### Routes
 
-| Method and path      | Status                              | Body                                                                           |
-| -------------------- | ----------------------------------- | ------------------------------------------------------------------------------ |
-| `GET /health`        | 200                                 | JSON `{"status":"ok","version":"<version>"}`, `Content-Type: application/json` |
-| `POST /webhook`      | 202                                 | empty (valid signature)                                                        |
-| `POST /webhook`      | 401                                 | empty (missing or wrong signature)                                             |
-| `POST /webhook`      | 503                                 | empty (no webhook secret usable, or reading it failed)                         |
-| `/setup`, `/setup/…` | see [Setup wizard](setup-wizard.md) | see [Setup wizard](setup-wizard.md)                                            |
-| anything else        | 404                                 | empty                                                                          |
+| Method and path      | Status                              | Body                                                                                      |
+| -------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------- |
+| `GET /health`        | 200                                 | JSON `{"status":"ok","version":"<version>"}`, `Content-Type: application/json`            |
+| `POST /webhook`      | 202                                 | empty (valid signature, delivery recorded, [Notifications](notifications.md))             |
+| `POST /webhook`      | 200                                 | empty (valid signature, delivery id already recorded)                                     |
+| `POST /webhook`      | 400                                 | empty (valid signature, delivery that cannot be processed)                                |
+| `POST /webhook`      | 401                                 | empty (missing or wrong signature)                                                        |
+| `POST /webhook`      | 503                                 | empty (no webhook secret usable, or reading it failed; database failure while processing) |
+| `/setup`, `/setup/…` | see [Setup wizard](setup-wizard.md) | see [Setup wizard](setup-wizard.md)                                                       |
+| anything else        | 404                                 | empty                                                                                     |
 
 - A route matches on the exact method and the exact path; the query string is ignored. `HEAD /health`,
   `POST /health`, `GET /webhook`, `/health/` and `/HEALTH` are "anything else".
@@ -29,8 +31,7 @@ does the setup wizard under `/setup`.
 
 ### Webhook signature
 
-- `POST /webhook` is processed in this order: the body size limit (below), then the webhook secret, then the
-  signature. 413 and 400 therefore answer before 503 and 401.
+- `POST /webhook` is processed in this order: the body size limit (below), then the webhook secret, then the signature, then the webhook processing ([Notifications](notifications.md)). 413 and the 400 of an unreadable body therefore answer before 503 and 401; the 200, 202, 400 and 503 of the processing answer only after a valid signature.
 - The accepted signature is exactly `X-Hub-Signature-256: sha256=` followed by 64 lowercase hex digits of the
   HMAC-SHA256 of the raw body bytes as received, under the webhook secret. It is compared in constant time
   (`crypto.subtle.verify`). Any other form (uppercase digits or prefix, another length, another algorithm, two
@@ -46,7 +47,7 @@ does the setup wizard under `/setup`.
   secret) and decrypts the secret before the signature is checked. These reads count against the account's D1 read
   allowance. With the Worker secret set no D1 access happens. The secret is not cached; a cache would need its own
   decision.
-- A 202 has no further effect yet; processing of the event follows in a later change.
+- A 202 means the delivery was recorded; what happens next is described in [Notifications](notifications.md).
 
 ### Request body size
 
@@ -63,7 +64,7 @@ does the setup wizard under `/setup`.
 - A route that reads no body (`GET /health`, every 404) never reads it, so its size does not matter there. Under
   `/setup` only the form submissions `POST /setup/login`, `POST /setup/logout`, `POST /setup/settings`,
   `POST /setup/reset`, `POST /setup/telegram` and `POST /setup/telegram/verify`, `POST /setup/github` and
-  `POST /setup/github/callback` read a body, with this limit. The Telegram Bot API answers and the GitHub conversion answer read by the setup wizard are limited the same
+  `POST /setup/github/callback` read a body, with this limit. The Telegram Bot API answers (also the 429 answer of `sendMessage`, read for its `retry_after`) and the GitHub conversion answer read by the setup wizard are limited the same
   way, through the same reader ([Setup wizard](setup-wizard.md#telegram-chat), [GitHub
   App](setup-wizard.md#github-app)).
 
@@ -72,7 +73,10 @@ does the setup wizard under `/setup`.
 - Every request produces exactly one log entry, written once the status is known, with three fields: the
   method, the path and the status. The entry of `POST /webhook` additionally holds `delivery` (the
   `X-GitHub-Delivery` value when it matches `^[0-9A-Za-z-]{1,64}$`) and `event` (the `X-GitHub-Event` value when
-  it matches `^[a-z_]{1,64}$`), each `null` otherwise.
+  it matches `^[a-z_]{1,64}$`), each `null` otherwise, and `action`, `repository` and `decision` (their patterns
+  and values are in [Notifications](notifications.md#log-entries)), each `null` when the webhook processing did not
+  run (401, 413, 400 of an unreadable body, 503 of the secret). Each row sent additionally writes one entry with
+  its `outbox` id and `result`.
 - The path is the URL path without the query string and without the fragment. Request bodies, signatures, query
   strings and headers other than the two values above are never logged; so the `code` and `state` of GitHub's return
   to `GET /setup/github/callback` never reach a log.
@@ -95,6 +99,5 @@ does the setup wizard under `/setup`.
 
 ## Not here
 
-- Webhook event processing: a later change to `POST /webhook`
-  ([`ARCHITECTURE.md`](../ARCHITECTURE.md#webhook-to-telegram)).
+- Webhook event processing, the message format and the sending: [Notifications](notifications.md).
 - The setup wizard and its login under `/setup`: [Setup wizard](setup-wizard.md).
