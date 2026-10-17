@@ -572,8 +572,8 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
 - The _migrations missing_ notice is shown to anyone who submits the login form with a valid CSRF token, before the
   secret is checked; it tells them only that the database lacks a table of the schema. A database with every table but an outdated
   column still shows _unavailable_, and the signed-in pages show _unavailable_ for every D1 failure. The table names
-  are read after the failure and an error of that read answers _unavailable_; how production D1 answers that read
-  has not been checked (decision 0021).
+  are read after the failure and an error of that read answers _unavailable_; production D1 answers that read
+  (decision 0021).
 - After a reset the old GitHub App stays on GitHub; the owner deletes it there by hand.
 - A login, logout, settings, reset, Telegram or GitHub form body is limited to 1 MiB counted in bytes before decoding; the parsed text is never longer than
   that number of bytes.
