@@ -54,7 +54,8 @@ Deliberate behavior that must not change without the Product Manager. Each one i
   — [decision 0007](../docs/decisions/0007-github-app-credentials-encrypted-in-d1.md).
 - A matched event is written to the outbox before delivery is attempted, and unsent rows are retried
   — [decision 0008](../docs/decisions/0008-delivery-through-a-d1-outbox.md).
-- A release is created only by pushing a `v*` tag
+- The release workflow turns a release into the latest full release only after it has verified its `v*` tag on
+  `main`; a release published as a full release by hand is only warned about
   — [decision 0009](../docs/decisions/0009-releases-only-by-tag-push.md).
 
 ## Integration surface
