@@ -46,9 +46,13 @@ How the GitHub App's name and link are shown:
 When the reset is offered and what guards it:
 
 8. **Only while the credentials cannot be read (key check changed or corrupt, or a stored credential that does not
-   decrypt), as a signed-in form with the session-bound CSRF token, deleting only while the key check value is still
-   the one checked** — a destructive button is not always on the page, and two resets racing a new app's first write
-   cannot delete the new credentials. Chosen.
+   decrypt), as a signed-in form with the session-bound CSRF token, deleting only while the key check value and the
+   stored credentials are still the ones checked** — a destructive button is not always on the page, and neither a
+   new app's first write nor a rewrite of the credentials under a matching key check (which keeps the key check
+   value) can be deleted by a reset that read the earlier state. Chosen.
+   A guard on the key check value alone was weighed and lost: it misses the "key matches, a credential does not
+   decrypt" case, where a concurrent write keeps the key check value and the reset would delete the new app's
+   credentials, orphaning the app; documenting that window as accepted was rejected for a destructive operation.
 9. **A reset that is always available** — more general, but an accidental click deletes working credentials and
    leaves an orphaned app on GitHub.
 
@@ -70,13 +74,14 @@ The owner's choices are kept as one `settings` row each, read with a per-setting
 invalid and never cached between requests, so a change takes effect on the next event without a deployment. The
 signed-in start page `/setup` shows the status and the settings form; the reset that clears `secrets`, `token_cache`
 and the key check value is offered and accepted only while the stored credentials cannot be read, and deletes only
-while the key check value is still the one it checked. The rules are in [`areas/setup-wizard.md`](../areas/setup-wizard.md)
+while the key check value and the stored credentials are still the ones it checked. The rules are in [`areas/setup-wizard.md`](../areas/setup-wizard.md)
 and [`areas/storage.md`](../areas/storage.md).
 
 ## Consequences
 
 - #12, #13, #14, #16, #17 and #18 read the settings through the one reader of this change and never keep them across
-  requests; #12 writes `meta` `last_delivery` in the format the storage area defines, and the status page shows
+  requests; quiet hours are one stored value (off, or start and end together), so #14 reads them through that reader
+  and never as separate start and end rows, and switching them off drops the times; #12 writes `meta` `last_delivery` in the format the storage area defines, and the status page shows
   _none received yet_ until then.
 - The key check now reports **corrupt** when it is absent while `secrets` holds a credential, as the storage area's
   table already said for reads and writes; the GitHub step therefore refuses to start a flow whose credentials could
@@ -86,4 +91,5 @@ and [`areas/storage.md`](../areas/storage.md).
 - An app whose slug was not kept (created before this change, by hand, or whose slug write failed) is shown by its
   App ID without a link until it is created again; the slug write is display data and its failure does not undo
   the stored credentials.
-- The set of time zones follows the runtime: a stored zone the runtime stops listing reads as `UTC`.
+- The set of time zones follows the runtime: a stored zone the runtime stops listing reads as `UTC`, and a time the
+  runtime cannot format in the zone is shown in UTC, so the start page that carries the reset never fails on it.
