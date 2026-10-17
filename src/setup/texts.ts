@@ -6,6 +6,7 @@ export type Notice =
   | "locked"
   | "form-expired"
   | "unavailable"
+  | "migrations-missing"
   | "telegram-token-missing"
   | "telegram-token-malformed"
   | "telegram-token-rejected"
@@ -228,6 +229,8 @@ const ENGLISH: SetupTexts = {
       "Too many failed attempts. Signing in is locked for 15 minutes after the fifth failed attempt; try again later.",
     "form-expired": "The form has expired. Please submit it again.",
     unavailable: "The setup is unavailable right now. Please try again in a moment.",
+    "migrations-missing":
+      "The database of this instance is missing its tables: the database migrations have not run. In the Cloudflare dashboard open Workers & Pages, this Worker, Settings and Build, set the Deploy command to npm run deploy and retry the latest build, as the setup guide describes.",
     "telegram-token-missing":
       "The Worker secret TELEGRAM_BOT_TOKEN is not set. In Telegram, send /newbot to @BotFather and copy the token it returns. In the Cloudflare dashboard open this Worker, then Settings, then Variables and Secrets, and add a secret named TELEGRAM_BOT_TOKEN with that token. Or run: npx wrangler secret put TELEGRAM_BOT_TOKEN",
     "telegram-token-malformed":
@@ -385,6 +388,8 @@ const GERMAN: SetupTexts = {
       "Zu viele fehlgeschlagene Versuche. Die Anmeldung ist nach dem fünften fehlgeschlagenen Versuch 15 Minuten lang gesperrt; versuche es später erneut.",
     "form-expired": "Das Formular ist abgelaufen. Bitte sende es erneut ab.",
     unavailable: "Die Einrichtung ist gerade nicht verfügbar. Bitte versuche es gleich noch einmal.",
+    "migrations-missing":
+      "Der Datenbank dieser Instanz fehlen ihre Tabellen: Die Datenbank-Migrationen wurden nicht ausgeführt. Öffne im Cloudflare-Dashboard Workers & Pages, diesen Worker, Settings und Build, setze den Deploy command auf npm run deploy und wiederhole den letzten Build, wie es die Einrichtungsanleitung beschreibt.",
     "telegram-token-missing":
       "Das Worker-Secret TELEGRAM_BOT_TOKEN ist nicht gesetzt. Sende in Telegram /newbot an @BotFather und kopiere den zurückgegebenen Token. Öffne im Cloudflare-Dashboard diesen Worker, dann Settings, dann Variables and Secrets, und füge ein Secret namens TELEGRAM_BOT_TOKEN mit diesem Token hinzu. Oder führe aus: npx wrangler secret put TELEGRAM_BOT_TOKEN",
     "telegram-token-malformed":

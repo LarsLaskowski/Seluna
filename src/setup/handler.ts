@@ -203,6 +203,12 @@ async function hasValidCsrf(context: Context, fields: URLSearchParams, form: Set
 
 const LOGIN_FORM: SetupForm = { kind: "login" };
 
+/** The notice of a D1 failure on the login: _migrations missing_ when a schema table is absent, otherwise — also when that check fails — _unavailable_. No error is read. */
+async function d1FailureNotice(db: D1Database): Promise<Extract<Notice, "unavailable" | "migrations-missing">> {
+  void db;
+  return Promise.reject(new Error("Not implemented"));
+}
+
 async function signIn(context: Context): Promise<Response> {
   const form = await readForm(context);
   if (form instanceof Response) {
@@ -224,7 +230,7 @@ async function signIn(context: Context): Promise<Response> {
     await clearLoginAttempts(db);
   } catch {
     // The error is deliberately dropped: it must reach neither the log nor the response.
-    return formPage(context, LOGIN_FORM, 503, "unavailable");
+    return formPage(context, LOGIN_FORM, 503, await d1FailureNotice(db));
   }
   const token = await createSessionToken(context.sessionKey, now());
   return plain(context, 303, [setupCookie(SESSION_COOKIE, token, SESSION_LIFETIME_MS / 1000)], SETUP_PATH);
