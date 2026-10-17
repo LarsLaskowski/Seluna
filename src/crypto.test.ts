@@ -254,6 +254,16 @@ describe("signingKeyFromEnv", () => {
     expect(new Set(macs).size, "number of distinct MACs of the same message").toBe(3);
   });
 
+  it("signingKeyFromEnv derives the setup-github key apart from the other keys", async () => {
+    const macs = await Promise.all(
+      (["setup-session", "setup-csrf", "setup-telegram", "setup-github"] as const).map(async (purpose) =>
+        hmacBase64Url(await signingKeyFor(SECRET_A, purpose), MESSAGE),
+      ),
+    );
+
+    expect(new Set(macs).size, "number of distinct MACs of the same message").toBe(4);
+  });
+
   it("signingKeyFromEnv returns a non-extractable HMAC-SHA256 key for signing and verifying", async () => {
     const key = await signingKeyFor(SECRET_A, "setup-csrf");
 
@@ -273,6 +283,7 @@ describe("signingKeyFromEnv", () => {
     { purpose: "setup-session" as const, expected: "5vIymaYhJ58dOAi0xzi8XCc-EDdwlxvsNrv4C-vtVls" },
     { purpose: "setup-csrf" as const, expected: "brU7fxNHFFPkz0tEHsgaHtB87o_qpIeD2Q7Bv9l0JcE" },
     { purpose: "setup-telegram" as const, expected: "7VgSyLpjX6KdiahF8OQ3zfc_QB96Nv7dKxe5nINqJxk" },
+    { purpose: "setup-github" as const, expected: "gMPCAwYbg3c7Ny_EqIlLgUzpviwNIsM3dIqXp8F29Pc" },
   ])(
     "signingKeyFromEnv derives the $purpose key with HKDF-SHA256, salt and info seluna/$purpose/v1",
     async ({ purpose, expected }) => {

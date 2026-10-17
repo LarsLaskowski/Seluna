@@ -2503,3 +2503,96 @@ describe("handleSetup GitHub finish form", () => {
     },
   );
 });
+
+describe("handleSetup GitHub forms: bodies, sign-in and failures", () => {
+  const unreadable = (): ReadableStream<Uint8Array> =>
+    new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.error(new Error("connection lost"));
+      },
+    });
+
+  it.each([
+    { method: "GET", path: GITHUB_PATH },
+    { method: "POST", path: GITHUB_PATH },
+    { method: "POST", path: CALLBACK_PATH },
+  ])("$method $path signed out answers the login page and calls nothing", async ({ method, path }) => {
+    const github = githubDouble();
+
+    const response = await call(path, { method }, githubDeps(github, { db: unusedDb() }));
+
+    expect(response.status, "status").toBe(200);
+    expectLoginPage(await response.text());
+    expect(github.requests, "GitHub requests").toEqual([]);
+  });
+
+  it.each([GITHUB_PATH, CALLBACK_PATH])(
+    "POST %s answers a body over 1 MiB with 413 before any other check",
+    async (path) => {
+      const github = githubDouble();
+
+      const response = await call(
+        path,
+        { method: "POST", cookies: await signedInCookies(), body: "a".repeat(MAX_BODY_BYTES + 1) },
+        githubDeps(github),
+      );
+
+      expect(response.status, "status").toBe(413);
+      expect(await response.text(), "body").toBe("");
+      expect(github.requests, "GitHub requests").toEqual([]);
+    },
+  );
+
+  it.each([GITHUB_PATH, CALLBACK_PATH])(
+    "POST %s answers an unreadable body with 400 before any other check",
+    async (path) => {
+      const github = githubDouble();
+
+      const response = await call(
+        path,
+        { method: "POST", cookies: await signedInCookies(), body: unreadable() },
+        githubDeps(github),
+      );
+
+      expect(response.status, "status").toBe(400);
+      expect(await response.text(), "body").toBe("");
+      expect(github.requests, "GitHub requests").toEqual([]);
+    },
+  );
+
+  it("POST /setup/github/callback answers 503 with the unavailable notice when D1 fails before the conversion", async () => {
+    const github = githubDouble();
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await postSignedIn(
+      CALLBACK_PATH,
+      finishFields(FIXTURE_CODE, state),
+      githubDeps(github, { db: migrationTestDb() }),
+    );
+
+    expect(response.status, "status").toBe(503);
+    const html = await response.text();
+    expectGitHubNoticeOnlyPage(html, "unavailable");
+    expect(html.toLowerCase(), "error text").not.toContain("no such table");
+    expect(github.requests, "GitHub requests").toEqual([]);
+  });
+
+  it.each([
+    { name: "a missing code", codes: [] as string[] },
+    { name: "a repeated code", codes: [FIXTURE_CODE, FIXTURE_CODE] },
+    { name: "a code with a slash", codes: ["a/b"] },
+  ])("POST /setup/github/callback answers 400 with the invalid return notice for $name", async ({ codes }) => {
+    const github = githubDouble();
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await postSignedIn(
+      CALLBACK_PATH,
+      [...codes.map((code): [string, string] => ["code", code]), ["state", state]],
+      githubDeps(github),
+    );
+
+    expect(response.status, "status").toBe(400);
+    expectGitHubNoticeOnlyPage(await response.text(), "github-return-invalid");
+    expect(github.requests, "GitHub requests").toEqual([]);
+  });
+});

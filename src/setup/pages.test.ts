@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Language } from "./language";
 import {
+  contentSecurityPolicy,
   escapeHtml,
   htmlResponse,
   renderGitHubFinishPage,
@@ -89,6 +90,18 @@ async function sha256Base64(text: string): Promise<string> {
 function attributeValues(html: string, name: string): string[] {
   return Array.from(html.matchAll(new RegExp(`\\s${name}\\s*=\\s*"([^"]*)"`, "gi")), (match) => match[1] ?? "");
 }
+
+describe("contentSecurityPolicy", () => {
+  it("contentSecurityPolicy for github allows forms to post to https://github.com only", async () => {
+    const expected = (await contentSecurityPolicy()).replace("form-action 'self'", "form-action https://github.com");
+
+    const policy = await contentSecurityPolicy("github");
+
+    expect(policy, "policy").toBe(expected);
+    expect(policy, "form-action").toContain("form-action https://github.com;");
+    expect(policy, "self").not.toContain("'self'");
+  });
+});
 
 describe("htmlResponse", () => {
   it("htmlResponse sets the security headers, Content-Type and Content-Language", async () => {

@@ -206,6 +206,23 @@ describe("verifyGitHubState", () => {
   );
 });
 
+describe("verifyGitHubState with an unusable key", () => {
+  it("verifyGitHubState returns undefined when the key cannot verify", async () => {
+    const state = await freshState();
+    const signOnly = await crypto.subtle.importKey(
+      "raw",
+      new Uint8Array(32),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+
+    const choice = await verifyGitHubState(signOnly, state, SESSION, NOW);
+
+    expect(choice, "account choice").toBeUndefined();
+  });
+});
+
 describe("isWellFormedGitHubState", () => {
   const VALID_PERSONAL = `v1.personal.octocat.1700003600000.${NONCE}.${MAC}`;
 
