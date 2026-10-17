@@ -1,31 +1,29 @@
 # Plan: Say on /setup that the database migrations have not run instead of "unavailable"
 
 Source: Issue #51
-Status: Draft
+Status: Revised (1)
 Tier: security — the change is in the setup login path (`signIn` in `src/setup/handler.ts`, a *Security areas*
 entry of `.squad/project.md`) and changes what an unauthenticated visitor's login answer says.
 
 ## Before the Dev starts (orchestrator)
 
-The work branch `fix-issue-51-setup-missing-tables` was cut from `c7bd429` and does not contain PR #52
-(`origin/main` `8c248ba`): decision 0020, the `docs/setup.md` deploy step and the `docs/areas/deployment.md`
-deploy-command rules this plan edits are missing on the branch. Merge `origin/main` into the branch first (a merge,
-not a rebase: the branch is published). The merge conflicts in `docs/decisions/README.md` at the end of the index:
-keep both rows, 0020 before 0021. Until then `decision-check.py` reports the link from 0021 to the missing 0020.
-After the merge the Lead edits 0020 (unreleased, `v0.1.0` is `daba023`) in its next launch, see *Decision records*.
+Done: `origin/main` (PR #52, `8c248ba`) is merged into the branch (`864923a`), so decision 0020, `docs/setup.md`
+step 3 and the deploy-command rules in `docs/areas/deployment.md` are present; the index lists 0020 before 0021, and
+the Lead has edited 0020's *Consequences* in place (unreleased, `v0.1.0` is `daba023`). Nothing is left for this
+step. Line numbers in this plan are those of the merged branch; locate code by symbol before editing.
 
 ## Problem / root cause
 
-`signIn` (`src/setup/handler.ts:211-230`) counts the attempt with `reserveLoginAttempt` (line 219; an upsert into
-`meta`, `src/store/login-attempts.ts:16-29`) before the secret is checked. On a database without tables that
-statement throws, and the `catch` at line 225 answers every D1 error alike: 503, login page, _unavailable_
+`signIn` (`src/setup/handler.ts:206-231`) counts the attempt with `reserveLoginAttempt` (line 216; an upsert into
+`meta`, `src/store/login-attempts.ts:16-29`) before the secret is checked (line 221). On a database without tables
+that statement throws, and the `catch` at line 225 answers every D1 error alike: 503, login page, _unavailable_
 (`src/setup/texts.ts:230`). Nothing distinguishes a missing table from a transient failure.
 
 Claims of the issue:
 
 - "shows only ... after signing in on `/setup`" — **refuted in detail**: the notice is the answer to the sign-in
   submission itself, and it comes before the secret is checked, so it appears for a wrong secret as well (line
-  219 runs before line 224). No session exists on such an instance.
+  216 runs before line 221). No session exists on such an instance.
 - "the `meta` table does not exist" — **confirmed**: the first D1 access of the login is the `meta` upsert; all six
   tables come from the single migration `migrations/0001_initial_schema.sql`, so with the migrations skipped none
   exists.
@@ -44,7 +42,7 @@ Related findings on the way:
   file. The Tester corrects the TSDoc in `test/d1.ts` (it relies on that contract); the comment in
   `test/migrations.test.ts` stays true for that file and is left.
 - 0020's *Consequences* ("A clearer notice on `/setup` for a database without tables is a separate follow-up")
-  becomes stale with this change; Lead edits it after the merge.
+  becomes stale with this change; Lead edited it in place (revise).
 
 ## Acceptance criteria
 
@@ -80,7 +78,7 @@ Related findings on the way:
   answers **503** with the login page and _unavailable_ and no session cookie. Tests (same describe):
   - `handleSetup answers a login with 503 and the unavailable notice when D1 fails with every table present` (a
     `D1Database` whose `prepare` passes `sqlite_master` reads to the migrated `env.DB` and throws for every other
-    statement, helper `schemaOnlyDb` in `test/d1.ts`)
+    statement, helper `schemaOnlyDb` in `test/d1.ts`, which compares the statement with `SCHEMA_TABLES_SQL` by `===`)
   - `handleSetup answers a login with 503 and the unavailable notice when the schema check fails too` (`unusedDb()`)
 - [ ] AC5: the _migrations missing_ notice exists in English and German; the English text is exactly
   "The database of this instance is missing its tables: the database migrations have not run. In the Cloudflare
@@ -101,8 +99,8 @@ Related findings on the way:
 ## Approach
 
 1. `src/store/schema.ts` (new; only `src/store/` touches D1, decision 0014): `SCHEMA_TABLES`, `schemaStateOf`
-   (pure) and `readSchemaState`, which runs `SELECT name FROM sqlite_master WHERE type = 'table'` (no bound
-   values) with `.all()` and passes `results.map((row) => row.name)` to `schemaStateOf`.
+   (pure) and `readSchemaState`, which prepares `SCHEMA_TABLES_SQL` (`SELECT name FROM sqlite_master WHERE type = 'table'`, no
+   bound values) with `.all()` and passes `results.map((row) => row.name)` to `schemaStateOf`.
 2. `src/setup/texts.ts`: add `"migrations-missing"` to `Notice` (after `"unavailable"`) and the two texts of AC5.
 3. `src/setup/handler.ts`: a private `d1FailureNotice(db)` that calls `readSchemaState` inside its own
    `try`/`catch` (the error dropped unread, as everywhere) and maps `tables-missing` → `"migrations-missing"`,
@@ -144,6 +142,9 @@ page itself — rejected: a D1 read on every signed-out view.
 /** The tables the migrations under `migrations/` create; the store modules read and write only these. */
 export const SCHEMA_TABLES: readonly string[] = ["settings", "secrets", "deliveries", "outbox", "token_cache", "meta"];
 
+/** The statement `readSchemaState` sends: the names of all tables in `sqlite_master`. */
+export const SCHEMA_TABLES_SQL = "SELECT name FROM sqlite_master WHERE type = 'table'";
+
 /** Whether the database has the schema's tables: `complete` when every table of `SCHEMA_TABLES` exists. */
 export type SchemaState = "complete" | "tables-missing";
 
@@ -154,7 +155,7 @@ export function schemaStateOf(tableNames: readonly unknown[]): SchemaState;
 export async function readSchemaState(db: D1Database): Promise<SchemaState>;
 ```
 
-(`SCHEMA_TABLES` is data, not a stub: the skeleton writes it in full.)
+(`SCHEMA_TABLES` and `SCHEMA_TABLES_SQL` are data, not stubs: the skeleton writes them in full.)
 
 `src/setup/texts.ts`: `Notice` gains the member `"migrations-missing"`; `TEXTS.en.notices` and `TEXTS.de.notices`
 gain the key (skeleton: the final texts of AC5, they are data).
@@ -169,7 +170,7 @@ async function d1FailureNotice(db: D1Database): Promise<Extract<Notice, "unavail
 `test/d1.ts` (Tester):
 
 ```ts
-/** A `D1Database` whose `prepare` passes statements that read `sqlite_master` to `db` and throws for every other statement; every other member throws. */
+/** A `D1Database` whose `prepare` passes exactly the statement `SCHEMA_TABLES_SQL` to `db` and throws for every other statement; every other member throws. */
 export function schemaOnlyDb(db: D1Database): D1Database;
 ```
 
@@ -199,9 +200,10 @@ Files of the change no unit test can cover: none.
   - *Limits and errors*: the _migrations missing_ notice is shown to anyone who submits the login form with a valid
     CSRF token, before the secret is checked; it tells them only that the database has no tables. A database with
     every table but an outdated column still shows _unavailable_; the signed-in pages show _unavailable_ for every
-    D1 failure.
+    D1 failure. The bullet says the table names are read after the failure and an error of that read answers
+    _unavailable_; it makes no claim about how production D1 answers the read (unverified, decision 0021).
   - *Related decisions*: add 0021.
-- `docs/areas/deployment.md` (Dev, after the merge): *Limits and errors*, the bullet that starts "With any other
+- `docs/areas/deployment.md` (Dev): *Limits and errors*, the bullet that starts "With any other
   deploy command": `/setup` answers the sign-in with the _migrations missing_ notice ([Setup
   wizard](setup-wizard.md#login)) instead of _unavailable_.
 - `docs/areas/storage.md` (Dev): after the `d1_migrations` bullet, one bullet: the setup login reads the table
@@ -211,7 +213,7 @@ Files of the change no unit test can cover: none.
 
 ## Documentation updates
 
-- `docs/setup.md` step 3 (Dev, after the merge): "signing in on `/setup` then only shows _The setup is unavailable
+- `docs/setup.md` step 3 (Dev): "signing in on `/setup` then only shows _The setup is unavailable
   right now_" → "signing in on `/setup` then shows _The database of this instance is missing its tables_".
 - `CHANGELOG.md` (Dev): under `## [Unreleased]`, a `### Changed` section (before `### Fixed`) with: "Setup wizard:
   on an instance whose deploy skipped the database migrations, signing in shows that the database is missing its
@@ -250,8 +252,8 @@ migration; data access stays in `src/store/` (decision 0014).
 ## Decision records
 
 - `docs/decisions/0021-missing-tables-notice-on-the-setup-login.md` (Proposed, index row added) — Lead.
-- `docs/decisions/0020-deploy-command-checked-in-the-setup-guide.md` (unreleased, on the branch after the merge) —
-  Lead edits in place: in *Consequences*, "A clearer notice on `/setup` for a database without tables is a separate
+- `docs/decisions/0020-deploy-command-checked-in-the-setup-guide.md` (unreleased) —
+  Lead, done in place: in *Consequences*, "A clearer notice on `/setup` for a database without tables is a separate
   follow-up." → "The setup login names a database without tables ([decision
   0021](0021-missing-tables-notice-on-the-setup-login.md))."
 - 0015 (released) is not edited; 0021 does not amend it (the notice is area behavior 0015 never decided).
@@ -261,11 +263,28 @@ migration; data access stays in `src/store/` (decision 0014).
 - The missing-tables check on the signed-in pages (option 6), to revisit with the first migration that adds a table.
 - Detecting an outdated column.
 
-## Challenge notes
+## Challenge
 
-Minor objections of the Devil's Advocate (verbatim) and non-blocking notes of the Security plan review:
+Devil's Advocate (0 major, 2 minor) and the non-blocking notes of the Security plan review, folded from the former
+*Challenge notes*:
 
-1. **Stale line numbers.** The plan cites `signIn` at `handler.ts:211-230`, the count at line 219 and the secret check at 224. On the current branch `signIn` is at 206-231, the count is at 216, the secret check at 221 and `clearLoginAttempts` at 224. Only the `catch` at 225 matches. The Dev should locate the code by symbol, not by these numbers. The same applies to "line 53" in `setup-wizard.md` and the `handler.test.ts` line numbers: re-check them before editing.
-2. **The "Before the Dev starts" merge is already done.** HEAD is `864923a Merge main into fix-issue-51`. The orchestrator should confirm that decision 0020, the `docs/setup.md` step 3 and the deploy-command bullet in `docs/areas/deployment.md` are present, then skip the merge step. The README index should list both 0020 and 0021, with 0020 first.
-3. (Security) The text planned for `docs/areas/setup-wizard.md` *Limits and errors* should keep saying "the table names are read". It should not claim that production D1 answers the query until the live check has been run.
-4. (Security) `schemaOnlyDb` in `test/d1.ts` should recognize a `sqlite_master` read by exactly the statement `readSchemaState` sends. If it matches on a substring instead, a later login statement that contains `sqlite_master` would reach the migrated database and quietly weaken the AC4 test.
+1. **Stale line numbers** (Devil's Advocate, minor) — accepted. The code references in *Problem / root cause* now
+   use the merged branch (`signIn` 206-231, count 216, secret check 221, `clearLoginAttempts` 224, `catch` 225);
+   `setup-wizard.md` line 53 and `handler.test.ts` line 734 were re-checked and match. *Before the Dev starts* tells
+   Dev and Tester to locate code by symbol.
+2. **The merge is already done** (Devil's Advocate, minor) — accepted. *Before the Dev starts* now records the merge
+   (`864923a`) as done, with 0020, `docs/setup.md` step 3 and the deployment bullet present and the index in order;
+   the "after the merge" remarks in *Areas* and *Documentation updates* are satisfied. The 0020 edit is made.
+3. **"The table names are read", no claim about production D1** (Security, note) — accepted; it was the plan's
+   intent and is now explicit in *Areas* (setup-wizard.md *Limits and errors*): the area document says the table
+   names are read after the failure and that an error of that read answers _unavailable_, and says nothing about
+   how production D1 answers until the live check of decision 0021 has run.
+4. **`schemaOnlyDb` matches exactly the statement `readSchemaState` sends** (Security, note) — accepted. The
+   statement becomes the exported constant `SCHEMA_TABLES_SQL` in `src/store/schema.ts` (*Signatures*), which
+   `readSchemaState` prepares; `schemaOnlyDb` passes a statement to the migrated database only when it is `===`
+   `SCHEMA_TABLES_SQL` and throws for every other one, so no other statement that mentions `sqlite_master` reaches
+   it.
+
+## Security review
+
+APPROVED, no `CHANGES_REQUIRED` finding; its two notes are answered in *Challenge* (items 3 and 4).
