@@ -97,13 +97,15 @@ Test names are the Tester's step-5 tests; files per *Test files*.
   secret TELEGRAM_CHAT_ID_ when that secret is a non-empty string (no value shown), or _none saved yet_; _GitHub App:_
   with a link `https://github.com/apps/<slug>` whose text is the slug and `(App ID <id>)` when the `meta` slug row
   belongs to the saved App ID, the App ID alone when it does not, the _Worker secrets_ / _partial Worker secrets_
-  text when those are set (no value shown), _none saved yet_ when nothing is stored, or _cannot be read_ when a reset
-  is needed; _Last delivery from GitHub:_ with `formatDeliveryTime(last, settings.timeZone)` or _none received yet_ —
+  text when those are set (no value shown), _none saved yet_ when nothing is stored, or _cannot be read_ when the
+  saved App ID cannot be read with the current `SELUNA_SECRET` (a reset can also be needed while the App ID is still
+  shown, when another saved credential does not decrypt); _Last delivery from GitHub:_ with `formatDeliveryTime(last, settings.timeZone)` or _none received yet_ —
   then the reset section when needed (AC6), the step links, the settings form and the sign-out form. A D1 failure
   answers **503** with the notice-only start page and _unavailable_.
   - `src/setup/status.test.ts`: "statusView reports $case" (table: empty database; saved chat; `TELEGRAM_CHAT_ID`
     set; saved app with matching slug; slug of another App ID; all three GitHub Worker secrets; one GitHub Worker
-    secret; key check under another secret → `resetNeeded` true; `last_delivery` stored);
+    secret; key check under another secret → `resetNeeded` true; key matches, `github_private_key` altered → app
+    `saved` with its App ID and `resetNeeded` true; `last_delivery` stored);
     "formatDeliveryTime writes $case" (`2026-10-17T12:34:00Z` in `Europe/Berlin` → `2026-10-17 14:34 (Europe/Berlin)`;
     `2026-10-24T22:00:00Z` in `Europe/Berlin` → `2026-10-25 00:00 (Europe/Berlin)`; `2026-10-25T01:30:00Z` in
     `Europe/Berlin` → `2026-10-25 02:30 (Europe/Berlin)` (after the change to CET); `2026-10-17T12:34:00Z` in `UTC` →
@@ -604,3 +606,24 @@ Decide, after the implementation (b72c715):
    "reset needed" and the reset's precondition cannot drift apart; the extra cost is the fingerprint and the
    `secrets` rows read on `GET /setup`, a handful of rows in one batch. Behavior is the planned one; AC6's tests
    cover it unchanged. No record change: decision 0018 is about the guard, not about how the check is shared.
+3. **The status page's _GitHub App:_ line keeps describing the App ID (option a, documentation only).** Reviewer round
+   1, finding 2: the area document and AC5 said _cannot be read_ appears "when a reset is needed", but `appStatus`
+   (`src/setup/status.ts`) shows `unreadable` only when `readSecret(db, storageKey, "github_app_id")` gives
+   `secret-changed` or `corrupt`, while `needsReset` (`readCredentialState`, `src/store/secrets.ts`) is also true when
+   the key check matches and another row (e.g. `github_private_key`) does not decrypt. The code is kept and the
+   documents are corrected, because the line's text is "Cannot be read with the current SELUNA_SECRET" and the App ID
+   in that case *can* be read: option (b) would show a false statement about the App ID. It also keeps the status
+   line on the same condition as the GitHub step page, whose _reset needed_ view is defined by the stored
+   `github_app_id` as well (*The step page*); option (b) would make the two pages disagree in this case. The reset
+   section directly below already says the saved credentials cannot be read, which is true. AC5 is reworded above.
+   Owners:
+   - **Dev** (`docs/areas/setup-wizard.md`, *Status and settings*, first bullet): replace "_none saved yet_, or
+     _cannot be read_ when a reset is needed;" with "_none saved yet_, or _cannot be read_ when the saved App ID
+     cannot be read with the current `SELUNA_SECRET` (a reset can also be needed while the App ID is still shown,
+     when another saved credential does not decrypt);". No production code changes.
+   - **Tester** (`src/setup/status.test.ts`): add the "statusView reports $case" table case "key matches,
+     github_private_key altered" — the key check written under the current key, `github_app_id` saved and readable,
+     the `github_private_key` row altered so it does not decrypt — expecting `app` `{ kind: "saved", appId, slug }`
+     and `resetNeeded` true. It pins documented behavior that exists already, so it passes on first run; that is
+     expected and not a test-first violation.
+   - Then *Format* by each member on its files, the Code Officer's analyzer gate and a Reviewer delta round.
