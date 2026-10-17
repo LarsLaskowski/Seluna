@@ -44,11 +44,27 @@ How the signed-out return is handled:
 What protects the finish form:
 
 5. **The state replaces the `csrf` field on this form: an HMAC under its own key from `SELUNA_SECRET`
-   (`seluna/setup-github/v1`) over the session token, a random nonce and an expiry one hour ahead** — as unforgeable as
-   the session-bound CSRF token, and it already travels in the form. Chosen.
+   (`seluna/setup-github/v1`) over the session token, the chosen account type and account, a random nonce and an
+   expiry one hour ahead** — as unforgeable as the session-bound CSRF token, and it already travels in the form.
+   Chosen.
 6. **A `csrf` field as on every other form** — the finish page is rendered without the session, so it would draw a new
    `seluna_csrf` cookie, overwrite the owner's and expire every other open form, and the token would still need the
    session to be bound to it.
+
+What ties the app GitHub returns to the flow (anyone can create an app through the manifest flow and send the owner's
+browser to the return path with their own code and the owner's state, which sits in the github.com URL and the
+browser history):
+
+20. **The state carries the chosen account type and account under its MAC, and the answer's owner must match them
+    (login ignoring ASCII letter case, `User` for a personal account, `Organization` for an organization) before
+    anything is stored or an install link shown** — an app of another account is refused; an app of the chosen account
+    can only come from that account or from someone the organization lets manage its apps. Chosen.
+21. **A single-use state** — a D1 row and its cleanup, and no protection: the foreign return is the first use of the
+    owner's state.
+22. **Also comparing the answer's permissions and events with the manifest** — an attacker's app can request the same
+    ones, the owner can change them on GitHub at any time, and how GitHub normalizes them in the answer is not
+    documented by an example that matches, so it would risk refusing the owner's own app without closing a gap the
+    owner check leaves.
 
 Untrusted names placed in URLs (the organization name, the code, the app's slug):
 
@@ -94,8 +110,8 @@ What the client is built from:
 The setup wizard's step `/setup/github` hands GitHub a manifest with exactly the issue's read-only permissions and
 events for a personal account or an organization, answers GitHub's signed-out return with a page that posts `code` and
 `state` back same-site, and exchanges the code only for a signed-in request whose state was issued to its session
-within the hour; the private key is converted to PKCS#8 and must import before App ID, key and webhook secret are
-stored encrypted in one transaction. The webhook secret comes from `GITHUB_WEBHOOK_SECRET` when it is set, else from
+within the hour and for the account the GitHub App turns out to belong to; the private key is converted to PKCS#8 and
+must import before App ID, key and webhook secret are stored encrypted in one transaction. The webhook secret comes from `GITHUB_WEBHOOK_SECRET` when it is set, else from
 D1, and the wizard creates no app while any of the three GitHub Worker secrets is set. The rules are in the area
 document [`areas/setup-wizard.md`](../areas/setup-wizard.md).
 
@@ -107,15 +123,19 @@ document [`areas/setup-wizard.md`](../areas/setup-wizard.md).
 - The page that hands the manifest to GitHub is the only one whose `form-action` is `https://github.com`; its form
   carries no CSRF token.
 - An app GitHub created but Seluna could not save (a session that expired during the detour, an unreadable answer,
-  a failed write) stays on GitHub and is deleted by hand; the notices say so. GitHub's own one-hour limit bounds the
+  an app of another account than the one entered, a failed write) stays on GitHub and is deleted by hand; the notices say so. GitHub's own one-hour limit bounds the
   return.
 - A webhook delivery now derives the storage key and reads D1 when `GITHUB_WEBHOOK_SECRET` is not set; a D1 error or an
-  unreadable stored secret still answers 503, never 202 (0012).
+  unreadable stored secret still answers 503, never 202 (0012). Because the secret is needed before the signature can
+  be checked, every `POST /webhook` — signed or not — then costs D1 reads and a decryption, which count against the
+  account's D1 read allowance; with `GITHUB_WEBHOOK_SECRET` set no D1 access happens. The secret is not cached; a
+  cache would need its own decision.
 - #15 reads `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` with the same per-credential precedence and finds the stored
   key already in PKCS#8.
 - Residual risk: the client, the allow-lists of `code` and slug and the fixtures under `test/fixtures/github/` rest on
   GitHub's documentation, not on a captured run, so the unit tests share its assumptions and cannot reveal where GitHub
-  deviates — the form of the code and of the returned state, the answer's status and shape, the key's armour, whether
+  deviates — the form of the code and of the returned state, the answer's status and shape (the owner's `login` and
+  `type` among them: the documented example's owner is inconsistent), the key's armour, whether
   the browser sends the session with the finish form, and whether `form-action https://github.com` lets GitHub's
   sign-in or single sign-on redirects through. Each deviation fails closed (a fixed notice, nothing stored); the worst
   outcome is an app on GitHub that has to be deleted by hand. The Product Manager's live check on a deployed copy

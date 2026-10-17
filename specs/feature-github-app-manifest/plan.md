@@ -53,8 +53,11 @@ Related defects found on the way:
   security alerts, metadata"; the issue (and the rule set: `workflow_run` for CI) needs Actions, not checks/statuses.
   Corrected by the Dev in this change (it describes the product; *Scope of a product PR*).
 - `docs/setup.md` ends with "Until then the instance answers webhooks with 503" — untrue after this change.
-- `src/telegram.ts:664-676` has a private bounded JSON reader the GitHub client needs too; it moves to `src/body.ts`
-  instead of being duplicated (SonarQube duplication).
+- `src/telegram.ts:186-199` has a private bounded JSON reader (`readJson`, fixed to `MAX_TELEGRAM_RESPONSE_BYTES`) the
+  GitHub client needs too; it moves to `src/body.ts` as `readJsonWithLimit(response, maxBytes)` with the limit as a
+  parameter, and `telegram.ts` passes `MAX_TELEGRAM_RESPONSE_BYTES` (no duplication for SonarQube).
+- `writeSecret` (`src/store/secrets.ts:141-173`) judges a batch by `changesOfLast` (`src/store/secrets.ts:133-135`),
+  the change count of its last statement. That is right for one upsert; `writeSecrets` must not reuse it as is (AC10).
 
 ## Acceptance criteria
 
@@ -76,15 +79,21 @@ Each criterion names its tests (file, then test name). `NOW` is the tests' fixed
     organization settings with the state"; "parseAccountType accepts exactly personal and organization";
     "isAccountName accepts 1 to 39 letters, digits and inner hyphens"; "isAccountName rejects every form in the guard
     table" (one `it.each` over the table in *Guard forms*).
-- [ ] AC3 (state): `createGitHubState(key, session, now)` returns `v1.<expires>.<nonce>.<mac>` with `<expires>` =
-  `now + 3,600,000` ms, `<nonce>` 16 random bytes base64url (22 characters), `<mac>` the HMAC-SHA256 (base64url, 43
-  characters) of the ASCII text `github-state.v1.<expires>.<nonce>.<session>` under the `setup-github` key.
-  `isValidGitHubState(key, state, session, now)` is true only for exactly that form with canonical base64url, a MAC
-  that verifies in constant time for this session, and `now < expires ≤ now + 3,600,000`.
-  - `src/setup/github-state.test.ts`: "createGitHubState yields v1, the expiry one hour ahead, a 22-character nonce and
-    the MAC of the documented text"; "createGitHubState draws a new nonce each time"; "isValidGitHubState accepts a
-    fresh state of the same session"; "isValidGitHubState rejects another session, another key, an expired state, an
-    expiry more than one hour ahead, an altered part and non-canonical base64url" (`it.each`).
+- [ ] AC3 (state, bound to session and account): `createGitHubState(key, session, { type, account }, now)` returns
+  `v1.<type>.<account>.<expires>.<nonce>.<mac>` with `<type>` `personal` or `organization`, `<account>` the account
+  name as entered (it passed `isAccountName`), `<expires>` = `now + 3,600,000` ms, `<nonce>` 16 random bytes base64url
+  (22 characters), `<mac>` the HMAC-SHA256 (base64url, 43 characters) of the ASCII text
+  `github-state.v1.<type>.<account>.<expires>.<nonce>.<session>` under the `setup-github` key.
+  `verifyGitHubState(key, state, session, now)` returns the `AccountChoice` `{ type, account }` only for exactly that form with canonical
+  base64url, a MAC that verifies in constant time for this session, and `now < expires ≤ now + 3,600,000`; else
+  `undefined`.
+  - `src/setup/github-state.test.ts`: "createGitHubState yields v1, the account type and name, the expiry one hour
+    ahead, a 22-character nonce and the MAC of the documented text"; "createGitHubState draws a new nonce each time";
+    "verifyGitHubState returns the account type and name of a fresh state of the same session"; "verifyGitHubState
+    rejects another session, another key, an expired state, an expiry more than one hour ahead, an altered part and
+    non-canonical base64url" (`it.each`; *altered part* includes the type swapped to the other value and the account
+    replaced or changed in case, each with the original MAC); "isWellFormedGitHubState rejects every form in the state
+    table" (`it.each`, *Guard forms*).
   - `src/crypto.test.ts`: "signingKeyFromEnv derives the setup-github key from seluna/setup-github/v1, apart from the
     other keys".
 - [ ] AC4 (step page): `gitHubStepView` returns `worker-secrets` when all three Worker secrets are non-empty strings and
@@ -103,8 +112,9 @@ Each criterion names its tests (file, then test name). `NOW` is the tests' fixed
 - [ ] AC5 (start): `POST /setup/github` in this order: body (413/400); CSRF (signed-in form) else 403 _form expired_;
   any Worker secret set → 409 with that view; exactly one `account_type` that parses and exactly one `account` that is
   an account name, else 400 with the form page and _invalid account_; key check `changed`/`corrupt` → 409
-  _reset needed_; D1 error → 503 _unavailable_; else 200 with the review page: app name, permissions, events, and one
-  form `method="post"` whose `action` is `manifestFormAction(type, account, state)` and whose only field is the hidden
+  _reset needed_; D1 error → 503 _unavailable_; else 200 with the review page: the account and its type, app name,
+  permissions, events, and one form `method="post"` whose `action` is `manifestFormAction(type, account, state)` (the
+  state from `createGitHubState(key, session, { type, account }, now)`) and whose only field is the hidden
   `manifest` (the JSON of AC1, HTML-escaped; no `csrf` field). Only this page's `Content-Security-Policy` has
   `form-action https://github.com` instead of `form-action 'self'`.
   - `src/setup/handler.test.ts`: "POST /setup/github answers 200 with a review page that posts the manifest to GitHub
@@ -113,7 +123,8 @@ Each criterion names its tests (file, then test name). `NOW` is the tests' fixed
     "POST /setup/github rejects a wrong CSRF token with 403"; "POST /setup/github answers 400 with the invalid account
     notice for a missing, repeated or invalid field" (`it.each`); "POST /setup/github answers 409 while a GitHub
     Worker secret is set"; "POST /setup/github answers 409 reset needed when the key check fails"; "the state of the
-    review page is valid for the session for one hour".
+    review page binds the session, the account type and the account for one hour" (`verifyGitHubState` on the state
+    read from the form action returns the entered type and account).
   - `src/setup/github-step.test.ts`: "startGitHubApp checks Worker secrets, then the account, then the key check".
 - [ ] AC6 (return): `GET /setup/github/callback` (any session state, after the `SELUNA_SECRET` check) answers 200 with
   the finish page when the query has exactly one `code` matching `^[A-Za-z0-9_-]{1,100}$` and exactly one `state`
@@ -126,19 +137,28 @@ Each criterion names its tests (file, then test name). `NOW` is the tests' fixed
     state" (`it.each`, including the forms of *Guard forms*).
 - [ ] AC7 (conversion client): `convertManifestCode(code, version, fetcher)` sends one `POST
   https://api.github.com/app-manifests/<code>/conversions` with `Accept: application/vnd.github+json`,
-  `X-GitHub-Api-Version: 2022-11-28`, `User-Agent: seluna/<version>`, no `Authorization`, no body, a 10 second abort;
-  2xx with a body that narrows → `converted` (`appId` positive safe integer `id`, `pem` string of at most 16,384
-  characters, `webhookSecret` non-empty string of at most 1,024 characters, `slug` when it matches `^[a-z0-9-]{1,100}$`,
-  else `undefined`); 404 and 422 → `rejected`; any other status, a rejected or aborted fetch → `unavailable`; a 2xx
-  body above 1 MiB, not UTF-8 JSON, or of another shape (also `webhook_secret: null`) → `malformed`. A code outside the
-  allow-list returns `rejected` without a call.
+  `X-GitHub-Api-Version: 2022-11-28`, `User-Agent: seluna/<version>`, no `Authorization`, no body,
+  `redirect: "manual"`, and the signal `AbortSignal.timeout(10_000)`; 2xx with a body that narrows → `converted`
+  (`appId` positive safe integer `id`, `pem` string of at most 16,384 characters, `webhookSecret` non-empty string of at
+  most 1,024 characters, `owner` = `{ login, type }` from the answer's `owner` object, both strings, `login` of at most
+  39 characters, `slug` when it matches `^[a-z0-9-]{1,100}$`, else `undefined`); 404 and 422 → `rejected`; any other
+  status (a 3xx included: with `redirect: "manual"` it is not followed), a rejected or aborted fetch → `unavailable`; the
+  body of every non-2xx answer is cancelled unread (`response.body?.cancel()`, its rejection ignored), as `callBotApi`
+  does (`src/telegram.ts:214-217`); a 2xx body above 1 MiB, not UTF-8 JSON, or of another shape (also
+  `webhook_secret: null`, a missing `owner`, an `owner` without a string `login` or `type`, an enterprise owner) →
+  `malformed`. A code outside the allow-list returns `rejected` without a call. The 10-second signal is set on the
+  request; whether workerd's abort also interrupts reading the body is *unverified* and the double cannot show it — the
+  body is bounded by the 1 MiB limit, and no area document or record claims the timeout bounds the body read.
   - `src/github/conversion.test.ts`: "convertManifestCode posts to the conversions endpoint without credentials and
-    with the API headers"; "convertManifestCode narrows the documented answer to app id, slug, pem and webhook secret"
+    with the API headers" (also asserts `request.redirect === "manual"` and that `request.signal` is set and not
+    aborted); "convertManifestCode narrows the documented answer to app id, owner, slug, pem and webhook secret"
     (fixture `manifest-conversion.json`); "convertManifestCode reports 404 and 422 as rejected" (fixtures);
-    "convertManifestCode reports a rejected fetch and other statuses as unavailable" (`it.each`);
-    "convertManifestCode reports an oversized, non-JSON or differently shaped 2xx answer as malformed" (`it.each`);
-    "convertManifestCode makes no call for a code outside the allow-list"; "parseConversion leaves out a slug outside
-    the allow-list".
+    "convertManifestCode reports a rejected fetch, an abort and other statuses, a redirect among them, as unavailable"
+    (`it.each`: a rejection with an `Error`, one with a `DOMException` named `TimeoutError`, statuses 302, 401, 500);
+    "convertManifestCode cancels the body of a non-2xx answer unread" (a `ReadableStream` whose `cancel` is recorded
+    and whose `pull` fails the test); "convertManifestCode reports an oversized, non-JSON or differently shaped 2xx
+    answer as malformed" (`it.each`, the owner cases above included); "convertManifestCode makes no call for a code
+    outside the allow-list"; "parseConversion leaves out a slug outside the allow-list".
 - [ ] AC8 (private key): `toPkcs8Pem(pem)` returns the PKCS#8 PEM (`-----BEGIN PRIVATE KEY-----\n`, base64 in lines of
   64 characters, `\n-----END PRIVATE KEY-----\n`) of a PKCS#1 (`RSA PRIVATE KEY`) or PKCS#8 (`PRIVATE KEY`) input, only
   when the DER imports with `importKey("pkcs8", …, {name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"}, false, ["sign"])`;
@@ -153,11 +173,15 @@ Each criterion names its tests (file, then test name). `NOW` is the tests' fixed
   page and _state invalid_ (GitHub not called); any Worker secret set → 409 with that view; exactly one `code` in the
   allow-list, else 400 _invalid return_; key check `changed`/`corrupt` → 409 _reset needed_ and D1 error → 503
   _unavailable_, both before any GitHub call; conversion `rejected` → 400 _code rejected_; `unavailable` → 502 with the
-  finish page (same `code` and `state`) and _GitHub unavailable_; `malformed` or a key `toPkcs8Pem` refuses → 502
-  _answer invalid_; then `writeSecrets` with `github_app_id` = decimal App ID, `github_private_key` = PKCS#8 PEM,
-  `github_webhook_secret` = the webhook secret; any result but `ok`, or a D1 error, → 503 _store failed_; `ok` → 200
-  with the created page: _app saved_, the install link `https://github.com/apps/<slug>/installations/new` and the
-  _install intro_, or without a slug the _install manually_ text. The `csrf` field is not read on this form.
+  finish page (same `code` and `state`) and _GitHub unavailable_; `malformed` → 502 _answer invalid_; then the owner
+  check `isAppOwner(app.owner, claims)` against the type and account the verified state carries — `login` passes
+  `isAccountName` and equals the state's account ASCII-case-insensitively, and `type` is exactly `User` for
+  `personal` or `Organization` for `organization` — else 403 with the GitHub notice-only page and _owner mismatch_,
+  nothing stored, no install link, no key conversion; then a key `toPkcs8Pem` refuses → 502 _answer invalid_; then
+  `writeSecrets` with `github_app_id` = decimal App ID, `github_private_key` = PKCS#8 PEM, `github_webhook_secret` = the
+  webhook secret; any result but `ok`, or a D1 error, → 503 _store failed_; `ok` → 200 with the created page: _app
+  saved_, the install link `https://github.com/apps/<slug>/installations/new` and the _install intro_, or without a slug
+  the _install manually_ text. The `csrf` field is not read on this form.
   - `src/setup/handler.test.ts`: "POST /setup/github/callback stores app id, PKCS#8 key and webhook secret encrypted
     and links to the installation page"; "POST /setup/github/callback signed out answers the login page and calls
     nothing"; "POST /setup/github/callback rejects a state of another session, an expired or a missing state with 403
@@ -167,16 +191,30 @@ Each criterion names its tests (file, then test name). `NOW` is the tests' fixed
     offers the finish form again with 502 when GitHub is unavailable"; "POST /setup/github/callback answers 502 answer
     invalid and stores nothing for a malformed answer or a key that does not import"; "POST /setup/github/callback
     answers 503 store failed when saving fails after the conversion"; "the created page tells how to install the app
-    when the answer has no usable slug".
-  - `src/setup/github-step.test.ts`: "finishGitHubApp stores exactly the three values and never the client secret";
-    "finishGitHubApp converts only after the state, the Worker secrets, the code and the key check passed".
+    when the answer has no usable slug"; "POST /setup/github/callback answers 403 owner mismatch, stores nothing and
+    shows no install link for an app of another account" (`it.each`: the documented answer, owner `github`/`User`,
+    finished with a state for personal `octocat`; the same answer with a state for organization `github`; an answer
+    whose owner is `github`/`Organization` with a state for personal `github`; in each case the `secrets` and `meta`
+    tables are unchanged and the page contains no `https://github.com/apps/` link).
+  - `src/setup/github-step.test.ts`: "finishGitHubApp stores exactly the three values and never the client secret"
+    (state for personal `github`, matching the documented owner); "finishGitHubApp converts only after the state, the
+    Worker secrets, the code and the key check passed"; "finishGitHubApp stores an organization's app whose owner
+    matches in another letter case" (the documented answer with owner `GitHub`/`Organization`, state for organization
+    `github`); "finishGitHubApp refuses an app of another account before converting the key".
+  - `src/github/conversion.test.ts`: "isAppOwner accepts the account of the state in any ASCII letter case and the
+    matching owner type only" (`it.each` over the owner table in *Guard forms*).
 - [ ] AC10 (atomic storage): `writeSecrets(db, key, values)` stores all three credentials (and the key check value on
   the first write) in one D1 batch whose statements are all guarded by the checked key check value; it reports `ok`
-  only when all three were written, retries once from the check like `writeSecret`, and writes none when the key check
-  changed (`secret-changed`) or is corrupt.
+  only when the change count of **each** of the three `UPSERT_SECRET` results is 1 — not `changesOfLast`, and the
+  `INSERT_KEY_CHECK` result of the first write (guarded by `WHERE NOT EXISTS (SELECT 1 FROM secrets)`) is left out of
+  the count; any other combination retries once from the check like `writeSecret` and then reports `corrupt`; it
+  writes none when the key check changed (`secret-changed`) or is corrupt.
   - `src/store/secrets.test.ts`: "writeSecrets stores the three credentials and the key check value on the first
     write"; "writeSecrets replaces earlier values of all three"; "writeSecrets writes none of the three under a changed
-    SELUNA_SECRET"; "writeSecrets writes none of the three when the key check value is corrupt".
+    SELUNA_SECRET" (asserts all three rows unchanged); "writeSecrets writes none of the three when the key check value
+    is corrupt"; "writeSecrets reports ok only when each of the three upserts changed one row" (a `D1Database` double
+    whose `batch` answers change counts `[1,1,0]`, `[0,1,1]` and `[1,0,1]` for the upserts → not `ok`, and `[1,1,1]`
+    after a key check insert with 0 changes → `ok`).
 - [ ] AC11 (webhook source, issue AC-c at unit level): `webhookSecretSource(env, db)` resolves to
   `GITHUB_WEBHOOK_SECRET` when it is a non-empty string, without touching D1; else, with a usable `SELUNA_SECRET`, to the
   stored `github_webhook_secret` when `readSecret` returns `ok`; else `undefined` (none stored, secret changed,
@@ -193,7 +231,7 @@ Each criterion names its tests (file, then test name). `NOW` is the tests' fixed
   in place of `form-action 'self'`; every GitHub page escapes every value it renders; every new text exists in English
   and German, and the English texts are those of *Texts* below.
   - `src/setup/pages.test.ts`: "contentSecurityPolicy for github allows forms to post to https://github.com only";
-    "renderGitHubReviewPage escapes the app name, the form action and the manifest"; "renderGitHubFinishPage escapes
+    "renderGitHubReviewPage escapes the account, the app name, the form action and the manifest"; "renderGitHubFinishPage escapes
     code and state and has no csrf field"; the existing `PAGES`/`NOTICES` tables extended to the new pages and notices.
   - `src/setup/texts.test.ts`: "texts word the English GitHub step as the area document does".
 - [ ] AC13 (shared bounded JSON reader): `readJsonWithLimit(response, maxBytes)` returns the parsed JSON of a body of
@@ -203,8 +241,12 @@ Each criterion names its tests (file, then test name). `NOW` is the tests' fixed
 - [ ] AC14 (logging): the code and state of the return never reach a log.
   - `src/router.test.ts`: "handleRequest logs GET /setup/github/callback as method, path and status without the
     query".
-- [ ] AC15 (through the Worker): the finish step reaches GitHub through the Worker's global `fetch`.
-  - `src/index.test.ts`: "the GitHub step of /setup calls the GitHub API through the global fetch of the Worker".
+- [ ] AC15 (through the Worker): `src/index.ts` defines one function that forwards a `Request` to the global `fetch`
+  and passes that same function as `setup.fetch` (Telegram) and `setup.githubFetch` (GitHub) — no second wiring.
+  `GitHubFetch` has the same shape as `TelegramFetch` (`(request: Request) => Promise<Response>`).
+  - `src/index.test.ts`: "the GitHub step of /setup calls the GitHub API through the global fetch of the Worker"
+    (a spy on `globalThis.fetch` records the conversion request of a signed-in finish); the existing test of the
+    Telegram step through the global fetch stays green.
 
 The issue's AC-a to AC-c are additionally verified live by the Product Manager (*Verification without tests* is not
 needed; see *Runtime details only a live run can verify*).
@@ -218,7 +260,7 @@ needed; see *Runtime details only a live run can verify*).
 | B3 start form, review page, state, form-action | AC2, AC3, AC5, AC12 |
 | B4 manifest content | AC1, AC2 |
 | B5 signed-out return, finish page | AC6, AC14 |
-| B6 finish order and checks | AC3, AC9 |
+| B6 finish order and checks, owner bound to the chosen account | AC3, AC7, AC9 |
 | B7 key conversion, atomic storage, discarded fields | AC7, AC8, AC9, AC10 |
 | B8 created page, install link | AC9 |
 | B9 fixed notices | AC5, AC6, AC9, AC12 |
@@ -242,7 +284,16 @@ needed; see *Runtime details only a live run can verify*).
    under the same registrable domain (no state for this session) can submit it (AC9). The `csrf` field is not used on
    this one form because the finish page is rendered without the session and must not set `seluna_csrf` (it would
    replace the owner's cookie and expire every other open form).
-6. Conversion, PKCS#8 conversion and import check, one-batch write, created page with the install link.
+6. Conversion; the **owner check**: the app GitHub returns must belong to the account type and account the state
+   carries under its MAC, else nothing is stored; PKCS#8 conversion and import check, one-batch write, created page with
+   the install link.
+
+The state alone does not tie the *code* to the flow: anyone can run the manifest flow with their own account and
+redirect the owner's browser to `/setup/github/callback?code=<their code>&state=<the owner's state>` (the state sits in
+the github.com URL and the browser history). The owner check closes that: an app created by another account fails it,
+and an app owned by the chosen account can only be created by that account (or, for an organization, by someone the
+organization lets manage its apps, who can create and change its apps anyway). The state stays reusable within its
+hour; see *Options considered* 11.
 
 `<origin>` is `new URL(request.url).origin` of the signed-in `POST /setup/github`. That request carries the `Secure`
 session cookie, so it was made over HTTPS (or `localhost` in development); no extra scheme check is needed.
@@ -280,7 +331,9 @@ session cookie, so it was made over HTTPS (or `localhost` in development); no ex
 | | D1 error before the conversion | 503 | GitHub notice-only, _unavailable_ |
 | | conversion rejected | 400 | GitHub notice-only, _code rejected_ |
 | | conversion unavailable | 502 | finish page again, _GitHub unavailable_ |
-| | answer malformed / key refused | 502 | GitHub notice-only, _answer invalid_ |
+| | answer malformed | 502 | GitHub notice-only, _answer invalid_ |
+| | app of another account | 403 | GitHub notice-only, _owner mismatch_ |
+| | key refused | 502 | GitHub notice-only, _answer invalid_ |
 | | store not ok / D1 error after conversion | 503 | GitHub notice-only, _store failed_ |
 | | stored | 200 | created page |
 
@@ -308,7 +361,9 @@ The GitHub notice-only page: heading, the notice, and a link to `/setup/github` 
 - `githubPersonal`: "My personal account"; `githubOrganization`: "An organization"; `githubAccountLabel`: "Name of the
   account or organization, as in github.com/name"; `githubNextButton`: "Next".
 - `githubReviewIntro`: "Seluna asks GitHub to create this app. On GitHub, check the details and select Create GitHub
-  App; GitHub then sends you back here."; `githubAppNameLabel`: "App name:"; `githubPermissionsLabel`: "Permissions,
+  App; GitHub then sends you back here. Seluna saves the app only if GitHub created it for the account shown here.";
+  `githubReviewAccountLabel` (followed by the account and, in parentheses, `githubPersonal` or `githubOrganization`):
+  "Account:"; `githubAppNameLabel`: "App name:"; `githubPermissionsLabel`: "Permissions,
   all read-only:"; `githubPermissionsList`: "Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret
   scanning alerts, Metadata"; `githubEventsLabel`: "Events:"; `githubEventsList`: "Pull request, Workflow run,
   Dependabot alert, Code scanning alert, Secret scanning alert"; `githubToGitHubButton`: "Continue to GitHub".
@@ -329,7 +384,10 @@ The GitHub notice-only page: heading, the notice, and a link to `/setup/github` 
   used or is older than one hour. If you have just created the app, it is already saved; otherwise delete it on GitHub
   and start again."; _GitHub unavailable_ `github-unavailable`: "GitHub could not be reached. Select Finish again in a
   moment; the return stays valid for one hour."; _answer invalid_ `github-answer-invalid`: "GitHub created the app, but
-  its answer could not be read, so nothing was saved. Delete the app on GitHub and start again."; _store failed_
+  its answer could not be read, so nothing was saved. Delete the app on GitHub and start again."; _owner mismatch_
+  `github-owner-mismatch`: "This app does not belong to the account you chose in Seluna, so nothing was saved. If you
+  created it yourself, delete it on GitHub and start again with the name of the account you are signed in to on
+  GitHub, or of the organization."; _store failed_
   `github-store-failed`: "GitHub created the app, but saving its credentials failed, so nothing was saved. Delete the
   app on GitHub and start again."
 
@@ -344,7 +402,9 @@ and `\` as separators, `.`/`..` and `%2e`/`%2E` variants as dot segments, `?` an
 fragment, `%XX` as an escape, tab/LF/CR as removed, leading/trailing C0 controls and spaces as stripped, other
 non-ASCII as percent-encoded. `isAccountName` rejects: empty; 40 characters; leading `-`; trailing `-`; `a/b`; `a`,
 a backslash (U+005C), `b`; `.`; `..`; `%2e%2e`; `a%2Fb`; `a?b`; `a#b`; `a b`; ` a` (leading space); `a` followed by a
-tab (U+0009); `a`, a line feed (U+000A), `b`; `a.b`; `a_b`; `a@b`; `a:b`; `ä`; the fullwidth `ａ` (U+FF41); and accepts
+tab (U+0009); `a`, a line feed (U+000A), `b`; `a` followed by a line feed (a JavaScript `$` without the `m` flag
+does not match before a final line feed, unlike PCRE's; the case pins that, and fails if the guard ever trims or uses
+`m`); `a.b`; `a_b`; `a@b`; `a:b`; `ä`; the fullwidth `ａ` (U+FF41); and accepts
 `a`, `A1`, `a-b`, `a--b`, 39 characters. The test table writes the control characters and the backslash as escapes
 in TypeScript string literals; the 40-character case fails only through the length bound, so a lost escape still
 leaves each other case rejected by the character class. (`a--b` is accepted:
@@ -352,15 +412,28 @@ GitHub no longer allows consecutive hyphens in new names but older accounts may 
 
 **Manifest code** → path segment of `https://api.github.com/app-manifests/<code>/conversions`. Allow-list
 `^[A-Za-z0-9_-]{1,100}$` (documented example: 40 lowercase hex digits). The table of AC6 and AC7 rejects: empty; 101
-characters; `..`; `.`; `a/b`; `a`, a backslash, `b`; `%2e%2e`; `a%2Fb`; `a?b`; `a#b`; `a b`; `a+b`; `a=b`; `ä`; and accepts the
+characters; `..`; `.`; `a/b`; `a`, a backslash, `b`; `%2e%2e`; `a%2Fb`; `a?b`; `a#b`; `a b`; `a+b`; `a=b`; `ä`; `a`
+followed by a line feed; and accepts the
 documented `a180b1a3d263c81bc6441d7b990bae27d4c10679`, `A-_9`.
 
-**State** → query of the form action (`?state=`), checked on return. Form `^v1\.([1-9]\d{0,14})\.([\w-]{22})\.([\w-]{43})$`
-(base64url and digits are unreserved characters, so neither the browser nor GitHub needs to encode them). Rejected on
-`GET /setup/github/callback`: empty; `v2.…`; a 21- or 23-character nonce; padding `=`; `+` or `/`; a leading zero in
-the expiry; two `state` parameters. On the POST additionally: another session, another `SELUNA_SECRET`, `expires ≤
-now`, `expires > now + 1 h`, a non-canonical nonce or MAC (unused low bits set, `withUnusedBitFlipped` of
-`test/keys.ts`).
+**State** → query of the form action (`?state=`), checked on return. Form
+`^v1\.(personal|organization)\.([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)\.([1-9]\d{0,14})\.([\w-]{22})\.([\w-]{43})$`
+(at most 139 characters; letters, digits, `-`, `_` and `.` are unreserved characters, so neither the browser nor
+GitHub needs to encode them). Rejected on `GET /setup/github/callback` (`isWellFormedGitHubState`): empty; `v2.…`; the
+type `user`, `Personal` or missing; an account outside the account allow-list (`-a`, 40 characters, `a.b` — which
+shifts the parts); a 21- or 23-character nonce; padding `=`; `+` or `/`; a leading zero in the expiry; a well-formed
+state followed by a line feed; two `state` parameters. On the POST additionally (`verifyGitHubState`): another session,
+another `SELUNA_SECRET`, another type or account under the original MAC, `expires ≤ now`, `expires > now + 1 h`, a
+non-canonical nonce or MAC (unused low bits set, `withUnusedBitFlipped` of `test/keys.ts`).
+
+**App owner** (`isAppOwner(owner, claims)`, the bound account against the answer's `owner`) — accepted: `login`
+equal to the state's account after mapping only `A`–`Z` to `a`–`z` (written as a comparison of the two strings
+lowercased after both passed `isAccountName`, so no non-ASCII case mapping can apply), and `type` exactly `User` for
+`personal`, exactly `Organization` for `organization`. Rejected (table of AC9): another login; the login with a
+trailing line feed; `\u212Aelvin` against the account `kelvin` (the Kelvin sign U+212A lowercases to `k` in
+JavaScript; the case fails only through `isAccountName` on the login); a login of 40 characters; `type`
+`Organization` for `personal` and `User` for `organization`; `type` `user` or `organization` (wrong case); `type`
+`Bot`. Accepted: the same login in other letter case, for both types.
 
 **App slug** → path segment of `https://github.com/apps/<slug>/installations/new`. Allow-list `^[a-z0-9-]{1,100}$`;
 anything else (absent, empty, uppercase, `.`, `/`, `%`, 101 characters) gives no link and the _install manually_ text.
@@ -372,7 +445,17 @@ line, and at most one final line break; the decoded base64 must re-encode to the
 (table of AC8): another armour (`ENCRYPTED PRIVATE KEY`, `EC PRIVATE KEY`, `PUBLIC KEY`), mismatched BEGIN/END, text
 before the BEGIN line or after the END line, two keys, a non-base64 character, base64url characters `-`/`_`, inner
 padding, non-canonical base64, more than 16,384 characters, an empty body, DER that `importKey` refuses (a PKCS#1 body
-with one byte changed in its outer SEQUENCE length, a truncated body).
+with one byte changed in its outer SEQUENCE length, a truncated body), a legacy encrypted PKCS#1 key (`-----BEGIN RSA
+PRIVATE KEY-----`, then the header lines `Proc-Type: 4,ENCRYPTED` and `DEK-Info: AES-128-CBC,<32 hex digits>`, an empty
+line and base64 — refused because a header line is not base64, never decrypted), the documented key with a leading
+byte order mark U+FEFF (text before the BEGIN line; written as the escape `\uFEFF` in the table — a lost backslash
+gives the text `uFEFF` before the BEGIN line, which is rejected for the wrong reason, so the row also asserts that the
+input's first code unit is 0xFEFF).
+
+Escapes in these tables: the line-feed rows of the account and code tables turn into the accepted `an` when the
+backslash is lost, so the `it.each` fails visibly; the state row with a final line feed and the Kelvin-sign owner row
+would still be rejected for another reason, so each of those rows also asserts the code unit it is about (last code
+unit 0x000A; first code unit 0x212A).
 
 ## Runtime details only a live run can verify
 
@@ -391,6 +474,16 @@ organization, install, a delivery passes the signature check) covers them before
    stores nothing.
 5. GitHub accepts the manifest's permission and event names and `public: false` as documented — a refusal shows on
    GitHub's page, before anything is created.
+6. The answer's `owner` carries the creating account's `login` and `type` `User` (personal) or `Organization` — the
+   schema says `owner` is a `simple-user` or an `enterprise`, and the documented example is itself inconsistent
+   (`login` `github`, `type` `User`, but organization URLs), so the fixture's owner is reference-built and proves
+   nothing about GitHub. A deviation fails closed: _owner mismatch_ or _answer invalid_, nothing stored; the live
+   check covers a personal account and an organization, and its organization run must use a name in another letter case
+   than GitHub shows, to exercise the case-insensitive comparison.
+7. A 3xx answer to the conversion is not followed (`redirect: "manual"`) and counts as _GitHub unavailable_; whether
+   workerd would accept `redirect: "error"` was not checked, and is not needed. Whether `AbortSignal.timeout` also
+   interrupts a stalled body read is unmeasured (see AC7); the 1 MiB bound holds either way, the time bound on the body
+   is not claimed.
 
 The unit tests share the documentation's assumptions (decision 0017, *Consequences*).
 
@@ -424,6 +517,17 @@ The unit tests share the documentation's assumptions (decision 0017, *Consequenc
    the stub on `globalThis.fetch` that `.squad/project.md` describes for the not yet built GitHub API double.
 10. **Client source:** GitHub's documentation and OpenAPI description, fixtures reference-built — the Product Manager's
     decision (no captured sample; the session cannot run the flow).
+11. **Tying the exchanged app to the flow** (Security B1): (a) the state carries the account type and account under
+    its MAC and the answer's `owner` must match them — chosen; (b) a single-use state (a D1 row consumed on finish) —
+    storage and cleanup, and it does not help: the attack uses the owner's own unused state with a foreign code, so a
+    single-use state would still be consumed by that first, foreign return; (c) the account in a hidden finish field —
+    the finish page is rendered from GitHub's redirect, which carries only `code` and `state`, so the value would have
+    to come from the state anyway; (d) additionally comparing the answer's permissions and events with the manifest —
+    an attacker's app can request the same ones, the owner can change them on GitHub at any time, and GitHub's
+    normalization of those fields in the answer is unverified (the documented example's do not match any manifest of
+    ours), so it would add a live-run risk on the happy path without closing anything the owner check leaves open.
+    Under (a) a reused state can only finish with an app of the chosen account created within the hour; storing that
+    one instead of another one of the same owner is no gain for anyone.
 
 ## Affected projects and types
 
@@ -461,6 +565,11 @@ export async function readJsonWithLimit(message: Request | Response, maxBytes: n
 
 // src/github/manifest.ts (new)
 export type AccountType = "personal" | "organization";
+/** The account the owner chose; carried in the signed state. */
+export interface AccountChoice {
+  readonly type: AccountType;
+  readonly account: string;
+}
 export const SELUNA_HOMEPAGE = "https://github.com/LarsLaskowski/Seluna";
 export const MAX_APP_NAME_CHARACTERS = 34;
 export const APP_PERMISSIONS: Readonly<Record<string, "read">>;
@@ -482,7 +591,7 @@ export function appManifest(origin: string, account: string): AppManifest;
 export function manifestFormAction(type: AccountType, account: string, state: string): string;
 
 // src/github/conversion.ts (new)
-/** Sends one request to the GitHub API; injected so tests never reach the network. */
+/** Sends one request to the GitHub API; injected so tests never reach the network. Same shape as `TelegramFetch`. */
 export type GitHubFetch = (request: Request) => Promise<Response>;
 export const GITHUB_API_ORIGIN = "https://api.github.com";
 export const GITHUB_API_VERSION = "2022-11-28";
@@ -490,8 +599,15 @@ export const MAX_GITHUB_RESPONSE_BYTES = 1_048_576;
 export const GITHUB_TIMEOUT_MS = 10_000;
 export const MAX_PEM_CHARACTERS = 16_384;
 export const MAX_WEBHOOK_SECRET_CHARACTERS = 1_024;
+export const MAX_OWNER_LOGIN_CHARACTERS = 39;
+/** The answer's `owner`, narrowed but not yet checked. */
+export interface AppOwner {
+  readonly login: string;
+  readonly type: string;
+}
 export interface ConvertedApp {
   readonly appId: number;
+  readonly owner: AppOwner;
   readonly slug: string | undefined;
   readonly pem: string;
   readonly webhookSecret: string;
@@ -503,6 +619,8 @@ export type ConversionResult =
   | { readonly kind: "malformed" };
 export function isManifestCode(text: string): boolean;
 export function parseConversion(body: unknown): ConvertedApp | undefined;
+/** Whether the app belongs to the account the state was issued for: login (allow-listed) equal ignoring ASCII case, type `User`/`Organization`. */
+export function isAppOwner(owner: AppOwner, choice: AccountChoice): boolean; // AccountChoice from src/github/manifest.ts
 /** Never throws. */
 export async function convertManifestCode(code: string, version: string, fetcher: GitHubFetch): Promise<ConversionResult>;
 
@@ -530,9 +648,17 @@ export function webhookSecretSource(env: object, db: D1Database): WebhookSecretS
 
 // src/setup/github-state.ts (new)
 export const GITHUB_STATE_LIFETIME_MS = 3_600_000;
-export async function createGitHubState(key: CryptoKey, session: string, now: Date): Promise<string>;
+export const MAX_GITHUB_STATE_CHARACTERS = 139;
+/** `choice.account` must already pass `isAccountName`. */
+export async function createGitHubState(key: CryptoKey, session: string, choice: AccountChoice, now: Date): Promise<string>;
 export function isWellFormedGitHubState(state: string): boolean;
-export async function isValidGitHubState(key: CryptoKey, state: string, session: string, now: Date): Promise<boolean>;
+/** The account choice the state was issued for, when it is valid for this session now; else `undefined`. Never throws. */
+export async function verifyGitHubState(
+  key: CryptoKey,
+  state: string,
+  session: string,
+  now: Date,
+): Promise<AccountChoice | undefined>;
 
 // src/setup/github-step.ts (new)
 export const GITHUB_STEP_PATH = "/setup/github";
@@ -549,7 +675,13 @@ export type GitHubStepView =
 /** D1 errors are not caught. */
 export async function gitHubStepView(env: object, db: D1Database, storageKey: CryptoKey): Promise<GitHubStepView>;
 export type StartGitHubResult =
-  | { readonly kind: "review"; readonly appName: string; readonly formAction: string; readonly manifest: string }
+  | {
+      readonly kind: "review";
+      readonly choice: AccountChoice;
+      readonly appName: string;
+      readonly formAction: string;
+      readonly manifest: string;
+    }
   | { readonly kind: "worker-secrets" }
   | { readonly kind: "partial-worker-secrets" }
   | { readonly kind: "invalid-account" }
@@ -581,6 +713,7 @@ export type FinishGitHubResult =
   | { readonly kind: "code-rejected" }
   | { readonly kind: "github-unavailable"; readonly code: string; readonly state: string }
   | { readonly kind: "answer-invalid" }
+  | { readonly kind: "owner-mismatch" }
   | { readonly kind: "store-failed" };
 /** D1 errors before the conversion are not caught; after it every failure is `store-failed`. */
 export async function finishGitHubApp(
@@ -611,7 +744,13 @@ export type GitHubPageView =
   | { readonly kind: "notice-only" }
   | { readonly kind: "created"; readonly slug: string | undefined };
 export function renderGitHubPage(language: Language, csrfToken: string, view: GitHubPageView, notice?: Notice): string;
-export function renderGitHubReviewPage(language: Language, appName: string, formAction: string, manifest: string): string;
+export function renderGitHubReviewPage(
+  language: Language,
+  choice: AccountChoice,
+  appName: string,
+  formAction: string,
+  manifest: string,
+): string;
 export function renderGitHubFinishPage(language: Language, code: string, state: string, notice?: Notice): string;
 
 // src/setup/handler.ts (changed)
@@ -629,7 +768,11 @@ export interface SetupDeps {
 // { readonly kind: "github"; readonly session: string; readonly view: GitHubPageView }.
 ```
 
-`src/setup/texts.ts`: `Notice` gains the seven notices of *Texts*; `SetupTexts` gains the fields named there.
+`src/setup/texts.ts`: `Notice` gains the eight notices of *Texts*; `SetupTexts` gains the fields named there.
+
+`src/index.ts`: one module-level `function outboundFetch(request: Request): Promise<Response>` returning
+`fetch(request)`, passed as both `setup.fetch` and `setup.githubFetch`; `webhookSecret: webhookSecretSource(env,
+env.DB)`.
 
 Files the skeleton rewrites (read and found to need it): `src/crypto.ts`, `src/body.ts`, `src/telegram.ts`,
 `src/store/secrets.ts`, `src/webhook-secret.ts`, `src/setup/handler.ts`, `src/setup/pages.ts`, `src/setup/texts.ts`,
@@ -649,7 +792,10 @@ Test data (Tester):
   (`components.examples.integration-from-manifest.value` of GitHub's OpenAPI description, the same as the docs page
   "Create a GitHub App from a manifest"): `id` 1, `slug` `octoapp`, owner, permissions, events, `client_id`,
   `client_secret`, `webhook_secret` (40 hex), and the documented PKCS#1 `pem` with `\n` line breaks and a final `\n`.
-  The key is public documentation, valid RSA (checked with `openssl rsa -check`), and grants nothing.
+  The key is public documentation, valid RSA (checked with `openssl rsa -check`), and grants nothing. Its `owner` is
+  `login` `github`, `type` `User` (the Lead read it from the OpenAPI description; it is inconsistent with the
+  organization URLs beside it and is reference-built, *Runtime details* 6). Owner variants (another login, another
+  case, `Organization`) are built in the test from the parsed fixture with one field replaced, not as extra files.
 - `test/fixtures/github/manifest-conversion-not-found.json` (404, `basic-error`: `message` "Not Found",
   `documentation_url`, `status` "404") and `manifest-conversion-validation-failed.json` (422,
   `validation-error-simple`: `message` "Validation Failed", `documentation_url`) — written from the schemas.
@@ -663,7 +809,7 @@ Test data (Tester):
   rejection; it fails the test on any other URL.
 
 Existing test code that calls a changed signature: `SetupDeps` gains two required fields — `depsAt` in
-`src/setup/handler.test.ts:33` and the setup deps in `src/router.test.ts:29` and `:39` (plus every object literal of
+`src/setup/handler.test.ts:33` and the setup deps in `src/router.test.ts:25` (`SETUP_DEPS`) and `:35` (the default of the `setup` parameter) (plus every object literal of
 type `SetupDeps` there). The **Dev** adapts them in step 4 (`githubFetch: () => Promise.reject(new Error("unexpected
 GitHub call"))`, `version: "0.0.0-test"`), mechanically, no assertion touched. `contentSecurityPolicy()` and
 `htmlResponse(...)` keep their existing calls valid through the default parameter. `src/telegram.test.ts` keeps
@@ -679,10 +825,14 @@ Files of the change no unit test can cover: none.
   `csrf` field, and why), *Pages and response headers* (the review page's `form-action https://github.com`; no page
   echoes the request except the allow-listed, escaped `code` and `state` on the finish page), *Texts*, *Limits and
   errors* (GitHub texts never shown; an app created on GitHub but not saved must be deleted by hand; a session that
-  expires during the detour loses the return), *Related decisions* (0017).
+  expires during the detour loses the return; the state carries the chosen account and the app must belong to it;
+  the conversion request has a 10-second timeout and is read up to 1 MiB — no claim that the timeout bounds the body
+  read), *Related decisions* (0017).
 - `docs/areas/http-routes.md` (Dev): *Webhook signature* — the secret source (Worker secret, else D1; 503 when none is
-  usable or D1 fails); *Request body size* — the new form routes and the bounded GitHub answer; *Related decisions*
-  (0017).
+  usable or D1 fails), and that without `GITHUB_WEBHOOK_SECRET` every `POST /webhook`, signed or not, reads D1 (the
+  key check and the stored secret) and decrypts before the signature is checked, which counts against the account's
+  D1 read allowance; with the Worker secret set no D1 access happens; no caching (a cache would need its own decision);
+  *Request body size* — the new form routes and the bounded GitHub answer; *Related decisions* (0017).
 - `docs/areas/storage.md` (Dev): the three credentials are written together in one transaction by the setup wizard;
   `github_app_id` is decimal text, `github_private_key` a PKCS#8 PEM, `github_webhook_secret` as GitHub generated it;
   the signing-key list gains `seluna/setup-github/v1`.
@@ -694,13 +844,15 @@ Files of the change no unit test can cover: none.
 
 - `docs/ARCHITECTURE.md` (Dev): *Webhook to Telegram* step 1 (the secret comes from `GITHUB_WEBHOOK_SECRET` or the
   stored one), *Configuration* (the three optional GitHub Worker secrets take precedence over the credentials the
-  wizard stores), *Security model* (the manifest flow's state and the GitHub API call), each linking decision 0017.
+  wizard stores), *Security model* (the manifest flow's state bound to session and account, the owner check, and the
+  GitHub API call), each linking decision 0017.
 - `.squad/project.md` (Dev): *Minimal GitHub App permissions* → "the manifest requests read-only Actions, Pull
   requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts and Metadata (`src/github/manifest.ts`)";
   *Setup login* → every form carries the CSRF token except the GitHub finish form, which is protected by the
-  session-bound state (`src/setup/github-state.ts`); a new entry *GitHub App manifest flow* (state, allow-lists on
-  account name, code and slug, conversion answer read bounded and narrowed in `src/github/conversion.ts`, key import
-  check, one-transaction write, the review page's `form-action https://github.com`); *Encrypted credentials* names
+  session-bound state (`src/setup/github-state.ts`); a new entry *GitHub App manifest flow* (state bound to session and
+  chosen account, the answer's owner checked against it before anything is stored, allow-lists on account name, code
+  and slug, conversion answer read bounded and narrowed in `src/github/conversion.ts`, key import check,
+  one-transaction write, the review page's `form-action https://github.com`); *Encrypted credentials* names
   `writeSecrets`; *Test doubles* → the GitHub API double is `test/github.ts`, an injected `vi.fn<GitHubFetch>()`
   answering from the reference-built `test/fixtures/github/` (decision 0017), replacing the `globalThis.fetch` wording.
 - `docs/setup.md` (Dev): *Next steps* — the GitHub App step (personal or organization, confirm on GitHub, Finish,
@@ -738,8 +890,17 @@ Files of the change no unit test can cover: none.
   no cookie; `Referrer-Policy: no-referrer` keeps the return URL out of any `Referer`.
 - [ ] The review page's form carries no `csrf` field (it posts to GitHub) and its CSP is the only one with
   `form-action https://github.com`.
+- [ ] The exchanged app is bound to the flow: the state's MAC covers the chosen account type and account, and nothing
+  is stored and no install link shown unless the answer's `owner` matches them (AC3, AC9, *App owner* in *Guard
+  forms*). A foreign code returned with the owner's own state ends in _owner mismatch_.
+- [ ] The conversion request uses `redirect: "manual"`; a 3xx is _GitHub unavailable_; the body of every non-2xx answer
+  is cancelled unread.
 - [ ] Measured behavior: `importKey` refusing a damaged key is exercised by AC8's table in the Workers test pool, the
-  runtime that runs in production; no claim rests on an unmeasured library behavior.
+  runtime that runs in production. *Unverified* and therefore not claimed anywhere: that `AbortSignal.timeout` also
+  interrupts a stalled body read (the body is bounded by size only), and what workerd does with `redirect: "error"`
+  (not used).
+- [ ] Unauthenticated cost: without `GITHUB_WEBHOOK_SECRET` each `POST /webhook` reads D1 and decrypts before the
+  signature check (DA 2); the Worker-secret path stays free of D1 access (AC11, "does not read D1").
 
 ## Decision records
 
@@ -750,3 +911,54 @@ Files of the change no unit test can cover: none.
 
 - #15 reads `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY` (Worker secret first, per credential) and the stored values for
   the JWT; #11 shows the app's name and link (from `GET /app`) and owns the reset. No new follow-up issue.
+
+## Security review
+
+Plan review (Security: CHANGES_REQUIRED), each finding answered:
+
+- **B1 (blocking) — the exchanged app is not tied to the flow.** Accepted, plan revised. The state now carries the
+  account type and account under its MAC (`v1.<type>.<account>.<expires>.<nonce>.<mac>`, AC3); `verifyGitHubState`
+  returns that `AccountChoice`; after the conversion and before any key conversion or write, `isAppOwner` requires
+  the answer's `owner.login` (allow-listed by `isAccountName`, compared lowercased) to equal the account and
+  `owner.type` to be `User` for `personal` / `Organization` for `organization`, else 403 _owner mismatch_, nothing
+  stored, no install link (AC9, *Statuses*, *Texts*). `owner` joins the AC7 narrowing (a missing or non-string owner is
+  `malformed`); AC9 gains the test "answers 403 owner mismatch, stores nothing and shows no install link for an app of
+  another account" with three cases, AC3 the altered type/account cases; *Runtime details* 6 names the owner fields as
+  reference-built. The whole guard was re-checked as a list of accepted forms: *App owner* in *Guard forms* enumerates
+  login case, a trailing line feed, the Kelvin sign (non-ASCII lowercasing), length, and each wrong or wrongly cased
+  type. *Optional permissions/events comparison*: rejected, see *Options considered* 11 (d). *Single-use state*:
+  rejected with reason in *Options considered* 11 (b) — in the attack the foreign return is the first use of the
+  owner's state, so single use would not stop it; the owner check does, and a reused state can then only finish an app
+  of the chosen account.
+- **N1 — the 10 s abort is unmeasured.** Accepted. AC7 marks it *unverified*, the test asserts only that the signal is
+  set and that an abort rejection maps to `unavailable`; *Areas* and *Security considerations* say no document claims
+  the timeout bounds the body read (the body is bounded by size).
+- **N2 — cancel the body of a non-2xx answer.** Accepted: AC7 states it with the `callBotApi` reference and gains the
+  test "convertManifestCode cancels the body of a non-2xx answer unread".
+- **N3 — `redirect: "error"`.** Accepted in substance, with `redirect: "manual"` instead: same outcome (a 3xx is not
+  followed and counts as _GitHub unavailable_), and `manual` is the mode Workers document as supported, while workerd's
+  handling of `error` is unchecked (*Runtime details* 7). AC7's first test asserts `request.redirect === "manual"`; the
+  `it.each` of unavailable statuses includes 302.
+- **N4 — guard-table cases.** Accepted: a trailing line feed in the account and code tables (and in the state table),
+  a legacy encrypted PKCS#1 key with `Proc-Type`/`DEK-Info` headers and a leading U+FEFF in the PEM table; each escape
+  row states how a lost backslash shows (*Guard forms*, last paragraph).
+
+## Challenge
+
+Devil's Advocate, 0 major and 4 minor objections, each answered:
+
+1. **Corrected cites.** Accepted. The bounded reader is `readJson` at `src/telegram.ts:186-199` with
+   `MAX_TELEGRAM_RESPONSE_BYTES`; `readJsonWithLimit(response, maxBytes)` takes the limit and `telegram.ts` passes the
+   constant (*Problem*, related defects). The `SetupDeps` literals are at `src/router.test.ts:25` and `:35`
+   (*Test files*); `depsAt` at `src/setup/handler.test.ts:33` stays; `writeSecret` is cited as
+   `src/store/secrets.ts:141-173`.
+2. **D1 read in front of every unauthenticated `POST /webhook`.** Accepted. Decision 0017 *Consequences* and the
+   `docs/areas/http-routes.md` row of *Areas* now say that without `GITHUB_WEBHOOK_SECRET` each delivery, signed or
+   not, reads D1 and decrypts before the signature check and counts against the D1 read allowance; the Worker-secret
+   path stays free of D1 access (AC11's "does not read D1" test); no caching without a decision.
+3. **`writeSecrets` change counts.** Accepted. AC10 requires a change count of 1 on each of the three upserts, never
+   `changesOfLast`, leaves the `INSERT_KEY_CHECK` result out of the count, and gains the test "writeSecrets reports ok
+   only when each of the three upserts changed one row" with the forwarding `D1Database` double already in
+   `src/store/secrets.test.ts`; the changed-`SELUNA_SECRET` test asserts all three rows unchanged.
+4. **`GitHubFetch` wiring.** Accepted. `GitHubFetch` has the shape of `TelegramFetch`; `src/index.ts` passes one
+   `outboundFetch` function as both `setup.fetch` and `setup.githubFetch` (*Signatures*); AC15 states and tests it.
