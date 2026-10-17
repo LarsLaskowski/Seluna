@@ -31,8 +31,7 @@ does the setup wizard under `/setup`.
 
 ### Webhook signature
 
-- `POST /webhook` is processed in this order: the body size limit (below), then the webhook secret, then the
-  signature. 413 and 400 therefore answer before 503 and 401.
+- `POST /webhook` is processed in this order: the body size limit (below), then the webhook secret, then the signature, then the webhook processing ([Notifications](notifications.md)). 413 and the 400 of an unreadable body therefore answer before 503 and 401; the 200, 202, 400 and 503 of the processing answer only after a valid signature.
 - The accepted signature is exactly `X-Hub-Signature-256: sha256=` followed by 64 lowercase hex digits of the
   HMAC-SHA256 of the raw body bytes as received, under the webhook secret. It is compared in constant time
   (`crypto.subtle.verify`). Any other form (uppercase digits or prefix, another length, another algorithm, two
