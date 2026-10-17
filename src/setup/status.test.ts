@@ -4,7 +4,7 @@ import { applyMigrations, migrationTestDb } from "../../test/d1";
 import { keyFor } from "../../test/keys";
 import { DEFAULT_SETTINGS } from "../settings";
 import { GITHUB_APP_SLUG_META_KEY, LAST_DELIVERY_META_KEY } from "../store/meta";
-import { writeSecret } from "../store/secrets";
+import { writeSecret, writeSecrets } from "../store/secrets";
 import type { StatusView } from "./status";
 import { formatDeliveryTime, statusView } from "./status";
 
@@ -98,6 +98,22 @@ describe("statusView", () => {
       case: "a key check under another SELUNA_SECRET: reset needed and the app unreadable",
       prepare: () => seedAppId(OTHER_SECRET, "12345"),
       expected: { app: { kind: "unreadable" }, resetNeeded: true },
+    },
+    {
+      case: "key matches, github_private_key altered: the app is saved and a reset is needed",
+      prepare: async () => {
+        const written = await writeSecrets(env.DB, await keyFor(SECRET), {
+          github_app_id: "12345",
+          github_private_key: "private-key-text",
+          github_webhook_secret: "webhook-secret-text",
+        });
+        expect(written, "seeding the credentials").toEqual({ kind: "ok" });
+        await putMeta(GITHUB_APP_SLUG_META_KEY, "12345:seluna-demo");
+        await env.DB.prepare(
+          "UPDATE secrets SET ciphertext = (CASE WHEN substr(ciphertext, 1, 1) = 'A' THEN 'B' ELSE 'A' END) || substr(ciphertext, 2) WHERE key = 'github_private_key'",
+        ).run();
+      },
+      expected: { app: { kind: "saved", appId: 12_345, slug: "seluna-demo" }, resetNeeded: true },
     },
     {
       case: "the last delivery stored",
