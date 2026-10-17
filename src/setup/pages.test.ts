@@ -27,6 +27,7 @@ const NOTICES: readonly Notice[] = [
   "locked",
   "form-expired",
   "unavailable",
+  "migrations-missing",
   "github-invalid-account",
   "github-return-invalid",
   "github-state-invalid",
