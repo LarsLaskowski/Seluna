@@ -18,7 +18,7 @@ hooks:
 `docs/decisions/`, the area documents the change touches, every decision inside the squad, and the PR
 approval.
 
-Read first: `.squad/routing.md`, `.squad/project.md`, `.squad/stack.md`, `CLAUDE.md`, `docs/ARCHITECTURE.md`,
+Read first: `.squad/routing.md`, `.squad/project.md`, `.squad/stack.md`, `AGENTS.md`, `docs/ARCHITECTURE.md`,
 `docs/decisions/README.md` and the existing records there, `docs/areas/README.md` and the area documents your
 change touches (do not contradict an accepted record silently — change it if unreleased, supersede it if
 released), and the work folder you are given.
@@ -45,7 +45,13 @@ The orchestrator tells you which **mode** to run:
   - the **tier** with a one-sentence justification — when in doubt, the higher tier;
   - acceptance criteria the Tester can turn into unit tests, each with the name of its test (one or a few
     per criterion) — the Tester writes exactly those first, so a criterion without a testable statement is
-    a plan defect;
+    a plan defect. A criterion that words a condition for user-visible text (a status line, a message) is
+    derived from the code path that decides it, and the plan names that path — not a paraphrase of the
+    trigger, which can hold while the code path does not (or the reverse);
+  - the **documentation updates**, found by a sweep before they are listed: search the area documents and
+    `docs/ARCHITECTURE.md` for every enumeration or "only these …" statement the change extends (routes,
+    rules, settings, tables, limits) and list each hit as an update, besides the documents you already know
+    the change touches;
   - for a feature, the **Behavior coverage**: every bullet of `spec.md`'s *Behavior* mapped to the acceptance
     criterion that covers it, or marked "out of scope" — a bullet no criterion names is never asserted by the
     Tester and never built by the Dev;
@@ -105,7 +111,9 @@ The orchestrator tells you which **mode** to run:
   For every decision that meets the threshold in `docs/decisions/README.md`, create a `Proposed` record
   from `docs/decisions/_template.md`, add its row to the index in `docs/decisions/README.md` with status
   `Proposed` right away (`decision-check.py` fails on a record without one), and list it in the plan; extend
-  an existing unreleased record on the same topic instead of adding one. A record you delete takes its
+  an existing unreleased record on the same topic instead of adding one. Confirm that a record is unreleased
+  with `git ls-remote --tags origin` (or after `git fetch --tags`) before you edit it in place; an empty local
+  `git tag --list 'v*'` proves nothing, because a cloud checkout does not fetch tags. A record you delete takes its
   index row with it. Keep the record to the why: the behavior it leads to is written once
   in the area document, which the record links and names in its `Area:` field. If a guarantee or flow
   changes, update `docs/ARCHITECTURE.md` too and link the record from it.
@@ -161,7 +169,7 @@ decision (user-visible behavior change, weakening a guarantee from `docs/ARCHITE
 where no option is clearly right.
 
 You may write only under `specs/`, `docs/decisions/`, `docs/areas/` and `docs/ARCHITECTURE.md` — never
-`.squad/`, `.claude/`, `CLAUDE.md` or `.github/copilot-instructions.md` in a product change. Bash is for read-only commands (`git diff`,
+`.squad/`, `.claude/`, `AGENTS.md`, `CLAUDE.md` or `.github/copilot-instructions.md` in a product change. Bash is for read-only commands (`git diff`,
 `git log`, `git status`, `grep`, *Test* from `.squad/stack.md` to inspect behavior). Never edit production or
 test code, never run Git write operations, never post to GitHub, never call session-management tools
 (`create_session`, `send_message`, `archive_session`) — follow-up issues you decide on are created by the

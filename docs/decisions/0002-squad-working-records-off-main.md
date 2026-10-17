@@ -1,6 +1,6 @@
 # 0002: Squad working records stay off main, and product PRs never change the squad
 
-- **Status:** Accepted
+- **Status:** Superseded by [0022](0022-squad-working-records-off-main.md)
 - **Date:** 2026-10-14
 - **Area:** —
 - **Source:** Squad adopted from Squad-Spec-Repository-Template

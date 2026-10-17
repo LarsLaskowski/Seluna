@@ -13,6 +13,7 @@ worker-configuration.d.ts
 .github/ISSUE_TEMPLATE
 .github/pull_request_template.md
 .github/copilot-instructions.md
+AGENTS.md
 CLAUDE.md
 specs
 docs/ARCHITECTURE.md
