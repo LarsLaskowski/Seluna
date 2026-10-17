@@ -97,6 +97,9 @@ button label taken from the language at sending. The rules are in [`areas/notifi
 - The signature covers the body only, not the `X-GitHub-Delivery` and `X-GitHub-Event` headers: a replayed signed
   body with a new delivery id yields a second message, and a changed event header feeds the payload to the rules of
   another event. This is inherent to GitHub's design; the rules check that the payload's shape matches the event.
+- Rules are not isolated from each other: a rule or the formatter that throws makes the whole delivery 503 with
+  nothing stored, so a defect in one rule is visible in GitHub's delivery list and can be redelivered once fixed,
+  instead of silently dropping that rule's message while the others are sent.
 - A row is sent at least once: when Telegram accepted a message but marking the row sent fails, the cron sends it
   again (as decision 0008 accepts).
 - Without a usable bot token or chat a row stays pending without counting an attempt, so a message written before

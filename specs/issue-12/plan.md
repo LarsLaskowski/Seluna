@@ -652,3 +652,25 @@ Non-blocking findings of the Security plan review (verdict APPROVED), recorded v
    - `X-GitHub-Delivery` and `X-GitHub-Event` are not covered by the HMAC (it is over the body only).
    - A captured signed body replayed with a fresh delivery id passes deduplication and produces a second message. A changed event header feeds the payload to rules of another event.
    - This is inherent to GitHub's webhook design, not a defect of this plan. It deserves one sentence of residual risk in decision 0023 or the area document. The rules of #13, #16 and #17 should also check that the payload's shape matches the event, and not rely on the header alone. The area document already requires every field to be narrowed.
+
+## Approval notes (Lead, step 9)
+
+Deviations from this plan, decided at PR approval:
+
+- Lone surrogates are replaced by a code-point scan in `cleanField`, not by `toWellFormed()` (the `tsconfig.json`
+  lib is ES2022); unverified claim 4 is void. Accepted: same behavior, pinned by the AC9 lone-surrogate test.
+- `sendNotification` returns `failed` when `sleep` throws (tested). Accepted.
+- Security notes: the form framing turns a percent-encoded invalid sequence into U+FFFD (documented in the area,
+  pinned by a test); the bidi wording is softened instead of wrapping fields in isolates; U+061C is removed; link
+  previews are disabled. Accepted; `docs/areas/notifications.md` states each.
+- One `try` around settings, rules, formatting and the batch: a 503 after the payload was read logs `action` and
+  `repository`, the 503 of the pre-read logs `null` (the payload is not read yet). Accepted; consistent with the
+  area's log rules.
+- Rules are not isolated per rule (challenge note 1's "better still"): a throwing rule or formatter answers 503 and
+  stores nothing. Accepted and recorded in decision 0023 (*Consequences*).
+- `src/index.test.ts` call sites pass `ctx` (mechanical). Accepted.
+- Uncovered `src/delivery.ts:79` (catch around `sendNotification`, which never throws) and
+  `src/store/deliveries.ts:44` (an outbox insert without a returned id): defensive lines, accepted; coverage
+  98.9 % new / 96.7 % overall.
+- Security non-blocking finding (log sink typed `unknown`): fixed in this change — `log` in `src/index.ts` takes
+  `RequestLogEntry | DeliveryLogEntry` (Dev), followed by a delta round.
