@@ -1,10 +1,68 @@
-# Seluna
+<p align="center">
+  <img src="docs/assets/seluna-logo.svg" alt="Seluna logo" width="96" height="96">
+</p>
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LarsLaskowski/Seluna)
+<h1 align="center">Seluna</h1>
 
-Setup guide: [docs/setup.md](docs/setup.md). The button creates an independent copy of the repository in your GitHub account, not a fork.
+<p align="center">
+  <strong>A Telegram message when something in your GitHub repositories needs attention.</strong><br>
+  Self-hosted on your own free Cloudflare account. No central service, nothing to maintain.
+</p>
 
-Seluna sends a Telegram message when something in your GitHub repositories needs attention: a pull request is ready, a review is requested, CI failed or a security alert was opened. Draft pull requests trigger nothing. Every user runs their own instance: a private GitHub App sends webhooks to a Cloudflare Worker in your own Cloudflare account, which stores its state in D1 and delivers through your own Telegram bot. There is no central service.
+<p align="center">
+  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/LarsLaskowski/Seluna"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/LarsLaskowski/Seluna/actions/workflows/ci.yml"><img src="https://github.com/LarsLaskowski/Seluna/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/LarsLaskowski/Seluna/releases/latest"><img src="https://img.shields.io/github/v/release/LarsLaskowski/Seluna" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/LarsLaskowski/Seluna" alt="MIT license"></a>
+</p>
+
+## Why Seluna
+
+Pull requests wait for a review, a build turns red, a security alert opens, and you only notice when you happen to look at GitHub. Seluna turns those moments into a push message on your phone, so the state of your repositories comes to you. Drafts stay quiet.
+
+- **Yours alone.** Every user runs their own instance. A private GitHub App sends webhooks to a Cloudflare Worker in your own account, which keeps its state in D1 and delivers through your own Telegram bot. No data passes through a third party.
+- **Free to run.** It fits the Cloudflare free plan; Telegram and D1 cost nothing either.
+- **Set up in the browser.** Click the button above, then follow the setup wizard. No command line is needed. The aim is a working setup in under 15 minutes.
+- **No upkeep for new repositories.** Install the GitHub App on all your repositories and new ones are covered automatically.
+- **Personal and team use.** Your own account or an organization, a private chat or a Telegram group. Messages come in English or German.
+
+## What you get notified about
+
+| Event                                                          | Status            |
+| -------------------------------------------------------------- | ----------------- |
+| A pull request is opened                                       | available         |
+| A draft pull request is marked ready for review                | available         |
+| A review is requested                                          | available         |
+| CI failed on the default branch or in a pull request           | planned for 0.4.0 |
+| A Dependabot, code scanning or secret scanning alert is opened | planned for 0.4.0 |
+| A new Seluna release is available                              | planned for 0.5.0 |
+
+Each message names the repository and the case, shows the title and the context (for a pull request its author and branches) and carries a button that opens the item on GitHub. Draft pull requests trigger nothing. Quiet hours deliver messages without sound instead of holding them back.
+
+## How it works
+
+```mermaid
+flowchart LR
+  GH[GitHub App] -->|webhook| W[Cloudflare Worker]
+  W -->|verify signature, deduplicate| R[Rules]
+  R -->|notification| O[(D1 outbox)]
+  O -->|sendMessage| T[Telegram bot]
+  C[Cron] -->|retry, clean up| O
+```
+
+Every webhook is checked against its signature before anything happens. A delivery is processed once, a matching event is stored in the outbox before it is sent, and Telegram never calls your instance: Seluna only sends. The GitHub App credentials are stored encrypted. The details are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Get started
+
+1. Create a Telegram bot with [@BotFather](https://t.me/BotFather) and keep its token.
+2. Choose a random `SELUNA_SECRET` of at least 32 characters. It is the password of the setup page.
+3. Select **Deploy to Cloudflare** above. The button creates an independent copy of this repository in your GitHub account (not a fork) and deploys it.
+4. Open `https://<your-worker>.workers.dev/setup`, sign in and let the wizard connect your Telegram chat and create the GitHub App.
+
+The full walk-through is in the [setup guide](docs/setup.md). Every push to `main` of your copy deploys it.
 
 ## Settings
 
@@ -20,4 +78,31 @@ Change them on the setup page (`/setup`); they apply without a new deployment.
 | Dependabot alert, code scanning alert, secret scanning alert      | on      |
 | Notice about a new Seluna release                                 | on      |
 
-> **Status:** Seluna is under development and not usable yet.
+The switches for notifications that arrive in a later release are already there; they take effect once the release ships.
+
+## Status
+
+Seluna is in active development and can already notify you about pull requests. The path to 1.0.0 is planned release by release:
+
+| Release         | What it adds                                                                            |
+| --------------- | --------------------------------------------------------------------------------------- |
+| 0.4.0           | CI failures and security alerts                                                         |
+| 0.5.0           | Retry and cleanup of the outbox, notice of new releases, one-click updates of your copy |
+| 0.6.0           | A tidier setup: new look, navigation, bot token entered in the wizard                   |
+| 0.7.0           | A channel-neutral outbox and a switchable delivery channel                              |
+| 1.0.0           | Setup guide with screenshots, tested by someone outside the project                     |
+| 1.1.0 and 1.2.0 | More channels: ntfy, Gotify, Matrix and Discord                                         |
+
+The release plan is in [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md#release-plan-up-to-100) and the changes of each release in the [changelog](CHANGELOG.md).
+
+## Security
+
+Please report vulnerabilities privately, see [`SECURITY.md`](SECURITY.md).
+
+## Contributing
+
+How to build, test and submit a change is in [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE)
