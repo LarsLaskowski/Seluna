@@ -9,6 +9,7 @@ import reviewRequestedDraft from "../test/fixtures/pull_request/review_requested
 import { RULES } from "./rules/registry";
 import type { Notification, Rule } from "./rules/rule";
 import { readLastDelivery } from "./store/meta";
+import { writeSetting } from "./store/settings";
 import type { TelegramFetch } from "./telegram";
 import { parseWebhookPayload, processWebhook } from "./webhook";
 import type { SignedDelivery, WebhookDeps, WebhookOutcome } from "./webhook";
@@ -137,6 +138,28 @@ describe("processWebhook", () => {
     const sent = sentBody(telegram.requests[0]);
     expect(sent.text, "text").toBe("<b>New pull request</b> · octo/repo #7\nFix &lt;b&gt; &amp; &lt;/b&gt;\nmain");
     expect(sent.parse_mode, "parse_mode").toBe("HTML");
+  });
+
+  it("processWebhook sends without sound during the stored quiet hours and stores silent 0", async () => {
+    await writeSetting(env.DB, "time_zone", "Europe/Berlin");
+    await writeSetting(env.DB, "quiet_hours", "14:00-15:00");
+    const { deps, waitUntil, telegram } = harness({ rules: [testRule()] });
+
+    await processWebhook(pingDelivery(), deps);
+    await settled(waitUntil);
+
+    expect(sentBody(telegram.requests[0]).disable_notification, "disable_notification").toBe(true);
+    const row = await env.DB.prepare("SELECT silent FROM outbox").first();
+    expect(row?.silent, "stored silent").toBe(0);
+  });
+
+  it("processWebhook sends with sound when quiet hours are off", async () => {
+    const { deps, waitUntil, telegram } = harness({ rules: [testRule()] });
+
+    await processWebhook(pingDelivery(), deps);
+    await settled(waitUntil);
+
+    expect(sentBody(telegram.requests[0]).disable_notification, "disable_notification").toBe(false);
   });
 
   it("processWebhook answers 200 to a second delivery with the same id and sends one message", async () => {

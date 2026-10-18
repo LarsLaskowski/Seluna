@@ -137,12 +137,13 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
     });
     if (pending.length > 0) {
       deps.waitUntil(
-        deliverMessages(pending, settings.language, {
+        deliverMessages(pending, settings, {
           env: deps.env,
           db: deps.db,
           fetch: deps.telegramFetch,
           sleep: deps.sleep,
           log: deps.log,
+          now: deps.now,
         }),
       );
     }

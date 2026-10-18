@@ -45,8 +45,9 @@ flowchart LR
    `outbox` as escaped Telegram HTML ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md)) and `meta`
    records the time of the delivery; then the Worker answers 202. Delivery to the Telegram Bot API is attempted
    right after the answer (`waitUntil`), once more after a short 429 wait, and the cron trigger retries rows that are
-   still pending. The rules per step are in [`areas/notifications.md`](areas/notifications.md)
-   ([decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)).
+   still pending. A message sent during the owner's quiet hours is sent at once, without sound
+   ([decision 0025](decisions/0025-quiet-hours-decided-at-sending.md)). The rules per step are in
+   [`areas/notifications.md`](areas/notifications.md) ([decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)).
 
 Guarantees along the way (also in [`.squad/project.md`](../.squad/project.md), *Guarantees*): an invalid signature
 has no effect, a delivery is processed once, a matched event is stored before it is sent, and Telegram never calls
