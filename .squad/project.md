@@ -143,3 +143,21 @@ otherwise):
   delivery used to test the signature stays unaltered, because any edit breaks its signature, and is signed with a
   throwaway secret (decision 0012).
 - **D1** — the real D1 binding the Workers test pool provides (migrations applied in a test setup), not a fake.
+
+## Fixtures from real deliveries
+
+A rule test needs a real webhook payload (*Test doubles*, *Real GitHub payloads*). When the Lead finds none in
+`test/fixtures/` or on the issue, that is a normal `ESCALATE`: the Product Manager supplies raw deliveries; the Lead
+never picks a hand-built payload instead. The orchestrator turns them into fixtures before the Lead's second plan
+launch:
+
+1. **Replace** every identifying value and nothing else: logins (the owner's and third parties'), numeric ids,
+   `node_id`s, avatar and profile URLs, repository and organization names, the homepage, the installation id, commit
+   SHAs, and the text of titles, bodies and commit messages. Replacements are consistent (one original value, one
+   replacement, so references between fields still match). Structure, field set, types and the values that decide a
+   rule (`action`, `draft`, `state`, `conclusion`, labels, review states) stay untouched. A delivery used to test the
+   signature is not edited (decision 0012).
+2. **Grep for leaks**: every original login, repository name, id and SHA, taken from the raw delivery, must find
+   nothing in the new files.
+3. **Format** the new files with `npx prettier --write test/fixtures` and confirm that the parsed JSON is unchanged
+   (`npm run format:check` covers `test/fixtures/**/*.json`).
