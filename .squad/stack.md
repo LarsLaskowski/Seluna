@@ -43,6 +43,7 @@ All commands go through `package.json` scripts; a missing script is added, not w
 | *Test with coverage* | `npm run coverage:lcov` (`vitest run --coverage --coverage.reporter=lcov` with Istanbul, overwrites `coverage/lcov.info`) |
 | *Coverage gate* | `python3 .squad/tools/coverage-check.py` |
 | *Analyzer gate* | `python3 .squad/tools/analyzer-check.py` |
+| *Sonar gate* | `python3 .squad/tools/sonar-check.py branch -- npx --yes @sonar/scan@5.0.1 -Dsonar.branch.name="$(git branch --show-current)"` (after *Test with coverage*, so the analysis carries coverage; needs `SONAR_TOKEN`, see *Sonar gate* below) |
 | *Image build check* | none (Seluna builds no image) |
 
 ## Analyzer gate
@@ -57,15 +58,26 @@ findings that need a code change go to the Dev or Tester. A rule is disabled onl
 `// eslint-disable-next-line <rule> -- <reason>`.
 
 SonarQube Cloud can still report rules the local plugin version does not have, and its non-lint checks
-(duplication, hotspots, taint analysis) only run in CI — such findings arrive in squad step 11.
+(hotspots, taint analysis, duplication) have no local equivalent: the *Sonar gate* below is the first to
+report their issues and hotspots, and squad step 11 reads the quality gate, duplication included.
 
 Changed shell scripts (`*.sh`), GitHub workflows (`.github/workflows/*.yml`) and Dockerfiles are checked with
 `shellcheck`, `actionlint` and `hadolint`; the SessionStart hook installs the three as pinned, checksum-verified
 binaries (`.claude/hooks/install-linters.sh`), and the gate reports NOT RUN for one that is missing (a refused
 download, for example). The gate itself checks two SonarQube Cloud shell rules shellcheck does not report:
 `shelldre:S7679` (a positional parameter `$1`…`$9` used as a word of its own inside a function — assign it to a
-local variable first) and `shelldre:S7688` (`[ … ]` instead of `[[ … ]]`). Other `shelldre:*` findings only report
-in squad step 11.
+local variable first) and `shelldre:S7688` (`[ … ]` instead of `[[ … ]]`). Other `shelldre:*` findings are first
+reported by the *Sonar gate* below.
+
+*Sonar gate* runs SonarQube Cloud's own analysis on the work branch before the pull request (squad step 7):
+`sonar-check.py` runs the scanner with the branch name, waits for the analysis and fails on every open issue or
+security hotspot on a line the branch changed, so the rules no local analyzer has stop surfacing only after the
+pull request. It runs on the committed change (the scanner uploads the working tree, so it refuses uncommitted or
+untracked files other than the coverage reports) and needs `SONAR_TOKEN` in the session's environment (an environment secret) and network access to the
+scanner's download hosts (`api.sonarcloud.io`, `scanner.sonarcloud.io` and the package registry); without them it
+reports NOT CHECKED, and step 11 reads the draft pull request with `python3 .squad/tools/sonar-check.py pr <number>`
+instead. A finding of a rule no local analyzer reports is noted in this section, in the same change, instead of a
+squad lesson.
 
 ## Image build check
 
