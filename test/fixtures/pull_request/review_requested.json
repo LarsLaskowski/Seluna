@@ -200,9 +200,7 @@
         "web_commit_signoff_required": false,
         "has_pull_requests": true,
         "pull_request_creation_policy": "collaborators_only",
-        "topics": [
-          "example"
-        ],
+        "topics": ["example"],
         "visibility": "public",
         "forks": 0,
         "open_issues": 65,
@@ -348,9 +346,7 @@
         "web_commit_signoff_required": false,
         "has_pull_requests": true,
         "pull_request_creation_policy": "collaborators_only",
-        "topics": [
-          "example"
-        ],
+        "topics": ["example"],
         "visibility": "public",
         "forks": 0,
         "open_issues": 65,
@@ -535,9 +531,7 @@
     "web_commit_signoff_required": false,
     "has_pull_requests": true,
     "pull_request_creation_policy": "collaborators_only",
-    "topics": [
-      "example"
-    ],
+    "topics": ["example"],
     "visibility": "public",
     "forks": 0,
     "open_issues": 65,
