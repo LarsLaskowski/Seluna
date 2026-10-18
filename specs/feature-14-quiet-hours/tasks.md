@@ -1,6 +1,6 @@
 # Tasks: Quiet hours
 
-Plan: [plan.md](plan.md) — Status: Draft
+Plan: [plan.md](plan.md) — Status: Approved
 
 Every documentation edit appears in exactly one row; the Lead's approval only touches status, index rows and bookkeeping.
 
