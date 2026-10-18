@@ -4,8 +4,9 @@
 
 What happens to a webhook delivery after its signature was accepted: how a redelivery is recognized, how the rules
 decide on a notification, how a notification becomes an `outbox` row and a Telegram message, in which language, and
-how a row is sent. The owner relies on it to be told once about each case and never lose a message; GitHub relies
-on the status codes; the cron retry (issue #18) sends pending rows through the same sending rules.
+how a row is sent, with or without sound. The owner relies on it to be told once about each case and never lose a
+message; GitHub relies on the status codes; the cron retry (issue #18) sends pending rows through the same sending
+rules.
 
 ## Behavior
 
@@ -115,7 +116,8 @@ A notification is rendered once, when its row is written, and stored as the row'
 - The button URL is stored only when it parses as a URL with the scheme `https`, the host `github.com`, no user name
   or password, and at most 2,048 characters in its normalized form, which is what is stored; otherwise the row has
   no button URL and the message is sent without a button.
-- A new row is never silent yet (`silent` 0); quiet hours (issue #14) will set it.
+- A new row is written with `silent` 0; whether it is sent without sound is decided when it is sent
+  ([Quiet hours](#quiet-hours)).
 
 ### Languages
 
@@ -141,8 +143,8 @@ A notification is rendered once, when its row is written, and stored as the row'
   unchanged.
 - Otherwise one attempt is one `sendMessage` request with `chat_id`, `text`, `parse_mode` `HTML`,
   `link_preview_options` with `is_disabled` true (a link in an attacker-chosen title builds no preview card),
-  `disable_notification` (true when the row is silent) and, when the row has a button URL, an inline keyboard with
-  one button (label, URL). An attempt counts one in `attempts`, whatever its outcome:
+  `disable_notification` (true when the send is silent, [Quiet hours](#quiet-hours)) and, when the row has a button
+  URL, an inline keyboard with one button (label, URL). An attempt counts one in `attempts`, whatever its outcome:
   - a successful answer (2xx and `ok` true) marks the row `sent`;
   - a 429 answer whose `parameters.retry_after` is a whole number from 1 to 5 makes the Worker wait that many
     seconds and send the same request once more, within the same attempt; the second answer decides as below,
@@ -154,6 +156,28 @@ A notification is rendered once, when its row is written, and stored as the row'
   not stop the next row from being tried.
 - A row is sent at least once, not exactly once: when marking a row `sent` fails after Telegram accepted it, the
   cron sends it again.
+
+### Quiet hours
+
+- Quiet hours are off by default; when they are on, the settings hold a start and an end time (`HH:MM`, 24-hour,
+  start and end differ) and the time zone they are read in ([Storage](storage.md)).
+- A send is silent (`disable_notification` true) when its row is marked `silent`, or when quiet hours are on and the
+  time of the send lies in them. Otherwise it is sent with sound. Nothing is held back or delayed: a message inside
+  the quiet hours is sent at once, without sound.
+- The time of the send is one reading of the clock, taken just before the row's `sendMessage` request; the second
+  request after a 429 is the same request and keeps its `disable_notification`. Each row of a delivery takes its own
+  reading. A row sent again later (the cron) is silent or not by the time of that send, not by the time it was
+  written. The settings are those read for the batch of rows being sent (for a new delivery: when it was processed).
+- That time is converted to the wall-clock hour and minute of the configured time zone, including daylight saving
+  time, and compared by the minute: the start minute is quiet, the end minute is not (22:00–07:00 is quiet from
+  22:00:00 up to and including 06:59:59). A start later than the end spans midnight (22:00–07:00 covers 22:00 to
+  23:59 and 00:00 to 06:59); `00:00` as the end means up to midnight.
+- On the day daylight saving time begins, a wall-clock time inside the skipped hour never occurs, so quiet hours lying
+  entirely inside it do not happen that day; on the day it ends, the repeated hour counts by its wall-clock time both
+  times. Quiet hours that contain the changeover keep their wall-clock start and end, so they last an hour less or
+  more that night.
+- A time zone the runtime does not accept is read as UTC; a time that cannot be converted is not quiet. Deciding
+  never fails a send.
 
 ### Log entries
 
@@ -192,6 +216,8 @@ A notification is rendered once, when its row is written, and stored as the row'
   the language at sending, the retry bound, 400 for an unprocessable signed delivery.
 - [`decisions/0024-pull-request-rules.md`](../decisions/0024-pull-request-rules.md) — the three pull request rules,
   `draft` required to be `false`, silence on an unexpected shape, line 3 with author and branches.
+- [`decisions/0025-quiet-hours-decided-at-sending.md`](../decisions/0025-quiet-hours-decided-at-sending.md) — quiet
+  hours applied at each send rather than when the row is written, one clock reading per row, wall-clock times.
 - [`decisions/0008-delivery-through-a-d1-outbox.md`](../decisions/0008-delivery-through-a-d1-outbox.md) — the
   outbox and the at-least-once delivery.
 - [`decisions/0016-telegram-chat-in-the-setup-wizard.md`](../decisions/0016-telegram-chat-in-the-setup-wizard.md)

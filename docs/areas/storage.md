@@ -34,7 +34,7 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
 | `outbox`      | `id`              | INTEGER | Primary key, assigned by the database                                                                                                                          |
 |               | `text`            | TEXT    | The message text as sent to Telegram: Telegram HTML, rendered when the row is written ([Notifications](notifications.md#message-format))                       |
 |               | `button_url`      | TEXT    | Nullable: the URL of the message's button, only an `https://github.com` URL ([Notifications](notifications.md#message-format)); the button label is not stored |
-|               | `silent`          | INTEGER | `1` to send without sound, otherwise `0` (default `0`; nothing else is accepted)                                                                               |
+|               | `silent`          | INTEGER | `1` to send without sound at any time, otherwise `0`: the quiet hours decide at sending (default `0`; nothing else is accepted)                                |
 |               | `attempts`        | INTEGER | Delivery attempts so far (default `0`, never negative)                                                                                                         |
 |               | `status`          | TEXT    | `pending` (default), `sent` or `failed`; nothing else is accepted                                                                                              |
 |               | `created_at`      | INTEGER | When the row was written; indexed together with `status`                                                                                                       |

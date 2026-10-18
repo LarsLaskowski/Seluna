@@ -76,5 +76,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0022](0022-squad-working-records-off-main.md) | Squad working records stay off main, and product PRs never change the squad | Accepted | 2026-10-17 |
 | [0023](0023-webhook-processing-and-delivery-through-the-outbox.md) | Webhook processing, message format and delivery through the outbox | Accepted | 2026-10-17 |
 | [0024](0024-pull-request-rules.md) | Pull request rules | Accepted | 2026-10-18 |
+| [0025](0025-quiet-hours-decided-at-sending.md) | Quiet hours decided at sending | Proposed | 2026-10-18 |
 
 <!-- project:end index -->
