@@ -15,6 +15,7 @@ Every documentation edit appears in exactly one row; the Lead's approval only to
 | 7 | Reword the stale comment above the registry mock | `src/index.test.ts` | — | Tester | [ ] |
 | 8 | Implement the narrowing and the rule factory until the tests and the *Coverage gate* pass | `src/rules/pull-request.ts` | AC1-AC15 | Dev | [ ] |
 | 9 | Update the registry comment | `src/rules/registry.ts` | — | Dev | [ ] |
-| 10 | Area document: *Pull request rules* subsection, *Languages*, *Related decisions* | `docs/areas/notifications.md` | — | Dev | [ ] |
-| 11 | Analyzer gate on the changed files | all changed `.ts` files | — | Code Officer | [ ] |
-| 12 | At approval: decision 0024 and its index row to `Accepted`; link 0024 from step 3 of the flow | `docs/decisions/0024-pull-request-rules.md`, `docs/decisions/README.md`, `docs/ARCHITECTURE.md` | — | Lead | [ ] |
+| 10 | Area document: *Pull request rules* subsection (with the three statements listed in plan *Areas*: `draft` condition for `ready_for_review`, every requested review reported, outsiders on public repositories and tappable links), *Languages*, *Related decisions* | `docs/areas/notifications.md` | — | Dev | [ ] |
+| 11 | Changelog entry under `## [Unreleased]` → `### Added`, wording exactly as in plan *Documentation updates* | `CHANGELOG.md` | — | Dev | [ ] |
+| 12 | Analyzer gate on the changed files | all changed `.ts` files | — | Code Officer | [ ] |
+| 13 | At approval: decision 0024 and its index row to `Accepted`; link 0024 from step 3 of the flow | `docs/decisions/0024-pull-request-rules.md`, `docs/decisions/README.md`, `docs/ARCHITECTURE.md` | — | Lead | [ ] |

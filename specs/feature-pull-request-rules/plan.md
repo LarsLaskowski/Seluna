@@ -75,8 +75,8 @@ Narrowing (`nonDraftPullRequest`, `src/rules/pull-request.test.ts`):
 - [ ] AC5: It returns `undefined` for each unexpected shape, each built from fixture `opened` with one change:
   `pull_request` absent, `null`, an array; `pull_request.number` `0`, `-1`, `1.5`, `2 ** 53`, `"143"`, `Infinity`
   (what `JSON.parse` makes of `1e400`); `title`, `html_url`, `user.login`, `head.ref`, `base.ref` each absent and a
-  number; `user`, `head`, `base` each `null`; `repository` absent, `null`; `repository.full_name` absent and a
-  number. Test: `nonDraftPullRequest returns undefined when $case`.
+  number; `title` an array (`[]`) and `head.ref` an object (`{}`); `user`, `head`, `base` each `null`; `repository`
+  absent, `null`; `repository.full_name` absent and a number. Test: `nonDraftPullRequest returns undefined when $case`.
 - [ ] AC6: It does not read `head.repo` or `sender`: fixture `opened` with `pull_request.head.repo` set to `null` and
   with `sender` removed still returns the fields of AC1.
   Test: `nonDraftPullRequest ignores head.repo and sender`.
@@ -300,13 +300,23 @@ Files of the change no unit test can cover: none (`test/fixtures/pull_request/RE
   `requested_reviewer`, `requested_team`, `head.repo`) and so no filter by sender or reviewer, silence on any
   unexpected shape, one message per review-request delivery, the unverified team and fork shapes. Keep the sentence
   that #16 and #17 follow. *Languages*: the tables also hold the titles and line 3 of the rules. *Related decisions*:
-  add decision 0024; in the 0023 entry drop "the empty rule list". Owner: Dev.
+  add decision 0024; in the 0023 entry drop "the empty rule list". Owner: Dev. The subsection also carries these
+  three statements (Challenge 1 and 2, Security review 1), in the Dev's wording:
+  - `ready_for_review` also requires `draft` to be `false`, although issue #13 gives no condition for it; on a
+    genuine delivery `draft` is already `false`, so this only silences a payload that claims a draft (decision 0024).
+  - `review_requested` reports every requested review, whoever was asked (a user or a team) and whoever asked —
+    also when the owner asks someone else to review the owner's own pull request; the message names neither.
+  - Because the rules do not filter by sender, on a public repository anyone who opens a pull request triggers a
+    message with a title and branch name of their choosing, one per pull request; Telegram apps still turn URLs,
+    `@mentions` and `/commands` in that text into tappable links, even though the text is escaped and link
+    previews are off. No rate limit exists.
 
 ## Documentation updates
 
 | File | Edit | Owner |
 | ---- | ---- | ----- |
 | `docs/areas/notifications.md` | as in *Areas* | Dev |
+| `CHANGELOG.md` | under `## [Unreleased]` → `### Added`, after the existing bullet, add exactly: `- Notifications for pull requests: a message when a pull request is opened, when a draft pull request is marked ready for review, and when a review is requested; draft pull requests trigger nothing, and each of the three has its own switch in the settings.` The existing bullet ("… once the notification rules arrive") stays unchanged. | Dev |
 | `src/rules/registry.ts` comment | "the rules arrive with their own issues" → the order is the settings order; CI (#16) and security alert (#17) rules follow | Dev |
 | `src/index.test.ts` line 16 comment | no longer "holds no rule yet": the mock replaces the real rules so a ping can drive the wiring test | Tester |
 | `test/fixtures/pull_request/README.md` | new, like `test/fixtures/github/README.md`: captured from real deliveries of the owner's GitHub App, supplied on issue #13 on 2026-10-18; anonymized by replacing logins, ids, node_ids, repository names, homepage, SHAs, the pull request title and body and the installation id, structure and field set untouched; a table of the five files with action, `draft` and what each covers; the variants not available (team reviewer, fork pull request) and that a later sample is added as its own file, not edited into these | Tester |
@@ -367,17 +377,29 @@ sent until a rule exists (#13)" is the consequence of that decision at its time;
 - Live check of the first real notification against the Telegram API (decision 0023): after deployment, by the
   owner.
 
-## Challenge notes
+## Challenge
 
-Minor objections of the Devil's Advocate, verbatim:
+Plan challenge: 0 major, 2 minor objections. Both accepted; no scope change.
 
-1. **Deviation from the issue (minor).** The issue table gives condition "none" for `ready_for_review`, while the plan requires `draft === false` for all three actions (AC4, AC9). The plan states this and the fixture supports it. Because the issue text differs, record it explicitly in the *Challenge notes* and in `docs/areas/notifications.md`. That way a reviewer comparing against the issue does not flag it as scope creep. The `ready_for_review` with `draft: true` test must stay, because it is the only test of this deviation.
-2. **Review requested from someone else (minor).** Gap: B8 and AC10 accept that `review_requested` fires for any requested reviewer and any team, including when the owner asks someone else to review their own pull request. That produces a "Review requested" message to the owner for a review they do not have to do. The plan does not say whether the app's webhook only reaches the owner's own repositories, nor whether GitHub sends the event to the app for every reviewer. Instruction: the Dev should state this accepted consequence in the `notifications.md` subsection, next to the "one message per review-request delivery" sentence. No plan change is needed, and the issue explicitly says there is no filter by reviewer.
+1. **Deviation from the issue: `draft === false` also for `ready_for_review` (minor)** — accepted. The deviation is
+   decided in decision 0024 and stated in *Problem / root cause*; the Dev now states it in the *Pull request rules*
+   subsection of `docs/areas/notifications.md` (*Areas*, first listed statement). The test
+   `PULL_REQUEST_READY_FOR_REVIEW ignores a ready_for_review payload that claims a draft` (AC9) stays as the only test
+   of the deviation.
+2. **Review requested from someone else (minor)** — accepted as documentation. Issue #13 explicitly asks for no
+   filter by reviewer, so no behavior change; the Dev states next to "one message per review-request delivery" that
+   `review_requested` reports every requested review, including one the owner requested from someone else on the
+   owner's own pull request (*Areas*, second listed statement).
 
-## Security notes
+## Security review
 
-Non-blocking findings of the Security plan review (`APPROVED`), verbatim:
+Security plan review: `APPROVED`, three non-blocking notes, each decided:
 
-1. On a public repository anyone can open a pull request, and there is no sender filter (B8). So outsiders can trigger messages with their own title and branch name, and one message per pull request means they can also flood the chat. Telegram apps still turn URLs, `@mentions` and `/commands` in that text into clickable links, even with previews off and the text escaped. This is current `formatMessage` behavior, not a defect of this plan. I suggest the *Pull request rules* subsection in `docs/areas/notifications.md` says it in one sentence; rate limiting would be a separate issue if the Product Manager wants it.
-2. AC5 covers the text fields only as "absent" and "a number". Adding one object or array case (for example `title: []`) would pin the plan's claim that "objects and arrays do not" pass. This is optional: a `typeof` check rejects them the same way.
-3. Not a security point, for the Lead: the *Plan checklist* in `.squad/project.md` asks for a `CHANGELOG.md` entry under `## [Unreleased]` for a user-visible change. The plan's *Documentation updates* table does not list one, and these are the first notifications users will actually get.
+1. **Outsiders can trigger messages on public repositories; clickable links in the text** — accepted as
+   documentation. The behavior is the existing `formatMessage` behavior and the issue asks for no sender filter; the
+   Dev states it in one sentence in the *Pull request rules* subsection (*Areas*, third listed statement). Rate
+   limiting is not planned here; a separate issue only if the Product Manager wants it.
+2. **AC5 object/array case for text fields** — taken (cheap): AC5 now also covers `title` an array (`[]`) and
+   `head.ref` an object (`{}`), which pins the *Security considerations* claim that objects and arrays do not pass.
+3. **`CHANGELOG.md` entry under `## [Unreleased]`** — accepted: added to *Documentation updates* with exact wording,
+   owner Dev (tasks.md task 11).
