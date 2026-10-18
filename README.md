@@ -5,8 +5,8 @@
 <h1 align="center">Seluna</h1>
 
 <p align="center">
-  <strong>A Telegram message when something in your GitHub repositories needs attention.</strong><br>
-  Self-hosted on your own free Cloudflare account. No central service, nothing to maintain.
+  <strong>A notification on your phone when something in your GitHub repositories needs attention.</strong><br>
+  Self-hosted on your own free Cloudflare account, delivered through your own messenger. No central service, nothing to maintain.
 </p>
 
 <p align="center">
@@ -21,13 +21,14 @@
 
 ## Why Seluna
 
-Pull requests wait for a review, a build turns red, a security alert opens, and you only notice when you happen to look at GitHub. Seluna turns those moments into a push message on your phone, so the state of your repositories comes to you. Drafts stay quiet.
+Pull requests wait for a review, a build turns red, a security alert opens, and you only notice when you happen to look at GitHub. Seluna turns those moments into a notification on your phone, so the state of your repositories comes to you. Drafts stay quiet.
 
-- **Yours alone.** Every user runs their own instance. A private GitHub App sends webhooks to a Cloudflare Worker in your own account, which keeps its state in D1 and delivers through your own Telegram bot. No data passes through a third party.
-- **Free to run.** It fits the Cloudflare free plan; Telegram and D1 cost nothing either.
+- **Yours alone.** Every user runs their own instance. A private GitHub App sends webhooks to a Cloudflare Worker in your own account, which keeps its state in D1 and delivers through a messenger of your own, today a Telegram bot. No data passes through a third party.
+- **Your messenger.** Telegram works today. ntfy, Gotify, Matrix and Discord are planned, and you will be able to switch between the ones you have set up.
+- **Free to run.** It fits the Cloudflare free plan; D1 and Telegram cost nothing either.
 - **Set up in the browser.** Click the button above, then follow the setup wizard. No command line is needed. The aim is a working setup in under 15 minutes.
 - **No upkeep for new repositories.** Install the GitHub App on all your repositories and new ones are covered automatically.
-- **Personal and team use.** Your own account or an organization, a private chat or a Telegram group. Messages come in English or German.
+- **Personal and team use.** Your own account or an organization, a private chat or a group chat. Messages come in English or German.
 
 ## What you get notified about
 
@@ -49,15 +50,15 @@ flowchart LR
   GH[GitHub App] -->|webhook| W[Cloudflare Worker]
   W -->|verify signature, deduplicate| R[Rules]
   R -->|notification| O[(D1 outbox)]
-  O -->|sendMessage| T[Telegram bot]
+  O -->|send| T[Messenger, today Telegram]
   C[Cron] -->|retry, clean up| O
 ```
 
-Every webhook is checked against its signature before anything happens. A delivery is processed once, a matching event is stored in the outbox before it is sent, and Telegram never calls your instance: Seluna only sends. The GitHub App credentials are stored encrypted. The details are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Every webhook is checked against its signature before anything happens. A delivery is processed once, a matching event is stored in the outbox before it is sent, and your messenger never calls your instance: Seluna only sends. The GitHub App credentials are stored encrypted. The details are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Get started
 
-1. Create a Telegram bot with [@BotFather](https://t.me/BotFather) and keep its token.
+1. Create a bot for Telegram, the first supported messenger, with [@BotFather](https://t.me/BotFather) and keep its token.
 2. Choose a random `SELUNA_SECRET` of at least 32 characters. It is the password of the setup page.
 3. Select **Deploy to Cloudflare** above. The button creates an independent copy of this repository in your GitHub account (not a fork) and deploys it.
 4. Open `https://<your-worker>.workers.dev/setup`, sign in and let the wizard connect your Telegram chat and create the GitHub App.
