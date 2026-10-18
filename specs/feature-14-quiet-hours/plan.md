@@ -318,3 +318,10 @@ Telegram* entry still holds — same method, same input).
 
 - The cron retry (#18) passes settings and its clock to `deliverMessages`; its plan will do so — no follow-up issue.
 - Holding messages back, digests, per-rule or per-weekday quiet hours: not requested.
+
+## Challenge notes
+
+Devil's Advocate verdict: OBJECTIONS 0 major, 2 minor (appended verbatim).
+
+1. **minor:** `deliverOne` (`src/delivery.ts:63-91`) has its `try` only around `sendNotification`, and its doc comment says "Never rejects". The plan adds `deps.now()` and `isQuietTime(...)` just before that call without saying where they go. `deps.now` is injected and could throw, and so could a future change to `isQuietTime`. The Dev should put the clock read and the decision inside the existing `try`, or in a `try` that falls back to `message.silent`. Then the "Never rejects" guarantee and the plan's claim that a send cannot fail on this still hold. The Tester should add a case where `now` throws and the row is still sent.
+2. **minor:** AC4d and AC4e depend on the clock being read exactly once per row. `deliverMessages` and `resolveTarget` must not call `deps.now` themselves. The Dev should read it only in `deliverOne`. The Dev should also make sure rows skipped because the token or chat is missing do not consume a clock reading, since the plan says the read happens "only when the target is ready".
