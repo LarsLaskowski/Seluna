@@ -39,7 +39,8 @@ flowchart LR
    [decision 0017](decisions/0017-github-app-manifest-flow.md)).
 2. A delivery id (`X-GitHub-Delivery`) that `deliveries` already holds is answered 200 and ignored.
 3. The payload goes through the rules, each a pure function of event name, payload and settings. A draft pull
-   request, and any event no rule matches, produces nothing.
+   request, and any event no rule matches, produces nothing
+   ([decision 0024](decisions/0024-pull-request-rules.md)).
 4. In one D1 transaction the delivery id is recorded in `deliveries`, each notification becomes a row in the
    `outbox` as escaped Telegram HTML ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md)) and `meta`
    records the time of the delivery; then the Worker answers 202. Delivery to the Telegram Bot API is attempted

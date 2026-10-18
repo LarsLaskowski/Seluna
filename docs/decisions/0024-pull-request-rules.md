@@ -1,6 +1,6 @@
 # 0024: Pull request rules
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-18
 - **Area:** Notifications
 - **Source:** Issue #13
