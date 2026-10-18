@@ -13,8 +13,8 @@ import { writeSecret } from "./store/secrets";
 
 const { WIRING_ZEN } = vi.hoisted(() => ({ WIRING_ZEN: "Seluna wiring test" }));
 
-// The registry holds no rule yet: this one reports only the `ping` whose zen is WIRING_ZEN (never the real ping), so
-// the wiring of the Worker (waitUntil, the Telegram fetch) is tested end to end.
+// The mock replaces the real rules: this one reports only the `ping` whose zen is WIRING_ZEN (never the real ping), so
+// a ping can drive the wiring of the Worker (waitUntil, the Telegram fetch) end to end.
 vi.mock("./rules/registry", () => {
   const rule: Rule = {
     id: "pull_request_opened",

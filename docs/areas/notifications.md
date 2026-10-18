@@ -54,8 +54,40 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
 - A notification holds: the title of the case (line 1, in the notification language, chosen by the rule), the
   repository as `owner/repo`, the number of the pull request or alert (or none), line 2, line 3 and the URL for the
   button (the `html_url` of the payload).
-- No rule exists yet: every delivery is recorded and answered 202 without a message. The rules follow with issues
-  #13 (pull requests), #16 (CI) and #17 (security alerts).
+- The rules run in the order of the switches in the settings. The pull request rules are below; the rules for CI
+  (#16) and security alerts (#17) follow.
+
+#### Pull request rules
+
+Three rules report the event `pull_request` (decision [0024](../decisions/0024-pull-request-rules.md)). Each reports
+a delivery only when `action` is the one of its case and `pull_request.draft` is the boolean `false`; a draft pull
+request triggers nothing.
+
+| Switch id                       | `action`           | English title      | German title         |
+| ------------------------------- | ------------------ | ------------------ | -------------------- |
+| `pull_request_opened`           | `opened`           | `New pull request` | `Neuer Pull Request` |
+| `pull_request_ready_for_review` | `ready_for_review` | `Ready for review` | `Bereit zum Review`  |
+| `pull_request_review_requested` | `review_requested` | `Review requested` | `Review angefordert` |
+
+- Line 1 is the title, `repository.full_name` and `pull_request.number`; line 2 is `pull_request.title`; line 3 is
+  `by author · head → base` (German `von author · head → base`) from `pull_request.user.login`,
+  `pull_request.head.ref` and `pull_request.base.ref`; the button URL is `pull_request.html_url`.
+- The rules read no other field: not `sender`, `requested_reviewer`, `requested_team` or `head.repo`. So there is no
+  filter by sender or reviewer, and a fork's branch is shown without its owner.
+- A delivery whose fields are missing or of another type (`number` not a whole number from 1 to 2^53 − 1, a text field
+  not a string, `draft` not `false`) triggers nothing.
+- `ready_for_review` also requires `draft` to be `false`, although issue #13 gives no condition for it; on a genuine
+  delivery `draft` is already `false`, so this only silences a payload that claims a draft (decision 0024).
+- `review_requested` reports every requested review, whoever was asked (a user or a team) and whoever asked — also
+  when the owner asks someone else to review the owner's own pull request; the message names neither. GitHub is
+  expected to send one delivery per requested reviewer, so several reviewers give several identical messages.
+- Because the rules do not filter by sender, on a public repository anyone who opens a pull request triggers a
+  message with a title and branch name of their choosing, one per pull request; Telegram apps still turn URLs,
+  `@mentions` and `/commands` in that text into tappable links, even though the text is escaped and link previews
+  are off. No rate limit exists.
+- Not verified against real deliveries: a review requested from a team, a pull request from a fork and the
+  one-delivery-per-reviewer behavior. The rules read only fields that exist in all of them and stay silent when one
+  is missing.
 
 ### Message format
 
@@ -91,6 +123,7 @@ A notification is rendered once, when its row is written, and stored as the row'
   a table with a missing key does not compile.
 - The rules write the title and line 3 in the notification language of the settings, read when the delivery is
   processed.
+- The tables hold the titles and line 3 of the pull request rules ([Pull request rules](#pull-request-rules)).
 - The button reads _Open on GitHub_ in English and _Auf GitHub öffnen_ in German. Its language is the notification
   language at the time the row is sent, so a row still pending when the owner switches the language keeps its text
   and gets the button in the new language.
@@ -155,8 +188,10 @@ A notification is rendered once, when its row is written, and stored as the row'
 ## Related decisions
 
 - [`decisions/0023-webhook-processing-and-delivery-through-the-outbox.md`](../decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)
-  — the empty rule list, the one-transaction deduplication, the text rendered when written, the button label from
+  — the one-transaction deduplication, the text rendered when written, the button label from
   the language at sending, the retry bound, 400 for an unprocessable signed delivery.
+- [`decisions/0024-pull-request-rules.md`](../decisions/0024-pull-request-rules.md) — the three pull request rules,
+  `draft` required to be `false`, silence on an unexpected shape, line 3 with author and branches.
 - [`decisions/0008-delivery-through-a-d1-outbox.md`](../decisions/0008-delivery-through-a-d1-outbox.md) — the
   outbox and the at-least-once delivery.
 - [`decisions/0016-telegram-chat-in-the-setup-wizard.md`](../decisions/0016-telegram-chat-in-the-setup-wizard.md)

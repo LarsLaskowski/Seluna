@@ -1,6 +1,11 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { body as pingBody, headers as pingHeaders } from "../test/fixtures/ping/form-delivery.json";
+import opened from "../test/fixtures/pull_request/opened.json";
+import openedDraft from "../test/fixtures/pull_request/opened-draft.json";
+import readyForReview from "../test/fixtures/pull_request/ready_for_review.json";
+import reviewRequested from "../test/fixtures/pull_request/review_requested.json";
+import reviewRequestedDraft from "../test/fixtures/pull_request/review_requested-draft.json";
 import { RULES } from "./rules/registry";
 import type { Notification, Rule } from "./rules/rule";
 import { readLastDelivery } from "./store/meta";
@@ -52,6 +57,11 @@ function jsonDelivery(text: string | Uint8Array, overrides: Partial<SignedDelive
     body: typeof text === "string" ? encoder.encode(text) : text,
     ...overrides,
   });
+}
+
+/** A signed `pull_request` delivery whose JSON body is `payload`. */
+function pullRequestDelivery(payload: object): SignedDelivery {
+  return jsonDelivery(JSON.stringify(payload), { event: "pull_request" });
 }
 
 function notificationWith(subject: string): Notification {
@@ -230,6 +240,54 @@ describe("processWebhook", () => {
     expect(await count("outbox"), "outbox rows").toBe(0);
     expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
   });
+
+  it("processWebhook writes the message of the real opened pull request delivery", async () => {
+    const { deps } = harness({ rules: RULES });
+
+    const outcome = await processWebhook(pullRequestDelivery(opened), deps);
+
+    expect(outcome.status, "status").toBe(202);
+    expect(outcome.decision, "decision").toBe("reported");
+    expect(await env.DB.prepare("SELECT text, button_url FROM outbox").all(), "outbox rows").toMatchObject({
+      results: [
+        {
+          text: "<b>New pull request</b> · example-owner/example-other-repo #143\n[Docs] Update the contributor documentation\nby example-owner · claude/example-branch → main",
+          button_url: "https://github.com/example-owner/example-other-repo/pull/143",
+        },
+      ],
+    });
+  });
+
+  it.each<{ fixture: string; payload: object }>([
+    { fixture: "opened-draft", payload: openedDraft },
+    { fixture: "review_requested-draft", payload: reviewRequestedDraft },
+  ])("processWebhook writes no message for the real $fixture delivery", async ({ payload }) => {
+    const { deps } = harness({ rules: RULES });
+
+    const outcome = await processWebhook(pullRequestDelivery(payload), deps);
+
+    expect(outcome.status, "status").toBe(202);
+    expect(outcome.decision, "decision").toBe("no-match");
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it.each<{ fixture: string; payload: object; rule: string }>([
+    { fixture: "opened", payload: opened, rule: "pull_request_opened" },
+    { fixture: "ready_for_review", payload: readyForReview, rule: "pull_request_ready_for_review" },
+    { fixture: "review_requested", payload: reviewRequested, rule: "pull_request_review_requested" },
+  ])(
+    "processWebhook writes no message for the real $fixture delivery when its rule is off",
+    async ({ payload, rule }) => {
+      await env.DB.prepare("INSERT INTO settings (key, value) VALUES (?1, 'off')").bind(`rule_${rule}`).run();
+      const { deps } = harness({ rules: RULES });
+
+      const outcome = await processWebhook(pullRequestDelivery(payload), deps);
+
+      expect(outcome.status, "status").toBe(202);
+      expect(outcome.decision, "decision").toBe("disabled");
+      expect(await count("outbox"), "outbox rows").toBe(0);
+    },
+  );
 
   it("processWebhook stores the clock time as last_delivery for a new delivery", async () => {
     const { deps } = harness();
