@@ -11,5 +11,5 @@ are quoted in full.
 | 2026-10-18 08:54 | 2 Plan challenge | squad-devils-advocate | launched |
 | 2026-10-18 08:55 | 2 Plan challenge | squad-devils-advocate | VERDICT: OBJECTIONS 0 major, 2 minor; appended to plan.md as Challenge notes; step 3 not applicable (tier standard) (sonnet/medium · 34,473 tokens · 10 tool uses · 23 s) |
 | 2026-10-18 08:55 | 4 Skeleton | squad-dev | launched (mode skeleton) |
-| 2026-10-18 08:56 | 4 Skeleton | squad-dev | skeleton done, no deviations; typecheck passes |
+| 2026-10-18 08:56 | 4 Skeleton | squad-dev | skeleton done, no deviations; typecheck passes (sonnet/medium · 76,736 tokens · 7 tool uses · 32 s) |
 | 2026-10-18 08:56 | 5 Tests first | squad-tester | launched (mode tests-first) |
