@@ -116,14 +116,19 @@ The GitHub milestones are the release plan: one milestone is one release. A rele
 issue of its milestone has been closed, not earlier and not later. The version in `package.json` stays at the last
 released version until that release pull request; it is never raised on its own.
 
-| Milestone                           | Issues            | Version    | What an owner can do afterwards                                          |
-| ----------------------------------- | ----------------- | ---------- | ------------------------------------------------------------------------ |
-| M0 – Repository foundation          | #1–#3             | **0.1.0**  | (released together with M1 and #7–#9)                                    |
-| M1 – Endpoint and deployment        | #4–#6             | **0.1.0**  | Deploy an instance with one click, `/health`, signed webhooks            |
-| M2 – Setup wizard                   | #7–#11, #35, #40  | **0.2.0**  | Finish the whole setup in the wizard, including settings and status page |
-| M3 – Pull request notifications     | #12–#14           | **0.3.0**  | Receive the first real Telegram messages, with quiet hours               |
-| M4 – CI and security alerts         | #15–#17           | **0.4.0**  | Messages for failed CI runs and new security alerts                      |
-| M5 – Ready for everyone             | #18–#20           | **1.0.0**  | Retry, cleanup, update workflow, setup guide and an external setup test  |
+| Milestone                       | Issues           | Version   | What an owner can do afterwards                                            |
+| ------------------------------- | ---------------- | --------- | -------------------------------------------------------------------------- |
+| M0 – Repository foundation      | #1–#3            | **0.1.0** | (released together with M1 and #7–#9)                                      |
+| M1 – Endpoint and deployment    | #4–#6            | **0.1.0** | Deploy an instance with one click, `/health`, signed webhooks              |
+| M2 – Setup wizard               | #7–#11, #35, #40 | **0.2.0** | Finish the whole setup in the wizard, including settings and status page   |
+| M3 – Pull request notifications | #12–#14          | **0.3.0** | Receive the first real Telegram messages, with quiet hours                 |
+| M4 – CI and security alerts     | #15–#17          | **0.4.0** | Messages for failed CI runs and new security alerts                        |
+| M5 – Operations and updates     | #18, #19         | **0.5.0** | Retry and cleanup of the outbox, notice of new releases, one-click updates |
+| M6 – Setup polish               | #65–#68          | **0.6.0** | A tidier setup with navigation, a redirect from the Worker URL and the bot token entered in the wizard |
+| M7 – Delivery channels          | #69              | **0.7.0** | A channel-neutral outbox and a switchable delivery channel                 |
+| M8 – Ready for everyone         | #20              | **1.0.0** | Setup guide, external setup test and one week without a lost or duplicated message |
+| M9 – Push messengers            | #70, #71         | **1.1.0** | ntfy and Gotify as additional channels                                     |
+| M10 – Chat messengers           | #72, #73         | **1.2.0** | Matrix and Discord as additional channels                                  |
 
 - Version 0.1.0 was published when M0, M1 and the first three issues of M2 (#7–#9) were done, so M0 and M1 share it
   and 0.2.0 is the release of the rest of M2. Every later milestone has a release of its own.
@@ -134,6 +139,8 @@ released version until that release pull request; it is never raised on its own.
   because the tag contains everything on `main`; cut the release pull request first when the last issue of a
   milestone is closed.
 - 1.0.0 is tagged only after the acceptance criteria of #20 are met; nothing else makes a version 1.0.0.
+- 1.0.0 comes before the messenger channels: they are additive and follow as minor releases (1.1.0, 1.2.0), each adding
+  one step to the setup guide.
 <!-- project:end releases -->
 
 <!-- project:begin stability -->
