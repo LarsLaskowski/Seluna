@@ -366,3 +366,18 @@ sent until a rule exists (#13)" is the consequence of that decision at its time;
   orchestrator may open it if the Product Manager wants it.
 - Live check of the first real notification against the Telegram API (decision 0023): after deployment, by the
   owner.
+
+## Challenge notes
+
+Minor objections of the Devil's Advocate, verbatim:
+
+1. **Deviation from the issue (minor).** The issue table gives condition "none" for `ready_for_review`, while the plan requires `draft === false` for all three actions (AC4, AC9). The plan states this and the fixture supports it. Because the issue text differs, record it explicitly in the *Challenge notes* and in `docs/areas/notifications.md`. That way a reviewer comparing against the issue does not flag it as scope creep. The `ready_for_review` with `draft: true` test must stay, because it is the only test of this deviation.
+2. **Review requested from someone else (minor).** Gap: B8 and AC10 accept that `review_requested` fires for any requested reviewer and any team, including when the owner asks someone else to review their own pull request. That produces a "Review requested" message to the owner for a review they do not have to do. The plan does not say whether the app's webhook only reaches the owner's own repositories, nor whether GitHub sends the event to the app for every reviewer. Instruction: the Dev should state this accepted consequence in the `notifications.md` subsection, next to the "one message per review-request delivery" sentence. No plan change is needed, and the issue explicitly says there is no filter by reviewer.
+
+## Security notes
+
+Non-blocking findings of the Security plan review (`APPROVED`), verbatim:
+
+1. On a public repository anyone can open a pull request, and there is no sender filter (B8). So outsiders can trigger messages with their own title and branch name, and one message per pull request means they can also flood the chat. Telegram apps still turn URLs, `@mentions` and `/commands` in that text into clickable links, even with previews off and the text escaped. This is current `formatMessage` behavior, not a defect of this plan. I suggest the *Pull request rules* subsection in `docs/areas/notifications.md` says it in one sentence; rate limiting would be a separate issue if the Product Manager wants it.
+2. AC5 covers the text fields only as "absent" and "a number". Adding one object or array case (for example `title: []`) would pin the plan's claim that "objects and arrays do not" pass. This is optional: a `typeof` check rejects them the same way.
+3. Not a security point, for the Lead: the *Plan checklist* in `.squad/project.md` asks for a `CHANGELOG.md` entry under `## [Unreleased]` for a user-visible change. The plan's *Documentation updates* table does not list one, and these are the first notifications users will actually get.
