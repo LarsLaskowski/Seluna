@@ -45,6 +45,19 @@ function settingsIn(language: Language): DeliverySettings {
   return { language, timeZone: "UTC", quietHours: undefined };
 }
 
+/** Settings with quiet hours 12:00-13:00 in UTC. */
+function inQuietHours(): DeliverySettings {
+  return { language: "en", timeZone: "UTC", quietHours: { start: "12:00", end: "13:00" } };
+}
+
+/** A clock that reads one millisecond before 13:00 UTC on its first call and 13:00 UTC on every later call. */
+function boundaryClock(): () => Date {
+  return vi
+    .fn<() => Date>()
+    .mockReturnValueOnce(new Date("2026-10-17T12:59:59.999Z"))
+    .mockReturnValue(new Date("2026-10-17T13:00:00.000Z"));
+}
+
 interface Harness {
   readonly deps: DeliveryDeps;
   readonly log: DeliveryLogEntry[];
@@ -240,6 +253,83 @@ describe("deliverMessages", () => {
     await deliverMessages([message], settingsIn("en"), deps);
 
     expect(telegram.requests[0]?.body, "request body").toMatchObject({ disable_notification: true });
+  });
+
+  it("deliverMessages sends disable_notification true for a row sent during quiet hours", async () => {
+    const message = await insertRow();
+    const { deps, telegram } = harness();
+
+    await deliverMessages([message], inQuietHours(), deps);
+
+    expect(telegram.requests[0]?.body, "request body").toMatchObject({ disable_notification: true });
+  });
+
+  it("deliverMessages sends disable_notification false for a row sent outside quiet hours", async () => {
+    const message = await insertRow();
+    const { deps, telegram } = harness();
+
+    await deliverMessages([message], inQuietHours(), { ...deps, now: () => new Date("2026-10-17T13:00:00Z") });
+
+    expect(telegram.requests[0]?.body, "request body").toMatchObject({ disable_notification: false });
+  });
+
+  it("deliverMessages sends disable_notification false when quiet hours are off", async () => {
+    const message = await insertRow();
+    const { deps, telegram } = harness();
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(telegram.requests[0]?.body, "request body").toMatchObject({ disable_notification: false });
+  });
+
+  it("deliverMessages decides each row by a clock reading taken before its send", async () => {
+    const first = await insertRow("first");
+    const second = await insertRow("second");
+    const { deps, telegram } = harness();
+
+    await deliverMessages([first, second], inQuietHours(), { ...deps, now: boundaryClock() });
+
+    expect(
+      telegram.requests.map((request) => request.body),
+      "request bodies",
+    ).toMatchObject([{ disable_notification: true }, { disable_notification: false }]);
+  });
+
+  it("deliverMessages keeps disable_notification for the resend after a 429", async () => {
+    const message = await insertRow();
+    const { deps, telegram } = harness({ sendMessage: [retryAfter(1), jsonAnswer(200, FIXTURES.sendMessage)] });
+
+    await deliverMessages([message], inQuietHours(), { ...deps, now: boundaryClock() });
+
+    expect(
+      telegram.requests.map((request) => request.body),
+      "request bodies",
+    ).toMatchObject([{ disable_notification: true }, { disable_notification: true }]);
+  });
+
+  it("deliverMessages sends a silent row without sound outside quiet hours", async () => {
+    const message = await insertRow("quiet", null, 1);
+    const { deps, telegram } = harness();
+
+    await deliverMessages([message], inQuietHours(), { ...deps, now: () => new Date("2026-10-17T15:00:00Z") });
+
+    expect(telegram.requests[0]?.body, "request body").toMatchObject({ disable_notification: true });
+  });
+
+  it("deliverMessages still sends the row when the clock throws", async () => {
+    const message = await insertRow();
+    const { deps, telegram } = harness();
+    const failingClock = (): Date => {
+      throw new Error("The clock failed");
+    };
+
+    await expect(
+      deliverMessages([message], inQuietHours(), { ...deps, now: failingClock }),
+      "deliverMessages settles",
+    ).resolves.toBeUndefined();
+
+    expect(telegram.requests.length, "number of requests").toBe(1);
+    expect(await stateOf(message), "row").toEqual({ status: "sent", attempts: 1 });
   });
 
   it("deliverMessages logs store-failed and calls no Telegram when the chat cannot be read", async () => {
