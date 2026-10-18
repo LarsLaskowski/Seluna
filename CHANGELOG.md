@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-18
+
 ### Added
 
 - Webhook deliveries are recorded once each (a redelivery is acknowledged and ignored), and the status page shows the time of the last delivery from GitHub; messages are stored in the outbox and sent to Telegram in a fixed format in English or German.
