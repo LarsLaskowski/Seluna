@@ -58,7 +58,8 @@ findings that need a code change go to the Dev or Tester. A rule is disabled onl
 `// eslint-disable-next-line <rule> -- <reason>`.
 
 SonarQube Cloud can still report rules the local plugin version does not have, and its non-lint checks
-(duplication, hotspots, taint analysis) only run in CI — such findings arrive in squad step 11.
+(duplication, hotspots, taint analysis) run only in its own analysis — such findings arrive with the *Sonar gate*
+in squad step 7, or in squad step 11 when that gate reports NOT CHECKED.
 
 Changed shell scripts (`*.sh`), GitHub workflows (`.github/workflows/*.yml`) and Dockerfiles are checked with
 `shellcheck`, `actionlint` and `hadolint`; the SessionStart hook installs the three as pinned, checksum-verified
