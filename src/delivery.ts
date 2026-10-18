@@ -65,6 +65,15 @@ async function resolveTarget(deps: DeliveryDeps): Promise<Target> {
   }
 }
 
+/** Whether the quiet hours hold now; a failing clock reads as not quiet, so the row is still sent. */
+function quietAtSend(settings: DeliverySettings, deps: DeliveryDeps): boolean {
+  try {
+    return isQuietTime(settings.quietHours, settings.timeZone, deps.now());
+  } catch {
+    return false;
+  }
+}
+
 /** Sends one row, records the attempt and returns the result to log. Never rejects. */
 async function deliverOne(
   message: PendingMessage,
@@ -75,7 +84,7 @@ async function deliverOne(
 ): Promise<DeliveryResult> {
   let sent: SendNotificationResult;
   try {
-    const silent = message.silent || isQuietTime(settings.quietHours, settings.timeZone, deps.now());
+    const silent = message.silent || quietAtSend(settings, deps);
     sent = await sendNotification(
       target.token,
       target.chatId,

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Webhook deliveries are recorded once each (a redelivery is acknowledged and ignored), and the status page shows the time of the last delivery from GitHub; messages are stored in the outbox and sent to Telegram in a fixed format in English or German.
 - Notifications for pull requests: a message when a pull request is opened, when a draft pull request is marked ready for review, and when a review is requested; draft pull requests trigger nothing, and each of the three has its own switch in the settings.
+- Quiet hours: during the hours set on the setup page, read in the configured time zone (daylight saving time included), notifications arrive without sound; they are still sent at once. Off by default.
 
 ## [0.2.0] - 2026-10-17
 

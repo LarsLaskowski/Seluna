@@ -13,5 +13,5 @@ Every documentation edit appears in exactly one row; the Lead's approval only to
 | 5 | Tests first for `isQuietTime` | `src/quiet-hours.test.ts` | AC1, AC2, AC3, AC6 | Tester | [x] |
 | 6 | Tests first for the per-row decision in delivery | `src/delivery.test.ts` | AC4a–f | Tester | [x] |
 | 7 | Tests first for the webhook applying the stored settings | `src/webhook.test.ts` | AC5a, AC5b | Tester | [x] |
-| 8 | Implement `isQuietTime` and the per-row decision until all tests and the *Coverage gate* pass | `src/quiet-hours.ts`, `src/delivery.ts`, `src/webhook.ts` | AC1–AC6 | Dev | [ ] |
-| 9 | Changelog entry under `[Unreleased]` › `Added` (text in plan, *Documentation updates*) | `CHANGELOG.md` | — | Dev | [ ] |
+| 8 | Implement `isQuietTime` and the per-row decision until all tests and the *Coverage gate* pass | `src/quiet-hours.ts`, `src/delivery.ts`, `src/webhook.ts` | AC1–AC6 | Dev | [x] |
+| 9 | Changelog entry under `[Unreleased]` › `Added` (text in plan, *Documentation updates*) | `CHANGELOG.md` | — | Dev | [x] |
