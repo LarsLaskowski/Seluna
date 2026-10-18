@@ -1,4 +1,5 @@
-import type { Language } from "./setup/language";
+import { isQuietTime } from "./quiet-hours";
+import type { NotificationSettings } from "./settings";
 import { markAttempted, markSent } from "./store/outbox";
 import { readSetting, TELEGRAM_CHAT_ID_SETTING } from "./store/settings";
 import { botTokenFromEnv, CHAT_ID_SECRET_NAME, isChatIdSecretSet, parseChatId, sendNotification } from "./telegram";
@@ -20,12 +21,17 @@ export interface DeliveryLogEntry {
   readonly result: DeliveryResult;
 }
 
+/** What sending reads from the settings: the button's language and the quiet hours with their time zone. */
+export type DeliverySettings = Pick<NotificationSettings, "language" | "timeZone" | "quietHours">;
+
 export interface DeliveryDeps {
   readonly env: object;
   readonly db: D1Database;
   readonly fetch: TelegramFetch;
   readonly sleep: (milliseconds: number) => Promise<void>;
   readonly log: (entry: DeliveryLogEntry) => void;
+  /** The clock read once per row, just before it is sent, for the quiet hours. */
+  readonly now: () => Date;
 }
 
 /** `TELEGRAM_CHAT_ID` when set (no fallback if it is not a chat id), else `settings` `telegram_chat_id`. D1 errors reject. */
@@ -63,15 +69,17 @@ async function resolveTarget(deps: DeliveryDeps): Promise<Target> {
 async function deliverOne(
   message: PendingMessage,
   target: { readonly token: string; readonly chatId: number },
+  settings: DeliverySettings,
   buttonText: string,
   deps: DeliveryDeps,
 ): Promise<DeliveryResult> {
   let sent: SendNotificationResult;
   try {
+    const silent = message.silent || isQuietTime(settings.quietHours, settings.timeZone, deps.now());
     sent = await sendNotification(
       target.token,
       target.chatId,
-      { text: message.text, buttonText, buttonUrl: message.buttonUrl, silent: message.silent },
+      { text: message.text, buttonText, buttonUrl: message.buttonUrl, silent },
       deps.fetch,
       deps.sleep,
     );
@@ -95,6 +103,7 @@ async function deliverFrom(
   messages: readonly PendingMessage[],
   index: number,
   target: Target,
+  settings: DeliverySettings,
   buttonText: string,
   deps: DeliveryDeps,
 ): Promise<void> {
@@ -102,23 +111,24 @@ async function deliverFrom(
   if (message === undefined) {
     return;
   }
-  const result = target.kind === "ready" ? await deliverOne(message, target, buttonText, deps) : target.result;
+  const result =
+    target.kind === "ready" ? await deliverOne(message, target, settings, buttonText, deps) : target.result;
   try {
     deps.log({ outbox: message.id, result });
   } catch {
     // A failing log sink must not stop the next row.
   }
-  await deliverFrom(messages, index + 1, target, buttonText, deps);
+  await deliverFrom(messages, index + 1, target, settings, buttonText, deps);
 }
 
-/** Sends each row once, in order, updates it and logs it. Never rejects. */
+/** Sends each row once, in order, silent per row by its flag or the quiet hours at its send; updates and logs it. Never rejects. */
 export async function deliverMessages(
   messages: readonly PendingMessage[],
-  language: Language,
+  settings: DeliverySettings,
   deps: DeliveryDeps,
 ): Promise<void> {
   const target = await resolveTarget(deps);
-  await deliverFrom(messages, 0, target, MESSAGE_TEXTS[language].openOnGitHub, deps);
+  await deliverFrom(messages, 0, target, settings, MESSAGE_TEXTS[settings.language].openOnGitHub, deps);
 }
 
 /** Resolves after `milliseconds` (a timer). */
