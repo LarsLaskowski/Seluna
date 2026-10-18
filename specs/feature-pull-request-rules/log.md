@@ -19,3 +19,4 @@ are quoted in full.
 | 2026-10-18 07:36 | 6 Coverage pass | Orchestrator | Skipped: Coverage gate passes (100% new, 96.8% overall); the deferred AC11/AC12 tests already exist and pass, nothing left to write |
 | 2026-10-18 07:36 | 7 Code check | Orchestrator | Format check, Analyzer gate (0 findings, 17 files), 1671 tests, Coverage gate (100%/96.8%), scope-check, decision-check pass; main already merged; head 0d261a2 |
 | 2026-10-18 07:38 | 8 Review (security diff) | squad-security | VERDICT: APPROVED for 0d261a2; no blocking, no non-blocking findings (opus/medium · 39,589 tokens · 14 tool uses · 100 s) |
+| 2026-10-18 07:39 | 8 Review | squad-reviewer | Round 1 on 0d261a2: no blocking, 2 non-blocking verbatim doc findings: (1) CHANGELOG.md:12 'once the notification rules arrive' clause (plan chose to keep it) -> to Lead at approval; (2) notifications.md:57 'follow' wording -> applied by orchestrator (opus/medium · 85,258 tokens · 20 tool uses · 162 s) |

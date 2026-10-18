@@ -54,7 +54,7 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
 - A notification holds: the title of the case (line 1, in the notification language, chosen by the rule), the
   repository as `owner/repo`, the number of the pull request or alert (or none), line 2, line 3 and the URL for the
   button (the `html_url` of the payload).
-- The rules follow in the order of the switches in the settings. The pull request rules are below; the rules for CI
+- The rules run in the order of the switches in the settings. The pull request rules are below; the rules for CI
   (#16) and security alerts (#17) follow.
 
 #### Pull request rules
