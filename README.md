@@ -16,7 +16,7 @@
 <p align="center">
   <a href="https://github.com/LarsLaskowski/Seluna/actions/workflows/ci.yml"><img src="https://github.com/LarsLaskowski/Seluna/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/LarsLaskowski/Seluna/releases/latest"><img src="https://img.shields.io/github/v/release/LarsLaskowski/Seluna" alt="Latest release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/LarsLaskowski/Seluna" alt="MIT license"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
 </p>
 
 ## Why Seluna
