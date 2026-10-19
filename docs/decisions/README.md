@@ -77,6 +77,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0023](0023-webhook-processing-and-delivery-through-the-outbox.md) | Webhook processing, message format and delivery through the outbox | Accepted | 2026-10-17 |
 | [0024](0024-pull-request-rules.md) | Pull request rules | Accepted | 2026-10-18 |
 | [0025](0025-quiet-hours-decided-at-sending.md) | Quiet hours decided at sending | Accepted | 2026-10-18 |
-| [0026](0026-github-app-authentication-and-installation-tokens.md) | GitHub App authentication and cached installation tokens | Proposed | 2026-10-19 |
+| [0026](0026-github-app-authentication-and-installation-tokens.md) | GitHub App authentication and cached installation tokens | Accepted | 2026-10-19 |
 
 <!-- project:end index -->

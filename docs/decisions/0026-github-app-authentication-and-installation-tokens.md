@@ -1,6 +1,6 @@
 # 0026: GitHub App authentication and cached installation tokens
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-19
 - **Area:** GitHub API
 - **Source:** Issue #15
