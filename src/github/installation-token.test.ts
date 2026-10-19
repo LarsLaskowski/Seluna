@@ -1,11 +1,7 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_GITHUB_RESPONSE_BYTES } from "./conversion";
-import {
-  installationToken,
-  parseInstallationToken,
-  TOKEN_RENEWAL_MARGIN_MS,
-} from "./installation-token";
+import { installationToken, parseInstallationToken, TOKEN_RENEWAL_MARGIN_MS } from "./installation-token";
 import type { TokenDeps } from "./installation-token";
 import { applyMigrations, migrationTestDb, writeFailingDb } from "../../test/d1";
 import { FIXTURE_TOKEN, githubApiDouble, installationTokenBody, jsonAnswer, REJECTED } from "../../test/github";
