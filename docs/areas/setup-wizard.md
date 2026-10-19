@@ -142,6 +142,18 @@ it and add their pages behind the login.
   from GitHub:_ the time in the configured time zone as `YYYY-MM-DD HH:MM (<time zone>)` (24-hour), or _none
   received yet_ until the first delivery from GitHub is recorded ([Notifications](notifications.md)). When the runtime rejects the zone or the
   time at render, the time is written in UTC from its UTC fields, as `(UTC)`; the page never fails on it.
+- Below _GitHub App:_ the section shows _Installations:_ when that line names a usable app, that is for the _Worker
+  secrets_ text and for a saved app (and for nothing else: no line and no request for _none saved yet_, _partial
+  Worker secrets_ and _cannot be read_). The page asks GitHub for the app's installations
+  ([GitHub API](github-api.md#installations-list), one request of up to 100) and shows: a list with one entry per
+  installation in GitHub's order, `<login or slug> (<account type>), <repository selection>` with `, suspended` after
+  it for a suspended installation, the login and slug written as escaped text, never as markup or a link; _not
+  installed_ on the same line for an empty list; the _more installations_ text after the list exactly when the
+  answer's `Link` header has a link with `rel="next"`; _installations unavailable_ on the same line when the request
+  fails (refused, timed out, redirected, unreadable) or the Worker secret `GITHUB_APP_ID` is not a positive whole
+  number or a saved app has no saved private key, without a request in the last two cases; _key unusable_ on the same line
+  when the private key cannot sign (not an RSA key, more than 4096 bits, or a saved key that does not decrypt). The
+  page answers 200 in every one of these cases.
 - The settings form posts to `POST /setup/settings` with the session-bound `csrf` field and these fields:
   `notification_language` (`en` or `de`), `time_zone` (an option per name the runtime lists, plus `UTC`), the
   checkboxes `quiet_hours`, `update_notice` and `rule_<id>` for the eight rules (each posts the value `on` when
@@ -467,6 +479,13 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET.", "Only some of the Worker secrets GITHUB_APP_ID,
   GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET are set.", "App ID" or "Cannot be read with the current
   SELUNA_SECRET."; "Last delivery from GitHub:" with "None received yet.".
+- Installations (below "GitHub App:"): the label "Installations:"; an entry "<login or slug> (<account type>),
+  <repository selection>" with ", suspended" for a suspended installation; the account types "personal account"
+  (`User`), "organization" (`Organization`), "other account" (any other or a missing type) and "enterprise" (an
+  account with a slug and no login); "Unknown account" in place of name and type for an account without both;
+  the repository selections "all repositories" and "selected repositories"; _not installed_: "Not installed on any
+  account yet."; _more installations_: "Only the first 100 installations are shown."; _installations unavailable_:
+  "Cannot be loaded from GitHub right now."; _key unusable_: "The app's private key cannot be used.".
 - Reset: the heading "The saved credentials cannot be read"; the text "The saved GitHub credentials cannot be read
   with the current SELUNA_SECRET: it was changed, or the saved values are damaged. If you still know the earlier
   SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials and installation
@@ -558,8 +577,15 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   tell whether an earlier attempt saved the app, so the _code rejected_ notice has the owner compare the saved App ID
   with the app's own before deleting it. GitHub's own limit of one hour for the flow, and the state's, bound the return. A session that
   expires during the detour loses the return: sign in again and start over.
-- The conversion request carries a 10 second timeout and its answer is read up to 1 MiB; no document claims that the
-  timeout also bounds reading the body, which is limited by size only.
+- Every signed-in start page answer makes one installations request when its status section lists installations: the
+  `GET /setup` 200, the 400 _settings invalid_ of `POST /setup/settings` and the 409 _reset not needed_ of
+  `POST /setup/reset`. The request's 10-second timeout covers the wait for the answer and the reading of its body
+  ([GitHub API](github-api.md#limits-and-errors)), so such a page takes at most about 10 seconds longer when GitHub is
+  slow, and never fails because of GitHub. The signed-out pages (login, lock, _not configured_) call neither GitHub
+  nor D1, and the notice-only pages (503, 403) make no installations request.
+- The conversion request carries a 10 second timeout, which also covers reading its body (the body is read from the
+  response of the request that carries the timeout, as for the [GitHub API](github-api.md#limits-and-errors) calls),
+  and its answer is read up to 1 MiB.
 - Whether GitHub returns `code` and `state` as documented, whether the browser sends the session cookie with the
   finish form and whether `form-action https://github.com` lets GitHub's own redirects through were not captured from
   a real run when this step was written; each deviation fails closed (a fixed notice, nothing stored).
@@ -601,6 +627,8 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   one-transaction write and the precedence of the Worker secrets.
 - [`decisions/0007-github-app-credentials-encrypted-in-d1.md`](../decisions/0007-github-app-credentials-encrypted-in-d1.md)
   — the 32-character minimum of `SELUNA_SECRET` and separate keys per purpose.
+- [`decisions/0026-github-app-authentication-and-installation-tokens.md`](../decisions/0026-github-app-authentication-and-installation-tokens.md)
+  — the installations list on the status page, the app token and the installation tokens behind it.
 
 ## Not here
 

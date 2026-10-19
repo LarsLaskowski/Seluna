@@ -50,6 +50,15 @@ files or endpoints.
   is converted to PKCS#8 and must import as an RS256 key (`src/github/private-key.ts`), the three credentials are
   written in one transaction, and the client secret is discarded. Only the review page has `form-action
   https://github.com`.
+- **GitHub App authentication:** every GitHub call except the manifest conversion is made as the app through
+  `src/github/` (`app-jwt.ts`, `http.ts`, `app-credentials.ts`, `installation-token.ts`, `token-text.ts`,
+  `installations.ts`, `api-client.ts`): an RS256 JWT (`iat` now − 60 s, `exp` now + 540 s, `iss` the App ID) signed per request with the
+  private key resolved per credential, never stored; installation tokens per `installation.id`, allow-listed
+  (`[A-Za-z0-9_]`, 1–255 characters), cached only encrypted in `token_cache` (`src/store/token-cache.ts`) until 5
+  minutes before expiry, the row of a token GitHub answered 401 for deleted by installation id and IV; installation id,
+  owner, repository name and number allow-listed before they enter a URL; only `https://api.github.com`, no redirects
+  followed, 10-second timeout, answers read bounded (1 MiB) and narrowed; no token, key or JWT in a log, page, result
+  or plain D1 (decision 0026).
 - **Outbound-only Telegram:** the Worker calls only the Telegram Bot API methods `getUpdates` (in the setup wizard's
   Telegram step, `src/setup/telegram-step.ts`) and `sendMessage` (`src/telegram.ts`); it never sets or deletes a
   webhook and exposes no Telegram route; the input it takes from Telegram is the `getUpdates` answer of the signed-in
@@ -126,8 +135,12 @@ otherwise):
 - **GitHub API double** — `test/github.ts`: a `vi.fn<GitHubFetch>()` passed as the injected `GitHubFetch` (not a
   stub on `globalThis.fetch`) that records every request and answers `POST /app-manifests/<code>/conversions` from
   the reference-built fixtures under `test/fixtures/github/` (written from GitHub's documentation, not captured,
-  decision 0017), a status and body, or a rejection; it fails the test on any other URL. The installation-token,
-  pull request and check-run answers of the later API clients get their fixtures beside these.
+  decision 0017), a status and body, or a rejection; it fails the test on any other URL. `githubApiDouble(routes)`
+  also answers `POST /app/installations/<id>/access_tokens`, `GET /app/installations?per_page=100` and `GET
+  /repos/<owner>/<repo>/pulls/<number>` from `test/fixtures/github/` (the token and installations answers are
+  reference-built from GitHub's OpenAPI examples, the pull request answer is captured), each route an answer, a
+  sequence or a function of the request, and records every request with its `Authorization` header. The check-run
+  answers of the later API clients get their fixtures beside these.
 - **Telegram Bot API double** — `test/telegram.ts`: a `vi.fn<TelegramFetch>()` passed as the injected `TelegramFetch`
   (not a stub on `globalThis.fetch`) that records every request and answers `getUpdates` and `sendMessage` from
   fixtures, a status and body (for `sendMessage` also a sequence, one answer per request, the last repeated), or a rejection (a rate limit, a server error; the 429 answer is the reference-built `send-message-too-many-requests.json`); it fails the test on any other method.

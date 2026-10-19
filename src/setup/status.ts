@@ -1,3 +1,7 @@
+import { parseAppId, resolveAppCredentials } from "../github/app-credentials";
+import type { GitHubFetch } from "../github/conversion";
+import { listInstallations } from "../github/installations";
+import type { Installation } from "../github/installations";
 import { workerCredentials } from "../github/worker-secrets";
 import type { NotificationSettings } from "../settings";
 import { readLastDelivery, readAppSlug } from "../store/meta";
@@ -15,6 +19,18 @@ export type AppStatus =
   | { readonly kind: "none" }
   | { readonly kind: "unreadable" };
 
+export type InstallationsView =
+  | { readonly kind: "hidden" }
+  | { readonly kind: "listed"; readonly installations: readonly Installation[]; readonly more: boolean }
+  | { readonly kind: "unavailable" }
+  | { readonly kind: "key-unusable" };
+
+/** What the status page needs to ask GitHub for the installations. */
+export interface StatusGitHub {
+  readonly fetcher: GitHubFetch;
+  readonly now: () => Date;
+}
+
 export interface StatusView {
   readonly version: string;
   readonly chat: ChatStatus;
@@ -22,9 +38,8 @@ export interface StatusView {
   readonly lastDelivery: Date | undefined;
   readonly resetNeeded: boolean;
   readonly settings: NotificationSettings;
+  readonly installations: InstallationsView;
 }
-
-const APP_ID_FORM = /^[1-9]\d{0,15}$/;
 
 async function chatStatus(env: object, db: D1Database): Promise<ChatStatus> {
   if (isChatIdSecretSet(env)) {
@@ -48,8 +63,8 @@ async function appStatus(env: object, db: D1Database, storageKey: CryptoKey): Pr
   switch (stored.kind) {
     case "ok": {
       // A stored value that is not an App ID is shown as no saved app.
-      const appId = APP_ID_FORM.test(stored.value) ? Number(stored.value) : undefined;
-      if (appId === undefined || !Number.isSafeInteger(appId)) {
+      const appId = parseAppId(stored.value);
+      if (appId === undefined) {
         return { kind: "none" };
       }
       return { kind: "saved", appId, slug: await readAppSlug(db, appId) };
@@ -66,21 +81,55 @@ async function appStatus(env: object, db: D1Database, storageKey: CryptoKey): Pr
   }
 }
 
+/** The installations the status page lists; GitHub is asked only for an app its _GitHub App:_ line names. */
+async function installationsView(
+  env: object,
+  db: D1Database,
+  version: string,
+  github: StatusGitHub,
+  app: AppStatus,
+): Promise<InstallationsView> {
+  if (app.kind !== "worker-secrets" && app.kind !== "saved") {
+    return { kind: "hidden" };
+  }
+  const resolved = await resolveAppCredentials(env, db);
+  switch (resolved.kind) {
+    case "no-app":
+      return { kind: "unavailable" };
+    case "key-unusable":
+      return { kind: "key-unusable" };
+    case "ok": {
+      const listed = await listInstallations(github.fetcher, version, github.now(), resolved.credentials);
+      return listed.kind === "listed"
+        ? { kind: "listed", installations: listed.installations, more: listed.more }
+        : { kind: "unavailable" };
+    }
+    default: {
+      const unreachable: never = resolved;
+      return unreachable;
+    }
+  }
+}
+
 /** The status page's data. D1 errors are not caught. */
 export async function statusView(
   env: object,
   db: D1Database,
   storageKey: CryptoKey,
   version: string,
+  github: StatusGitHub,
 ): Promise<StatusView> {
   const settings = await readNotificationSettings(db);
+  const chat = await chatStatus(env, db);
+  const app = await appStatus(env, db, storageKey);
   return {
     version,
-    chat: await chatStatus(env, db),
-    app: await appStatus(env, db, storageKey),
+    chat,
+    app,
     lastDelivery: await readLastDelivery(db),
     resetNeeded: await needsReset(db, storageKey),
     settings,
+    installations: await installationsView(env, db, version, github, app),
   };
 }
 

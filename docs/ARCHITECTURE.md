@@ -14,9 +14,10 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 | --------- | ---- |
 | Worker `fetch` handler | `POST /webhook`, `GET /health` (returns the version), `/setup` (the setup wizard) |
 | Webhook processing | Deduplication by `X-GitHub-Delivery`, the rules, the outbox rows and the first send attempt of each row ([`areas/notifications.md`](areas/notifications.md), [decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)) |
+| GitHub API client | Calls of the GitHub API as the app: the app JWT, the installation tokens per `installation.id` cached encrypted in `token_cache`, the pull request read for the rules and the installations list for the status page ([`areas/github-api.md`](areas/github-api.md), [decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)) |
 | Rules | Pure functions of the event name, the payload and the settings to zero or one notification; no I/O, no clock |
 | Outbox | The D1 `outbox` table holding each message as rendered Telegram HTML, and delivery to the Telegram Bot API, with one retry after a 429 and the cron's retry |
-| Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram chat, the setup login, the status page with the settings and the reset after a changed `SELUNA_SECRET` ([decision 0018](decisions/0018-settings-and-status-page.md)) |
+| Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram chat, the setup login, the status page with the settings, the app's installations and the reset after a changed `SELUNA_SECRET` ([decision 0018](decisions/0018-settings-and-status-page.md)) |
 | Cron (`scheduled` handler) | Every 10 minutes: retry the outbox and clean up D1. Daily: check for a new Seluna release |
 | D1 (`src/store/`) | `settings`, `secrets` (AES-256-GCM), `deliveries`, `outbox`, `token_cache` (AES-256-GCM), `meta`; the only code that reads or writes D1 |
 
@@ -117,9 +118,14 @@ saves a chat only by typing back the code its test message carried
 credentials are encrypted in D1 ([decision 0007](decisions/0007-github-app-credentials-encrypted-in-d1.md)). The setup
 wizard creates that app through GitHub's manifest flow: the `state` that travels through GitHub is bound to the
 owner's session and to the account the owner chose, the app GitHub returns must belong to that account before
-anything is stored, the answer of GitHub's API (the Worker's one call to it, unauthenticated) is read bounded and
+anything is stored, the answer of the conversion (the Worker's one unauthenticated GitHub call) is read bounded and
 narrowed, and the three credentials are stored together or not at all
-([decision 0017](decisions/0017-github-app-manifest-flow.md)).
+([decision 0017](decisions/0017-github-app-manifest-flow.md)). Every other GitHub call is made as the app: a JWT
+signed with the private key for each `/app/...` request, never stored, and per installation a token that is cached
+only encrypted and dropped when GitHub refuses it; what enters a URL is allow-listed, redirects are not followed and
+every answer is read bounded and narrowed; the signed-in status page calls GitHub so far, the webhook processing
+will for the CI failure rule (issue #16)
+([decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)).
 The concrete areas are listed in [`.squad/project.md`](../.squad/project.md) (*Security areas*) and
 [`SECURITY.md`](../SECURITY.md).
 
