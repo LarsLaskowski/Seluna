@@ -1,5 +1,5 @@
 import { decrypt, encrypt } from "../crypto";
-import { isInstallationTokenText } from "../github/installation-token";
+import { isInstallationTokenText } from "../github/token-text";
 
 export interface CachedToken {
   readonly token: string;

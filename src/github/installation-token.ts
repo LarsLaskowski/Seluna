@@ -3,6 +3,9 @@ import { appJwt } from "./app-jwt";
 import type { AppCredentials } from "./app-credentials";
 import type { GitHubFetch } from "./conversion";
 import { gitHubRequest, sendGitHub } from "./http";
+import { isInstallationTokenText } from "./token-text";
+
+export { isInstallationTokenText };
 
 export const TOKEN_RENEWAL_MARGIN_MS = 300_000;
 
@@ -24,13 +27,7 @@ export interface TokenDeps {
   readonly version: string;
 }
 
-const TOKEN_TEXT = /^\w{1,255}$/;
 const EXPIRES_AT_FORM = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
-
-/** Whether `text` has the form of an installation token (`^[A-Za-z0-9_]{1,255}$`). */
-export function isInstallationTokenText(text: string): boolean {
-  return TOKEN_TEXT.test(text);
-}
 
 /** The narrowed token answer of GitHub, or `undefined` when it has another shape or expires too soon. */
 export function parseInstallationToken(body: unknown, now: Date): InstallationToken | undefined {

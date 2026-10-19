@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_GITHUB_RESPONSE_BYTES } from "./conversion";
 import {
   installationToken,
-  isInstallationTokenText,
   parseInstallationToken,
   TOKEN_RENEWAL_MARGIN_MS,
 } from "./installation-token";
@@ -50,34 +49,6 @@ async function credentials(): Promise<{ readonly appId: number; readonly signing
 function issuingDouble(token = NEW_TOKEN): GitHubDouble {
   return githubApiDouble({ installationToken: jsonAnswer(201, installationTokenBody(token, FRESH_EXPIRY)) });
 }
-
-describe("isInstallationTokenText", () => {
-  it.each([
-    { case: "the documented token", token: FIXTURE_TOKEN },
-    { case: "one character", token: "a" },
-    { case: "digits, letters and underscores", token: "A_9z" },
-    { case: "255 characters", token: "a".repeat(255) },
-  ])("isInstallationTokenText accepts $case", ({ token }) => {
-    const accepted = isInstallationTokenText(token);
-
-    expect(accepted, "accepted").toBe(true);
-  });
-
-  it.each([
-    { case: "an empty text", token: "" },
-    { case: "256 characters", token: "a".repeat(256) },
-    { case: "a hyphen", token: "a-b" },
-    { case: "a space", token: "a b" },
-    { case: "a line break in a header injection", token: "a\r\nX: y" },
-    { case: "a trailing line feed", token: "a\n" },
-    { case: "a non-ASCII letter", token: "ä" },
-    { case: "a dot", token: "a.b" },
-  ])("isInstallationTokenText rejects $case", ({ token }) => {
-    const accepted = isInstallationTokenText(token);
-
-    expect(accepted, "accepted").toBe(false);
-  });
-});
 
 describe("parseInstallationToken", () => {
   const BEFORE = new Date("2016-07-11T20:00:00Z");
