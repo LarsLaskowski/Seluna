@@ -63,10 +63,14 @@ The API client never throws: every failure below is reported to its caller as on
 no token, key, JWT or text from GitHub's answer. "Cannot be loaded" below is the status page's text
 _installations unavailable_ (exact texts under *Non-functional requirements*).
 
-- E1: No usable app: no App ID or no private key is configured, only some of the three Worker secrets are set, or
-  the saved credentials cannot be read with the current `SELUNA_SECRET`. The API client reports failure without
-  any request to GitHub. The status page shows no _Installations:_ line and calls GitHub for nothing (the _GitHub
-  App:_ line already says _none saved yet_, _partial Worker secrets_ or _cannot be read_).
+- E1: No usable app: after the per-credential precedence (AC14) there is no App ID or no private key — neither
+  the Worker secret nor a saved value, or the saved value cannot be read with the current `SELUNA_SECRET` — or the
+  App ID is not a positive whole number. The API client reports failure without any request to GitHub. Only some
+  of the three Worker secrets being set is no failure by itself: App ID and key are resolved one by one, and a pair
+  from two different apps is refused by GitHub (E3). The status page shows no _Installations:_ line and calls
+  GitHub for nothing whenever its _GitHub App:_ line says _none saved yet_, _partial Worker secrets_ or _cannot be
+  read_ — a display rule of the status page, which names no usable app in those states and asks the owner to set
+  all three Worker secrets or none.
 - E2: The private key cannot sign: the Worker secret `GITHUB_APP_PRIVATE_KEY` is not a PEM RSA key that imports as
   an RS256 signing key (PKCS#1 and PKCS#8 are both accepted), or the saved key does not decrypt. The API client
   reports failure without a request; the status page shows _Installations:_ with the _key unusable_ text.
@@ -79,8 +83,9 @@ _installations unavailable_ (exact texts under *Non-functional requirements*).
   nothing cached; on the status page _installations unavailable_, and the page still answers 200.
 - E6: An answer above 1 MiB, or one Seluna cannot read: not JSON, a token that is missing, empty, not a string,
   longer than the limit or with characters outside the allow-list, an `expires_at` that is missing, not a time, or
-  not more than 5 minutes after now; an installations list that is not a list, or an entry without an account login
-  or with a `repository_selection` other than `all` or `selected`; a pull request without a boolean `draft`.
+  not more than 5 minutes after now; an installations list that is not a list, or an entry that is not an object,
+  has no positive whole `id`, an `account` that is neither `null` nor an object, or a `repository_selection` other
+  than `all` or `selected`; a pull request without a boolean `draft`.
   Failure, nothing cached; on the status page _installations unavailable_ (the whole list, never a partial one).
 - E7: The payload has no `installation.id`, or it is not a positive whole number within the safe integer range (a
   string, `0`, a negative or fractional number): the API client reports failure without any request, and never
@@ -89,9 +94,11 @@ _installations unavailable_ (exact texts under *Non-functional requirements*).
   Worker secrets), the row was altered, or its `expires_at` was changed after the write (the additional data
   `token_cache/<installation_id>/<expires_at>` no longer matches). It is treated as no cached token: a new token is
   requested and replaces the row.
-- E9: A repository request with a cached token answers 401 (GitHub revoked the token, for example because the app
-  was uninstalled and installed again): the row of that installation is deleted, the call reports failure, and the
-  next call requests a new token.
+- E9: A repository request answers 401 (GitHub revoked the token, for example because the app was uninstalled and
+  installed again), whether its token came from the cache or was issued and stored in this call: the row that holds
+  exactly that token is deleted (matched by installation id and the row's IV), the call reports failure, and the
+  next call requests a new token. A row another call has meanwhile replaced with a fresh token (E10) has another IV
+  and stays.
 - E10: Two calls for the same installation without a usable cached token at the same time: both request a token,
   both reads succeed, and afterwards `token_cache` holds exactly one row for that installation, with one of the two
   tokens.
@@ -99,10 +106,15 @@ _installations unavailable_ (exact texts under *Non-functional requirements*).
   reaches the webhook processing); a token GitHub already issued is not used for this call.
 - E12: The app has no installation yet: _Installations:_ shows _not installed_.
 - E13: The app has more than 100 installations: the first 100 GitHub returns are listed, followed by the _more
-  installations_ text; Seluna asks GitHub for one page only.
-- E14: An installation's account has a type other than `User` or `Organization` (GitHub also knows `Enterprise`):
-  the entry shows "(other account)". An installation with `suspended_at` set gets ", suspended" after the
-  repository selection. An account login is shown as text, escaped, never as markup or a link.
+  installations_ text; Seluna asks GitHub for one page only. The text appears exactly when the answer's `Link`
+  header has a link with `rel="next"`; exactly 100 entries without such a link show no text.
+- E14: The account of an installation, as GitHub's REST description allows it (a user or organization with `login`
+  and `type`, an enterprise with `slug` and `name` but no `login` and no `type`, or `null`): an account with a
+  string `login` shows that login and the _account type_ text of its `type` — "(personal account)" for `User`,
+  "(organization)" for `Organization`, "(other account)" for any other or a missing `type`; an account without
+  `login` but with a string `slug` (an enterprise) shows the slug and "(enterprise)"; an account that is `null`, or
+  has neither, shows _unknown account_ in place of name and type. An installation with `suspended_at` set gets ",
+  suspended" after the repository selection. Login and slug are shown as text, escaped, never as markup or a link.
 - E15: Someone else installed the app (possible only once the owner made the app public on GitHub, or for a public
   app set by Worker secrets): the installation is listed like the owner's own, so the owner sees it, and the API
   client serves its deliveries like any other.
@@ -146,9 +158,12 @@ _installations unavailable_ (exact texts under *Non-functional requirements*).
   change (still read-only, the manifest is untouched), and neither does its visibility (private).
 - **Texts (status page), English / German:**
   - _installations label_: "Installations:" / "Installationen:"
-  - entry: "<login> (<account type>), <repository selection>" and, when suspended, ", suspended" / ", gesperrt"
+  - entry: "<login or slug> (<account type>), <repository selection>", or "<unknown account>, <repository
+    selection>", and, when suspended, ", suspended" / ", gesperrt"
   - _account type_: "personal account" / "persönliches Konto" for `User`, "organization" / "Organisation" for
-    `Organization`, "other account" / "anderes Konto" otherwise
+    `Organization`, "other account" / "anderes Konto" for another or a missing type, "enterprise" / "Enterprise"
+    for an enterprise account (identified by its `slug`)
+  - _unknown account_: "Unknown account" / "Unbekanntes Konto"
   - _repository selection_: "all repositories" / "alle Repositories" for `all`, "selected repositories" /
     "ausgewählte Repositories" for `selected`
   - _not installed_: "Not installed on any account yet." / "Noch auf keinem Konto installiert."
@@ -178,30 +193,34 @@ _installations unavailable_ (exact texts under *Non-functional requirements*).
 - [ ] AC5: Every GitHub API request of this feature carries `User-Agent: seluna/<version>`, `Accept:
   application/vnd.github+json` and `X-GitHub-Api-Version: 2022-11-28`, does not follow redirects and has a 10-second
   timeout; `/app/...` requests carry the app token, repository requests the installation token (S7, E5).
-- [ ] AC6: Without a usable App ID and private key (none, partial Worker secrets, unreadable saved credentials, a key
-  that does not import), with an invalid `installation.id`, or with an invalid repository owner, name or number, the
+- [ ] AC6: Without a usable App ID and private key after the per-credential precedence (neither Worker secret nor a
+  readable saved value, an App ID that is not a positive whole number, a key that does not import), with an invalid `installation.id`, or with an invalid repository owner, name or number, the
   API client reports failure and sends no request (E1, E2, E7, E16).
 - [ ] AC7: A refused, failed, timed-out, redirected, oversized or unreadable answer of the token request or of the
   repository request, and a D1 failure on the token cache, make the API client report failure without throwing; no
   token is cached from such a token answer, and the result carries no token, key or answer text (E3, E4, E5, E6, E11,
   E17).
-- [ ] AC8: A 401 answer to a repository request sent with a cached token deletes that installation's row; a 404 leaves
-  it (E9, E17).
+- [ ] AC8: A 401 answer to a repository request deletes the row only while it still holds the token that request used
+  (same installation id and IV), for a cached token and for one issued and stored in the same call; a row replaced
+  by another call in between stays, and a 404 leaves the row (E9, E10, E17).
 - [ ] AC9: Two calls for one installation without a cached token at the same time both succeed and leave exactly one
   row for it (E10).
 - [ ] AC10: The pull request read answers the `draft` value of `GET /repos/<owner>/<repo>/pulls/<number>` (S3).
 - [ ] AC11: With an app from the Worker secrets or saved by the wizard, the status page lists every installation of
-  one `GET /app/installations?per_page=100` answer, in its order, as "<login> (<account type>), <repository
-  selection>" with ", suspended" for a suspended one and the account type texts for `User`, `Organization` and any
-  other type, the login escaped (S1, S2, E14, E15).
-- [ ] AC12: The status page shows _not installed_ for an empty list and the _more installations_ text after the 100
-  entries when GitHub's answer links a next page (E12, E13).
+  one `GET /app/installations?per_page=100` answer, in its order, as "<login or slug> (<account type>), <repository
+  selection>" with ", suspended" for a suspended one, the account type texts for `User`, `Organization`, any other
+  or a missing type and an enterprise account, _unknown account_ for a `null` account or one without `login` and
+  `slug`, login and slug escaped (S1, S2, E14, E15).
+- [ ] AC12: The status page shows _not installed_ for an empty list, and the _more installations_ text after the
+  entries exactly when the answer's `Link` header has a link with `rel="next"`; 100 entries without that link show
+  no such text (E12, E13).
 - [ ] AC13: The status page answers 200 with _installations unavailable_ when the installations request fails, is
   refused, times out, redirects or is unreadable, with _key unusable_ when the private key cannot sign, and with no
   _Installations:_ line and no GitHub request when the _GitHub App:_ line shows _none saved yet_, _partial Worker
   secrets_ or _cannot be read_ (E1, E2, E3, E5, E6).
-- [ ] AC14: App ID and private key are taken from `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` when they are
-  non-empty strings, each on its own, else from D1; a private key in PKCS#1 or PKCS#8 PEM signs (S2, S3).
+- [ ] AC14: The API client takes App ID and private key from `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` when they
+  are non-empty strings, each on its own, else from D1 (also when only some of the three Worker secrets are set); a
+  private key in PKCS#1 or PKCS#8 PEM signs (S2, S3, E1).
 - [ ] AC15: The status page's installation texts are the English and German texts above, in the page's language
   (S1, S2, E12, E13, E14).
 
@@ -234,8 +253,13 @@ _installations unavailable_ (exact texts under *Non-functional requirements*).
   state. So the API client offers that one repository read (AC10), plus the installations list for the status page.
 - Q3: Which App ID and private key does authentication use when Worker secrets and saved credentials both exist?
   Answered: each Worker secret takes precedence over the credential of the same name (`docs/ARCHITECTURE.md`,
-  *Configuration*; decision 0017), so App ID and key are resolved one by one (AC14). The status page lists
-  installations only for the two states in which its _GitHub App:_ line names a usable app (Worker secrets, saved).
+  *Configuration*). Decision 0017, released with v0.2.0, fixes this for #15 under *Consequences*: "#15 reads
+  `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` with the same per-credential precedence", and `webhookSecretSource`
+  (`src/webhook-secret.ts`) already resolves the webhook secret that way. So the API client resolves App ID and key
+  one by one (AC14), also when only some Worker secrets are set (E1); no record changes. The status page is a
+  separate, display-only rule: `appStatus` (`src/setup/status.ts`) reports _partial Worker secrets_ before it reads
+  D1, and the status page lists installations only in the two states in which its _GitHub App:_ line names a usable
+  app (Worker secrets, saved) (AC13).
 - Q4: App ID or client ID as `iss`?
   Answered: the App ID. GitHub accepts both (github/docs, `generating-a-json-web-token-jwt-for-a-github-app.md`) and
   recommends the client ID, but the conversion keeps only App ID, key and webhook secret (`parseConversion` in
@@ -270,3 +294,28 @@ _installations unavailable_ (exact texts under *Non-functional requirements*).
   security area *Setup login* is unchanged (only signed-in pages call GitHub).
 - **HTTP routes** (`docs/areas/http-routes.md`): the list of external answers read through the bounded reader
   (today Telegram and the conversion) gains the GitHub API answers of this feature.
+
+## Challenge
+
+Spec challenge by the Devil's Advocate at commit a61bd21.
+
+- **Major 1 — E1 contradicts AC14 and decision 0017 for a partial set of Worker secrets.** Accepted. Rule chosen:
+  the per-credential precedence of released decision 0017 (*Consequences*) and `docs/ARCHITECTURE.md`, as
+  `webhookSecretSource` already does for the webhook secret; superseding a released record to forbid mixing would
+  only trade GitHub's 401 (E3) for an earlier failure and gain nothing. E1 no longer lists "only some of the three
+  Worker secrets are set" as an API client failure and names a mixed pair as E3's case; AC6 and AC14 say the
+  same (AC14 now names E1); Q3 quotes 0017 and separates the status page's display rule (no _Installations:_ line
+  in the _partial Worker secrets_ state, from `appStatus`) from the API client's resolution. No decision record
+  changes.
+- **Minor 1 — an enterprise or `null` account fails the whole list under E6.** Accepted. E14 now covers every
+  account form of the REST description: a `login` with its `type` (unknown or missing type: "other account"), an
+  enterprise by its `slug` with "(enterprise)", and `null` or neither field as _unknown account_. E6 makes the list
+  unavailable only for an entry that is not an object, lacks a positive `id`, has an `account` that is neither `null`
+  nor an object, or an unknown `repository_selection`. New texts _enterprise_ and _unknown account_ (English and
+  German); AC11 updated.
+- **Minor 2 — the delete after a 401 can hit a fresh row, and misses a token issued in the same call.** Accepted.
+  E9 and AC8 now delete only the row that still holds the token the request used, matched by installation id and IV
+  (every write draws a new IV), for a cached token and for one issued and stored in the same call; a row another
+  call replaced in between stays (E10 named in AC8).
+- **Minor 3 — when exactly the "more installations" text appears.** Accepted. E13 and AC12 now say: exactly when the
+  answer's `Link` header has a link with `rel="next"`; 100 entries without that link show no text.
