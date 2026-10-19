@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_BODY_BYTES } from "../body";
 import { LOGIN_ATTEMPTS_META_KEY, LOGIN_LOCK_MS } from "../store/login-attempts";
-import { readSecret, writeSecret } from "../store/secrets";
+import { readSecret, writeSecret, writeSecrets } from "../store/secrets";
 import { readNotificationSettings, writeNotificationSettings } from "../store/settings";
 import { DEFAULT_SETTINGS } from "../settings";
 import type { NotificationSettings } from "../settings";
@@ -26,7 +26,10 @@ import {
   FIXTURE_PKCS8,
   FIXTURE_WEBHOOK_SECRET,
   FIXTURES as GITHUB_FIXTURES,
+  FIXTURE_PEM,
+  githubApiDouble,
   githubDouble,
+  installationEntry,
   jsonAnswer as githubJsonAnswer,
   REJECTED as GITHUB_REJECTED,
   stateFor,
@@ -2710,18 +2713,24 @@ function inputTagOf(html: string, name: string): string {
   return new RegExp(`<input\\b(?=[^>]*name="${name}")[^>]*>`).exec(html)?.[0] ?? "";
 }
 
+/** The installations line of the English start page when the installations cannot be loaded. */
+const UNAVAILABLE_LINE = `<p>${TEXTS.en.installationsLabel} ${escapeHtml(TEXTS.en.installationsUnavailable)}</p>`;
+
 describe("handleSetup status page", () => {
   it("GET /setup shows version, chat, app and last delivery", async () => {
     await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('telegram_chat_id', '5001001')").run();
     await seedAppId(SECRET, "12345");
     await putMeta("github_app_slug", "12345:seluna-demo");
     await putMeta("last_delivery", "1792240440000");
+    const github = githubApiDouble({});
 
-    const response = await stepPage(depsAt(), "/setup");
+    const response = await stepPage(githubDeps(github), "/setup");
 
     expect(response.status, "status").toBe(200);
     const html = await response.text();
     expectStartPage(html);
+    expect(html, "installations line of a saved app without a key").toContain(UNAVAILABLE_LINE);
+    expect(github.requests, "GitHub requests").toEqual([]);
     expect(html, "status heading").toContain(escapeHtml(TEXTS.en.statusHeading));
     expect(html, "version").toContain("0.0.0-test");
     expect(html, "chat line").toMatch(new RegExp(`${escapeRegExp(TEXTS.en.telegramChatLabel)}[\\s\\S]{0,40}5001001`));
@@ -2730,6 +2739,96 @@ describe("handleSetup status page", () => {
     expect(html, "last delivery").toContain("2026-10-17 12:34 (UTC)");
     expect(html, "reset form").not.toContain('action="/setup/reset"');
     expect(html, "settings form").toContain('action="/setup/settings"');
+  });
+
+  it("GET /setup lists the installations of a saved app below the GitHub App line", async () => {
+    const stored = await writeSecrets(env.DB, await keyFor(SECRET), {
+      github_app_id: "12345",
+      github_private_key: FIXTURE_PKCS8,
+      github_webhook_secret: "webhook-secret-text",
+    });
+    expect(stored, "saving the app").toEqual({ kind: "ok" });
+    const github = githubApiDouble({
+      installations: githubJsonAnswer(200, [
+        installationEntry({ account: { login: "octocat", type: "User" }, repository_selection: "all" }),
+      ]),
+    });
+
+    const response = await stepPage(githubDeps(github), "/setup");
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "installations block").toContain(
+      `<p>${TEXTS.en.installationsLabel}</p>\n<ul>\n<li>octocat (${TEXTS.en.accountPersonal}), ${TEXTS.en.repositoriesAll}</li>\n</ul>`,
+    );
+    expect(html.indexOf(TEXTS.en.installationsLabel), "installations come after the GitHub App line").toBeGreaterThan(
+      html.indexOf(escapeHtml(TEXTS.en.githubAppLabel)),
+    );
+    expect(
+      github.requests.map((request) => request.url),
+      "GitHub requests",
+    ).toEqual(["https://api.github.com/app/installations?per_page=100"]);
+  });
+
+  it("GET /setup lists the installations of an app from the Worker secrets in GitHub's order", async () => {
+    const github = githubApiDouble({
+      installations: githubJsonAnswer(200, [
+        installationEntry({ id: 1, account: { login: "octocat", type: "User" }, repository_selection: "all" }),
+        installationEntry({ id: 2, account: { login: "octo-org", type: "Organization" } }),
+      ]),
+    });
+    const deps = githubSecretDeps(github, { ...GITHUB_WORKER_SECRETS, GITHUB_APP_PRIVATE_KEY: FIXTURE_PEM });
+
+    const response = await stepPage(deps, "/setup");
+
+    expect(response.status, "status").toBe(200);
+    expect(await response.text(), "installations block").toContain(
+      `<li>octocat (${TEXTS.en.accountPersonal}), ${TEXTS.en.repositoriesAll}</li>\n` +
+        `<li>octo-org (${TEXTS.en.accountOrganization}), ${TEXTS.en.repositoriesSelected}</li>`,
+    );
+    expect(github.requests.length, "number of GitHub requests").toBe(1);
+  });
+
+  it.each([
+    { case: "the request fails", answer: GITHUB_REJECTED },
+    { case: "GitHub answers 500", answer: githubJsonAnswer(500, { message: "Server Error" }) },
+    { case: "GitHub refuses the app token", answer: githubJsonAnswer(401, { message: "Bad credentials" }) },
+    { case: "the answer is not JSON", answer: { kind: "raw", status: 200, body: "not json" } },
+  ] satisfies readonly { readonly case: string; readonly answer: GitHubAnswer }[])(
+    "GET /setup answers 200 with installations unavailable when GitHub fails: $case",
+    async ({ answer }) => {
+      const github = githubApiDouble({ installations: answer });
+      const deps = githubSecretDeps(github, { ...GITHUB_WORKER_SECRETS, GITHUB_APP_PRIVATE_KEY: FIXTURE_PEM });
+
+      const response = await stepPage(deps, "/setup");
+
+      expect(response.status, "status").toBe(200);
+      const html = await response.text();
+      expect(html, "installations line").toContain(UNAVAILABLE_LINE);
+      expect(html, "settings form").toContain('action="/setup/settings"');
+    },
+  );
+
+  it("GET /setup shows key unusable and sends no request for a Worker secret key that does not import", async () => {
+    const github = githubApiDouble({});
+
+    const response = await stepPage(githubSecretDeps(github, GITHUB_WORKER_SECRETS), "/setup");
+
+    expect(response.status, "status").toBe(200);
+    expect(await response.text(), "installations line").toContain(
+      `<p>${TEXTS.en.installationsLabel} ${escapeHtml(TEXTS.en.keyUnusable)}</p>`,
+    );
+    expect(github.requests, "GitHub requests").toEqual([]);
+  });
+
+  it("GET /setup shows no installations line and sends no request for partial Worker secrets", async () => {
+    const github = githubApiDouble({});
+
+    const response = await stepPage(githubSecretDeps(github, { GITHUB_APP_ID: "12345" }), "/setup");
+
+    expect(response.status, "status").toBe(200);
+    expect(await response.text(), "installations label").not.toContain(TEXTS.en.installationsLabel);
+    expect(github.requests, "GitHub requests").toEqual([]);
   });
 
   it("GET /setup shows the saved settings as selected", async () => {
@@ -2785,6 +2884,7 @@ describe("handleSetup settings form", () => {
     const html = await response.text();
     expect(html, "notice").toContain(noticeText("settings-invalid"));
     expect(html, "status heading").toContain(escapeHtml(TEXTS.en.statusHeading));
+    expect(html, "installations line without an app").not.toContain(TEXTS.en.installationsLabel);
     expect(html, "settings form").toContain('action="/setup/settings"');
     expect(await settingsRowCount(), "number of settings rows").toBe(0);
   });
@@ -2818,6 +2918,7 @@ describe("handleSetup reset form", () => {
     const resetForm = html.slice(html.indexOf('action="/setup/reset"'));
     expect(resetForm, "session-bound csrf field").toContain(`name="csrf" value="${await validCsrf()}"`);
     expect(html, "cannot be read line").toContain(escapeHtml(TEXTS.en.cannotBeRead));
+    expect(html, "installations line of an unreadable app").not.toContain(TEXTS.en.installationsLabel);
   });
 
   it("POST /setup/reset clears the credentials and answers 303 to /setup/github", async () => {
@@ -2853,11 +2954,15 @@ describe("handleSetup reset form", () => {
   it("POST /setup/reset answers 409 and deletes nothing when no reset is needed", async () => {
     await seedAppId(SECRET, "12345");
     await seedTokenCache();
+    const github = githubApiDouble({});
 
-    const response = await postSignedIn(RESET_PATH, [["csrf", await validCsrf()]], depsAt());
+    const response = await postSignedIn(RESET_PATH, [["csrf", await validCsrf()]], githubDeps(github));
 
     expect(response.status, "status").toBe(409);
-    expect(await response.text(), "notice").toContain(noticeText("reset-not-needed"));
+    const html = await response.text();
+    expect(html, "notice").toContain(noticeText("reset-not-needed"));
+    expect(html, "installations line of a saved app without a key").toContain(UNAVAILABLE_LINE);
+    expect(github.requests, "GitHub requests").toEqual([]);
     expect(await secretsCount(), "number of secrets rows").toBe(1);
     expect(await keyCheckCount(), "number of key check rows").toBe(1);
     expect(await tokenCacheCount(), "number of token_cache rows").toBe(1);

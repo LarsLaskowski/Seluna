@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { toPkcs8Pem } from "./private-key";
-import { FIXTURE_PEM, FIXTURE_PKCS8 } from "../../test/github";
+import { importSigningKey, MAX_SIGNING_KEY_BITS, toPkcs8Pem } from "./private-key";
+import { FIXTURE_PEM, FIXTURE_PKCS8, RSA_4096_PKCS8, RSA_4104_PKCS8 } from "../../test/github";
 
 const PKCS8_ALGORITHM = { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" } as const;
 
@@ -107,3 +107,65 @@ describe("toPkcs8Pem", () => {
     expect(converted, "PKCS#8 PEM").toBeUndefined();
   });
 });
+
+describe("importSigningKey", () => {
+  it.each([
+    { form: "PKCS#1", pem: FIXTURE_PEM },
+    { form: "PKCS#8", pem: FIXTURE_PKCS8 },
+  ])("importSigningKey imports the documented key as $form", async ({ pem }) => {
+    const key = await importSigningKey(pem);
+
+    expect(key, "signing key").toBeDefined();
+    expect(key?.algorithm, "algorithm").toMatchObject({
+      name: "RSASSA-PKCS1-v1_5",
+      hash: { name: "SHA-256" },
+      modulusLength: 2048,
+    });
+    expect(key?.usages, "usages").toEqual(["sign"]);
+    expect(key?.extractable, "extractable").toBe(false);
+  });
+
+  it("importSigningKey returns a key that signs the same bytes as the PKCS#8 form of the documented key", async () => {
+    const fromPkcs1 = await importSigningKey(FIXTURE_PEM);
+    const fromPkcs8 = await importSigningKey(FIXTURE_PKCS8);
+    const data = new TextEncoder().encode("header.claims");
+
+    const first = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", fromPkcs1 ?? failedImport(), data);
+    const second = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", fromPkcs8 ?? failedImport(), data);
+
+    expect(new Uint8Array(first), "signature of the PKCS#1 import").toEqual(new Uint8Array(second));
+  });
+
+  it("importSigningKey accepts an RSA key of exactly MAX_SIGNING_KEY_BITS bits", async () => {
+    const key = await importSigningKey(RSA_4096_PKCS8);
+
+    expect(MAX_SIGNING_KEY_BITS, "limit").toBe(4096);
+    expect(key?.algorithm, "algorithm").toMatchObject({ modulusLength: 4096 });
+  });
+
+  it("importSigningKey rejects an RSA key of more than 4096 bits", async () => {
+    const key = await importSigningKey(RSA_4104_PKCS8);
+
+    expect(key, "signing key").toBeUndefined();
+  });
+
+  it.each([
+    { form: "empty text", pem: () => "" },
+    { form: "text that is no PEM", pem: () => "not a pem" },
+    { form: "armour PUBLIC KEY", pem: () => pemOf("PUBLIC KEY", derOf(FIXTURE_PKCS8)) },
+    { form: "armour ENCRYPTED PRIVATE KEY", pem: () => pemOf("ENCRYPTED PRIVATE KEY", derOf(FIXTURE_PKCS8)) },
+    { form: "text before the BEGIN line", pem: () => `key:\n${FIXTURE_PEM}` },
+    { form: "non-canonical base64", pem: () => FIXTURE_PKCS8.replace("51a4=\n", "51a5=\n") },
+    { form: "a truncated PKCS#8 body", pem: () => pemOf("PRIVATE KEY", derOf(FIXTURE_PKCS8).slice(0, 100)) },
+    { form: "a PKCS#1 body that is no key", pem: () => pemOf("RSA PRIVATE KEY", new Uint8Array(300).fill(0x41)) },
+    { form: "more than 16,384 characters", pem: () => pemOf("PRIVATE KEY", new Uint8Array(12_500).fill(0x41)) },
+  ])("importSigningKey returns undefined without throwing for $form", async ({ pem }) => {
+    const key = await importSigningKey(pem());
+
+    expect(key, "signing key").toBeUndefined();
+  });
+});
+
+function failedImport(): never {
+  throw new Error("importSigningKey returned no key");
+}

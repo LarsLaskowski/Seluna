@@ -16,7 +16,8 @@ import {
 import type { GitHubPageView, TelegramPageView } from "./pages";
 import { DEFAULT_SETTINGS, RULE_IDS } from "../settings";
 import type { NotificationSettings } from "../settings";
-import type { StatusView } from "./status";
+import type { Installation } from "../github/installations";
+import type { InstallationsView, StatusView } from "./status";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 import type { TelegramChat } from "../telegram";
@@ -603,6 +604,266 @@ describe("renderStartPage status", () => {
 
       expect(page, "notice").toContain(escapeHtml(TEXTS[language].notices["settings-invalid"]));
       expect(page, "status heading").toContain(escapeHtml(TEXTS[language].statusHeading));
+    },
+  );
+});
+
+/** The installation of an account, selected repositories, not suspended. */
+function installationOf(account: Installation["account"], changes: Partial<Installation> = {}): Installation {
+  return { id: 1, account, repositorySelection: "selected", suspended: false, ...changes };
+}
+
+function listed(installations: readonly Installation[], more = false): InstallationsView {
+  return { kind: "listed", installations, more };
+}
+
+/** The installations part of the status section of the start page, from its paragraph to the last delivery paragraph. */
+function installationsSection(language: Language, installations: InstallationsView): string {
+  const page = startPage(language, { installations });
+  const start = page.indexOf(TEXTS[language].installationsLabel);
+  const end = page.indexOf(`<p>${escapeHtml(TEXTS[language].lastDeliveryLabel)}`);
+  return start < 0 || end < 0 ? "" : page.slice(start - "<p>".length, end);
+}
+
+describe("renderStartPage installations", () => {
+  it("renderStartPage lists the installations in a list below the GitHub App line, in the given order", () => {
+    const page = startPage("en", {
+      installations: listed([
+        installationOf({ kind: "login", login: "octocat", type: "User" }, { repositorySelection: "all" }),
+        installationOf({ kind: "login", login: "octo-org", type: "Organization" }),
+      ]),
+    });
+
+    expect(page, "installations block").toContain(
+      "<p>Installations:</p>\n<ul>\n" +
+        "<li>octocat (personal account), all repositories</li>\n" +
+        "<li>octo-org (organization), selected repositories</li>\n</ul>",
+    );
+    const order = [TEXTS.en.githubAppLabel, TEXTS.en.installationsLabel, TEXTS.en.lastDeliveryLabel].map((text) =>
+      page.indexOf(escapeHtml(text)),
+    );
+    expect(order, "the installations come between the GitHub App line and the last delivery").toEqual(
+      [...order].sort((a, b) => a - b),
+    );
+    expect(Math.min(...order), "every text is on the page").toBeGreaterThanOrEqual(0);
+  });
+
+  it.each<{ case: string; account: Installation["account"]; changes?: Partial<Installation>; en: string; de: string }>([
+    {
+      case: "a personal account",
+      account: { kind: "login", login: "octocat", type: "User" },
+      en: "octocat (personal account), selected repositories",
+      de: "octocat (persönliches Konto), ausgewählte Repositories",
+    },
+    {
+      case: "an organization",
+      account: { kind: "login", login: "octo-org", type: "Organization" },
+      changes: { repositorySelection: "all" },
+      en: "octo-org (organization), all repositories",
+      de: "octo-org (Organisation), alle Repositories",
+    },
+    {
+      case: "an account of another type",
+      account: { kind: "login", login: "robot", type: "Bot" },
+      en: "robot (other account), selected repositories",
+      de: "robot (anderes Konto), ausgewählte Repositories",
+    },
+    {
+      case: "an account without a type",
+      account: { kind: "login", login: "octocat", type: undefined },
+      en: "octocat (other account), selected repositories",
+      de: "octocat (anderes Konto), ausgewählte Repositories",
+    },
+    {
+      case: "an enterprise",
+      account: { kind: "enterprise", slug: "acme" },
+      en: "acme (enterprise), selected repositories",
+      de: "acme (Enterprise), ausgewählte Repositories",
+    },
+    {
+      case: "an unknown account",
+      account: { kind: "unknown" },
+      en: "Unknown account, selected repositories",
+      de: "Unbekanntes Konto, ausgewählte Repositories",
+    },
+    {
+      case: "a suspended installation",
+      account: { kind: "login", login: "octocat", type: "User" },
+      changes: { suspended: true },
+      en: "octocat (personal account), selected repositories, suspended",
+      de: "octocat (persönliches Konto), ausgewählte Repositories, gesperrt",
+    },
+    {
+      case: "a suspended installation of an unknown account on all repositories",
+      account: { kind: "unknown" },
+      changes: { suspended: true, repositorySelection: "all" },
+      en: "Unknown account, all repositories, suspended",
+      de: "Unbekanntes Konto, alle Repositories, gesperrt",
+    },
+  ])("the status section lists $case in English and German", ({ account, changes, en, de }) => {
+    const view = listed([installationOf(account, changes)]);
+
+    const english = startPage("en", { installations: view });
+    const german = startPage("de", { installations: view });
+
+    expect(english, "English entry").toContain(`<li>${en}</li>`);
+    expect(german, "German entry").toContain(`<li>${de}</li>`);
+  });
+
+  it.each([
+    {
+      case: "a login",
+      account: { kind: "login", login: '<script>alert("x")</script>&', type: "User" } as const,
+      escaped: "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp; (personal account)",
+    },
+    {
+      case: "a slug",
+      account: { kind: "enterprise", slug: "<img src=x onerror=y>'" } as const,
+      escaped: "&lt;img src=x onerror=y&gt;&#39; (enterprise)",
+    },
+  ])("the status section lists $case escaped, never as markup", ({ account, escaped }) => {
+    const page = startPage("en", { installations: listed([installationOf(account)]) });
+
+    expect(page, "entry").toContain(`<li>${escaped}, selected repositories</li>`);
+    expect(page, "script tag").not.toContain("<script>");
+    expect(page, "image tag").not.toContain("<img");
+  });
+
+  it("the status section shows not installed for an empty list", () => {
+    const section = installationsSection("en", listed([]));
+
+    expect(section, "section").toBe("<p>Installations: Not installed on any account yet.</p>\n");
+  });
+
+  it("the status section shows not installed in German for an empty list", () => {
+    const section = installationsSection("de", listed([]));
+
+    expect(section, "section").toBe("<p>Installationen: Noch auf keinem Konto installiert.</p>\n");
+  });
+
+  it("the status section shows the more installations text exactly when more is set", () => {
+    const entry = installationOf({ kind: "login", login: "octocat", type: "User" });
+
+    const withMore = startPage("en", { installations: listed([entry], true) });
+    const withoutMore = startPage("en", { installations: listed([entry], false) });
+
+    expect(withMore, "text with more").toContain("</ul>\n<p>Only the first 100 installations are shown.</p>");
+    expect(withoutMore, "text without more").not.toContain("Only the first 100 installations are shown.");
+  });
+
+  it("the status section shows the more installations text in German after the entries", () => {
+    const entry = installationOf({ kind: "login", login: "octocat", type: "User" });
+
+    const page = startPage("de", { installations: listed([entry], true) });
+
+    expect(page, "text").toContain("</ul>\n<p>Nur die ersten 100 Installationen werden angezeigt.</p>");
+  });
+
+  it("the status section shows 100 entries without more and without the text", () => {
+    const hundred = Array.from({ length: 100 }, (_, index) =>
+      installationOf({ kind: "login", login: `user${String(index)}`, type: "User" }, { id: index + 1 }),
+    );
+
+    const page = startPage("en", { installations: listed(hundred) });
+
+    expect(page.match(/<li>user\d+ \(personal account\)/g)?.length, "number of entries").toBe(100);
+    expect(page, "more text").not.toContain("Only the first 100 installations are shown.");
+  });
+
+  it.each([
+    {
+      language: "en",
+      unavailable: "Cannot be loaded from GitHub right now.",
+      unusable: "The app's private key cannot be used.",
+      label: "Installations:",
+    },
+    {
+      language: "de",
+      unavailable: "Kann gerade nicht von GitHub geladen werden.",
+      unusable: "Der private Schlüssel der App ist nicht verwendbar.",
+      label: "Installationen:",
+    },
+  ] as const)(
+    "the status section shows the unavailable and key unusable texts in $language",
+    ({ language, unavailable, unusable, label }) => {
+      const unavailableSection = installationsSection(language, { kind: "unavailable" });
+      const unusableSection = installationsSection(language, { kind: "key-unusable" });
+
+      expect(unavailableSection, "unavailable section").toBe(`<p>${label} ${escapeHtml(unavailable)}</p>\n`);
+      expect(unusableSection, "key unusable section").toBe(`<p>${label} ${escapeHtml(unusable)}</p>\n`);
+    },
+  );
+});
+
+/** The texts of the spec (Non-functional requirements, Texts), written out independently of `src/setup/texts.ts`. */
+const SPEC_INSTALLATION_TEXTS = {
+  en: {
+    label: "Installations:",
+    personal: "personal account",
+    organization: "organization",
+    other: "other account",
+    enterprise: "enterprise",
+    unknown: "Unknown account",
+    all: "all repositories",
+    selected: "selected repositories",
+    suspended: "suspended",
+    notInstalled: "Not installed on any account yet.",
+    more: "Only the first 100 installations are shown.",
+    unavailable: "Cannot be loaded from GitHub right now.",
+    keyUnusable: "The app's private key cannot be used.",
+  },
+  de: {
+    label: "Installationen:",
+    personal: "persönliches Konto",
+    organization: "Organisation",
+    other: "anderes Konto",
+    enterprise: "Enterprise",
+    unknown: "Unbekanntes Konto",
+    all: "alle Repositories",
+    selected: "ausgewählte Repositories",
+    suspended: "gesperrt",
+    notInstalled: "Noch auf keinem Konto installiert.",
+    more: "Nur die ersten 100 Installationen werden angezeigt.",
+    unavailable: "Kann gerade nicht von GitHub geladen werden.",
+    keyUnusable: "Der private Schlüssel der App ist nicht verwendbar.",
+  },
+} as const;
+
+describe("renderStartPage installations texts", () => {
+  it.each([{ language: "en" as const }, { language: "de" as const }])(
+    "the installations texts are the $language texts of the spec",
+    ({ language }) => {
+      const spec = SPEC_INSTALLATION_TEXTS[language];
+      const everyKind = listed(
+        [
+          installationOf({ kind: "login", login: "a", type: "User" }, { repositorySelection: "all" }),
+          installationOf({ kind: "login", login: "b", type: "Organization" }),
+          installationOf({ kind: "login", login: "c", type: "Bot" }, { suspended: true }),
+          installationOf({ kind: "enterprise", slug: "d" }),
+          installationOf({ kind: "unknown" }),
+        ],
+        true,
+      );
+
+      const entries = startPage(language, { installations: everyKind });
+      const empty = startPage(language, { installations: listed([]) });
+      const unavailable = startPage(language, { installations: { kind: "unavailable" } });
+      const unusable = startPage(language, { installations: { kind: "key-unusable" } });
+
+      expect(entries, "label").toContain(`<p>${spec.label}</p>`);
+      expect(entries, "list").toContain(
+        [
+          `<li>a (${spec.personal}), ${spec.all}</li>`,
+          `<li>b (${spec.organization}), ${spec.selected}</li>`,
+          `<li>c (${spec.other}), ${spec.selected}, ${spec.suspended}</li>`,
+          `<li>d (${spec.enterprise}), ${spec.selected}</li>`,
+          `<li>${spec.unknown}, ${spec.selected}</li>`,
+        ].join("\n"),
+      );
+      expect(entries, "more text").toContain(`<p>${spec.more}</p>`);
+      expect(empty, "not installed text").toContain(`<p>${spec.label} ${spec.notInstalled}</p>`);
+      expect(unavailable, "unavailable text").toContain(`<p>${spec.label} ${spec.unavailable}</p>`);
+      expect(unusable, "key unusable text").toContain(`<p>${spec.label} ${escapeHtml(spec.keyUnusable)}</p>`);
     },
   );
 });

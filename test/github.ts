@@ -2,10 +2,14 @@ import { expect, onTestFinished, vi } from "vitest";
 import type { Mock } from "vitest";
 import type { GitHubFetch } from "../src/github/conversion";
 import type { AccountChoice } from "../src/github/manifest";
+import installationTokenFixture from "./fixtures/github/installation-token.json";
+import installationsFixture from "./fixtures/github/installations.json";
 import conversionFixture from "./fixtures/github/manifest-conversion.json";
 import notFoundFixture from "./fixtures/github/manifest-conversion-not-found.json";
 import pkcs8Fixture from "./fixtures/github/manifest-conversion-pkcs8.json";
 import validationFailedFixture from "./fixtures/github/manifest-conversion-validation-failed.json";
+import pullRequestFixture from "./fixtures/github/pull-request.json";
+import keySizesFixture from "./fixtures/github/rsa-key-sizes.json";
 import { base64UrlOf, hmacBase64Url } from "./keys";
 
 /*
@@ -257,3 +261,48 @@ export async function stateFor(
   const mac = await hmacBase64Url(key, `github-state.v1.${head}.${session}`);
   return `v1.${head}.${mac}`;
 }
+
+/** The `token` of the documented installation token answer. */
+export const FIXTURE_TOKEN: string = installationTokenFixture.token;
+/** An RSA key of exactly 4096 bits as PKCS#8 PEM (generated with OpenSSL, grants nothing): the largest `importSigningKey` accepts. */
+export const RSA_4096_PKCS8: string = keySizesFixture.bits4096;
+/** An RSA key of 4104 bits as PKCS#8 PEM (generated with OpenSSL, grants nothing): above the limit of `importSigningKey`. */
+export const RSA_4104_PKCS8: string = keySizesFixture.bits4104;
+
+/** A fresh copy of the documented installation token answer with `token` and `expires_at` (a time) set. */
+export function installationTokenBody(token: string, expiresAt: Date | number): Record<string, unknown> {
+  const copy: Record<string, unknown> = structuredClone(installationTokenFixture);
+  copy.token = token;
+  copy.expires_at = new Date(expiresAt).toISOString();
+  return copy;
+}
+
+/** A fresh copy of the one installation of the documented list (a `User` account, `selected`) with `changes` set. */
+export function installationEntry(changes: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
+  const [documented] = structuredClone(installationsFixture);
+  if (documented === undefined) {
+    throw new Error("The documented installations list is empty");
+  }
+  const copy: Record<string, unknown> = documented;
+  for (const [field, value] of Object.entries(changes)) {
+    if (value === undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- the helper removes a field named by its caller
+      delete copy[field];
+    } else {
+      copy[field] = value;
+    }
+  }
+  return copy;
+}
+
+/** A fresh copy of the captured pull request answer (not a draft) with `draft` set. */
+export function pullRequestBody(draft = false): Record<string, unknown> {
+  const copy: Record<string, unknown> = structuredClone(pullRequestFixture);
+  copy.draft = draft;
+  return copy;
+}
+
+/** The `draft` of the captured pull request answer. */
+export const FIXTURE_PULL_REQUEST_DRAFT: boolean = pullRequestFixture.draft;
+/** The `number` of the captured pull request answer. */
+export const FIXTURE_PULL_REQUEST_NUMBER: number = pullRequestFixture.number;

@@ -67,3 +67,20 @@ export function schemaOnlyDb(db: D1Database): D1Database {
     withSession: fail,
   };
 }
+
+/**
+ * A `D1Database` that reads like `db` but whose `prepare` throws for every statement that does not start with
+ * `SELECT`, and whose `batch`, `exec`, `dump` and `withSession` throw: a database whose writes fail.
+ */
+export function writeFailingDb(db: D1Database): D1Database {
+  const fail = (): never => {
+    throw new Error("The database may only be read");
+  };
+  return {
+    prepare: (query: string) => (/^\s*SELECT\b/i.test(query) ? db.prepare(query) : fail()),
+    batch: fail,
+    exec: fail,
+    dump: fail,
+    withSession: fail,
+  };
+}
