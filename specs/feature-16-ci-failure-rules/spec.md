@@ -34,8 +34,8 @@ bold, `·`, the repository and, where the case has one, ` #` and the number.
   line 1 `CI failed on main · owner/repo` (no number), line 2 `Build` (`workflow_run.name`), line 3
   `main · Fix the parser` (the branch, ` · `, the first line of `workflow_run.head_commit.message`), and the button
   _Open on GitHub_ opens `workflow_run.html_url`, the page of the run.
-- S2: Given the switch _CI failed in a pull request_ is on, when a failed run arrives on a branch that is not the
-  default branch, whose `workflow_run.pull_requests` names pull request 42 of the delivery's repository, and GitHub
+- S2: Given the switch _CI failed in a pull request_ is on, when a failed run arrives that is not on the default
+  branch, whose `workflow_run.pull_requests` names pull request 42 of the delivery's repository, and GitHub
   answers that pull request 42 is not a draft, then the owner receives one message: line 1
   `CI failed in pull request · owner/repo #42`, line 2 the workflow name, line 3 the run's branch and the first line
   of the head commit message, and the button opens the run.
@@ -45,7 +45,9 @@ bold, `·`, the repository and, where the case has one, ` #` and the number.
 - S5: Given a failed run, when its conclusion is `timed_out` instead of `failure`, then it is reported exactly like
   a run that ended in `failure` (S1, S2, S3, S4).
 - S6: Given two workflows that both fail on one push, when their two failed runs arrive, then the owner receives two
-  messages, one per run, each with its own workflow name and button.
+  messages, one per run, each with its own workflow name and button. This includes one workflow that runs both on
+  `push` and on `pull_request`: a failing push to a pull request's branch gives two runs and so two nearly identical
+  messages (one run, one message).
 - S7: Given a run that was reported, when it is re-run and fails again, then the new attempt is reported again with a
   message of the same lines.
 
@@ -56,17 +58,22 @@ bold, `·`, the repository and, where the case has one, ` #` and the number.
   `stale`, `startup_failure`, `null` or a value GitHub adds later — sends no message and asks GitHub nothing.
 - E2: A failed run on a branch that is neither the default branch nor named in `workflow_run.pull_requests` (an
   empty list, which is also what GitHub sends for a pull request from a fork) sends no message.
-- E3: A failed run on the default branch whose `workflow_run.pull_requests` is not empty (for example a pull request
-  from the default branch into a release branch) is reported once, as S1; the pull request case stays silent and
-  GitHub is asked nothing. One run gives at most one message.
-- E4: When `workflow_run.pull_requests` names several pull requests, only the first one whose base repository
-  (`base.repo.id`) is the delivery's repository (`repository.id`) is used: its number is shown and its draft state
-  alone decides. Entries of other repositories are skipped; when none is left, nothing is sent (E2).
+- E3: The pull request case never matches a run on the default branch, whatever the switches. A failed run on the
+  default branch whose `workflow_run.pull_requests` is not empty (for example a pull request from the default branch
+  into a release branch) is reported once, as S1, and GitHub is asked nothing; with the switch _CI failed on the
+  default branch_ off it sends no message, asks GitHub nothing and leaves the decision `disabled`. One run gives at
+  most one message.
+- E4: `workflow_run.pull_requests` is read entry by entry, in its order. An entry counts only when it is an object
+  with a `number` that is a whole number from 1 to 2^53 − 1 and a `base.repo.id` that is a whole number from 1 to
+  2^53 − 1 equal to `repository.id`; any other entry — of another repository, or missing or mistyped — is skipped
+  and never silences the delivery. The first entry that counts is used: its number is shown and its draft state
+  alone decides. When no entry counts, the pull request case sends nothing (E2); a malformed entry never affects the
+  default branch case.
 - E5: A delivery whose fields are missing or of another type sends no message and asks GitHub nothing: the event
   name not `workflow_run`, `workflow_run` not an object, `conclusion`, `head_branch`, `name` or `html_url` not a
-  string, `repository.full_name` or `repository.default_branch` not a string, a `pull_requests` entry without a
-  number that is a whole number from 1 to 2^53 − 1. A body of another event sent under the header `workflow_run`
-  matches nothing for this reason.
+  string, `workflow_run.head_repository.id` or `repository.id` not a whole number from 1 to 2^53 − 1,
+  `repository.full_name` or `repository.default_branch` not a string, and for the pull request case `pull_requests`
+  not an array. A body of another event sent under the header `workflow_run` matches nothing for this reason.
 - E6: `workflow_run.head_commit` is `null`, or its `message` is not a string: line 3 is the branch alone. A commit
   message whose first line is empty or only spaces gives the same.
 - E7: The first line of the commit message ends at the first line feed or carriage return; the rest is never shown.
@@ -82,17 +89,29 @@ bold, `·`, the repository and, where the case has one, ` #` and the number.
 - E10: GitHub is slow: the draft lookup takes longer than its time bound (see *Non-functional requirements*); it
   counts as failed and the message is sent as in S4. GitHub still receives its answer in time.
 - E11: The switch of a case is off: that case sends nothing and, for the pull request case, GitHub is not asked; the
-  delivery's log entry has the decision `disabled`.
-- E12: A delivery GitHub sends again with the same `X-GitHub-Delivery` (a redelivery) sends no second message and
-  asks GitHub nothing.
+  delivery's log entry has the decision `disabled`. A run on the default branch is never reported as the pull
+  request case instead (E3).
+- E12: A delivery whose `X-GitHub-Delivery` is already recorded when it arrives (a redelivery) sends no second message
+  and asks GitHub nothing. Two deliveries of one id processed at the same time may each make a draft lookup, but only
+  one of them is stored, so they give at most one message.
+- E14: A pull request from a fork whose branch is named like the default branch (a fork's `main`): its failed run
+  has `head_branch` equal to `repository.default_branch` but a `head_repository.id` other than `repository.id`, so it
+  is not on the default branch and is never reported as the default branch case. With the empty `pull_requests` GitHub
+  is expected to send for a fork (to be confirmed against a real delivery in the plan) it sends no message and asks
+  GitHub nothing (E2); should an entry of the delivery's repository ever be present, it is handled as the pull
+  request case (S2–S4), never as the default branch case. An outside contributor cannot raise the default branch
+  alarm with a text of their choosing.
 - E13: A draft pull request (S3) leaves the decision `no-match` in the delivery's log entry, like any delivery no
   rule reports.
 
 ## Non-functional requirements
 
-- Time: GitHub expects an answer to a webhook delivery within 10 seconds. The draft lookup (installation token and
-  pull request read together) is bounded to at most 8 seconds from its start; a lookup that has not finished then is
-  a failure (E10).
+- Time: GitHub expects an answer to a webhook delivery within 10 seconds. The draft lookup is bounded by its own
+  time limit of 8 seconds around the whole lookup — installation token and pull request read together, measured from
+  the start of the lookup, independent of the API client's 10-second timeout per request; a lookup that has not
+  finished then is a failure (E10). The rest of the processing (the duplicate check and the settings read before
+  the lookup, the transaction after it) is D1 work expected to take well under the remaining 2 seconds; that
+  expectation is unverified and the plan names its measurement.
 - Requests: at most one draft lookup per delivery, and only for a failed run that is reported as the pull request
   case with that switch on; no other case of this feature calls GitHub. The lookup uses the existing GitHub API client
   with all its request rules ([GitHub API](../../docs/areas/github-api.md)): the installation token of the
@@ -125,22 +144,30 @@ bold, `·`, the repository and, where the case has one, ` #` and the number.
 - [ ] AC6: A failed run that is on neither the default branch nor in a pull request of the delivery's repository
   produces no message (E2, E4).
 - [ ] AC7: A failed run on the default branch with a non-empty `pull_requests` produces exactly one message, the
-  default branch one, and no GitHub request (E3).
-- [ ] AC8: With several `pull_requests` entries, the first entry whose base repository is the delivery's repository
-  decides the number and the draft lookup (E4).
+  default branch one, and no GitHub request; with the default branch switch off it produces no message, no GitHub
+  request and the decision `disabled` (E3).
+- [ ] AC8: With several `pull_requests` entries, the first entry with a valid number whose `base.repo.id` is the
+  delivery's `repository.id` decides the number and the draft lookup; entries of another repository and malformed
+  entries are skipped, and a malformed entry does not keep a default branch run from being reported (E4).
 - [ ] AC9: A delivery with a missing or wrongly typed field of E5 produces no message and no GitHub request (E5).
 - [ ] AC10: Without a usable head commit message line, line 3 is the branch alone (E6).
 - [ ] AC11: With a switch off, its case produces no message, the decision is `disabled`, and the pull request case
   makes no GitHub request (E11).
 - [ ] AC12: Each failed run delivered under its own delivery id produces its own message, also for a re-run of one run;
-  a redelivered id produces none and no GitHub request (S6, S7, E12).
+  a delivery whose id is already recorded on arrival produces none and no GitHub request (S6, S7, E12).
 - [ ] AC13: The titles and the note exist in English and German and follow the notification language (S1, S2, S4).
 - [ ] AC14: Branch, workflow name and commit line with HTML special, control or directional characters are cleaned,
   cut and escaped like every message text (E8).
+- [ ] AC15: A failed run of a fork's pull request from a branch named like the default branch (`head_branch` equal to
+  `repository.default_branch`, `head_repository.id` not `repository.id`, empty `pull_requests`) produces no message
+  and no GitHub request (E14).
 
 ## Out of scope
 
-- A failed run of a pull request from a fork: GitHub sends it with an empty `pull_requests`, so it is silent (E2).
+- A failed run of a pull request from a fork: GitHub sends it with an empty `pull_requests`, so it is silent (E2),
+  also when the fork's branch is named like the default branch (E14).
+- Merging the `push` run and the `pull_request` run of one workflow on one commit into one message: they are two
+  runs and give two messages (S6).
 - The conclusions `startup_failure` (an invalid workflow file), `action_required`, `neutral` and `stale`: the issue
   names only `failure` and `timed_out` (E1).
 - Check runs and check suites of other CI systems (`check_run`, `check_suite`): only GitHub Actions runs.
@@ -164,9 +191,12 @@ bold, `·`, the repository and, where the case has one, ` #` and the number.
 - What when a run is both on the default branch and in a pull request? Answered: (Lead) the default branch case
   only, from the issue's "one run, one message" (E3).
 - What when `pull_requests` names several pull requests? Answered: (Lead) the first of the delivery's repository
-  (E4), so a run makes at most one lookup and one message. Entries of another base repository are skipped because
-  their number does not name a pull request of the repository the lookup asks; the plan verifies `base.repo.id`
-  against a real delivery.
+  (E4), so a run makes at most one lookup and one message. Entries of another base repository, and malformed
+  entries, are skipped because their number does not name a pull request of the repository the lookup asks; the plan
+  verifies `base.repo.id` against a real delivery.
+- How is a run on the default branch told apart from a fork's branch of the same name? Answered: (Lead) by
+  `workflow_run.head_repository.id` equal to `repository.id` (E14); the plan verifies the field against a real
+  delivery.
 - May a pull request whose draft state is unknown be reported, against the guarantee that drafts are silent?
   Answered: yes — issue #16, written by the Product Manager, says "If that call fails, the message is sent anyway
   with the note". The guarantee text in `docs/ARCHITECTURE.md` and `.squad/project.md` is amended to name this
@@ -197,3 +227,27 @@ bold, `·`, the repository and, where the case has one, ` #` and the number.
 - [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md): the *Rules* component and step 3 of *Webhook to Telegram* (the
   draft lookup), the *Security model* sentence that the webhook processing "will" call GitHub, and the draft
   guarantee with its exception.
+
+## Challenge
+
+1. MAJOR — the default-branch condition `head_branch == repository.default_branch` alone matches a fork's pull
+   request from a branch named like the default branch. Accepted: "on the default branch" now also requires
+   `workflow_run.head_repository.id` equal to `repository.id` (definition before S1, S1); both ids are in E5's type
+   list; new edge case E14 and criterion AC15 (fork pull request from `main` → no message, no GitHub request); the
+   field is an open question the plan verifies against a real delivery; Out of scope names E14.
+2. minor — independent rules could let the pull request case match a default-branch run whose switch is off.
+   Accepted: E3 states the pull request case never matches a run on the default branch, whatever the switches, and a
+   default-branch run with its switch off gives no message, no GitHub request and the decision `disabled`; E11 refers
+   to it; AC7 covers it.
+3. minor — a malformed `pull_requests` entry silenced the whole delivery, and entries without `base.repo.id` were
+   unaddressed. Accepted: E4 now defines the per-entry fields (`number` and `base.repo.id`, each a positive safe
+   integer) and skips a malformed entry like a foreign one, never affecting the default branch case; E5 keeps only
+   `pull_requests` not being an array (pull request case); AC8 covers it.
+4. minor — the 8-second bound and the D1 work around it. Accepted, 8 seconds kept: the non-functional requirement
+   states the bound is its own limit around the whole lookup (token and pull request read), measured from the start
+   of the lookup and independent of the client's 10-second per-request timeout, with the remaining D1 work expected
+   well under 2 seconds — marked unverified, measurement named by the plan.
+5. minor — E12/AC12 hold only for a delivery id already recorded on arrival. Accepted: E12 and AC12 are limited to
+   that; two concurrent deliveries of one id may each look up but give at most one message.
+6. minor — a workflow on `push` and `pull_request` gives two near-identical messages. Accepted: named in S6 and in Out
+   of scope as following "one run, one message".
