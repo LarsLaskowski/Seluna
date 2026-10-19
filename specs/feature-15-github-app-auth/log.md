@@ -28,3 +28,4 @@ are quoted in full.
 | 2026-10-19 13:51 | 6 Coverage gate | Orchestrator | Test with coverage 2202/2202 green; Coverage gate PASS (new/changed 96.1%, overall 96.8%) |
 | 2026-10-19 13:54 | 6 Coverage (task 11) | squad-tester | done: deferred tests written (isRepositoryOwner table, hidden rendering en/de, signed-out GET /setup no GitHub/D1 call, installations catch via verify-only key); every plan test name present; 2224/2224 green; Coverage PASS 96.5%; only never-branches uncovered (sonnet/medium · 92,586 tokens · 16 tool uses · 211 s) |
 | 2026-10-19 13:56 | 7 Code check | Orchestrator | main not moved; Format check, Analyzer gate (27 files, 0 findings), Build, Test 2224/2224, Coverage gate PASS (96.5% / 96.8%), scope-check PASS (46 files), decision-check PASS |
+| 2026-10-19 13:56 | 7 Sonar gate | Orchestrator | NOT CHECKED: no SONAR_TOKEN in the session; left to step 11 (sonar-check.py pr) |
