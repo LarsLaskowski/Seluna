@@ -151,7 +151,7 @@ it and add their pages behind the login.
   installed_ on the same line for an empty list; the _more installations_ text after the list exactly when the
   answer's `Link` header has a link with `rel="next"`; _installations unavailable_ on the same line when the request
   fails (refused, timed out, redirected, unreadable) or the Worker secret `GITHUB_APP_ID` is not a positive whole
-  number or no App ID or key can be read, without a request in the last two cases; _key unusable_ on the same line
+  number or a saved app has no saved private key, without a request in the last two cases; _key unusable_ on the same line
   when the private key cannot sign (not an RSA key, more than 4096 bits, or a saved key that does not decrypt). The
   page answers 200 in every one of these cases.
 - The settings form posts to `POST /setup/settings` with the session-bound `csrf` field and these fields:
@@ -583,8 +583,9 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   ([GitHub API](github-api.md#limits-and-errors)), so such a page takes at most about 10 seconds longer when GitHub is
   slow, and never fails because of GitHub. The signed-out pages (login, lock, _not configured_) call neither GitHub
   nor D1, and the notice-only pages (503, 403) make no installations request.
-- The conversion request carries a 10 second timeout and its answer is read up to 1 MiB; no document claims that the
-  timeout also bounds reading the body, which is limited by size only.
+- The conversion request carries a 10 second timeout, which also covers reading its body (the body is read from the
+  response of the request that carries the timeout, as for the [GitHub API](github-api.md#limits-and-errors) calls),
+  and its answer is read up to 1 MiB.
 - Whether GitHub returns `code` and `state` as documented, whether the browser sends the session cookie with the
   finish form and whether `form-action https://github.com` lets GitHub's own redirects through were not captured from
   a real run when this step was written; each deviation fails closed (a fixed notice, nothing stored).

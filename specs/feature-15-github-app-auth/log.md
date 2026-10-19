@@ -30,3 +30,4 @@ are quoted in full.
 | 2026-10-19 13:56 | 7 Code check | Orchestrator | main not moved; Format check, Analyzer gate (27 files, 0 findings), Build, Test 2224/2224, Coverage gate PASS (96.5% / 96.8%), scope-check PASS (46 files), decision-check PASS |
 | 2026-10-19 13:56 | 7 Sonar gate | Orchestrator | NOT CHECKED: no SONAR_TOKEN in the session; left to step 11 (sonar-check.py pr) |
 | 2026-10-19 13:57 | 8 Security diff review | squad-security | APPROVED on 944fdc6: no findings; B1, N1, N3 confirmed in code (opus/medium · 47,587 tokens · 12 tool uses · 85 s) |
+| 2026-10-19 14:00 | 8 Review round 1 | squad-reviewer | BLOCKING 3 / NON-BLOCKING 1, all verbatim doc fixes: github-api.md stored App ID (not value) → no app; setup-wizard.md unavailable case = saved app without key; setup-wizard.md conversion timeout also covers body; non-blocking docs/setup.md mentions installations; Dev deviations accepted (opus/medium · 130,472 tokens · 25 tool uses · 195 s) |

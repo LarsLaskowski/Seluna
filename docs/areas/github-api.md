@@ -19,7 +19,7 @@ failure rule, issue #16, first) and the setup wizard's status page rely on it.
 - The private key is a PEM RSA key, PKCS#1 (`RSA PRIVATE KEY`) or PKCS#8 (`PRIVATE KEY`), at most 16,384
   characters, with a modulus of at most 4096 bits, that imports as an RSASSA-PKCS1-v1_5 SHA-256 signing key. A key that does not import, or a stored key
   that does not decrypt, is _key unusable_.
-- No App ID or no key (neither source, a stored value that cannot be read with the current `SELUNA_SECRET`, no usable
+- No App ID or no key (neither source, a stored App ID that cannot be read with the current `SELUNA_SECRET`, no usable
   `SELUNA_SECRET` for a stored value) means no usable app.
 
 ### App token

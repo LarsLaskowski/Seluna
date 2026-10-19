@@ -29,6 +29,6 @@ Alternatively, set the Worker secrets `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` 
 
 ## Status and settings
 
-The setup page (`/setup`) is also the status page. It shows the version, the Telegram chat, the GitHub App with a link to it and the time of the last delivery received from GitHub, and below it the settings: the language of the notifications (English or German), your time zone, quiet hours, one switch for each kind of notification and the notice about new Seluna releases. Select **Save settings**; the changes apply without a new deployment.
+The setup page (`/setup`) is also the status page. It shows the version, the Telegram chat, the GitHub App with a link to it and the accounts it is installed on, and the time of the last delivery received from GitHub, and below it the settings: the language of the notifications (English or German), your time zone, quiet hours, one switch for each kind of notification and the notice about new Seluna releases. Select **Save settings**; the changes apply without a new deployment.
 
 If you change `SELUNA_SECRET` later, Seluna can no longer read the saved GitHub credentials. Set the earlier secret again, or select **Reset and create the GitHub App again** on the setup page: Seluna deletes the saved GitHub credentials and installation tokens (the Telegram chat and the settings stay) and leads you through the GitHub App step again. Delete the old app on GitHub afterwards.
