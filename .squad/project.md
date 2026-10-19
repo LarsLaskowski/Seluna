@@ -51,8 +51,8 @@ files or endpoints.
   written in one transaction, and the client secret is discarded. Only the review page has `form-action
   https://github.com`.
 - **GitHub App authentication:** every GitHub call except the manifest conversion is made as the app through
-  `src/github/` (`app-jwt.ts`, `http.ts`, `app-credentials.ts`, `installation-token.ts`, `installations.ts`,
-  `api-client.ts`): an RS256 JWT (`iat` now − 60 s, `exp` now + 540 s, `iss` the App ID) signed per request with the
+  `src/github/` (`app-jwt.ts`, `http.ts`, `app-credentials.ts`, `installation-token.ts`, `token-text.ts`,
+  `installations.ts`, `api-client.ts`): an RS256 JWT (`iat` now − 60 s, `exp` now + 540 s, `iss` the App ID) signed per request with the
   private key resolved per credential, never stored; installation tokens per `installation.id`, allow-listed
   (`[A-Za-z0-9_]`, 1–255 characters), cached only encrypted in `token_cache` (`src/store/token-cache.ts`) until 5
   minutes before expiry, the row of a token GitHub answered 401 for deleted by installation id and IV; installation id,
