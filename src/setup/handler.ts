@@ -546,10 +546,13 @@ const START_NOTICE_ONLY: StartPageView = { kind: "notice-only" };
 
 /** The start page with the status view at `status`; a D1 failure answers 503 with the notice-only page. */
 async function startPage(context: Context, session: string, status: number, notice?: Notice): Promise<Response> {
-  const { env, db, version } = context.deps;
+  const { env, db, version, githubFetch, now } = context.deps;
   let view: StartPageView;
   try {
-    view = { kind: "status", status: await statusView(env, db, context.storageKey, version) };
+    view = {
+      kind: "status",
+      status: await statusView(env, db, context.storageKey, version, { fetcher: githubFetch, now }),
+    };
   } catch {
     // The error is deliberately dropped: it must reach neither the log nor the response.
     return formPage(context, { kind: "start", session, view: START_NOTICE_ONLY }, 503, "unavailable");

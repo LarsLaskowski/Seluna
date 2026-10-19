@@ -92,6 +92,19 @@ export interface SetupTexts {
   readonly cannotBeRead: string;
   readonly lastDeliveryLabel: string;
   readonly noneReceivedYet: string;
+  readonly installationsLabel: string;
+  readonly accountPersonal: string;
+  readonly accountOrganization: string;
+  readonly accountOther: string;
+  readonly accountEnterprise: string;
+  readonly unknownAccount: string;
+  readonly repositoriesAll: string;
+  readonly repositoriesSelected: string;
+  readonly installationSuspended: string;
+  readonly notInstalled: string;
+  readonly moreInstallations: string;
+  readonly installationsUnavailable: string;
+  readonly keyUnusable: string;
   readonly resetHeading: string;
   readonly resetText: string;
   readonly resetButton: string;
@@ -192,6 +205,19 @@ const ENGLISH: SetupTexts = {
   cannotBeRead: "Cannot be read with the current SELUNA_SECRET.",
   lastDeliveryLabel: "Last delivery from GitHub:",
   noneReceivedYet: "None received yet.",
+  installationsLabel: "Installations:",
+  accountPersonal: "personal account",
+  accountOrganization: "organization",
+  accountOther: "other account",
+  accountEnterprise: "enterprise",
+  unknownAccount: "Unknown account",
+  repositoriesAll: "all repositories",
+  repositoriesSelected: "selected repositories",
+  installationSuspended: "suspended",
+  notInstalled: "Not installed on any account yet.",
+  moreInstallations: "Only the first 100 installations are shown.",
+  installationsUnavailable: "Cannot be loaded from GitHub right now.",
+  keyUnusable: "The app's private key cannot be used.",
   resetHeading: "The saved credentials cannot be read",
   resetText:
     "The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials and installation tokens, and you create the GitHub App again. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept.",
@@ -351,6 +377,19 @@ const GERMAN: SetupTexts = {
   cannotBeRead: "Mit dem aktuellen SELUNA_SECRET nicht lesbar.",
   lastDeliveryLabel: "Letzte Zustellung von GitHub:",
   noneReceivedYet: "Noch nichts empfangen.",
+  installationsLabel: "Installationen:",
+  accountPersonal: "persönliches Konto",
+  accountOrganization: "Organisation",
+  accountOther: "anderes Konto",
+  accountEnterprise: "Enterprise",
+  unknownAccount: "Unbekanntes Konto",
+  repositoriesAll: "alle Repositories",
+  repositoriesSelected: "ausgewählte Repositories",
+  installationSuspended: "gesperrt",
+  notInstalled: "Noch auf keinem Konto installiert.",
+  moreInstallations: "Nur die ersten 100 Installationen werden angezeigt.",
+  installationsUnavailable: "Kann gerade nicht von GitHub geladen werden.",
+  keyUnusable: "Der private Schlüssel der App ist nicht verwendbar.",
   resetHeading: "Die gespeicherten Zugangsdaten sind nicht lesbar",
   resetText:
     "Die gespeicherten GitHub-Zugangsdaten sind mit dem aktuellen SELUNA_SECRET nicht lesbar: Es wurde geändert, oder die gespeicherten Werte sind beschädigt. Wenn du das frühere SELUNA_SECRET noch kennst, setze es stattdessen wieder. Andernfalls setze zurück: Seluna löscht die gespeicherten GitHub-Zugangsdaten und Installations-Tokens, und du erstellst die GitHub-App neu. Lösche die alte App danach auf GitHub: in den Einstellungen deines Kontos oder deiner Organisation unter Developer settings, dann GitHub Apps. Der Telegram-Chat und die Einstellungen bleiben erhalten.",

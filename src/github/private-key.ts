@@ -4,6 +4,8 @@ const PEM_FORM =
   /^-----BEGIN (RSA PRIVATE KEY|PRIVATE KEY)-----\r?\n((?:[A-Za-z0-9+/=]+\r?\n)+)-----END \1-----(?:\r?\n)?$/;
 const LINE_BREAKS = /\r?\n/g;
 const PEM_LINE_CHARACTERS = 64;
+/** The largest RSA modulus, in bits, that `importSigningKey` accepts; it bounds the cost of one signature. */
+export const MAX_SIGNING_KEY_BITS = 4096;
 const SIGNING_ALGORITHM = { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" } as const;
 /** DER of `INTEGER 0` and the AlgorithmIdentifier `rsaEncryption` with `NULL` parameters, then the `OCTET STRING` tag. */
 const PKCS8_PREFIX = [
@@ -58,8 +60,8 @@ function encodePem(der: Uint8Array): string {
   return `-----BEGIN PRIVATE KEY-----\n${lines.join("\n")}\n-----END PRIVATE KEY-----\n`;
 }
 
-/** The PKCS#8 PEM of an RSA key given as PKCS#1 or PKCS#8 PEM, or `undefined` unless it imports as an RS256 signing key. Never throws. */
-export async function toPkcs8Pem(pem: string): Promise<string | undefined> {
+/** The PKCS#8 DER of an RSA key given as PKCS#1 or PKCS#8 PEM, or `undefined` for any other text. */
+function pkcs8Der(pem: string): Uint8Array<ArrayBuffer> | undefined {
   const match = pem.length <= MAX_PEM_CHARACTERS ? PEM_FORM.exec(pem) : null;
   const armour = match?.[1];
   const body = match?.[2];
@@ -70,7 +72,15 @@ export async function toPkcs8Pem(pem: string): Promise<string | undefined> {
   if (der === undefined || der.length === 0) {
     return undefined;
   }
-  const pkcs8 = armour === "RSA PRIVATE KEY" ? wrapPkcs1(der) : der;
+  return armour === "RSA PRIVATE KEY" ? wrapPkcs1(der) : der;
+}
+
+/** The PKCS#8 PEM of an RSA key given as PKCS#1 or PKCS#8 PEM, or `undefined` unless it imports as an RS256 signing key. Never throws. */
+export async function toPkcs8Pem(pem: string): Promise<string | undefined> {
+  const pkcs8 = pkcs8Der(pem);
+  if (pkcs8 === undefined) {
+    return undefined;
+  }
   try {
     await crypto.subtle.importKey("pkcs8", pkcs8, SIGNING_ALGORITHM, false, ["sign"]);
   } catch {
@@ -78,4 +88,13 @@ export async function toPkcs8Pem(pem: string): Promise<string | undefined> {
     return undefined;
   }
   return encodePem(pkcs8);
+}
+
+/**
+ * The non-extractable RS256 signing key of an RSA key given as PKCS#1 or PKCS#8 PEM, or `undefined` when the text is
+ * not such a key or its modulus exceeds `MAX_SIGNING_KEY_BITS`. Never throws.
+ */
+export async function importSigningKey(pem: string): Promise<CryptoKey | undefined> {
+  await Promise.resolve(pem);
+  throw new Error("Not implemented");
 }

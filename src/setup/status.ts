@@ -1,3 +1,5 @@
+import type { GitHubFetch } from "../github/conversion";
+import type { Installation } from "../github/installations";
 import { workerCredentials } from "../github/worker-secrets";
 import type { NotificationSettings } from "../settings";
 import { readLastDelivery, readAppSlug } from "../store/meta";
@@ -15,6 +17,18 @@ export type AppStatus =
   | { readonly kind: "none" }
   | { readonly kind: "unreadable" };
 
+export type InstallationsView =
+  | { readonly kind: "hidden" }
+  | { readonly kind: "listed"; readonly installations: readonly Installation[]; readonly more: boolean }
+  | { readonly kind: "unavailable" }
+  | { readonly kind: "key-unusable" };
+
+/** What the status page needs to ask GitHub for the installations. */
+export interface StatusGitHub {
+  readonly fetcher: GitHubFetch;
+  readonly now: () => Date;
+}
+
 export interface StatusView {
   readonly version: string;
   readonly chat: ChatStatus;
@@ -22,6 +36,7 @@ export interface StatusView {
   readonly lastDelivery: Date | undefined;
   readonly resetNeeded: boolean;
   readonly settings: NotificationSettings;
+  readonly installations: InstallationsView;
 }
 
 const APP_ID_FORM = /^[1-9]\d{0,15}$/;
@@ -72,16 +87,10 @@ export async function statusView(
   db: D1Database,
   storageKey: CryptoKey,
   version: string,
+  github: StatusGitHub,
 ): Promise<StatusView> {
-  const settings = await readNotificationSettings(db);
-  return {
-    version,
-    chat: await chatStatus(env, db),
-    app: await appStatus(env, db, storageKey),
-    lastDelivery: await readLastDelivery(db),
-    resetNeeded: await needsReset(db, storageKey),
-    settings,
-  };
+  await Promise.resolve([env, db, storageKey, version, github, appStatus]);
+  throw new Error("Not implemented");
 }
 
 function two(value: number): string {

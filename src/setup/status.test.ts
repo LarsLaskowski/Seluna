@@ -5,7 +5,7 @@ import { keyFor } from "../../test/keys";
 import { DEFAULT_SETTINGS } from "../settings";
 import { GITHUB_APP_SLUG_META_KEY, LAST_DELIVERY_META_KEY } from "../store/meta";
 import { writeSecret, writeSecrets } from "../store/secrets";
-import type { StatusView } from "./status";
+import type { StatusGitHub, StatusView } from "./status";
 import { formatDeliveryTime, statusView } from "./status";
 
 const SECRET = "throwaway-setup-secret-0123456789abcdef";
@@ -39,6 +39,11 @@ async function seedAppId(secret: string, value: string): Promise<void> {
   expect(result, "seeding github_app_id").toEqual({ kind: "ok" });
 }
 
+const GITHUB: StatusGitHub = {
+  fetcher: () => Promise.reject(new Error("no GitHub request expected")),
+  now: () => new Date(0),
+};
+
 describe("statusView", () => {
   const EMPTY: Omit<StatusView, "version"> = {
     chat: { kind: "none" },
@@ -46,6 +51,7 @@ describe("statusView", () => {
     lastDelivery: undefined,
     resetNeeded: false,
     settings: DEFAULT_SETTINGS,
+    installations: { kind: "hidden" },
   };
 
   it.each<{ case: string; prepare: () => Promise<void>; workerEnv?: object; expected: Partial<StatusView> }>([
@@ -131,13 +137,19 @@ describe("statusView", () => {
   ])("statusView reports $case", async ({ prepare, workerEnv, expected }) => {
     await prepare();
 
-    const view = await statusView({ SELUNA_SECRET: SECRET, ...workerEnv }, env.DB, await keyFor(SECRET), VERSION);
+    const view = await statusView(
+      { SELUNA_SECRET: SECRET, ...workerEnv },
+      env.DB,
+      await keyFor(SECRET),
+      VERSION,
+      GITHUB,
+    );
 
     expect(view, "status view").toEqual({ ...EMPTY, version: VERSION, ...expected });
   });
 
   it("statusView lets a D1 error reach the caller", async () => {
-    const pending = statusView({ SELUNA_SECRET: SECRET }, migrationTestDb(), await keyFor(SECRET), VERSION);
+    const pending = statusView({ SELUNA_SECRET: SECRET }, migrationTestDb(), await keyFor(SECRET), VERSION, GITHUB);
 
     await expect(pending, "result").rejects.toThrow(/no such table/i);
   });

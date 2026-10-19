@@ -499,6 +499,7 @@ function statusViewWith(changes: Partial<StatusView> = {}): StatusView {
     lastDelivery: DELIVERY_AT_UTC,
     resetNeeded: false,
     settings: DEFAULT_SETTINGS,
+    installations: { kind: "hidden" },
     ...changes,
   };
 }
