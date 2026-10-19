@@ -21,12 +21,15 @@ GitHub for that state as the app (issue #15, `src/github/api-client.ts`), but th
 ## Scenarios
 
 In the scenarios, "a failed run" is a `workflow_run` delivery with `action` `completed` whose
-`workflow_run.conclusion` is `failure` or `timed_out`; the texts are those of the English notification language,
+`workflow_run.conclusion` is `failure` or `timed_out`. A run is "on the default branch" when
+`workflow_run.head_branch` equals `repository.default_branch` **and** `workflow_run.head_repository.id` equals
+`repository.id` (the run's code comes from the repository itself, not from a fork). The texts are those of the English notification language,
 the German ones are under *Area documents*. Line 1 is rendered as the notifications area defines it: the title in
 bold, `·`, the repository and, where the case has one, ` #` and the number.
 
 - S1: Given the switch _CI failed on the default branch_ is on, when a failed run arrives whose
-  `workflow_run.head_branch` equals `repository.default_branch` (`main`), of the workflow `Build` on the commit
+  `workflow_run.head_branch` equals `repository.default_branch` (`main`) and whose `head_repository` is the
+  delivery's repository, of the workflow `Build` on the commit
   `Fix the parser\n\nLonger body`, then the owner receives one message:
   line 1 `CI failed on main · owner/repo` (no number), line 2 `Build` (`workflow_run.name`), line 3
   `main · Fix the parser` (the branch, ` · `, the first line of `workflow_run.head_commit.message`), and the button
