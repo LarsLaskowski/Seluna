@@ -347,3 +347,21 @@ Security's plan review at commit e79c609: CHANGES_REQUIRED.
 ## Out of scope / follow-ups
 
 As spec *Out of scope*. No follow-up issue: #16 (first caller) and #18 (cleanup of `token_cache`) exist.
+
+## PR approval (Lead)
+
+Decided at PR approval against code SHA 944fdc6:
+
+- **Cyclic import `src/store/token-cache.ts` ↔ `src/github/installation-token.ts`:** not accepted. It works today only
+  because both uses sit in function bodies, and it leaves module initialization order fragile. Fix (Dev): move
+  `isInstallationTokenText` and its pattern into a new leaf module `src/github/token-text.ts` that imports nothing.
+  Both modules import it from there, and `installation-token.ts` re-exports it so that no test import changes. No
+  behavior change; Reviewer delta round.
+- **`hasNextPage` written by hand instead of a regex:** accepted. An unquoted `rel=next` answers no next page, which
+  matches spec E13 / AC12 and `docs/areas/github-api.md` (`rel="next"` exactly). It fails safe: only the _more
+  installations_ text is left out.
+- **The sentence in `setup-wizard.md` that the notice-only pages (503, 403) make no installations request:** accepted.
+  It is true, and the Reviewer verified it.
+- **The Tester's resolved doubts** (an unreadable saved App ID gives no app; an unreadable key gives key unusable; a
+  missing `account` rejects the list; a login that is not a string shows _unknown account_): consistent with spec E1,
+  E2, E6 and E14. No record needed.
