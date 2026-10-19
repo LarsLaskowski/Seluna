@@ -95,6 +95,17 @@ export async function toPkcs8Pem(pem: string): Promise<string | undefined> {
  * not such a key or its modulus exceeds `MAX_SIGNING_KEY_BITS`. Never throws.
  */
 export async function importSigningKey(pem: string): Promise<CryptoKey | undefined> {
-  await Promise.resolve(pem);
-  throw new Error("Not implemented");
+  const pkcs8 = pkcs8Der(pem);
+  if (pkcs8 === undefined) {
+    return undefined;
+  }
+  try {
+    const key = await crypto.subtle.importKey("pkcs8", pkcs8, SIGNING_ALGORITHM, false, ["sign"]);
+    // An RSA key's algorithm carries its modulus length; a key above the bound would make every signature too costly.
+    const modulusLength: unknown = Reflect.get(key.algorithm, "modulusLength");
+    return typeof modulusLength === "number" && modulusLength <= MAX_SIGNING_KEY_BITS ? key : undefined;
+  } catch {
+    // A key the runtime refuses is reported as undefined; the cause is dropped.
+    return undefined;
+  }
 }

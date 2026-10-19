@@ -6,7 +6,8 @@ import { RULE_IDS, timeZones } from "../settings";
 import type { NotificationSettings } from "../settings";
 import { RESET_PATH, SETTINGS_PATH } from "./settings-form";
 import { formatDeliveryTime } from "./status";
-import type { AppStatus, ChatStatus, StatusView } from "./status";
+import type { AppStatus, ChatStatus, InstallationsView, StatusView } from "./status";
+import type { Installation, InstallationAccount } from "../github/installations";
 import type { TelegramProblem, TelegramStepView } from "./telegram-step";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
@@ -145,6 +146,67 @@ function appStatusHtml(language: Language, app: AppStatus): string {
   }
 }
 
+function accountHtml(language: Language, account: InstallationAccount): string {
+  const texts = TEXTS[language];
+  switch (account.kind) {
+    case "login": {
+      let type: string;
+      switch (account.type) {
+        case "User":
+          type = texts.accountPersonal;
+          break;
+        case "Organization":
+          type = texts.accountOrganization;
+          break;
+        default:
+          type = texts.accountOther;
+      }
+      return `${escapeHtml(account.login)} (${escapeHtml(type)})`;
+    }
+    case "enterprise":
+      return `${escapeHtml(account.slug)} (${escapeHtml(texts.accountEnterprise)})`;
+    case "unknown":
+      return escapeHtml(texts.unknownAccount);
+    default: {
+      const unreachable: never = account;
+      return unreachable;
+    }
+  }
+}
+
+function installationHtml(language: Language, installation: Installation): string {
+  const texts = TEXTS[language];
+  const selection = installation.repositorySelection === "all" ? texts.repositoriesAll : texts.repositoriesSelected;
+  const suspended = installation.suspended ? `, ${escapeHtml(texts.installationSuspended)}` : "";
+  return `<li>${accountHtml(language, installation.account)}, ${escapeHtml(selection)}${suspended}</li>`;
+}
+
+/** The _Installations:_ part of the status section, each line ending in a line break; empty when hidden. */
+function installationsHtml(language: Language, installations: InstallationsView): string {
+  const texts = TEXTS[language];
+  const label = escapeHtml(texts.installationsLabel);
+  switch (installations.kind) {
+    case "hidden":
+      return "";
+    case "unavailable":
+      return `<p>${label} ${escapeHtml(texts.installationsUnavailable)}</p>\n`;
+    case "key-unusable":
+      return `<p>${label} ${escapeHtml(texts.keyUnusable)}</p>\n`;
+    case "listed": {
+      if (installations.installations.length === 0) {
+        return `<p>${label} ${escapeHtml(texts.notInstalled)}</p>\n`;
+      }
+      const entries = installations.installations.map((installation) => installationHtml(language, installation));
+      const more = installations.more ? `\n<p>${escapeHtml(texts.moreInstallations)}</p>` : "";
+      return `<p>${label}</p>\n<ul>\n${entries.join("\n")}\n</ul>${more}\n`;
+    }
+    default: {
+      const unreachable: never = installations;
+      return unreachable;
+    }
+  }
+}
+
 function statusHtml(language: Language, status: StatusView): string {
   const texts = TEXTS[language];
   const delivery =
@@ -156,6 +218,7 @@ function statusHtml(language: Language, status: StatusView): string {
     `<p>${escapeHtml(texts.versionLabel)} <code>${escapeHtml(status.version)}</code></p>\n` +
     `<p>${escapeHtml(texts.telegramChatLabel)} ${chatStatusHtml(language, status.chat)}</p>\n` +
     `<p>${escapeHtml(texts.githubAppLabel)} ${appStatusHtml(language, status.app)}</p>\n` +
+    installationsHtml(language, status.installations) +
     `<p>${escapeHtml(texts.lastDeliveryLabel)} ${delivery}</p>`
   );
 }
