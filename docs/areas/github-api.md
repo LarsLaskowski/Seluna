@@ -17,7 +17,7 @@ failure rule, issue #16, first) and the setup wizard's status page rely on it.
 - The App ID is a positive whole number written in decimal without leading zeros (`^[1-9]\d{0,15}$`, at most the
   largest safe integer); any other value counts as no App ID.
 - The private key is a PEM RSA key, PKCS#1 (`RSA PRIVATE KEY`) or PKCS#8 (`PRIVATE KEY`), at most 16,384
-  characters, that imports as an RSASSA-PKCS1-v1_5 SHA-256 signing key. A key that does not import, or a stored key
+  characters, with a modulus of at most 4096 bits, that imports as an RSASSA-PKCS1-v1_5 SHA-256 signing key. A key that does not import, or a stored key
   that does not decrypt, is _key unusable_.
 - No App ID or no key (neither source, a stored value that cannot be read with the current `SELUNA_SECRET`, no usable
   `SELUNA_SECRET` for a stored value) means no usable app.
@@ -89,7 +89,8 @@ failure rule, issue #16, first) and the setup wizard's status page rely on it.
   text from GitHub's answer. After a D1 error on writing the cache, the token GitHub issued is not used.
 - The private key, the app token and the installation tokens never appear in a log, a page, a result or in D1 in plain
   text; nothing in this area is logged.
-- The timeout bounds waiting for the answer; reading its body is limited by size only.
+- The 10-second timeout covers the whole request: waiting for the answer and reading its body (the body is read
+  from the same request that carries the timeout), so a call waits at most about 10 seconds per request.
 - The forms of the token, `expires_at`, the `Link` header and the account shapes follow GitHub's documentation and
   OpenAPI description, not a captured answer; each deviation fails closed (decision 0026).
 

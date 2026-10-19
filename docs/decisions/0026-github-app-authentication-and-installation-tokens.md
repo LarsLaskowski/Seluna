@@ -91,6 +91,8 @@ The rules are in the area document [`areas/github-api.md`](../areas/github-api.m
   `SELUNA_SECRET`; a database reader alone gets nothing (0007).
 - Rows of an old app's installations, and expired rows, stay in `token_cache` until the cleanup cron (#18) removes them.
 - Without a usable `SELUNA_SECRET` the API client cannot cache, so it fails without a request.
+- A signing key above 4096 bits is refused, so a huge Worker-secret key cannot push every call past the free plan's
+  CPU time (one 2048-bit signature takes about 0.65 ms in workerd); the wizard's key check is unchanged.
 - The token allow-list (`[A-Za-z0-9_]`, at most 255 characters) follows GitHub's documented token form; a token of
   another form fails closed and would need a new issue.
 - Residual risk: the token answer, the installations list and the account shapes rest on GitHub's OpenAPI description

@@ -1,9 +1,9 @@
 # Plan: GitHub App authentication
 
 Source: Issue #15 | [spec.md](spec.md)
-Status: Draft
+Status: Revised (1)
 Tier: security — the change creates security controls: authentication as the app (a JWT signed with the private key), the storage and handling of installation tokens, and allow-lists on what enters a GitHub URL or header.
-Security areas touched: Encrypted credentials (`token_cache` written and read in the new `src/store/token-cache.ts`; App ID and private key read in the new `src/github/app-credentials.ts`); Setup login (the signed-in status page `GET /setup` now calls GitHub, `src/setup/status.ts`, `src/setup/handler.ts`); Parsing of external input (the token answer, the installations list and the pull request answer narrowed in `src/github/installation-token.ts`, `src/github/installations.ts`, `src/github/api-client.ts`); new area **GitHub App authentication** (`src/github/app-jwt.ts`, `src/github/http.ts`, `src/github/private-key.ts` and the files above), added to `.squad/project.md` by this change
+Security areas touched: Encrypted credentials (`token_cache` written and read in the new `src/store/token-cache.ts`; App ID and private key read in the new `src/github/app-credentials.ts`); Setup login (the signed-in status page `GET /setup` now calls GitHub, `src/setup/status.ts`, `src/setup/handler.ts`); GitHub App manifest flow (`toPkcs8Pem` in `src/github/private-key.ts`, parsing shared with `importSigningKey`, behavior unchanged and pinned by the unchanged `toPkcs8Pem` tests in `src/github/private-key.test.ts`); Parsing of external input (the token answer, the installations list and the pull request answer narrowed in `src/github/installation-token.ts`, `src/github/installations.ts`, `src/github/api-client.ts`); new area **GitHub App authentication** (`src/github/app-jwt.ts`, `src/github/http.ts`, `src/github/private-key.ts` and the files above), added to `.squad/project.md` by this change
 
 ## Problem / root cause
 
@@ -26,13 +26,14 @@ See [spec.md](spec.md), *Problem*: Seluna has App ID and key but nothing turns t
 | 11 | Real installation tokens and `expires_at` values have these forms, and the real installations list has the documented shape and `Link` header | to verify: Product Manager's live check on a deployed copy before the PR is marked ready (step 11): the status page lists the installation, a token request succeeds and a second call reuses the cached row | unverified |
 | 12 | The real pull request answer has a boolean `draft` | `gh api repos/LarsLaskowski/Seluna/pulls/77` (HTTP 200, captured by the orchestrator, scratch `captures/pulls-77.json`): `"draft": false` | confirmed |
 | 13 | GitHub's JWT rules: RS256, `iat` backdated 60 s against clock drift, `exp` at most 10 min ahead, `iss` App ID or client ID | github/docs `generating-a-json-web-token-jwt-for-a-github-app.md` (spec Q4) | confirmed |
-| 14 | One RS256 signature with WebCrypto stays well within the free plan's CPU time per request | to verify: Dev, step 6, times 100 signatures with the documented key in Node 24 WebCrypto in a scratch worktree and reports the mean; Product Manager reads the CPU time of `GET /setup` in the Workers dashboard during the live check | unverified |
-| 15 | Workers' `fetch` with `redirect: "manual"` returns a 3xx answer instead of following it | to verify: Dev, step 6, from the Cloudflare Workers `Request` documentation (`redirect` values supported); the design fails closed either way: any non-2xx is a failure | unverified |
+| 14 | One RS256 signature with WebCrypto stays well within the free plan's CPU time per request | Security measured in workerd (compat date 2026-08-22): 2048-bit fixture key, 1001 signatures in 661 ms (about 0.65 ms each); the PM's dashboard reading stays the production check | confirmed |
+| 15 | Workers' `fetch` with `redirect: "manual"` returns a 3xx answer instead of following it | Security measured in workerd: a local 302 came back as status 302, `ok` false, with `Location`; the target was never requested | confirmed |
+| 19 | In workerd the request's `AbortSignal.timeout` also aborts reading the answer's body | Security measured in workerd: `AbortSignal.timeout(2000)`, body trickling 1 byte/s: `r.text()` failed with `TimeoutError` at 2004 ms. Holds while `sendGitHub` reads the body of the `Response` of the `Request` that carries the signal | confirmed |
 | 16 | The Workers test pool can export an extractable RSA private key as JWK, so a test derives the public key and verifies the JWT | to verify: Tester, step 5, first run of `app-jwt.test.ts`; fallback: a public key PEM made with `openssl rsa -pubout` from the documented key, as a fixture with its README row | unverified |
 | 17 | `githubDouble` rejects every URL but the conversion and fails the test | `test/github.ts:113-139` | confirmed |
 | 18 | `statusView` and `StatusView` are built by tests | `src/setup/status.test.ts:43,134,140`; `src/setup/pages.test.ts:494` (`statusViewWith`) | confirmed |
 
-Claims of the issue: the private app has installations on a personal account and an organization at once — refuted for the wizard's private app (spec Q1); AC1 tests two installation ids. "Installation tokens are cached in D1" — the table exists but is unused (fact 1), confirmed as the gap. Related defect found: none.
+Issue claims: two simultaneous installations of the private app — refuted (spec Q1; AC1 tests two ids); tokens cached in D1 — the table is unused (fact 1). Related defect: none.
 
 ## Tests per criterion
 
@@ -51,13 +52,16 @@ Claims of the issue: the private app has installations on a personal account and
 | AC11 | `parseInstallations narrows $case` (each account form of E14, suspended, `null`); `parseInstallations rejects the whole list for $case` (E6); `the status section lists $case` with escaped login and slug; `statusView lists the installations for an app from Worker secrets and for a saved app` | `src/github/installations.test.ts`, `src/setup/pages.test.ts`, `src/setup/status.test.ts` |
 | AC12 | `hasNextPage is $expected for $case` (documented header, `rel="last"` only, absent, `rel=next` unquoted); `listInstallations keeps at most 100 entries`; `the status section shows not installed for an empty list`; `the status section shows the more installations text exactly when more is set` | `src/github/installations.test.ts`, `src/setup/pages.test.ts` |
 | AC13 | `statusView shows installations unavailable when $case`; `statusView shows key unusable for $case`; `statusView hides the installations and calls GitHub for nothing when the app is $case`; `GET /setup answers 200 with installations unavailable when GitHub fails` | `src/setup/status.test.ts`, `src/setup/handler.test.ts` |
-| AC14 | `resolveAppCredentials takes $case` (each secret on its own, both, none, partial with a saved app); `importSigningKey imports the documented key as PKCS#1 and as PKCS#8` | `src/github/app-credentials.test.ts`, `src/github/private-key.test.ts` |
+| AC14 | `resolveAppCredentials takes $case` (each secret on its own, both, none, partial with a saved app); `importSigningKey imports the documented key as PKCS#1 and as PKCS#8`; `importSigningKey rejects an RSA key of more than 4096 bits` | `src/github/app-credentials.test.ts`, `src/github/private-key.test.ts` |
 | AC15 | `the installations texts are the $language texts of the spec` | `src/setup/pages.test.ts` |
 
 ## Approach
 
 1. **Key and JWT.** `importSigningKey` in `private-key.ts` shares the PEM parsing with `toPkcs8Pem` (unchanged
-   behavior) and imports a non-extractable `sign` key. `appJwt` builds header and claims (`Math.floor(now / 1000)`
+   behavior: `PEM_FORM`, the canonical base64 check, the 16,384-character bound and the PKCS#1 wrap stay as they are,
+   and the existing `toPkcs8Pem` tests stay unchanged and must pass on the rewrite) and imports a non-extractable
+   `sign` key; a key whose `algorithm.modulusLength` exceeds 4096 is refused (`undefined`, so _key unusable_), which
+   bounds the signing cost per request. `toPkcs8Pem` gets no size bound (the wizard's behavior stays unchanged). `appJwt` builds header and claims (`Math.floor(now / 1000)`
    − 60 and + 540), signs with `crypto.subtle.sign`, encodes with `toBase64Url` from `src/base64url.ts`.
 2. **Credentials.** `resolveAppCredentials`: App ID first — `GITHUB_APP_ID` when a non-empty string, else
    `readSecret("github_app_id")` (needs `keyFromEnv`); `parseAppId` (`^[1-9]\d{0,15}$`, safe integer) or `no-app`.
@@ -100,7 +104,7 @@ The WHATWG URL parser (Workers `Request`) treats `/`, `\`, `?`, `#` as delimiter
 | Input | Accepted | Rejected (cases of AC6) |
 | ----- | -------- | ----------------------- |
 | installation id, pull number | `number`, `Number.isSafeInteger`, > 0, written with `String()` (digits only) | `0`, `-1`, `1.5`, `2 ** 53`, `NaN`, `Infinity`, a string `"42"` |
-| owner | `^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$` | `""`, `-a`, `a-`, 40 characters, `a/b`, `a\b`, `a%2fb`, `a?b`, `a#b`, `.`, non-ASCII `ö` |
+| owner | `^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$` — `isAccountName` of `src/github/manifest.ts`, which `isRepositoryOwner` calls (no second copy of the regex) | `""`, `-a`, `a-`, 40 characters, `a/b`, `a\b`, `a%2fb`, `a?b`, `a#b`, `.`, non-ASCII `ö` |
 | repository name | `^[A-Za-z0-9._-]{1,100}$`, not `.` or `..` | `.`, `..`, `%2e`, `a/b`, `a\b`, `a?b`, `a#b`, `""`, 101 characters, a space |
 | token (cache and answer) | `^[A-Za-z0-9_]{1,255}$` | `""`, 256 characters, `a-b`, `a b`, `a\r\nX: y`, non-ASCII |
 
@@ -125,37 +129,24 @@ reference-built.
 
 ## Options considered
 
-- **JWT by own WebCrypto code vs. a library** (`universal-github-app-jwt`, Octokit auth): a runtime dependency is its
-  own `security` change for thirty lines. Own code chosen.
-- **Token cache in D1 vs. a new token per call vs. isolate memory**: per call doubles requests and latency, memory is
-  not shared between isolates. D1 chosen.
-- **Token writes with or without the key check guard**: the guard would block an app from Worker secrets after a
-  changed `SELUNA_SECRET`; a token is re-obtainable. Without.
-- **401 delete by installation id and IV vs. by id vs. none**: by id can delete a fresh row (spec challenge minor 2),
-  none fails every call for the hour. By IV.
-- **`iss` App ID vs. client ID**: no client ID is stored. App ID.
-- **Without `SELUNA_SECRET`: fail vs. use an uncached token**: uncached would bypass the encryption-only rule silently
-  and cost a token per call; fail closed chosen (spec E11).
-- **Installations live per page view vs. cached**: cached is out of scope and stale. Live.
-
-All recorded in decision 0026.
+Seven real alternatives, each with why it lost, are in decision 0026 (*Options considered*): a JWT library instead of
+own WebCrypto code; a token per call or an isolate-memory cache instead of D1; the key check guard on token writes;
+deleting by installation id, or not at all, after a 401; the client ID as `iss`; an uncached token without
+`SELUNA_SECRET`; a cached installations list.
 
 ## Affected projects and types
 
-| Project | Type / file | Change |
-| ------- | ----------- | ------ |
-| Worker | `src/github/private-key.ts` | add `importSigningKey`; `toPkcs8Pem` shares parsing (rewritten by the skeleton) |
-| Worker | `src/github/app-jwt.ts`, `src/github/http.ts`, `src/github/app-credentials.ts`, `src/github/installation-token.ts`, `src/github/installations.ts`, `src/github/api-client.ts`, `src/store/token-cache.ts` | new |
-| Worker | `src/setup/status.ts` | `InstallationsView`, `StatusView.installations`, `statusView` signature, `parseAppId` |
-| Worker | `src/setup/handler.ts` | `startPage` passes `{ fetcher: githubFetch, now }` |
-| Worker | `src/setup/pages.ts`, `src/setup/texts.ts` | installations HTML, 13 texts per language |
-| Tests | `test/github.ts`, `test/fixtures/github/*` | double routes, three fixtures, README |
+New: `src/github/app-jwt.ts`, `http.ts`, `app-credentials.ts`, `installation-token.ts`, `installations.ts`,
+`api-client.ts`, `src/store/token-cache.ts`. Changed: `src/github/private-key.ts`, `src/setup/status.ts`,
+`src/setup/handler.ts` (`startPage` passes `{ fetcher: githubFetch, now }`), `src/setup/pages.ts`, `src/setup/texts.ts`
+(13 texts per language); tests: `test/github.ts`, `test/fixtures/github/`.
 
 ## Signatures (for the Dev's skeleton)
 
 ```ts
 // src/github/private-key.ts
-export async function importSigningKey(pem: string): Promise<CryptoKey | undefined>; // never throws
+export const MAX_SIGNING_KEY_BITS = 4096;
+export async function importSigningKey(pem: string): Promise<CryptoKey | undefined>; // never throws; undefined above MAX_SIGNING_KEY_BITS
 
 // src/github/app-jwt.ts
 export const JWT_BACKDATE_SECONDS = 60;
@@ -222,7 +213,7 @@ export interface GitHubApiDeps {
 export interface PullRequestRef { readonly owner: string; readonly repo: string; readonly number: number }
 export type DraftResult = { readonly kind: "ok"; readonly draft: boolean } | { readonly kind: "failed" };
 export function installationIdOf(payload: unknown): number | undefined;
-export function isRepositoryOwner(text: string): boolean;
+export function isRepositoryOwner(text: string): boolean; // returns isAccountName(text)
 export function isRepositoryName(text: string): boolean;
 export function parsePullRequestDraft(body: unknown): boolean | undefined;
 export async function isPullRequestDraft(deps: GitHubApiDeps, installationId: number, pullRequest: PullRequestRef): Promise<DraftResult>; // never throws
@@ -254,24 +245,23 @@ export async function statusView(env: object, db: D1Database, storageKey: Crypto
 `src/github/api-client.test.ts`, `src/store/token-cache.test.ts`, `src/setup/status.test.ts`,
 `src/setup/pages.test.ts`, `src/setup/handler.test.ts`; helpers in `test/github.ts`.
 
-Existing test code that calls a changed signature: `src/setup/status.test.ts` (`EMPTY` at line 43 gains
-`installations: { kind: "hidden" }`; the `statusView` calls at lines 134 and 140 gain a GitHub argument whose fetcher
-rejects) and `src/setup/pages.test.ts` (`statusViewWith` at line 494 gains `installations: { kind: "hidden" }`) — the
-**Dev** in step 4, mechanically. `src/setup/handler.test.ts`: `GET /setup` tests with a usable app now send the
-installations request to their double — not a signature change; the **Tester** adapts their doubles or assertions in
-step 6 and lists each.
+Existing test code that calls a changed signature: the **Dev** in step 4 makes it compile and nothing more —
+`src/setup/status.test.ts` (`EMPTY` at line 43 gains `installations: { kind: "hidden" }`; the `statusView` calls at
+lines 134 and 140 gain a GitHub argument whose fetcher rejects) and `src/setup/pages.test.ts` (`statusViewWith` at
+line 494 gains `installations: { kind: "hidden" }`). The expected values are not mechanical (challenge minor 1):
+`WORKER_SECRETS` in `status.test.ts` has a key that does not import (`key-unusable`), the saved-app cases seed no
+key (`unavailable`, no request), the altered-key case is `key-unusable`, and `handler.test.ts` has the same bogus
+Worker-secret key (line 1713) and `seedAppId` without a key (line 1767). The **Tester** in step 5 sets the expected
+`installations` value of every existing `statusView` case and of every affected `handler.test.ts` page assertion
+(and, where a case is meant to list installations, a real key and a double), and lists each one in its report. The
+`toPkcs8Pem` tests in `src/github/private-key.test.ts` stay unchanged.
 
 Files no unit test can cover: none.
 
 ## Areas
 
-- **New area GitHub API** (`docs/areas/github-api.md`, index row added): scope as in the index — calls as the app, the
-  JWT, App ID and key, installation tokens and their cache, request rules, the pull request read, the installations
-  list, the failure result. Lead decision.
-- **Storage**: `token_cache` written and read, the *(issue #15)* note made a plain statement.
-- **Setup wizard**: the _Installations:_ line in *Status and settings*, its texts in *Texts*, the GitHub request and
-  its time bound under *Limits and errors*.
-- **HTTP routes**: the bounded-reader list under *Request body size* gains the GitHub API answers.
+New area **GitHub API** (`docs/areas/github-api.md`, index row added; scope as in the index), a Lead decision.
+Changed: Storage, Setup wizard, HTTP routes — each edit and its owner in *Documentation updates*.
 
 ## Documentation updates
 
@@ -280,7 +270,7 @@ Files no unit test can cover: none.
 | `docs/areas/github-api.md`, `docs/areas/README.md` | new area and index row (written with this plan) | Lead |
 | `docs/areas/storage.md` | `token_cache` rules, contract note, decision link (written with this plan) | Lead |
 | `docs/ARCHITECTURE.md` | component row *GitHub API client*, setup wizard row, *Security model* (written with this plan) | Lead |
-| `docs/areas/setup-wizard.md` | *Status and settings*: the _Installations:_ line and its states; *Texts*: the English texts of spec *Non-functional requirements*; *Limits and errors*: one GitHub request of at most 10 s on the signed-in `GET /setup`, signed-out pages call neither GitHub nor D1; *Related decisions*: 0026 | Dev |
+| `docs/areas/setup-wizard.md` | *Status and settings*: the _Installations:_ line and its states; *Texts*: the English texts of spec *Non-functional requirements*; *Limits and errors*: every signed-in start page answer (`GET /setup` 200, the 400 _settings invalid_ of `POST /setup/settings` and the 409 _reset not needed_ of `POST /setup/reset`) makes one installations request whose 10-second timeout covers the answer and the reading of its body, so the page takes at most about 10 s longer; signed-out pages call neither GitHub nor D1; *Related decisions*: 0026 | Dev |
 | `docs/areas/http-routes.md` | *Request body size*: "… and the GitHub API answers of the app's calls ([GitHub API](github-api.md#requests)) are limited the same way" | Dev |
 | `.squad/project.md` | new security area **GitHub App authentication** (text below); *Test doubles*: the GitHub API double answers the token, installations and pull request routes from `test/fixtures/github/` (two reference-built, one captured) | Dev |
 | `CHANGELOG.md` | `## [Unreleased]` → `### Added`: "The status page lists where the GitHub App is installed (account, all or selected repositories, suspended), and Seluna can now call the GitHub API as the app, caching each installation's token encrypted." | Dev |
@@ -298,12 +288,9 @@ token, key or JWT in a log, page, result or plain D1 (decision 0026)."
 
 ## Architecture check
 
-- *A draft pull request triggers no notification*: strengthened later by #16; nothing here changes the rules.
-- *GitHub App credentials only stored encrypted* (0007): tokens are encrypted with the same contract; the key and the
-  JWT are never stored.
-- *Each user's data in their own account* (0005): calls go only to `api.github.com` with the user's own app.
-- *Setup login*: only the signed-in `startPage` reaches `statusView`; signed-out answers are unchanged.
-- *Minimal permissions*: the manifest is untouched. `docs/ARCHITECTURE.md` updated as listed.
+No guarantee is weakened: tokens follow 0007's encryption contract and key and JWT are never stored; calls go only to
+`api.github.com` with the user's own app (0005); only the signed-in `startPage` reaches `statusView`; the manifest and
+its permissions are untouched; the draft guarantee gains its API read for #16. `docs/ARCHITECTURE.md` updated as listed.
 
 ## Security considerations
 
@@ -326,6 +313,36 @@ token, key or JWT in a log, page, result or plain D1 (decision 0026)."
 ## Decision records
 
 - `docs/decisions/0026-github-app-authentication-and-installation-tokens.md` (Proposed, indexed) — amends 0018.
+
+## Challenge
+
+Plan challenge by the Devil's Advocate at commit e79c609 (0 major, 3 minor).
+
+- **Minor 1 — existing `status.test.ts` / `handler.test.ts` expectations are not mechanical.** Accepted. *Test files*
+  now has the Dev only make them compile in step 4, and the Tester set every existing case's expected `installations`
+  value (and real keys where a list is meant) in step 5, listed in its report; tasks 4, 5 and 11 say the same.
+- **Minor 2 — the owner allow-list already exists as `isAccountName`.** Accepted. `isRepositoryOwner` returns
+  `isAccountName(text)` (*Guards*, *Signatures*); no second copy of the regex.
+- **Minor 3 — the setup wizard's limits text.** Accepted, with Security N1's measurement replacing the premise that
+  the timeout does not bound the body: the `setup-wizard.md` row of *Documentation updates* now names every signed-in
+  start page answer (200, the 400 of the settings form, the 409 of the reset form) and the bound of its one request.
+
+## Security review
+
+Security's plan review at commit e79c609: CHANGES_REQUIRED.
+
+- **B1 — GitHub App manifest flow missing from *Security areas touched*.** Resolved: the area is listed with
+  `toPkcs8Pem`; *Approach* 1 states that `PEM_FORM`, the canonical base64 check, the 16,384-character bound and the
+  PKCS#1 wrap stay unchanged, and *Test files* that the existing `toPkcs8Pem` tests stay unchanged and pin it.
+- **N1 — the timeout also bounds the body read.** Resolved: fact 19; `docs/areas/github-api.md` *Limits and errors*
+  corrected (Lead), and the `setup-wizard.md` row states the bound.
+- **N2 — facts 14 and 15 measured.** Resolved: both confirmed with Security's measurements; the Dev's step-6
+  measurement and reading are dropped from task 6.
+- **N3 — no upper bound on the key size.** Decided: in this change, because it is one check and bounds the CPU cost
+  of every status page view and API call. `importSigningKey` refuses a key above 4096 bits (`MAX_SIGNING_KEY_BITS`,
+  _key unusable_); spec E2 and AC14's test list, the area document and decision 0026 say so. `toPkcs8Pem` (the
+  wizard) is left unbounded so the manifest flow's behavior does not change; the wizard's keys come from GitHub
+  (2048 bits).
 
 ## Out of scope / follow-ups
 

@@ -74,8 +74,8 @@ _installations unavailable_ (exact texts under *Non-functional requirements*).
   a positive whole number, the status page shows _Installations:_ with _installations unavailable_ and calls GitHub
   for nothing.
 - E2: The private key cannot sign: the Worker secret `GITHUB_APP_PRIVATE_KEY` is not a PEM RSA key that imports as
-  an RS256 signing key (PKCS#1 and PKCS#8 are both accepted), or the saved key does not decrypt. The API client
-  reports failure without a request; the status page shows _Installations:_ with the _key unusable_ text.
+  an RS256 signing key (PKCS#1 and PKCS#8 are both accepted), is an RSA key of more than 4096 bits, or the saved key
+  does not decrypt. The API client reports failure without a request; the status page shows _Installations:_ with the _key unusable_ text.
 - E3: GitHub refuses the app token (401, for example after the owner generated a new private key on GitHub and
   deleted the old one, or with an App ID and a key of different apps): the status page shows _Installations:_ with
   _installations unavailable_; the API client reports failure and caches nothing.
@@ -330,4 +330,5 @@ Spec challenge by the Devil's Advocate at commit a61bd21.
 - **Spec defects found while planning (Lead, plan step).** E1 and AC13 did not say what the status page shows for
   Worker secrets with an App ID that is not a positive whole number: now _installations unavailable_ without a
   request. E11 and AC6 did not cover a missing `SELUNA_SECRET`, without which no token can be cached encrypted: now a
-  failure without a request. Q7 records the Product Manager's answer.
+  failure without a request. Q7 records the Product Manager's answer. After Security's plan review (N3), E2 also
+  refuses an RSA key of more than 4096 bits, which bounds the signing cost of every call.
