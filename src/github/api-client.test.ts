@@ -1,6 +1,12 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { installationIdOf, isPullRequestDraft, isRepositoryName, parsePullRequestDraft } from "./api-client";
+import {
+  installationIdOf,
+  isPullRequestDraft,
+  isRepositoryName,
+  isRepositoryOwner,
+  parsePullRequestDraft,
+} from "./api-client";
 import type { GitHubApiDeps } from "./api-client";
 import { MAX_GITHUB_RESPONSE_BYTES } from "./conversion";
 import { applyMigrations, migrationTestDb, unusedDb, writeFailingDb } from "../../test/d1";
@@ -119,6 +125,35 @@ describe("isRepositoryName", () => {
     { case: "a non-ASCII letter", name: "ä" },
   ])("isRepositoryName rejects $case", ({ name }) => {
     const accepted = isRepositoryName(name);
+
+    expect(accepted, "accepted").toBe(false);
+  });
+});
+
+describe("isRepositoryOwner", () => {
+  it.each(["a", "A1", "a-b", "octocat", "Octo-Org", "a".repeat(39), `a${"-".repeat(37)}b`])(
+    "isRepositoryOwner accepts %s",
+    (owner) => {
+      const accepted = isRepositoryOwner(owner);
+
+      expect(accepted, "accepted").toBe(true);
+    },
+  );
+
+  it.each([
+    { case: "an empty text", owner: "" },
+    { case: "a leading hyphen", owner: "-a" },
+    { case: "a trailing hyphen", owner: "a-" },
+    { case: "40 characters", owner: "a".repeat(40) },
+    { case: "a slash", owner: "a/b" },
+    { case: "a backslash", owner: "a\\b" },
+    { case: "an encoded slash", owner: "a%2fb" },
+    { case: "a question mark", owner: "a?b" },
+    { case: "a number sign", owner: "a#b" },
+    { case: "a dot", owner: "." },
+    { case: "a non-ASCII letter", owner: "ö" },
+  ])("isRepositoryOwner rejects $case", ({ owner }) => {
+    const accepted = isRepositoryOwner(owner);
 
     expect(accepted, "accepted").toBe(false);
   });

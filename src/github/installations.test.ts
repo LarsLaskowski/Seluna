@@ -4,7 +4,7 @@ import { hasNextPage, listInstallations, MAX_INSTALLATIONS, parseInstallations }
 import type { Installation } from "./installations";
 import { githubApiDouble, installationEntry, jsonAnswer, REJECTED } from "../../test/github";
 import type { GitHubAnswer } from "../../test/github";
-import { bearerOf, decodeJwt, fixtureSigningKey, jwtVerifies } from "../../test/jwt";
+import { bearerOf, decodeJwt, fixturePublicKey, fixtureSigningKey, jwtVerifies } from "../../test/jwt";
 
 const VERSION = "1.2.3-test";
 const APP_ID = 12_345;
@@ -278,5 +278,17 @@ describe("listInstallations", () => {
     const result = await listInstallations(github.fetch, VERSION, NOW, await credentials());
 
     expect(result, "result").toEqual({ kind: "failed" });
+  });
+});
+
+describe("listInstallations with a key that cannot sign", () => {
+  it("listInstallations reports failed without a request when the key is a verify-only public key", async () => {
+    const github = githubApiDouble({ installations: jsonAnswer(200, entries(1)) });
+    const publicKey = await fixturePublicKey();
+
+    const result = await listInstallations(github.fetch, VERSION, NOW, { appId: APP_ID, signingKey: publicKey });
+
+    expect(result, "result").toEqual({ kind: "failed" });
+    expect(github.requests, "GitHub requests").toEqual([]);
   });
 });

@@ -17,5 +17,5 @@ groups in this order. Every documentation edit is in exactly one row.
 | 8 | Installation token and API client | `src/github/installation-token.ts`, `src/github/api-client.ts` | AC1, AC2, AC6, AC7, AC8, AC9, AC10 | 6, 7 | Dev | [x] |
 | 9 | Installations list, status view, page rendering, texts, `startPage` wiring | `src/github/installations.ts`, `src/setup/status.ts`, `src/setup/pages.ts`, `src/setup/texts.ts`, `src/setup/handler.ts` | AC11, AC12, AC13, AC15 | 6 | Dev | [x] |
 | 10 | Documentation: setup wizard area, HTTP routes area, `.squad/project.md` (security area, test double), `CHANGELOG.md` | `docs/areas/setup-wizard.md`, `docs/areas/http-routes.md`, `.squad/project.md`, `CHANGELOG.md` | AC11, AC12, AC13, AC15 | 9 | Dev | [x] |
-| 11 | Coverage pass; any `handler.test.ts` start page test still affected after task 5 (listed in the report) | test files | AC13 | 8, 9 | Tester | [ ] |
+| 11 | Coverage pass; any `handler.test.ts` start page test still affected after task 5 (listed in the report) | test files | AC13 | 8, 9 | Tester | [x] |
 | 12 | Live check on a deployed copy before the PR is marked ready (plan, *Security considerations*) | — | AC1, AC2, AC11 | 11 | Product Manager | [ ] |

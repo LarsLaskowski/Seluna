@@ -2821,6 +2821,19 @@ describe("handleSetup status page", () => {
     expect(github.requests, "GitHub requests").toEqual([]);
   });
 
+  it("GET /setup signed out answers the login page and calls neither GitHub nor D1 although an app is configured", async () => {
+    const github = githubApiDouble({});
+    const deps = githubSecretDeps(github, { ...GITHUB_WORKER_SECRETS, GITHUB_APP_PRIVATE_KEY: FIXTURE_PEM });
+
+    const response = await call("/setup", {}, { ...deps, db: unusedDb() });
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expectLoginPage(html);
+    expect(html, "installations label").not.toContain(TEXTS.en.installationsLabel);
+    expect(github.requests, "GitHub requests").toEqual([]);
+  });
+
   it("GET /setup shows no installations line and sends no request for partial Worker secrets", async () => {
     const github = githubApiDouble({});
 

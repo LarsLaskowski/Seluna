@@ -795,6 +795,24 @@ describe("renderStartPage installations", () => {
   );
 });
 
+describe("renderStartPage hidden installations", () => {
+  it.each([{ language: "en" as const }, { language: "de" as const }])(
+    "the status section shows no installations label or text in $language when they are hidden",
+    ({ language }) => {
+      const spec = SPEC_INSTALLATION_TEXTS[language];
+
+      const page = startPage(language, { installations: { kind: "hidden" } });
+
+      expect(page, "status section").toContain(escapeHtml(TEXTS[language].statusHeading));
+      expect(page, "label").not.toContain(spec.label);
+      expect(page, "not installed text").not.toContain(spec.notInstalled);
+      expect(page, "unavailable text").not.toContain(escapeHtml(spec.unavailable));
+      expect(page, "key unusable text").not.toContain(escapeHtml(spec.keyUnusable));
+      expect(page, "more text").not.toContain(spec.more);
+    },
+  );
+});
+
 /** The texts of the spec (Non-functional requirements, Texts), written out independently of `src/setup/texts.ts`. */
 const SPEC_INSTALLATION_TEXTS = {
   en: {
