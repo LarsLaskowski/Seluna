@@ -41,7 +41,7 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
 | `token_cache` | `installation_id` | INTEGER | Primary key: the GitHub App installation id                                                                                                                    |
 |               | `iv`              | TEXT    | As in `secrets`                                                                                                                                                |
 |               | `ciphertext`      | TEXT    | The installation token, encrypted as in `secrets`                                                                                                              |
-|               | `expires_at`      | INTEGER | When the token expires                                                                                                                                         |
+|               | `expires_at`      | INTEGER | When the token expires, as GitHub's `expires_at` of the token answer                                                                                           |
 | `meta`        | `key`             | TEXT    | Primary key: the name of a value the instance keeps for itself                                                                                                 |
 |               | `value`           | TEXT    | The value as text                                                                                                                                              |
 
@@ -71,6 +71,13 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   private key as a PKCS#8 PEM and `github_webhook_secret` the webhook secret as GitHub generated it. The Worker
   secrets `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_WEBHOOK_SECRET` take precedence over the stored value
   of the same credential.
+- `token_cache` holds at most one row per installation id: the installation token of the GitHub API client and its
+  expiry ([GitHub API](github-api.md#installation-tokens)). A new token for an installation replaces its row (an
+  upsert on `installation_id`, without the key check guard of the credential writes: a token can always be requested
+  again). A row that does not decrypt, or whose token is not of the allowed form, is treated as no cached token and
+  replaced by the next token. The row of a token GitHub refused is deleted only while it still has the IV of that
+  token, so a row another call replaced in between stays. Expired rows and rows of an earlier app's installations
+  are not removed by these reads and writes.
 - `meta` holds the last notified release, the time of the last delivery, the key check value
   (`key_check`, below), the GitHub App's slug and the setup login's failed-attempt count (`login_attempts`, format
   and rules in [Setup wizard](setup-wizard.md#failed-attempts-and-the-lock)).
@@ -108,10 +115,8 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
 - Each value is bound to its place as additional authenticated data, the UTF-8 bytes of:
   - `secrets/<key>` for a row of `secrets`;
   - `token_cache/<installation_id>/<expires_at>` for a row of `token_cache`, both numbers in decimal without
-    leading zeros, as JavaScript's `String()` writes an integer. This is the contract for the code that writes
-    and reads installation tokens (issue #15): its tests check that a stored token decrypts with exactly this
-    text. Because `expires_at` is part of it, a row whose expiry was changed afterwards does not decrypt and is
-    treated like a missing token;
+    leading zeros, as JavaScript's `String()` writes an integer. Because `expires_at` is part of it, a row whose
+    expiry was changed afterwards does not decrypt and is treated like a missing token;
   - `meta/key_check` for the key check value.
 
   A ciphertext copied into another row does not decrypt there.
@@ -195,6 +200,8 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   check.
 - [`decisions/0017-github-app-manifest-flow.md`](../decisions/0017-github-app-manifest-flow.md) — the three
   credentials written in one batch by the manifest flow, and the Worker secrets that take precedence.
+- [`decisions/0026-github-app-authentication-and-installation-tokens.md`](../decisions/0026-github-app-authentication-and-installation-tokens.md)
+  — one cached token per installation, written without the key check guard, deleted by IV after a 401.
 - [`decisions/0014-d1-schema-and-data-access.md`](../decisions/0014-d1-schema-and-data-access.md) — one schema
   migration for all tables, data access only through `src/store/`, times in milliseconds, text columns for
   encrypted values, migrations frozen once on `main`.

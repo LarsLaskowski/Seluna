@@ -1,7 +1,7 @@
 # Spec: GitHub App authentication
 
 Source: Issue #15
-Status: Draft
+Status: Approved by Product Manager
 
 ## Problem
 
@@ -70,7 +70,9 @@ _installations unavailable_ (exact texts under *Non-functional requirements*).
   from two different apps is refused by GitHub (E3). The status page shows no _Installations:_ line and calls
   GitHub for nothing whenever its _GitHub App:_ line says _none saved yet_, _partial Worker secrets_ or _cannot be
   read_ — a display rule of the status page, which names no usable app in those states and asks the owner to set
-  all three Worker secrets or none.
+  all three Worker secrets or none. With the _GitHub App:_ line at _Worker secrets_ and a `GITHUB_APP_ID` that is not
+  a positive whole number, the status page shows _Installations:_ with _installations unavailable_ and calls GitHub
+  for nothing.
 - E2: The private key cannot sign: the Worker secret `GITHUB_APP_PRIVATE_KEY` is not a PEM RSA key that imports as
   an RS256 signing key (PKCS#1 and PKCS#8 are both accepted), or the saved key does not decrypt. The API client
   reports failure without a request; the status page shows _Installations:_ with the _key unusable_ text.
@@ -103,7 +105,8 @@ _installations unavailable_ (exact texts under *Non-functional requirements*).
   both reads succeed, and afterwards `token_cache` holds exactly one row for that installation, with one of the two
   tokens.
 - E11: D1 fails while the token cache is read, written or deleted: the API client reports failure (no exception
-  reaches the webhook processing); a token GitHub already issued is not used for this call.
+  reaches the webhook processing); a token GitHub already issued is not used for this call. Without a usable
+  `SELUNA_SECRET` no token can be stored encrypted, so the API client reports failure without any request.
 - E12: The app has no installation yet: _Installations:_ shows _not installed_.
 - E13: The app has more than 100 installations: the first 100 GitHub returns are listed, followed by the _more
   installations_ text; Seluna asks GitHub for one page only. The text appears exactly when the answer's `Link`
@@ -194,8 +197,9 @@ _installations unavailable_ (exact texts under *Non-functional requirements*).
   application/vnd.github+json` and `X-GitHub-Api-Version: 2022-11-28`, does not follow redirects and has a 10-second
   timeout; `/app/...` requests carry the app token, repository requests the installation token (S7, E5).
 - [ ] AC6: Without a usable App ID and private key after the per-credential precedence (neither Worker secret nor a
-  readable saved value, an App ID that is not a positive whole number, a key that does not import), with an invalid `installation.id`, or with an invalid repository owner, name or number, the
-  API client reports failure and sends no request (E1, E2, E7, E16).
+  readable saved value, an App ID that is not a positive whole number, a key that does not import), without a usable
+  `SELUNA_SECRET`, with an invalid `installation.id`, or with an invalid repository owner, name or number, the API
+  client reports failure and sends no request (E1, E2, E7, E11, E16).
 - [ ] AC7: A refused, failed, timed-out, redirected, oversized or unreadable answer of the token request or of the
   repository request, and a D1 failure on the token cache, make the API client report failure without throwing; no
   token is cached from such a token answer, and the result carries no token, key or answer text (E3, E4, E5, E6, E11,
@@ -215,7 +219,8 @@ _installations unavailable_ (exact texts under *Non-functional requirements*).
   entries exactly when the answer's `Link` header has a link with `rel="next"`; 100 entries without that link show
   no such text (E12, E13).
 - [ ] AC13: The status page answers 200 with _installations unavailable_ when the installations request fails, is
-  refused, times out, redirects or is unreadable, with _key unusable_ when the private key cannot sign, and with no
+  refused, times out, redirects or is unreadable, and without a request when the App ID of the Worker secrets is not a
+  positive whole number, with _key unusable_ when the private key cannot sign, and with no
   _Installations:_ line and no GitHub request when the _GitHub App:_ line shows _none saved yet_, _partial Worker
   secrets_ or _cannot be read_ (E1, E2, E3, E5, E6).
 - [ ] AC14: The API client takes App ID and private key from `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` when they
@@ -276,9 +281,12 @@ _installations unavailable_ (exact texts under *Non-functional requirements*).
 - Q7: Are there real answers of the token request, the installations list and the pull request read to build the
   readers from?
   Answered: none in `test/fixtures/` or on the issue, and the session cannot authenticate as an app to capture
-  them. This decides how the readers are built, not what the feature does: the plan settles it with the Product
-  Manager (a captured sample, or GitHub's documentation and OpenAPI description with a live check on a deployed copy,
-  as decisions 0016 and 0017 did).
+  them. The Product Manager decided (escalation of the plan, option B): the token answer and the installations list
+  are fixtures written from GitHub's OpenAPI description and documentation and marked as such, as decisions 0016 and
+  0017 did; the pull request answer is a real one, captured with `gh api` (`GET /repos/LarsLaskowski/Seluna/pulls/77`,
+  a closed pull request that is not a draft) and anonymized; before the pull request is marked ready the Product
+  Manager checks the feature live on a deployed copy (the status page lists the installation, a token request
+  succeeds and a second call reuses the cached token), and the residual risk is recorded in decision 0026.
 
 ## Area documents
 
@@ -319,3 +327,7 @@ Spec challenge by the Devil's Advocate at commit a61bd21.
   call replaced in between stays (E10 named in AC8).
 - **Minor 3 — when exactly the "more installations" text appears.** Accepted. E13 and AC12 now say: exactly when the
   answer's `Link` header has a link with `rel="next"`; 100 entries without that link show no text.
+- **Spec defects found while planning (Lead, plan step).** E1 and AC13 did not say what the status page shows for
+  Worker secrets with an App ID that is not a positive whole number: now _installations unavailable_ without a
+  request. E11 and AC6 did not cover a missing `SELUNA_SECRET`, without which no token can be cached encrypted: now a
+  failure without a request. Q7 records the Product Manager's answer.
