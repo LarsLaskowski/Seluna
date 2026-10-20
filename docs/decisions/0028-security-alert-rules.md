@@ -1,6 +1,6 @@
 # 0028: Security alert rules
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-20
 - **Area:** Notifications
 - **Source:** Issue #17

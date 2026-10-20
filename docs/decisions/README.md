@@ -79,6 +79,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0025](0025-quiet-hours-decided-at-sending.md) | Quiet hours decided at sending | Accepted | 2026-10-18 |
 | [0026](0026-github-app-authentication-and-installation-tokens.md) | GitHub App authentication and cached installation tokens | Accepted | 2026-10-19 |
 | [0027](0027-ci-failure-rules-and-the-draft-lookup.md) | CI failure rules and the draft lookup | Accepted | 2026-10-20 |
-| [0028](0028-security-alert-rules.md) | Security alert rules | Proposed | 2026-10-20 |
+| [0028](0028-security-alert-rules.md) | Security alert rules | Accepted | 2026-10-20 |
 
 <!-- project:end index -->
