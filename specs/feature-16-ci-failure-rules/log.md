@@ -11,3 +11,5 @@ are quoted in full.
 | 2026-10-19 16:34 | 2a Spec revise | squad-lead | RESULT: DONE; all 6 objections accepted and answered in Challenge section (E14, AC15 added) (opus/medium · 15,938 tokens · 18 tool uses · 69 s · continued) |
 | 2026-10-19 17:16 | 2b Plan | squad-lead | RESULT: ESCALATE: no real workflow_run fixture; asked the Product Manager for real deliveries (option A) (opus/medium · usage not reported) |
 | 2026-10-19 17:16 | 2b Plan | Product Manager | Chose option A: will provide real workflow_run deliveries |
+| 2026-10-20 17:55 | 2b Plan | Product Manager | Cannot provide a default-branch failure, fork or timed_out/cancelled run (would break main; no failures occur); supplied a successful default-branch run and a failed pull request run. Proceed with those; other variants built in tests from them. |
+| 2026-10-20 17:55 | 2b Plan | Orchestrator | Anonymized both deliveries into test/fixtures/workflow_run/ (leak grep clean, prettier ok) |
