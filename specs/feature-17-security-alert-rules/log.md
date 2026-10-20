@@ -22,3 +22,4 @@ are quoted in full.
 | 2026-10-20 20:36 | 2b Plan revise | squad-lead | 3 non-blocking Security notes applied; RESULT: DONE (opus/medium · 3,117 tokens · 4 tool uses · 26 s · continued from 2a Spec) |
 | 2026-10-20 20:37 | 4 Skeleton | squad-dev | skeleton of 4 new files, registry, 3 title keys EN/DE; typecheck green; no deviations (sonnet/medium · 83,330 tokens · 13 tool uses · 39 s) |
 | 2026-10-20 20:46 | 5 Tests first | squad-tester | fixtures (11 files + READMEs) and tests for AC1-AC12; all new tests fail on skeleton; deferred: MESSAGE_TEXTS titles test (AC4) (sonnet/medium · 201,171 tokens · 39 tool uses · 485 s) |
+| 2026-10-20 20:50 | 6 Implement | squad-dev | tasks 3-6, 8-10 done; suite green, coverage new code 100%, analyzer clean (sonnet/medium · 100,881 tokens · 16 tool uses · 261 s) |
