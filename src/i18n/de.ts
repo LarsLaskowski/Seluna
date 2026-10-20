@@ -8,5 +8,8 @@ export const DE: MessageTexts = {
   ciFailedDefaultBranch: (branch) => `CI fehlgeschlagen auf ${branch}`,
   ciFailedPullRequest: "CI im Pull Request fehlgeschlagen",
   ciFailedPullRequestDraftUnknown: "CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)",
+  dependabotAlert: "Dependabot-Warnung",
+  codeScanningAlert: "Code-Scanning-Warnung",
+  secretScanningAlert: "Secret-Scanning-Warnung",
   pullRequestContext: (author, head, base) => `von ${author} · ${head} → ${base}`,
 };
