@@ -17,3 +17,4 @@ are quoted in full.
 | 2026-10-20 19:16 | 2b Plan challenge | squad-devils-advocate | OBJECTIONS 1 major (plan built from memory, no real fixtures, Q9), 3 minor (empty-string fallbacks, README:24 draft sentence, assignment action names) (opus/medium · 60,932 tokens · 11 tool uses · 81 s) |
 | 2026-10-20 19:18 | 2b Plan revise | squad-lead | revise on challenge+security notes: all answered; plan held; RESULT: ESCALATE Q9 real deliveries (opus/medium · usage pending) |
 | 2026-10-20 20:30 | 2b Plan revise | Product Manager | Q9 answered: (c) no real deliveries; build from GitHub's documented example payloads, residual risk recorded in decision 0028 |
+| 2026-10-20 20:34 | 2b Plan revise | squad-lead | revise after Q9 (c): fixtures from GitHub OpenAPI description, risk in 0028; RESULT: DONE (opus/medium · usage pending) |

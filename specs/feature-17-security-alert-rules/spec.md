@@ -28,10 +28,10 @@ in both languages" holds for every scenario.
 - S2: Given the same, when the delivery's `action` is `reopened` (someone reopened a dismissed alert), then the same
   message is sent: one title per case, whether new or reopened.
 - S3: Given the switch "Code scanning alert" is on, when GitHub delivers `code_scanning_alert` `created` for alert 12 in
-  `octo/shop` on the default branch (`ref` is `refs/heads/` followed by `repository.default_branch`) whose rule is
-  `js/sql-injection` with the description "Database query built from user-controlled sources" and the security
-  severity `high`, then Telegram shows **Code scanning alert** · octo/shop #12 / Database query built from
-  user-controlled sources / high · js/sql-injection, with the button to the alert's page (Q1: the default branch
+  `octo/shop` on the default branch (`ref` is `refs/heads/` followed by `repository.default_branch`, or that branch
+  name alone) whose rule is `js/sql-injection` with the description "Database query built from user-controlled
+  sources" and the severity `error`, then Telegram shows **Code scanning alert** · octo/shop #12 / Database query
+  built from user-controlled sources / error · js/sql-injection, with the button to the alert's page (Q1: the default branch
   only).
 - S4: Given the same, when the delivery's `action` is `reopened` (GitHub reopened a fixed alert because the finding is
   back) on the default branch, then the same message is sent.
@@ -54,9 +54,10 @@ in both languages" holds for every scenario.
 - S8: Given the switch of the case is off, when a delivery of S1 to S6 arrives, then nothing is sent and the request's
   log entry has the decision `disabled`.
 - S9: Given any switch state, when a delivery of one of the three events arrives with another `action` — for
-  `dependabot_alert` `dismissed`, `fixed`, `auto_dismissed`, `auto_reopened`, `reintroduced` or an assignment change;
-  for `code_scanning_alert` `fixed`, `closed_by_user`, `reopened_by_user` or an assignment change; for
-  `secret_scanning_alert` `resolved`, `validated`, `publicly_leaked`, `assigned`, `unassigned` or `revoked`; or any
+  `dependabot_alert` `dismissed`, `fixed`, `auto_dismissed`, `auto_reopened`, `reintroduced`, `withdrawn` or
+  `assignees_changed`;
+  for `code_scanning_alert` `fixed`, `closed_by_user`, `reopened_by_user` or `updated_assignment`; for
+  `secret_scanning_alert` `resolved`, `validated`, `publicly_leaked`, `assigned` or `unassigned`; or any
   action GitHub adds later — then nothing is sent and the decision is `no-match`. (For `code_scanning_alert`
   `appeared_in_branch` see S10.)
 - S10: Given the switch "Code scanning alert" is on, when GitHub delivers `code_scanning_alert` `appeared_in_branch` with
@@ -109,14 +110,13 @@ in both languages" holds for every scenario.
 ### Fields shown
 
 The fields each line is read from; where GitHub's documentation names a value in two places, the first is read and the
-second is the fallback when the first is missing, `null`, not a string or blank (empty or only spaces). The plan checks every one against the real
-deliveries (Q9) and writes the confirmed list into the area document; a field the deliveries lack changes this list
-in the plan, named in its result.
+second is the fallback when the first is missing, `null`, not a string or blank (empty or only spaces). Every path is taken from GitHub's OpenAPI webhook
+schemas (Q9: no real delivery exists); the area document lists them as documented, not observed.
 
 | Event | Line 2 | Line 3 |
 | ----- | ------ | ------ |
 | `dependabot_alert` | `alert.security_advisory.summary` | severity `alert.security_advisory.severity` (fallback `alert.security_vulnerability.severity`), `·`, package `alert.dependency.package.name` (fallback `alert.security_vulnerability.package.name`) |
-| `code_scanning_alert` | `alert.rule.description` | severity `alert.rule.security_severity_level` (fallback `alert.rule.severity`; the documentation does not promise the first in webhooks, so the fallback may be the usual case), `·`, rule `alert.rule.id` |
+| `code_scanning_alert` | `alert.rule.description` | severity `alert.rule.security_severity_level` (fallback `alert.rule.severity`: `none`, `note`, `warning`, `error`; the webhook schema documents only `rule.severity`, so the fallback is the documented case and the first is read in case GitHub sends it, as its REST API does), `·`, rule `alert.rule.id` |
 | `secret_scanning_alert` | `alert.secret_type_display_name` | `alert.secret_type` |
 
 Line 1: `repository.full_name` and `alert.number`; the button: `alert.html_url`. No other field is shown.
@@ -143,8 +143,8 @@ Line 1: `repository.full_name` and `alert.number`; the button: `alert.html_url`.
   alert", the repository, the alert number, the advisory summary as line 2, `severity · package` as line 3 and the
   alert's `html_url` as the button (S1, S2).
 - [ ] AC2: `code_scanning_alert` `created` and `reopened` on the default branch each produce one notification with the
-  title "Code scanning alert", the alert number, the rule description as line 2, `security severity · rule id` as line
-  3 and the alert's `html_url` (S3, S4).
+  title "Code scanning alert", the alert number, the rule description as line 2, `severity · rule id` as line
+  3 (severity as in *Fields shown*) and the alert's `html_url` (S3, S4).
 - [ ] AC3: `secret_scanning_alert` `created` and `reopened` each produce one notification with the title "Secret
   scanning alert", the alert number, the secret type's display name as line 2, the secret type as line 3 and the
   alert's `html_url` (S5, S6).
@@ -163,7 +163,8 @@ Line 1: `repository.full_name` and `alert.number`; the button: `alert.html_url`.
 - [ ] AC8: a delivery with a missing or mistyped identifying field, or with the payload shape of another event than its
   header, produces no notification (E1, E2).
 - [ ] AC9: a `code_scanning_alert` `created`, `reopened` or `appeared_in_branch` reports only when
-  `ref` is `refs/heads/<repository.default_branch>`; any other `ref` produces nothing (S10, E9, E10).
+  `ref` is `refs/heads/<repository.default_branch>` or exactly `<repository.default_branch>`; any other `ref`
+  produces nothing (S10, E9, E10).
 - [ ] AC12: a secret scanning alert whose secret came from a draft pull request is reported like any other: the rule
   reads no ref, branch or pull request field, so a delivery that carries one gives the same notification (S11, E12).
 - [ ] AC10: a missing optional field shortens its line as E3 describes (security severity falls back to the rule's
@@ -218,17 +219,20 @@ Line 1: `repository.full_name` and `alert.number`; the button: `alert.html_url`.
   languages, like branch names and commit lines (`notifications.md`, *CI failure rules*: line 3 is the same in both
   languages); the GitHub page the button opens uses the same words.
 - Q6: Does a secret scanning webhook payload carry the secret? Answered: it does not matter for the behavior — the rule
-  shows only the display name and the type, and AC7 holds whether or not GitHub includes it. Whether real deliveries
-  carry `alert.secret` is checked against the real deliveries the plan uses.
+  shows only the display name and the type, and AC7 holds whether or not GitHub includes it. GitHub's webhook schema
+  for `secret_scanning_alert` has no `secret` field (its REST alert has one); the tests add one anyway.
 - Q7: Does the feature need a new permission, event, setting or migration? Answered: no — `APP_PERMISSIONS` and
   `APP_EVENTS` in `src/github/manifest.ts` already hold `vulnerability_alerts`, `security_events`,
   `secret_scanning_alerts` and the three events; `RULE_IDS` and `DEFAULT_SETTINGS` in `src/settings.ts` already hold
   the three switches (on), and the settings page shows them (`docs/areas/setup-wizard.md`).
 - Q8: Should a reopened alert be titled differently? Answered: no — the issue gives one title per case for both
   actions.
-- Q9: Which real deliveries are the rules built and tested from? Answered: none exists yet in `test/fixtures/` or on
-  the issue; per `.squad/project.md` (*Fixtures from real deliveries*) the Product Manager supplies them before the
-  plan (requested together with the escalation of Q1), and the plan names the variants they cover.
+- Q9: Which real deliveries are the rules built and tested from? Answered: by the Product Manager (2026-10-20),
+  option (c) — none will be supplied; the fixtures are reference-built from GitHub's documented webhook payloads (the
+  OpenAPI webhook schemas and the REST alert examples, named per file in the plan), and the residual risk (field
+  paths, `ref` values, action names, whether `alert.secret` is present) is recorded in decision 0028 and the area
+  document. Because the rules read only an allow-list of fields, a field that differs in real deliveries can only
+  shorten a line or silence the alert, never leak a secret.
 
 - Q10: Does a secret scanning alert fall under "a draft pull request triggers no notification"? Secret scanning scans
   pushes to every branch and pull request titles, descriptions and comments, so a secret in a draft pull request
@@ -266,7 +270,8 @@ Spec challenge by the Devil's Advocate, one round.
    whether or not the pull request is ever merged; staying silent would hide exactly the case the feature exists for.
 2. Minor — name the exact payload field of every value. Accepted: new subsection *Fields shown* with each field and its
    fallback (Dependabot severity and package, code scanning security severity with `alert.rule.severity` as a fallback
-   that may be the usual case); E3 refers to it, and the plan confirms the list against the real deliveries (Q9).
+   that is the documented case); E3 refers to it. With no real deliveries (Q9 (c)) the paths come from GitHub's
+   OpenAPI webhook schemas.
 3. Minor — "no character of the secret" cannot be met literally. Accepted: E5 and AC7 reworded to byte-identical outbox
    text, button URL and log fields with and without the secret (in `alert.secret`, `alert.resolution_comment` and a
    location field), plus a distinctive random 40-character secret that is a substring of none of them.

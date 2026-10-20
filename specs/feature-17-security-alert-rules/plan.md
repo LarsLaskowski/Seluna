@@ -1,7 +1,7 @@
 # Plan: Security alert rules
 
 Source: Issue #17 | [spec.md](spec.md)
-Status: Revised (1)
+Status: Revised (2)
 Tier: security — the secret scanning rule decides what of a delivery that may carry a leaked secret reaches the outbox, a message and the log (handling of secrets, `.squad/routing.md`, *Tiers*), and the change rewords a guarantee; in doubt the higher tier.
 Security areas touched: Parsing of external input (`src/rules/security-alert.ts`, `src/rules/dependabot-alert.ts`, `src/rules/code-scanning-alert.ts`, `src/rules/secret-scanning-alert.ts` narrow new webhook payloads whose texts enter messages through `src/message.ts`); Encrypted credentials / "nothing secret is logged" (a secret scanning payload may carry a leaked secret, which must reach no row, message or log); `.squad/project.md` *Guarantees* (the draft guarantee is reworded, Product Manager's decision Q10). Not touched: Minimal GitHub App permissions (no new permission or event), Logging of external data (log fields unchanged).
 
@@ -22,11 +22,12 @@ Feature: see [spec.md](spec.md) — no rule reads the three security alert event
 | 7 | German switch labels are Dependabot-Warnung, Code-Scanning-Warnung, Secret-Scanning-Warnung | `src/setup/texts.ts:413-415` | confirmed |
 | 8 | Test helper `variant(payload, path, value)` (with `ABSENT`) builds payload variants from a fixture | `test/pull-request.ts` | confirmed |
 | 9 | Decision 0027 is unreleased (added after `v0.3.0`); 0024 is released | `git ls-remote --tags origin` lists v0.1.0–v0.3.0; `git tag --contains` of 0027's adding commit is empty | confirmed |
-| 10 | Field paths: `alert.number`, `alert.html_url`, `alert.security_advisory.{summary,severity}`, `alert.security_vulnerability.{severity,package.name}`, `alert.dependency.package.name` (Dependabot); `alert.rule.{id,description,severity,security_severity_level}`, top-level `ref` (code scanning); `alert.secret_type`, `alert.secret_type_display_name` (secret scanning) | to verify: read every path in the real deliveries of task 1 (Tester, step 5, before writing the first test); a missing path changes *Fields shown* in `spec.md` and the area document, reported to the Lead (source so far: GitHub webhook documentation (from memory)) | unverified |
-| 11 | Code scanning `created`/`reopened` on the default branch carry `ref` `refs/heads/<default_branch>`; `appeared_in_branch` carries the branch it appeared in; a pull request alert carries `refs/pull/<n>/merge` | to verify: the real `code_scanning_alert` deliveries of task 1 (Tester, step 5); an `appeared_in_branch` or pull request sample may be missing — then the area document lists it as not verified (source so far: GitHub webhook documentation (from memory)) | unverified |
-| 12 | The action lists of the three events (Dependabot: `auto_dismissed`, `auto_reopened`, `created`, `dismissed`, `fixed`, `reintroduced`, `reopened`, assignment; code scanning: `appeared_in_branch`, `closed_by_user`, `created`, `fixed`, `reopened`, `reopened_by_user`, assignment; secret scanning: `created`, `publicly_leaked`, `reopened`, `resolved`, `revoked`, `validated`, `assigned`, `unassigned`) | to verify: the real deliveries of task 1 show the actions they carry (Tester, step 5); irrelevant to correctness (every action but the reported ones sends nothing); the tests' action tables use these names (source so far: GitHub webhook documentation (from memory)) | unverified |
-| 13 | Whether a secret scanning delivery carries `alert.secret` | to verify: the real `secret_scanning_alert` deliveries of task 1 (orchestrator, when anonymizing: the value is replaced by a fake but the field kept); AC7 holds either way (source so far: GitHub documentation is not explicit) | unverified |
-| 14 | No real delivery of the three events exists in `test/fixtures/` or on the issue | `ls test/fixtures` (github, ping, pull_request, telegram, workflow_run); issue #17 has no comments; requested from the Product Manager (spec Q9) | confirmed |
+| 10 | GitHub's webhook schemas define the paths the rules read: `alert.number` (integer), `alert.html_url`, `alert.security_advisory.{summary,severity}`, `alert.security_vulnerability.{severity,package.name}`, `alert.dependency.package.name` (Dependabot, severities `low`/`medium`/`high`/`critical`); `alert.rule.{id,description,severity}` with `severity` `none`/`note`/`warning`/`error`/`null` and **no** `security_severity_level`, top-level `ref` and `commit_oid` required (code scanning); `alert.secret_type`, `alert.secret_type_display_name`, `alert.locations_url` (secret scanning); required top-level fields `action`, `alert`, `repository` (+ `ref`, `commit_oid`, `sender` where listed) | `github/rest-api-description` commit `755ee33b4a81d51f6f07a902cce26cbec3b822f2`, `descriptions/api.github.com/api.github.com.json`: `components.schemas.webhook-dependabot-alert-created`, `webhook-code-scanning-alert-created`, `-appeared-in-branch`, `-reopened`, `-fixed`, `webhook-secret-scanning-alert-created`, `-reopened`, `-resolved` (read by the Lead in a scratch clone, 2026-10-20) | confirmed |
+| 11 | Real deliveries carry the paths of fact 10 with these types | to verify: a captured delivery, which the Product Manager will not supply (Q9 (c)); residual risk accepted in decision 0028, a captured delivery that differs is fixed in a new issue (no owner in this change) | unverified |
+| 12 | The top-level code scanning `ref` is `refs/heads/<branch>` for a branch and `refs/pull/<n>/merge` or `/head` for a pull request | to verify: no real delivery (Q9 (c)); the schema says only "The Git reference of the code scanning alert" (empty for `closed_by_user`/`reopened_by_user`, nullable for `reopened`); `alert.most_recent_instance.ref` is documented as `refs/heads/<branch name>`; so the rule accepts `refs/heads/<default_branch>` and the bare `<default_branch>` (decision 0028) | unverified |
+| 13 | The action enums: `dependabot_alert` `assignees_changed`, `auto_dismissed`, `auto_reopened`, `created`, `dismissed`, `fixed`, `reintroduced`, `reopened`, `withdrawn`; `code_scanning_alert` `appeared_in_branch`, `closed_by_user`, `created`, `fixed`, `reopened`, `reopened_by_user`, `updated_assignment`; `secret_scanning_alert` `assigned`, `created`, `publicly_leaked`, `reopened`, `resolved`, `unassigned`, `validated` (no `revoked`) | `github/rest-api-description` commit `755ee33b4a81d51f6f07a902cce26cbec3b822f2`, `descriptions/api.github.com/api.github.com.json`: `x-webhooks` keys and the `action` enum of each `webhook-<event>-<action>` schema | confirmed |
+| 14 | The `secret_scanning_alert` webhook schema has no `secret` field (the REST alert has one) | `github/rest-api-description` commit `755ee33b4a81d51f6f07a902cce26cbec3b822f2`, `descriptions/api.github.com/api.github.com.json`: properties of `webhook-secret-scanning-alert-created`'s `alert`; AC7 tests with the field added anyway | confirmed |
+| 15 | No real delivery of the three events exists, and none will be supplied | `ls test/fixtures`; Product Manager's answer to Q9, 2026-10-20: option (c), build from documented payloads | confirmed |
 
 ## Acceptance criteria
 
@@ -34,39 +35,54 @@ The spec's AC1–AC12 ([spec.md](spec.md)).
 
 ## Tests per criterion
 
-Fixture names are those of task 1; a test that needs a variant no real delivery covers builds it with `variant()`
-from the nearest real one, never a hand-written payload.
+Fixture names are those of task 1 (reference-built from GitHub's documentation, Q9 (c)); a test that needs a variant
+no fixture covers builds it with `variant()` from the nearest fixture, never a payload typed into the test.
 
 | AC | Test(s) | Test file |
 | -- | ------- | --------- |
-| AC1 | `DEPENDABOT_ALERT reports the real created alert in English`; `DEPENDABOT_ALERT reports the real reopened alert with the same lines` | `src/rules/dependabot-alert.test.ts` |
-| AC2 | `CODE_SCANNING_ALERT reports the real created alert on the default branch in English`; `CODE_SCANNING_ALERT reports a reopened alert on the default branch with the same lines` | `src/rules/code-scanning-alert.test.ts` |
-| AC3 | `SECRET_SCANNING_ALERT reports the real created alert in English`; `SECRET_SCANNING_ALERT reports the real reopened alert with the same lines` | `src/rules/secret-scanning-alert.test.ts` |
+| AC1 | `DEPENDABOT_ALERT reports the documented created alert in English`; `DEPENDABOT_ALERT reports the documented reopened alert with the same lines` | `src/rules/dependabot-alert.test.ts` |
+| AC2 | `CODE_SCANNING_ALERT reports the documented created alert on the default branch in English`; `CODE_SCANNING_ALERT reports a reopened alert on the default branch with the same lines` | `src/rules/code-scanning-alert.test.ts` |
+| AC3 | `SECRET_SCANNING_ALERT reports the documented created alert in English`; `SECRET_SCANNING_ALERT reports the documented reopened alert with the same lines` | `src/rules/secret-scanning-alert.test.ts` |
 | AC4 | `DEPENDABOT_ALERT reports in German`; `CODE_SCANNING_ALERT reports in German`; `SECRET_SCANNING_ALERT reports in German`; `MESSAGE_TEXTS holds the security alert titles in en and de` | the three rule test files; `src/i18n/messages.test.ts` |
 | AC5 | `processWebhook decides disabled and stores no row for a created <event> with its switch off` (one case per event); `RULES holds the security alert rules after the CI rules in settings order` (adapted) | `src/webhook.test.ts`; `src/rules/registry.test.ts` |
-| AC6 | `DEPENDABOT_ALERT reports nothing for the real dismissed alert`; `DEPENDABOT_ALERT reports nothing for the action <action>` (`fixed`, `auto_dismissed`, `auto_reopened`, `reintroduced`, an invented `some_new_action`); `CODE_SCANNING_ALERT reports nothing for the action <action>` (`fixed`, `closed_by_user`, `reopened_by_user`, `some_new_action`); `SECRET_SCANNING_ALERT reports nothing for the real resolved alert`; `SECRET_SCANNING_ALERT reports nothing for the action <action>` (`validated`, `publicly_leaked`, `revoked`, `some_new_action`). Action names other than those of the real deliveries are table cases from the documentation, not verified; assignment actions are covered by "any other action" and named only when a real delivery shows their exact name | the three rule test files |
-| AC7 | `SECRET_SCANNING_ALERT returns the same notification with a secret in alert.secret, alert.resolution_comment and a location field`; `processWebhook stores the same outbox text and button URL and returns the same log fields for a secret scanning delivery with and without a secret` (secret: a fixed 40-character fake, `SELUNA_TEST_` followed by 28 random letters and digits, matching no provider's secret pattern so push protection does not trip; asserted absent as a substring of the text, the button URL and every log field); `SECRET_SCANNING_ALERT returns the same notification when every string outside action and the five read fields of the real created delivery is the secret` (walks the fixture and replaces every string leaf outside `action`, `alert.number`, `alert.html_url`, `alert.secret_type`, `alert.secret_type_display_name`, `repository.full_name`: pins the allow-list itself) | `src/rules/secret-scanning-alert.test.ts`; `src/webhook.test.ts` |
-| AC8 | per rule: `<RULE> reports nothing when <field> is <value>` (table: `alert` missing / an array; `alert.number` 0, 1.5, 2^53, a string; `alert.html_url` missing / a number; `repository.full_name` missing); `DEPENDABOT_ALERT reports nothing without alert.security_advisory`; `CODE_SCANNING_ALERT reports nothing without alert.rule, ref or repository.default_branch`; `SECRET_SCANNING_ALERT reports nothing without alert.secret_type`; per rule: `<RULE> reports nothing for the real delivery of another alert event under its event name` and `<RULE> reports nothing for its payload under another event name` | the three rule test files |
-| AC9 | `CODE_SCANNING_ALERT reports the alert that appeared in the default branch`; `CODE_SCANNING_ALERT reports nothing for <action> with ref <ref>` (actions `created`, `reopened`, `appeared_in_branch` × refs `refs/pull/1/merge`, `refs/heads/feature`, `refs/tags/v1`, `""`, absent, `main` without `refs/heads/`) ; `CODE_SCANNING_ALERT reports nothing for the real pull request alert` (when that sample exists) | `src/rules/code-scanning-alert.test.ts` |
+| AC6 | `DEPENDABOT_ALERT reports nothing for the documented dismissed alert`; `DEPENDABOT_ALERT reports nothing for the action <action>` (`fixed`, `auto_dismissed`, `auto_reopened`, `reintroduced`, `withdrawn`, `assignees_changed`, an invented `some_new_action`); `CODE_SCANNING_ALERT reports nothing for the action <action>` (`fixed`, `reopened_by_user`, `updated_assignment`, `some_new_action`); `CODE_SCANNING_ALERT reports nothing for the documented closed_by_user alert`; `SECRET_SCANNING_ALERT reports nothing for the documented resolved alert`; `SECRET_SCANNING_ALERT reports nothing for the action <action>` (`validated`, `publicly_leaked`, `assigned`, `unassigned`, `some_new_action`). The names are the documented enums (fact 13) | the three rule test files |
+| AC7 | `SECRET_SCANNING_ALERT returns the same notification with a secret in alert.secret, alert.resolution_comment and a location field`; `processWebhook stores the same outbox text and button URL and returns the same log fields for a secret scanning delivery with and without a secret` (secret: a fixed 40-character fake, `SELUNA_TEST_` followed by 28 random letters and digits, matching no provider's secret pattern so push protection does not trip; asserted absent as a substring of the text, the button URL and every log field); `SECRET_SCANNING_ALERT returns the same notification when every string outside action and the five read fields of the documented created delivery is the secret` (walks the fixture and replaces every string leaf outside `action`, `alert.number`, `alert.html_url`, `alert.secret_type`, `alert.secret_type_display_name`, `repository.full_name`: pins the allow-list itself) | `src/rules/secret-scanning-alert.test.ts`; `src/webhook.test.ts` |
+| AC8 | per rule: `<RULE> reports nothing when <field> is <value>` (table: `alert` missing / an array; `alert.number` 0, 1.5, 2^53, a string; `alert.html_url` missing / a number; `repository.full_name` missing); `DEPENDABOT_ALERT reports nothing without alert.security_advisory`; `CODE_SCANNING_ALERT reports nothing without alert.rule, ref or repository.default_branch`; `SECRET_SCANNING_ALERT reports nothing without alert.secret_type`; per rule: `<RULE> reports nothing for the documented delivery of another alert event under its event name` and `<RULE> reports nothing for its payload under another event name` | the three rule test files |
+| AC9 | `CODE_SCANNING_ALERT reports the alert that appeared in the default branch`; `CODE_SCANNING_ALERT reports nothing for <action> with ref <ref>` (actions `created`, `reopened`, `appeared_in_branch` × refs `refs/pull/1/merge`, `refs/pull/1/head`, `refs/heads/feature`, `refs/heads/main/x`, `refs/tags/main`, `""`, `null`, absent); `CODE_SCANNING_ALERT reports a created alert whose ref is the bare default branch name`; `CODE_SCANNING_ALERT reports nothing for the documented pull request alert` (when that sample exists) | `src/rules/code-scanning-alert.test.ts` |
 | AC10 | `DEPENDABOT_ALERT shows <line> when <fields> are missing` (severity falls back to `security_vulnerability.severity` when `security_advisory.severity` is absent, `null`, a number, `""` or `"  "`; package to `security_vulnerability.package.name` when `dependency.package.name` is absent, `null` or `""`; package alone; severity alone; no line 3; no line 2); `CODE_SCANNING_ALERT falls back to rule.severity when security_severity_level is <value>` (absent, `null`, `""`); `CODE_SCANNING_ALERT shows the rule id alone without either severity`; `CODE_SCANNING_ALERT has no line 2 without rule.description`; `SECRET_SCANNING_ALERT has no line 2 without a display name`; `<RULE> shows an unknown severity as sent`; `joinContext joins the non-blank parts with " · "` (table) ; `stringAt returns undefined for a missing, null or non-string field`; `firstText returns the first non-blank string` (table: first `""`, `"  "`, absent → the second) | the three rule test files; `src/rules/security-alert.test.ts` |
 | AC11 | `processWebhook escapes an advisory summary with <, & and a line break and keeps it on one line` | `src/webhook.test.ts` |
 | AC12 | `SECRET_SCANNING_ALERT returns the same notification when the payload carries a ref and a draft pull_request` | `src/rules/secret-scanning-alert.test.ts` |
 
 ## Approach
 
-1. **Fixtures first (task 1, orchestrator).** The real deliveries the Product Manager supplies become
-   `test/fixtures/<event>/<action>.json` as `.squad/project.md` (*Fixtures from real deliveries*) says, plus a
-   `README.md` per folder naming the variants covered and those missing (pattern: `test/fixtures/workflow_run/README.md`).
-   The Product Manager creates the secret scanning sample with a purpose-made secret, revoked right away; in the
-   fixture the secret value, wherever it occurs, is replaced by a fake `SELUNA_TEST_…` that matches no provider's
-   pattern (field kept), and the original value is one of the strings of the leak grep of *Fixtures from real
-   deliveries* (step 2). Wanted: `dependabot_alert/created.json`, `reopened.json`, `dismissed.json`; `code_scanning_alert/created.json`
-   (default branch), `created-pull-request.json`, `appeared_in_branch.json`, `reopened.json`, `fixed.json` or
-   `closed_by_user.json`; `secret_scanning_alert/created.json`, `reopened.json`, `resolved.json`. **Until they exist,
-   step 4 (skeleton) may run, step 5 does not start.** If the Product Manager cannot supply some, only the Product
-   Manager may confirm building those tests on variants of a supplied delivery or on GitHub's documented example payloads
-   (the risk then goes into decision 0028); the Lead never substitutes a hand-built payload. Minimum to start: one
-   `created` per event.
+1. **Fixtures first (task 1, Tester, first act of step 5).** No real delivery exists (Q9 (c), Product Manager's
+   approval of documented payloads in place of *Fixtures from real deliveries*). The Tester writes
+   `test/fixtures/<event>/<action>.json` reference-built from `github/rest-api-description` commit `755ee33b4a81d51f6f07a902cce26cbec3b822f2`, `descriptions/api.github.com/api.github.com.json`: each file has every property of the schema
+   `components.schemas.webhook-<event>-<action>` (required ones included), with the alert's values taken from the REST
+   example named below where its shape matches the webhook schema and otherwise a value of the schema's type; the
+   `repository`, `sender` and `installation` objects are copied from `test/fixtures/workflow_run/completed-failure-pull-request.json`
+   (already anonymized: `example-owner/example-repo`, default branch `main`). No value is chosen to make a test pass
+   beyond what the table says. Files and sources:
+
+   | File | Schema | Alert values from | Notes |
+   | ---- | ------ | ----------------- | ----- |
+   | `dependabot_alert/created.json` | `webhook-dependabot-alert-created` | example `dependabot-alert-open` | state `open` |
+   | `dependabot_alert/reopened.json` | `webhook-dependabot-alert-reopened` | example `dependabot-alert-open` | |
+   | `dependabot_alert/dismissed.json` | `webhook-dependabot-alert-dismissed` | example `dependabot-alert-dismissed` | |
+   | `code_scanning_alert/created.json` | `webhook-code-scanning-alert-created` | example `code-scanning-alert` (fields of the webhook `rule` only) | `ref` `refs/heads/main` |
+   | `code_scanning_alert/created-pull-request.json` | same | same | `ref` `refs/pull/1/merge` |
+   | `code_scanning_alert/appeared_in_branch.json` | `webhook-code-scanning-alert-appeared-in-branch` | example `code-scanning-alert` | `ref` `refs/heads/main` |
+   | `code_scanning_alert/reopened.json` | `webhook-code-scanning-alert-reopened` | example `code-scanning-alert` | `ref` `refs/heads/main` |
+   | `code_scanning_alert/closed_by_user.json` | `webhook-code-scanning-alert-closed-by-user` | example `code-scanning-alert-dismissed` | `ref` `""` (schema) |
+   | `secret_scanning_alert/created.json` | `webhook-secret-scanning-alert-created` | example `secret-scanning-alert-open` without its `secret` field | |
+   | `secret_scanning_alert/reopened.json` | `webhook-secret-scanning-alert-reopened` | example `secret-scanning-alert-open` without `secret` | |
+   | `secret_scanning_alert/resolved.json` | `webhook-secret-scanning-alert-resolved` | example `secret-scanning-alert-resolved` without `secret` | |
+
+   Any value in a fixture that looks like a secret (in an example's text) is replaced by a `SELUNA_TEST_…` fake that
+   matches no provider's pattern. Each folder gets a `README.md` saying the files are **reference-built from GitHub's
+   OpenAPI description, not captured** (commit, schema and example per file, as `test/fixtures/github/README.md` does
+   for the API answers), that the residual risk is in decision 0028, and that a later captured delivery is added as
+   its own file. Step 4 (skeleton) does not wait for them; step 5's rule tests start once task 1 is done.
 2. **Shared narrowing** `src/rules/security-alert.ts`: `securityAlert()` checks the event name and the action set, then
    narrows `alert` (record), `alert.number` (positive safe integer), `alert.html_url` (string) and
    `repository.full_name` (string); `stringAt()` reads a string at a path; `firstText()` returns the first value that is
@@ -78,8 +94,8 @@ from the nearest real one, never a hand-written payload.
      record; line 2 `security_advisory.summary`; line 3 `joinContext([severity, package])`, each through `firstText` with the fallbacks of
      *Fields shown*.
    - `CODE_SCANNING_ALERT` (`code_scanning_alert`; actions `created`, `reopened`, `appeared_in_branch`): requires
-     `alert.rule` as a record and `ref`, `repository.default_branch` as strings, and `ref === "refs/heads/" +
-     default_branch`; line 2 `rule.description`; line 3 `joinContext([firstText([security_severity_level, severity]), rule.id])`.
+     `alert.rule` as a record and `ref`, `repository.default_branch` as strings, and `ref` equal to `"refs/heads/" +
+     default_branch` or to `default_branch` itself (fact 12); line 2 `rule.description`; line 3 `joinContext([firstText([security_severity_level, severity]), rule.id])`.
    - `SECRET_SCANNING_ALERT` (`secret_scanning_alert`; actions `created`, `reopened`): requires `alert.secret_type` as a
      string; line 2 `secret_type_display_name`; line 3 `secret_type`. It reads no other `alert` field: the allow-list
      of decision 0028 is the whole protection, so no code path touches `alert.secret`, `resolution_comment` or
@@ -190,7 +206,9 @@ three constants exist), `src/i18n/en.ts`, `src/i18n/de.ts` (final: the texts are
   of the three switch ids with event, reported actions, English and German titles; *Fields shown* as confirmed by the
   fixtures; required fields and the shape check; the code scanning default-branch rule; the secret allow-list and "no
   part of a secret reaches a row, message or log"; secret scanning alerts reported whatever their source, outside the
-  draft guarantee; the variants not verified against real deliveries. *Languages*: the three titles. *Related
+  draft guarantee; that every field path comes from GitHub's OpenAPI webhook schemas and no real delivery was observed
+  (residual risk of decision 0028: paths, `ref` format, action names, `alert.secret`), and that the `ref` check accepts
+  `refs/heads/<default>` and the bare name. *Languages*: the three titles. *Related
   decisions*: 0028. The *Draft lookup* sentence "This is the one exception to 'a draft pull request triggers no
   notification'" becomes "This is one of the two exceptions to … (the other: a secret scanning alert, [Security alert
   rules](#security-alert-rules))".
@@ -216,7 +234,12 @@ Sweep done: `grep -i draft` and `grep -i "security alert\|#17"` over `README.md`
   "The switches for notifications that arrive in a later release …" stays (the update notice switch still waits for 0.5.0).
 - `CHANGELOG.md` (Dev): `## [Unreleased]` / `### Added`: notifications for new and reopened Dependabot, code scanning
   (default branch) and secret scanning alerts, each with its existing switch; the secret itself never appears.
-- `test/fixtures/<event>/README.md` (orchestrator, with the fixtures).
+- `test/fixtures/<event>/README.md` (Tester, with the fixtures of task 1): reference-built, source per file, residual
+  risk in decision 0028.
+- `.squad/project.md` (Dev): *Test doubles*, *Real GitHub payloads* gains one sentence: "The `dependabot_alert`,
+  `code_scanning_alert` and `secret_scanning_alert` fixtures are reference-built from GitHub's OpenAPI webhook schemas,
+  not captured (Product Manager's decision, [decision 0028](../docs/decisions/0028-security-alert-rules.md))."
+
 - Not changed: `AGENTS.md`'s "draft pull requests trigger nothing" (a squad/instruction file a product PR may not
   touch; follow-up below), `docs/areas/setup-wizard.md`, `docs/areas/storage.md` (switches, permissions and events
   already described), `SECURITY.md` (no draft or alert statement).
@@ -240,13 +263,13 @@ Sweep done: `grep -i draft` and `grep -i "security alert\|#17"` over `README.md`
 - [ ] Exceptions reaching a user: none — the rules return `undefined` on any unexpected shape and never throw (no
   `JSON`, no `URL` parsing in them); a throw would end as the fixed 503 `unavailable` of `processWebhook`.
 - Secret: fakes in fixtures and tests are `SELUNA_TEST_…` strings that match no provider's secret pattern (push
-  protection); the original secret of the raw delivery is grepped for in the new fixtures (*Fixtures from real
-  deliveries*, step 2), and it was created for the purpose and revoked.
+  protection); the reference-built fixtures contain no real secret (no raw delivery exists, Q9 (c)), and any
+  secret-like value of a REST example is replaced by such a fake.
 - Secret: the secret scanning rule reads exactly `alert.number`, `alert.html_url`, `alert.secret_type`,
   `alert.secret_type_display_name` and `repository.full_name`; the Reviewer and Security check that no other `alert`
   field is read in `secret-scanning-alert.ts` or passed on through `SecurityAlertFields.alert` to anything that formats
   it. AC7 pins it end to end (outbox text, button URL, log fields) and pins the allow-list itself (every other string
-  leaf of the real delivery replaced by the secret gives the same notification).
+  leaf of the documented `created` fixture replaced by the secret gives the same notification).
 - Attacker-chosen text: advisory summaries (GitHub Advisory Database), rule descriptions (an analysis tool; a SARIF
   upload needs write access), package names (a manifest merged into the default branch), custom secret pattern names
   (an administrator) — all cleaned and escaped by `formatMessage`; the button only for `https://github.com` URLs.
@@ -292,6 +315,17 @@ Security approved the plan with three notes; all taken.
    and replaces every string leaf outside `action` and the five read fields with the secret.
 3. Fixtures with a secret. Taken: the Product Manager creates the sample with a purpose-made secret, revoked right
    away; the original value joins the leak grep; fakes are `SELUNA_TEST_…`, also the 40-character value of AC7.
+
+### After the Product Manager's answer to Q9
+
+Q9 was answered (c): no real deliveries. Objection 1 of the Devil's Advocate is resolved by that answer instead of by
+a re-check against samples: facts 10, 13 and 14 are now confirmed against GitHub's OpenAPI description (read in a
+scratch clone), fact 11 (real deliveries match) and fact 12 (the `ref` format) stay `unverified` with the risk
+accepted in decision 0028. What changed: the code scanning severity normally comes from `rule.severity` (the webhook
+schema has no `security_severity_level`; S3 now shows `error`), the `ref` check also accepts the bare default branch
+name, the action tables use the documented enums (`withdrawn` added, `revoked` removed), and task 1 is the Tester's
+reference-built fixtures. The allow-list design stays: an undocumented or differing field can only shorten a line or
+silence an alert, never leak a secret.
 
 ## Out of scope / follow-ups
 

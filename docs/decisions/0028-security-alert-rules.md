@@ -18,8 +18,8 @@ Forces: the guarantee "a draft pull request triggers no notification" (`.squad/p
 a pure function with no I/O ([decision 0023](0023-webhook-processing-and-delivery-through-the-outbox.md)); the
 signature does not cover the event header, so a rule checks that the payload has the shape of its event; texts in
 alert payloads come from the GitHub Advisory Database, an analysis tool, a repository's manifest or a repository
-administrator's custom secret pattern; a secret scanning delivery may carry the secret value itself (GitHub's
-documentation is not explicit about the webhook payload).
+administrator's custom secret pattern; GitHub's webhook schema for `secret_scanning_alert` has no `secret` field, but its REST
+alert has one, so the rules must not depend on its absence.
 
 According to GitHub's documentation, a code scanning alert can exist only on a pull request's merge ref, and an alert
 first found on another branch reaches the default branch as `appeared_in_branch`, not as `created`. Secret scanning
@@ -78,6 +78,14 @@ fallbacks, titles and the edge cases are in [`areas/notifications.md`](../areas/
   says; a reintroduced vulnerability is not reported again.
 - A code scanning alert that only ever exists on a pull request or a feature branch is never reported.
 - Many alerts at once (a first scan, a new advisory across repositories) give one message each, without grouping.
-- The field paths, the code scanning `ref` semantics and whether a secret scanning delivery carries `alert.secret`
-  rest on GitHub's documentation until the real deliveries of issue #17 (the fixtures under `test/fixtures/`) confirm
-  them; the area document lists the variants that no real delivery covers.
+- No real delivery of the three events exists, and none will be supplied (Product Manager's decision, 2026-10-20):
+  the fixtures are reference-built from GitHub's OpenAPI description (`github/rest-api-description`, commit
+  `755ee33b`, the webhook schemas `webhook-<event>-<action>` and the REST alert examples), as the GitHub API fixtures of
+  [decision 0026](0026-github-app-authentication-and-installation-tokens.md) are. Residual risk, accepted: the field
+  paths, the format of the code scanning `ref` (the schema says only "the Git reference"; the alert instance's `ref`
+  is documented as `refs/heads/<branch>`, so both that and the bare branch name are accepted), the action names, and
+  whether a real `secret_scanning_alert` delivery carries `alert.secret` (the webhook schema has no such field; the
+  REST alert does) may differ from what GitHub sends. The schema documents no `rule.security_severity_level` for code
+  scanning webhooks, so line 3 normally shows `rule.severity`. Because the rules read only an allow-list of fields, a
+  difference can only shorten a line or silence an alert, never put a secret into a message; a captured delivery that
+  shows a difference is fixed in a new issue.
