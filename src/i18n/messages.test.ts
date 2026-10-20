@@ -20,6 +20,21 @@ it("MESSAGE_TEXTS holds the pull request titles and line 3 in en and de", () => 
   expect(de.pullRequestContext("a", "h", "b"), "de line 3").toBe("von a · h → b");
 });
 
+it("MESSAGE_TEXTS holds the CI titles and the draft-unknown title in en and de", () => {
+  const { en, de } = MESSAGE_TEXTS;
+
+  expect(en.ciFailedDefaultBranch("x"), "en default branch").toBe("CI failed on x");
+  expect(en.ciFailedPullRequest, "en pull request").toBe("CI failed in pull request");
+  expect(en.ciFailedPullRequestDraftUnknown, "en draft unknown").toBe(
+    "CI failed in pull request (draft status unknown)",
+  );
+  expect(de.ciFailedDefaultBranch("x"), "de default branch").toBe("CI fehlgeschlagen auf x");
+  expect(de.ciFailedPullRequest, "de pull request").toBe("CI im Pull Request fehlgeschlagen");
+  expect(de.ciFailedPullRequestDraftUnknown, "de draft unknown").toBe(
+    "CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)",
+  );
+});
+
 it("a text table without openOnGitHub is a type error", () => {
   // @ts-expect-error -- a table must have every key
   const incomplete: MessageTexts = {};
