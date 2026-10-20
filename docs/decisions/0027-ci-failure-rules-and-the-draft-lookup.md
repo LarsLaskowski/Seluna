@@ -1,6 +1,6 @@
 # 0027: CI failure rules and the draft lookup
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-20
 - **Area:** Notifications
 - **Source:** Issue #16
