@@ -15,3 +15,4 @@ are quoted in full.
 | 2026-10-20 19:14 | 2b Plan | squad-lead | spec closed (Approved by PM), plan.md tasks.md decision 0028 written; tier security; RESULT: DONE (opus/medium · 57,999 tokens · 17 tool uses · 242 s · continued from 2a Spec) |
 | 2026-10-20 19:15 | 3 Plan security | squad-security | APPROVED, 3 non-blocking (guarantee wording too wide, E5 vs AC7 allow-list test, keep secret out of fixtures) (opus/medium · 63,099 tokens · 7 tool uses · 80 s) |
 | 2026-10-20 19:16 | 2b Plan challenge | squad-devils-advocate | OBJECTIONS 1 major (plan built from memory, no real fixtures, Q9), 3 minor (empty-string fallbacks, README:24 draft sentence, assignment action names) (opus/medium · 60,932 tokens · 11 tool uses · 81 s) |
+| 2026-10-20 19:18 | 2b Plan revise | squad-lead | revise on challenge+security notes: all answered; plan held; RESULT: ESCALATE Q9 real deliveries (opus/medium · usage pending) |

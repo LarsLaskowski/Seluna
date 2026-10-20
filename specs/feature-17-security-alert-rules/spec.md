@@ -44,9 +44,9 @@ in both languages" holds for every scenario.
 - S11: Given the switch "Secret scanning alert" is on, when a secret pushed to the branch of a draft pull request, or
   written into a draft pull request's title, description or comment, makes GitHub deliver `secret_scanning_alert`
   `created`, then the message of S5 is sent like for any other secret: a pushed secret is exposed whether or not the
-  pull request is a draft, and the delivery names no branch or pull request to filter on (Q10). Such an alert lies
-  outside the guarantee "a draft pull request triggers no notification", which covers pull request and CI
-  notifications.
+  pull request is a draft, and the delivery names no branch or pull request to filter on (Q10). Such an alert is the
+  second named exception to the guarantee "a draft pull request triggers no notification", beside the CI failure
+  marked _draft status unknown_.
 - S7: Given the notification language is German, when any delivery of S1 to S6 arrives, then the titles read
   **Dependabot-Warnung**, **Code-Scanning-Warnung** and **Secret-Scanning-Warnung** (the labels of the switches on the
   German settings page), the button reads "Auf GitHub öffnen", and lines 2 and 3 are the same as in English (GitHub's
@@ -74,7 +74,8 @@ in both languages" holds for every scenario.
   as an object, a code scanning alert `alert.rule` as an object and `ref` and `repository.default_branch` as strings, a
   secret scanning alert `alert.secret_type` as a string. (The signature does not cover the event header,
   `notifications.md`, *Limits and errors*.)
-- E3: A field shown in line 2 or 3 (the fields are named in *Fields shown*, below) is missing, `null` or not a string:
+- E3: A field shown in line 2 or 3 (the fields are named in *Fields shown*, below) is missing, `null`, not a string or
+  blank:
   the line keeps what is there and an empty line is left out — a Dependabot alert without a severity shows the package alone in line 3, one without a package the
   severity alone, one without a summary has no line 2; a code scanning alert whose rule has no security severity (a
   quality rule) shows the rule's `severity` (`error`, `warning`, `note`) instead, and without either the rule id
@@ -83,7 +84,8 @@ in both languages" holds for every scenario.
 - E5: A secret scanning delivery whose payload carries the secret or a part of it — in `alert.secret` or in any field
   Seluna does not show (`resolution_comment`, a location field) — produces exactly what the same delivery produces
   without it: the stored outbox text, the button URL and the log fields are byte-identical, and the secret appears in
-  none of them as a substring. (Single characters of the secret may of course occur in the title or the type name;
+  none of them as a substring; the same holds when every text field of the delivery outside `action` and the five fields
+  the secret scanning rule reads holds the secret. (Single characters of the secret may of course occur in the title or the type name;
   what is excluded is the secret or any run of it taken from the payload.)
 - E6: An advisory summary, rule description, package name or custom secret pattern name holding `<`, `>`, `&`, line
   breaks, control or direction characters, or more than 256 characters is shown cleaned, escaped and cut with `…` like
@@ -107,7 +109,7 @@ in both languages" holds for every scenario.
 ### Fields shown
 
 The fields each line is read from; where GitHub's documentation names a value in two places, the first is read and the
-second is the fallback when the first is missing, `null` or not a string. The plan checks every one against the real
+second is the fallback when the first is missing, `null`, not a string or blank (empty or only spaces). The plan checks every one against the real
 deliveries (Q9) and writes the confirmed list into the area document; a field the deliveries lack changes this list
 in the plan, named in its result.
 
@@ -154,7 +156,10 @@ Line 1: `repository.full_name` and `alert.number`; the button: `alert.html_url`.
   named in AC1 to AC3 and AC9 (S9).
 - [ ] AC7: for a secret scanning delivery with a distinctive random 40-character secret placed in `alert.secret`,
   `alert.resolution_comment` and a location field, the stored outbox text, the button URL and the log fields are
-  byte-identical to those of the same delivery without it, and the secret is a substring of none of them (E5).
+  byte-identical to those of the same delivery without it, and the secret is a substring of none of them; and the
+  notification of the real `created` delivery stays the same when every string outside `action`, `alert.number`,
+  `alert.html_url`, `alert.secret_type`, `alert.secret_type_display_name` and `repository.full_name` is replaced by the
+  secret (E5).
 - [ ] AC8: a delivery with a missing or mistyped identifying field, or with the payload shape of another event than its
   header, produces no notification (E1, E2).
 - [ ] AC9: a `code_scanning_alert` `created`, `reopened` or `appeared_in_branch` reports only when
@@ -229,7 +234,8 @@ Line 1: `repository.full_name` and `alert.number`; the button: `alert.html_url`.
   pushes to every branch and pull request titles, descriptions and comments, so a secret in a draft pull request
   raises `created` too, and the delivery names no branch or pull request (E12). Answered: by the Product Manager
   (2026-10-20), option (a) — every secret scanning alert is reported whatever its source (S11, AC12), and the guarantee
-  is reworded: it covers pull request and CI notifications, and a secret scanning alert lies outside it
+  names it as its second exception: "A draft pull request triggers no notification; the exceptions are the CI failure
+  marked draft status unknown (0027) and a secret scanning alert, which is reported whatever its source (0028)"
   (`.squad/project.md`, `docs/ARCHITECTURE.md` and decision record 0028, named in the plan).
 
 ## Area documents
@@ -241,7 +247,7 @@ Line 1: `repository.full_name` and `alert.number`; the button: `alert.html_url`.
   into it, nothing on any other ref); the statement that no part of a secret
   reaches a message, row or log and which fields the secret scanning rule reads; the variants not verified against
   real deliveries; that a secret scanning alert is reported whatever its source, a draft pull request included (the
-  draft guarantee covers pull request and CI notifications). *Languages* gains the three titles. *Log entries* already names alert texts as never logged.
+  second exception to the draft guarantee). *Languages* gains the three titles. *Log entries* already names alert texts as never logged.
 - No other area document changes: `setup-wizard.md` and `storage.md` already describe the switches, the permissions
   and the events. (`README.md`'s rule list moves the case to "available"; `CHANGELOG.md` gets an entry — named in the
   plan, not area documents.)

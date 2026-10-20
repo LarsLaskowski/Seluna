@@ -3,9 +3,10 @@
 <!-- project:begin architecture -->
 Seluna sends a Telegram message when something in the owner's GitHub repositories needs attention: a pull
 request is ready, a review is requested, CI failed or a security alert was opened. Draft pull requests trigger
-no pull request or CI notification (one exception: a CI failure in a pull request whose draft state could not be read (failure or no answer within 8 seconds),
-[decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)); a secret scanning alert is reported whatever
-its source, a draft pull request's branch or text included ([decision 0028](decisions/0028-security-alert-rules.md)). Every user runs their own instance — a Cloudflare Worker (free plan) in the user's own account with its
+nothing; the exceptions are a CI failure in a pull request whose draft state could not be read (failure or no answer within 8 seconds),
+reported marked _draft status unknown_ ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)), and a
+secret scanning alert, which is reported whatever its source, a draft pull request's branch or text included
+([decision 0028](decisions/0028-security-alert-rules.md)). Every user runs their own instance — a Cloudflare Worker (free plan) in the user's own account with its
 state in D1, fed by a private GitHub App and delivering through the user's own Telegram bot; there is no central
 service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript instead of Go:
 [decision 0004](decisions/0004-typescript-instead-of-go.md)).

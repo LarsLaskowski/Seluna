@@ -1,7 +1,7 @@
 # Plan: Security alert rules
 
 Source: Issue #17 | [spec.md](spec.md)
-Status: Draft
+Status: Revised (1)
 Tier: security — the secret scanning rule decides what of a delivery that may carry a leaked secret reaches the outbox, a message and the log (handling of secrets, `.squad/routing.md`, *Tiers*), and the change rewords a guarantee; in doubt the higher tier.
 Security areas touched: Parsing of external input (`src/rules/security-alert.ts`, `src/rules/dependabot-alert.ts`, `src/rules/code-scanning-alert.ts`, `src/rules/secret-scanning-alert.ts` narrow new webhook payloads whose texts enter messages through `src/message.ts`); Encrypted credentials / "nothing secret is logged" (a secret scanning payload may carry a leaked secret, which must reach no row, message or log); `.squad/project.md` *Guarantees* (the draft guarantee is reworded, Product Manager's decision Q10). Not touched: Minimal GitHub App permissions (no new permission or event), Logging of external data (log fields unchanged).
 
@@ -44,11 +44,11 @@ from the nearest real one, never a hand-written payload.
 | AC3 | `SECRET_SCANNING_ALERT reports the real created alert in English`; `SECRET_SCANNING_ALERT reports the real reopened alert with the same lines` | `src/rules/secret-scanning-alert.test.ts` |
 | AC4 | `DEPENDABOT_ALERT reports in German`; `CODE_SCANNING_ALERT reports in German`; `SECRET_SCANNING_ALERT reports in German`; `MESSAGE_TEXTS holds the security alert titles in en and de` | the three rule test files; `src/i18n/messages.test.ts` |
 | AC5 | `processWebhook decides disabled and stores no row for a created <event> with its switch off` (one case per event); `RULES holds the security alert rules after the CI rules in settings order` (adapted) | `src/webhook.test.ts`; `src/rules/registry.test.ts` |
-| AC6 | `DEPENDABOT_ALERT reports nothing for the real dismissed alert`; `DEPENDABOT_ALERT reports nothing for the action <action>` (`fixed`, `auto_dismissed`, `auto_reopened`, `reintroduced`, `assignees_changed`); `CODE_SCANNING_ALERT reports nothing for the action <action>` (`fixed`, `closed_by_user`, `reopened_by_user`, `updated_assignment`); `SECRET_SCANNING_ALERT reports nothing for the real resolved alert`; `SECRET_SCANNING_ALERT reports nothing for the action <action>` (`validated`, `publicly_leaked`, `revoked`, `assigned`, `unassigned`) | the three rule test files |
-| AC7 | `SECRET_SCANNING_ALERT returns the same notification with a secret in alert.secret, alert.resolution_comment and a location field`; `processWebhook stores the same outbox text and button URL and returns the same log fields for a secret scanning delivery with and without a secret` (secret: a fixed random 40-character string, asserted absent as a substring of the text, the button URL and every log field) | `src/rules/secret-scanning-alert.test.ts`; `src/webhook.test.ts` |
+| AC6 | `DEPENDABOT_ALERT reports nothing for the real dismissed alert`; `DEPENDABOT_ALERT reports nothing for the action <action>` (`fixed`, `auto_dismissed`, `auto_reopened`, `reintroduced`, an invented `some_new_action`); `CODE_SCANNING_ALERT reports nothing for the action <action>` (`fixed`, `closed_by_user`, `reopened_by_user`, `some_new_action`); `SECRET_SCANNING_ALERT reports nothing for the real resolved alert`; `SECRET_SCANNING_ALERT reports nothing for the action <action>` (`validated`, `publicly_leaked`, `revoked`, `some_new_action`). Action names other than those of the real deliveries are table cases from the documentation, not verified; assignment actions are covered by "any other action" and named only when a real delivery shows their exact name | the three rule test files |
+| AC7 | `SECRET_SCANNING_ALERT returns the same notification with a secret in alert.secret, alert.resolution_comment and a location field`; `processWebhook stores the same outbox text and button URL and returns the same log fields for a secret scanning delivery with and without a secret` (secret: a fixed 40-character fake, `SELUNA_TEST_` followed by 28 random letters and digits, matching no provider's secret pattern so push protection does not trip; asserted absent as a substring of the text, the button URL and every log field); `SECRET_SCANNING_ALERT returns the same notification when every string outside action and the five read fields of the real created delivery is the secret` (walks the fixture and replaces every string leaf outside `action`, `alert.number`, `alert.html_url`, `alert.secret_type`, `alert.secret_type_display_name`, `repository.full_name`: pins the allow-list itself) | `src/rules/secret-scanning-alert.test.ts`; `src/webhook.test.ts` |
 | AC8 | per rule: `<RULE> reports nothing when <field> is <value>` (table: `alert` missing / an array; `alert.number` 0, 1.5, 2^53, a string; `alert.html_url` missing / a number; `repository.full_name` missing); `DEPENDABOT_ALERT reports nothing without alert.security_advisory`; `CODE_SCANNING_ALERT reports nothing without alert.rule, ref or repository.default_branch`; `SECRET_SCANNING_ALERT reports nothing without alert.secret_type`; per rule: `<RULE> reports nothing for the real delivery of another alert event under its event name` and `<RULE> reports nothing for its payload under another event name` | the three rule test files |
 | AC9 | `CODE_SCANNING_ALERT reports the alert that appeared in the default branch`; `CODE_SCANNING_ALERT reports nothing for <action> with ref <ref>` (actions `created`, `reopened`, `appeared_in_branch` × refs `refs/pull/1/merge`, `refs/heads/feature`, `refs/tags/v1`, `""`, absent, `main` without `refs/heads/`) ; `CODE_SCANNING_ALERT reports nothing for the real pull request alert` (when that sample exists) | `src/rules/code-scanning-alert.test.ts` |
-| AC10 | `DEPENDABOT_ALERT shows <line> when <fields> are missing` (severity falls back to `security_vulnerability.severity`; package to `security_vulnerability.package.name`; package alone; severity alone; no line 3; no line 2); `CODE_SCANNING_ALERT falls back to rule.severity without security_severity_level`; `CODE_SCANNING_ALERT shows the rule id alone without either severity`; `CODE_SCANNING_ALERT has no line 2 without rule.description`; `SECRET_SCANNING_ALERT has no line 2 without a display name`; `<RULE> shows an unknown severity as sent`; `joinContext joins the non-blank parts with " · "` (table) ; `stringAt returns undefined for a missing, null or non-string field` | the three rule test files; `src/rules/security-alert.test.ts` |
+| AC10 | `DEPENDABOT_ALERT shows <line> when <fields> are missing` (severity falls back to `security_vulnerability.severity` when `security_advisory.severity` is absent, `null`, a number, `""` or `"  "`; package to `security_vulnerability.package.name` when `dependency.package.name` is absent, `null` or `""`; package alone; severity alone; no line 3; no line 2); `CODE_SCANNING_ALERT falls back to rule.severity when security_severity_level is <value>` (absent, `null`, `""`); `CODE_SCANNING_ALERT shows the rule id alone without either severity`; `CODE_SCANNING_ALERT has no line 2 without rule.description`; `SECRET_SCANNING_ALERT has no line 2 without a display name`; `<RULE> shows an unknown severity as sent`; `joinContext joins the non-blank parts with " · "` (table) ; `stringAt returns undefined for a missing, null or non-string field`; `firstText returns the first non-blank string` (table: first `""`, `"  "`, absent → the second) | the three rule test files; `src/rules/security-alert.test.ts` |
 | AC11 | `processWebhook escapes an advisory summary with <, & and a line break and keeps it on one line` | `src/webhook.test.ts` |
 | AC12 | `SECRET_SCANNING_ALERT returns the same notification when the payload carries a ref and a draft pull_request` | `src/rules/secret-scanning-alert.test.ts` |
 
@@ -57,8 +57,10 @@ from the nearest real one, never a hand-written payload.
 1. **Fixtures first (task 1, orchestrator).** The real deliveries the Product Manager supplies become
    `test/fixtures/<event>/<action>.json` as `.squad/project.md` (*Fixtures from real deliveries*) says, plus a
    `README.md` per folder naming the variants covered and those missing (pattern: `test/fixtures/workflow_run/README.md`).
-   In a secret scanning delivery the secret value, wherever it occurs, is replaced by a fake of the same shape (field
-   kept). Wanted: `dependabot_alert/created.json`, `reopened.json`, `dismissed.json`; `code_scanning_alert/created.json`
+   The Product Manager creates the secret scanning sample with a purpose-made secret, revoked right away; in the
+   fixture the secret value, wherever it occurs, is replaced by a fake `SELUNA_TEST_…` that matches no provider's
+   pattern (field kept), and the original value is one of the strings of the leak grep of *Fixtures from real
+   deliveries* (step 2). Wanted: `dependabot_alert/created.json`, `reopened.json`, `dismissed.json`; `code_scanning_alert/created.json`
    (default branch), `created-pull-request.json`, `appeared_in_branch.json`, `reopened.json`, `fixed.json` or
    `closed_by_user.json`; `secret_scanning_alert/created.json`, `reopened.json`, `resolved.json`. **Until they exist,
    step 4 (skeleton) may run, step 5 does not start.** If the Product Manager cannot supply some, only the Product
@@ -67,15 +69,17 @@ from the nearest real one, never a hand-written payload.
    `created` per event.
 2. **Shared narrowing** `src/rules/security-alert.ts`: `securityAlert()` checks the event name and the action set, then
    narrows `alert` (record), `alert.number` (positive safe integer), `alert.html_url` (string) and
-   `repository.full_name` (string); `stringAt()` reads a string at a path; `joinContext()` joins the non-blank parts
+   `repository.full_name` (string); `stringAt()` reads a string at a path; `firstText()` returns the first value that is
+   a string with a non-space character (the fallback rule of *Fields shown*: missing, `null`, not a string or blank);
+   `joinContext()` joins the non-blank parts
    with ` · `. Reuses `isRecord`/`recordField`/`stringField` from `src/rules/pull-request.ts`.
 3. **Three rules**, one file each, exporting a `Rule` with the switch id:
    - `DEPENDABOT_ALERT` (`dependabot_alert`; actions `created`, `reopened`): requires `alert.security_advisory` as a
-     record; line 2 `security_advisory.summary`; line 3 `joinContext([severity, package])` with the fallbacks of
+     record; line 2 `security_advisory.summary`; line 3 `joinContext([severity, package])`, each through `firstText` with the fallbacks of
      *Fields shown*.
    - `CODE_SCANNING_ALERT` (`code_scanning_alert`; actions `created`, `reopened`, `appeared_in_branch`): requires
      `alert.rule` as a record and `ref`, `repository.default_branch` as strings, and `ref === "refs/heads/" +
-     default_branch`; line 2 `rule.description`; line 3 `joinContext([security_severity_level ?? severity, rule.id])`.
+     default_branch`; line 2 `rule.description`; line 3 `joinContext([firstText([security_severity_level, severity]), rule.id])`.
    - `SECRET_SCANNING_ALERT` (`secret_scanning_alert`; actions `created`, `reopened`): requires `alert.secret_type` as a
      string; line 2 `secret_type_display_name`; line 3 `secret_type`. It reads no other `alert` field: the allow-list
      of decision 0028 is the whole protection, so no code path touches `alert.secret`, `resolution_comment` or
@@ -142,6 +146,9 @@ export function securityAlert(
 /** The string at `path` below `record`; `undefined` when a step is missing, not an object, or the value not a string. */
 export function stringAt(record: Readonly<Record<string, unknown>>, path: readonly string[]): string | undefined;
 
+/** The first of `values` that is a string with a non-space character, trimmed; `undefined` when none is. */
+export function firstText(values: readonly (string | undefined)[]): string | undefined;
+
 /** The parts that are strings with a non-space character, trimmed, joined with ` · `; `""` when none is. */
 export function joinContext(parts: readonly (string | undefined)[]): string;
 ```
@@ -184,23 +191,27 @@ three constants exist), `src/i18n/en.ts`, `src/i18n/de.ts` (final: the texts are
   fixtures; required fields and the shape check; the code scanning default-branch rule; the secret allow-list and "no
   part of a secret reaches a row, message or log"; secret scanning alerts reported whatever their source, outside the
   draft guarantee; the variants not verified against real deliveries. *Languages*: the three titles. *Related
-  decisions*: 0028. The *Draft lookup* sentence "the one exception to 'a draft pull request triggers no notification'"
-  becomes "…triggers no pull request or CI notification".
+  decisions*: 0028. The *Draft lookup* sentence "This is the one exception to 'a draft pull request triggers no
+  notification'" becomes "This is one of the two exceptions to … (the other: a secret scanning alert, [Security alert
+  rules](#security-alert-rules))".
 
 ## Documentation updates
 
 Sweep done: `grep -i draft` and `grep -i "security alert\|#17"` over `README.md`, `SECURITY.md`, `docs/`, `.squad/project.md`.
 
-- `docs/ARCHITECTURE.md` (Lead, **done in this plan step**): the opening paragraph words the draft guarantee as "no pull
-  request or CI notification" and names secret scanning alerts as reported whatever their source (decision 0028); step
-  3 of *Webhook to Telegram* names the security alert rules.
-- `.squad/project.md` (Dev): *Guarantees*, first bullet (line 80) — "A draft pull request triggers no pull request or CI
-  notification; the one exception is … _draft status unknown_ — decision 0027. A secret scanning alert is reported
-  whatever its source, a draft pull request's branch or text included — [decision 0028](../docs/decisions/0028-security-alert-rules.md)."
+- `docs/ARCHITECTURE.md` (Lead, **done in this plan step**): the opening paragraph keeps "Draft pull requests trigger
+  nothing" and names two exceptions: the CI failure marked _draft status unknown_ (0027) and a secret scanning alert,
+  reported whatever its source (0028); step 3 of *Webhook to Telegram* names the security alert rules.
+- `.squad/project.md` (Dev): *Guarantees*, first bullet (line 80) becomes exactly: "A draft pull request triggers no
+  notification; the exceptions are a CI failure in a pull request whose draft state could not be read (failure or no
+  answer within 8 seconds), reported marked _draft status unknown_ — [decision 0027](../docs/decisions/0027-ci-failure-rules-and-the-draft-lookup.md),
+  and a secret scanning alert, which is reported whatever its source — [decision 0028](../docs/decisions/0028-security-alert-rules.md)."
 - `docs/areas/notifications.md` (Dev): *Areas* above; also line 62 and the registry comment wording.
 - `README.md` (Dev): rule table row "A Dependabot, code scanning or secret scanning alert is opened" → "available"
   with "(code scanning: on the default branch)"; the paragraph after the table names line 3 of alerts and that a secret
-  is never shown; "Draft pull requests trigger nothing" → "Draft pull requests trigger no pull request or CI message";
+  is never shown; line 44 "Draft pull requests trigger nothing; …" keeps its sentence and adds "A leaked secret is
+  reported even when it was pushed to a draft pull request."; line 24 "Drafts stay quiet." → "Drafts stay quiet, except
+  for a leaked secret.";
   *Status* sentence "can already notify you about pull requests and failed CI runs" adds security alerts; the note
   "The switches for notifications that arrive in a later release …" stays (the update notice switch still waits for 0.5.0).
 - `CHANGELOG.md` (Dev): `## [Unreleased]` / `### Added`: notifications for new and reopened Dependabot, code scanning
@@ -214,9 +225,9 @@ Sweep done: `grep -i draft` and `grep -i "security alert\|#17"` over `README.md`
 
 - Rules stay pure (no I/O, no clock): the three rules read only the payload and the settings; no draft check, no API
   call.
-- "A draft pull request triggers no notification" is reworded with the Product Manager (Q10): drafts still trigger no
-  pull request or CI notification; code scanning never reports a pull request ref; secret scanning alerts are reported
-  whatever their source. `docs/ARCHITECTURE.md` (done) and `.squad/project.md` (Dev) carry the new wording, linked to
+- "A draft pull request triggers no notification" gains a second named exception with the Product Manager (Q10): a
+  secret scanning alert is reported whatever its source. Dependabot alerts stay under the guarantee (per GitHub's
+  documentation they concern the default branch; unverified, fact 10's re-check), and code scanning never reports a pull request ref (E9). `docs/ARCHITECTURE.md` (done) and `.squad/project.md` (Dev) carry the new wording, linked to
   decision 0028.
 - Invalid signature, once per delivery, outbox before delivery, own Cloudflare account, encrypted credentials:
   untouched (processing, storage and delivery are not changed).
@@ -228,10 +239,14 @@ Sweep done: `grep -i draft` and `grep -i "security alert\|#17"` over `README.md`
   limit.
 - [ ] Exceptions reaching a user: none — the rules return `undefined` on any unexpected shape and never throw (no
   `JSON`, no `URL` parsing in them); a throw would end as the fixed 503 `unavailable` of `processWebhook`.
+- Secret: fakes in fixtures and tests are `SELUNA_TEST_…` strings that match no provider's secret pattern (push
+  protection); the original secret of the raw delivery is grepped for in the new fixtures (*Fixtures from real
+  deliveries*, step 2), and it was created for the purpose and revoked.
 - Secret: the secret scanning rule reads exactly `alert.number`, `alert.html_url`, `alert.secret_type`,
   `alert.secret_type_display_name` and `repository.full_name`; the Reviewer and Security check that no other `alert`
   field is read in `secret-scanning-alert.ts` or passed on through `SecurityAlertFields.alert` to anything that formats
-  it. AC7 pins it end to end (outbox text, button URL, log fields).
+  it. AC7 pins it end to end (outbox text, button URL, log fields) and pins the allow-list itself (every other string
+  leaf of the real delivery replaced by the secret gives the same notification).
 - Attacker-chosen text: advisory summaries (GitHub Advisory Database), rule descriptions (an analysis tool; a SARIF
   upload needs write access), package names (a manifest merged into the default branch), custom secret pattern names
   (an administrator) — all cleaned and escaped by `formatMessage`; the button only for `https://github.com` URLs.
@@ -243,12 +258,49 @@ Sweep done: `grep -i draft` and `grep -i "security alert\|#17"` over `README.md`
   scanning outside the draft guarantee (Q10), the field allow-list against leaking the secret, the Dependabot title (Q2),
   optional shown fields; indexed in `docs/decisions/README.md`.
 
+## Challenge
+
+Plan challenge by the Devil's Advocate, one round.
+
+1. Major — the plan rests on GitHub's documentation from memory, not on real deliveries (facts 10–13). Accepted: the
+   plan is held until the real deliveries exist (`RESULT: ESCALATE` on Q9 with the minimum set). When the fixtures
+   exist, before step 4, the Lead re-checks against them and revises in place: fact 10 and *Fields shown* in `spec.md`
+   (every path, which of a pair is present, whether `security_severity_level` is in the webhook) and the signatures if a
+   field moves; fact 11 and AC9's ref check (the value of `ref` for `created` on the default branch, for
+   `appeared_in_branch` and for a pull request alert); fact 12 and the action tables of AC6 (exact names, assignment
+   actions); fact 13 and AC7 (whether `alert.secret` is present, where else the secret occurs); the *Variants not
+   available* of the fixture READMEs and the area document. Variants the Product Manager cannot supply stay
+   `unverified` and are tested only as variants of a real delivery. No payload is invented.
+2. Minor — fallbacks must also trigger on a blank first value. Accepted: *Fields shown* and E3 say "missing, `null`,
+   not a string or blank"; new helper `firstText`; AC10 has a case with `""` (and `"  "`) per fallback.
+3. Minor — `README.md:24` "Drafts stay quiet." Accepted: in *Documentation updates*, reworded together with line 44
+   and the guarantee wording.
+4. Minor — assignment action names are inconsistent. Accepted: AC6's tables no longer name assignment actions; an
+   invented `some_new_action` case covers "any other action", and exact names come from the real deliveries (fact 12).
+
+## Security review
+
+Security approved the plan with three notes; all taken.
+
+1. The wording "no pull request or CI notification" would also take Dependabot and code scanning out of the
+   guarantee, contradicting E9. Taken: the guarantee keeps "A draft pull request triggers no notification" and names
+   two exceptions, the CI failure marked _draft status unknown_ (0027) and a secret scanning alert, reported whatever
+   its source (0028). Applied to `docs/ARCHITECTURE.md` (done), decision 0028 and `spec.md` (S11, Q10); planned for
+   `.squad/project.md`, the *Draft lookup* sentence of `notifications.md`, `README.md` and the AGENTS.md follow-up.
+   E9 stands.
+2. A test that pins the allow-list itself. Taken: AC7 and E5 are extended; the test walks the real `created` fixture
+   and replaces every string leaf outside `action` and the five read fields with the secret.
+3. Fixtures with a secret. Taken: the Product Manager creates the sample with a purpose-made secret, revoked right
+   away; the original value joins the leak grep; fakes are `SELUNA_TEST_…`, also the 40-character value of AC7.
+
 ## Out of scope / follow-ups
 
 - Follow-up issue (squad-maintenance, label `squad`, this repository): title "[Squad] Reword the draft statement in
   AGENTS.md after decision 0028"; body: "AGENTS.md and .github/copilot-instructions.md (*What this project is*) say
   'draft pull requests trigger nothing'. Since decision 0028 (issue #17), a secret scanning alert is reported whatever its
-  source, a draft pull request's branch or text included; the draft guarantee covers pull request and CI notifications.
+  source, a draft pull request's branch or text included: 'A draft pull request triggers no notification; the exceptions
+  are the CI failure marked draft status unknown (0027) and a secret scanning alert, which is reported whatever its
+  source (0028).'
   A product PR may not edit these files, so a squad-maintenance PR should align the wording with docs/ARCHITECTURE.md."
 - Grouping many alerts into one message; Dependabot `reintroduced`/`auto_reopened` and code scanning
   `reopened_by_user`; severity filters — spec *Out of scope*.

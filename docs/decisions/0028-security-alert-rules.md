@@ -39,8 +39,7 @@ Which code scanning deliveries are reported (Product Manager's decision, 2026-10
 
 Secret scanning alerts and draft pull requests (Product Manager's decision, 2026-10-20):
 
-4. **Report every secret scanning alert, whatever its source, and word the draft guarantee as covering pull request and
-   CI notifications** — a pushed secret is exposed the moment it is pushed and must be revoked whether or not the pull
+4. **Report every secret scanning alert, whatever its source, as a second named exception to the draft guarantee** — a pushed secret is exposed the moment it is pushed and must be revoked whether or not the pull
    request is merged; the delivery offers nothing to filter on anyway. Chosen.
 5. **Keep the guarantee as written** — drop the secret scanning rule, or look up each alert's locations through the
    API (a new call, and a secret in a pull request's text is hard to trace to its draft state).
@@ -71,9 +70,10 @@ fallbacks, titles and the edge cases are in [`areas/notifications.md`](../areas/
 
 ## Consequences
 
-- The guarantee now reads: a draft pull request triggers no pull request or CI notification (with the exception of
-  [decision 0027](0027-ci-failure-rules-and-the-draft-lookup.md)); a secret scanning alert is reported whatever its
-  source. `docs/ARCHITECTURE.md` and `.squad/project.md` say so.
+- The guarantee now reads: a draft pull request triggers no notification; the exceptions are the CI failure marked
+  _draft status unknown_ ([decision 0027](0027-ci-failure-rules-and-the-draft-lookup.md)) and a secret scanning alert,
+  which is reported whatever its source. Dependabot and code scanning stay under it (code scanning reports no pull
+  request ref). `docs/ARCHITECTURE.md` and `.squad/project.md` say so.
 - Dependabot's `reintroduced` and `auto_reopened` and code scanning's `reopened_by_user` stay silent, as the issue
   says; a reintroduced vulnerability is not reported again.
 - A code scanning alert that only ever exists on a pull request or a feature branch is never reported.
