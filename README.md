@@ -37,11 +37,11 @@ Pull requests wait for a review, a build turns red, a security alert opens, and 
 | A pull request is opened                                       | available         |
 | A draft pull request is marked ready for review                | available         |
 | A review is requested                                          | available         |
-| CI failed on the default branch or in a pull request           | planned for 0.4.0 |
+| CI failed on the default branch or in a pull request           | available         |
 | A Dependabot, code scanning or secret scanning alert is opened | planned for 0.4.0 |
 | A new Seluna release is available                              | planned for 0.5.0 |
 
-Each message names the repository and the case, shows the title and the context (for a pull request its author and branches) and carries a button that opens the item on GitHub. Draft pull requests trigger nothing. Quiet hours deliver messages without sound instead of holding them back.
+Each message names the repository and the case, shows the title and the context (for a pull request its author and branches, for a failed CI run the branch and the first line of the commit message) and carries a button that opens the item on GitHub. Draft pull requests trigger nothing; when GitHub cannot tell in time whether a pull request with a failed CI run is a draft, the message says so. Quiet hours deliver messages without sound instead of holding them back.
 
 ## How it works
 
@@ -83,7 +83,7 @@ The switches for notifications that arrive in a later release are already there;
 
 ## Status
 
-Seluna is in active development and can already notify you about pull requests. The path to 1.0.0 is planned release by release:
+Seluna is in active development and can already notify you about pull requests and failed CI runs. The path to 1.0.0 is planned release by release:
 
 | Release         | What it adds                                                                            |
 | --------------- | --------------------------------------------------------------------------------------- |

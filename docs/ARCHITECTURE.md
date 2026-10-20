@@ -3,7 +3,8 @@
 <!-- project:begin architecture -->
 Seluna sends a Telegram message when something in the owner's GitHub repositories needs attention: a pull
 request is ready, a review is requested, CI failed or a security alert was opened. Draft pull requests trigger
-nothing. Every user runs their own instance — a Cloudflare Worker (free plan) in the user's own account with its
+nothing (one exception: a CI failure in a pull request whose draft state could not be read (failure or no answer within 8 seconds),
+[decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)). Every user runs their own instance — a Cloudflare Worker (free plan) in the user's own account with its
 state in D1, fed by a private GitHub App and delivering through the user's own Telegram bot; there is no central
 service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript instead of Go:
 [decision 0004](decisions/0004-typescript-instead-of-go.md)).
@@ -13,8 +14,8 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 | Component | Owns |
 | --------- | ---- |
 | Worker `fetch` handler | `POST /webhook`, `GET /health` (returns the version), `/setup` (the setup wizard) |
-| Webhook processing | Deduplication by `X-GitHub-Delivery`, the rules, the outbox rows and the first send attempt of each row ([`areas/notifications.md`](areas/notifications.md), [decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)) |
-| GitHub API client | Calls of the GitHub API as the app: the app JWT, the installation tokens per `installation.id` cached encrypted in `token_cache`, the pull request read for the rules and the installations list for the status page ([`areas/github-api.md`](areas/github-api.md), [decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)) |
+| Webhook processing | Deduplication by `X-GitHub-Delivery`, the rules, the draft lookup of a CI failure in a pull request ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)), the outbox rows and the first send attempt of each row ([`areas/notifications.md`](areas/notifications.md), [decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)) |
+| GitHub API client | Calls of the GitHub API as the app: the app JWT, the installation tokens per `installation.id` cached encrypted in `token_cache`, the pull request read for the draft lookup of the webhook processing and the installations list for the status page ([`areas/github-api.md`](areas/github-api.md), [decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)) |
 | Rules | Pure functions of the event name, the payload and the settings to zero or one notification; no I/O, no clock |
 | Outbox | The D1 `outbox` table holding each message as rendered Telegram HTML, and delivery to the Telegram Bot API, with one retry after a 429 and the cron's retry |
 | Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram chat, the setup login, the status page with the settings, the app's installations and the reset after a changed `SELUNA_SECRET` ([decision 0018](decisions/0018-settings-and-status-page.md)) |
@@ -41,7 +42,10 @@ flowchart LR
 2. A delivery id (`X-GitHub-Delivery`) that `deliveries` already holds is answered 200 and ignored.
 3. The payload goes through the rules, each a pure function of event name, payload and settings. A draft pull
    request, and any event no rule matches, produces nothing
-   ([decision 0024](decisions/0024-pull-request-rules.md)).
+   ([decision 0024](decisions/0024-pull-request-rules.md)). A failed CI run in a pull request names the pull request
+   only by number, so the processing asks GitHub, as the app and within 8 seconds, whether it is a draft: a draft
+   produces nothing, and a pull request whose draft state could not be read is reported marked _draft status unknown_
+   ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)).
 4. In one D1 transaction the delivery id is recorded in `deliveries`, each notification becomes a row in the
    `outbox` as escaped Telegram HTML ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md)) and `meta`
    records the time of the delivery; then the Worker answers 202. Delivery to the Telegram Bot API is attempted
@@ -123,8 +127,8 @@ narrowed, and the three credentials are stored together or not at all
 ([decision 0017](decisions/0017-github-app-manifest-flow.md)). Every other GitHub call is made as the app: a JWT
 signed with the private key for each `/app/...` request, never stored, and per installation a token that is cached
 only encrypted and dropped when GitHub refuses it; what enters a URL is allow-listed, redirects are not followed and
-every answer is read bounded and narrowed; the signed-in status page calls GitHub so far, the webhook processing
-will for the CI failure rule (issue #16)
+every answer is read bounded and narrowed; the signed-in status page calls GitHub, and so does the webhook processing
+for the draft state of a pull request with a failed CI run, with the installation of the signed delivery
 ([decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)).
 The concrete areas are listed in [`.squad/project.md`](../.squad/project.md) (*Security areas*) and
 [`SECURITY.md`](../SECURITY.md).

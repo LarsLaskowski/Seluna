@@ -6,6 +6,9 @@ import openedDraft from "../test/fixtures/pull_request/opened-draft.json";
 import readyForReview from "../test/fixtures/pull_request/ready_for_review.json";
 import reviewRequested from "../test/fixtures/pull_request/review_requested.json";
 import reviewRequestedDraft from "../test/fixtures/pull_request/review_requested-draft.json";
+import failedPullRequestRun from "../test/fixtures/workflow_run/completed-failure-pull-request.json";
+import successfulDefaultBranchRun from "../test/fixtures/workflow_run/completed-success-default-branch.json";
+import type { DraftLookup } from "./draft-lookup";
 import { RULES } from "./rules/registry";
 import type { Notification, Rule } from "./rules/rule";
 import { readLastDelivery } from "./store/meta";
@@ -14,6 +17,7 @@ import type { TelegramFetch } from "./telegram";
 import { parseWebhookPayload, processWebhook } from "./webhook";
 import type { SignedDelivery, WebhookDeps, WebhookOutcome } from "./webhook";
 import { applyMigrations, migrationTestDb } from "../test/d1";
+import { ABSENT, variant } from "../test/pull-request";
 import { jsonAnswer, telegramDouble } from "../test/telegram";
 import type { RecordedRequest, TelegramAnswers } from "../test/telegram";
 
@@ -105,6 +109,7 @@ function harness(
     telegramFetch: telegram.fetch,
     sleep,
     log: () => undefined,
+    lookUpDraft: vi.fn<DraftLookup>(() => Promise.resolve({ kind: "failed" })),
     ...overrides,
   };
   return { deps, waitUntil, telegram, sleep };
@@ -452,5 +457,200 @@ describe("parseWebhookPayload", () => {
     const payload = parseWebhookPayload(encoder.encode(PING_JSON), "text/plain");
 
     expect(fullNameOf(payload), "repository.full_name").toBe("LarsLaskowski/test");
+  });
+});
+
+const PR_RUN_REF = { owner: "example-owner", repo: "example-other-repo", number: 296 };
+const PR_RUN_TEXT =
+  "<b>CI failed in pull request</b> · example-owner/example-other-repo #296\nCodeQL\ntest/failing-workflow · Make the check fail";
+const PR_RUN_UNKNOWN_TEXT = PR_RUN_TEXT.replace(
+  "CI failed in pull request",
+  "CI failed in pull request (draft status unknown)",
+);
+const MAIN_FAILURE = variant(successfulDefaultBranchRun, ["workflow_run", "conclusion"], "failure");
+/** A `pull_requests` entry of the default-branch run's own repository. */
+const WITH_ENTRY = { number: 7, base: { repo: { id: 2000 } } };
+const MAIN_FAILURE_TEXT =
+  "<b>CI failed on main</b> · example-owner/example-repo\nBuild and deploy\nmain · [Docs] Add a security policy (#2)";
+
+/** A signed `workflow_run` delivery whose JSON body is `payload`. */
+function workflowRunDelivery(payload: object, delivery = DELIVERY_ID): SignedDelivery {
+  return jsonDelivery(JSON.stringify(payload), { event: "workflow_run", delivery });
+}
+
+function lookupAnswering(result: Awaited<ReturnType<DraftLookup>>): ReturnType<typeof vi.fn<DraftLookup>> {
+  return vi.fn<DraftLookup>(() => Promise.resolve(result));
+}
+
+async function switchOff(rule: string): Promise<void> {
+  await env.DB.prepare("INSERT INTO settings (key, value) VALUES (?1, 'off')").bind(`rule_${rule}`).run();
+}
+
+async function storedTexts(): Promise<unknown[]> {
+  const rows = await env.DB.prepare("SELECT text FROM outbox ORDER BY id").all();
+  return rows.results.map((row) => row.text);
+}
+
+describe("processWebhook with the CI failure rules", () => {
+  it("processWebhook sends the CI failure of the real pull request run when the lookup answers not a draft", async () => {
+    const lookUpDraft = lookupAnswering({ kind: "ok", draft: false });
+    const { deps, waitUntil } = harness({ rules: RULES, lookUpDraft });
+
+    const outcome = await processWebhook(workflowRunDelivery(failedPullRequestRun), deps);
+    await settled(waitUntil);
+
+    expect(outcome.decision, "decision").toBe("reported");
+    expect(lookUpDraft, "lookup calls").toHaveBeenCalledExactlyOnceWith(3000, PR_RUN_REF);
+    expect(await storedTexts(), "stored texts").toEqual([PR_RUN_TEXT]);
+  });
+
+  it("processWebhook stores no outbox row and decides no-match when the pull request is a draft", async () => {
+    const { deps, waitUntil } = harness({ rules: RULES, lookUpDraft: lookupAnswering({ kind: "ok", draft: true }) });
+
+    const outcome = await processWebhook(workflowRunDelivery(failedPullRequestRun), deps);
+
+    expect(outcome.status, "status").toBe(202);
+    expect(outcome.decision, "decision").toBe("no-match");
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+  });
+
+  it("processWebhook sends the CI failure with the draft-status-unknown title when the lookup fails", async () => {
+    const { deps, waitUntil } = harness({ rules: RULES, lookUpDraft: lookupAnswering({ kind: "failed" }) });
+
+    const outcome = await processWebhook(workflowRunDelivery(failedPullRequestRun), deps);
+    await settled(waitUntil);
+
+    expect(outcome.decision, "decision").toBe("reported");
+    expect(await storedTexts(), "stored texts").toEqual([PR_RUN_UNKNOWN_TEXT]);
+  });
+
+  it("processWebhook sends the draft-status-unknown title when the payload has no installation id", async () => {
+    const lookUpDraft = lookupAnswering({ kind: "ok", draft: false });
+    const { deps, waitUntil } = harness({ rules: RULES, lookUpDraft });
+
+    await processWebhook(workflowRunDelivery(variant(failedPullRequestRun, ["installation"], ABSENT)), deps);
+    await settled(waitUntil);
+
+    expect(lookUpDraft, "lookup calls").not.toHaveBeenCalled();
+    expect(await storedTexts(), "stored texts").toEqual([PR_RUN_UNKNOWN_TEXT]);
+  });
+
+  it("processWebhook makes no draft lookup and decides no-match for the real successful run", async () => {
+    const lookUpDraft = lookupAnswering({ kind: "ok", draft: false });
+    const { deps } = harness({ rules: RULES, lookUpDraft });
+
+    const outcome = await processWebhook(workflowRunDelivery(successfulDefaultBranchRun), deps);
+
+    expect(outcome.decision, "decision").toBe("no-match");
+    expect(lookUpDraft, "lookup calls").not.toHaveBeenCalled();
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it("processWebhook sends one default-branch message and makes no lookup for a failed run with a pull request entry", async () => {
+    const payload = variant(MAIN_FAILURE, ["workflow_run", "pull_requests"], [WITH_ENTRY]);
+    const lookUpDraft = lookupAnswering({ kind: "ok", draft: false });
+    const { deps, waitUntil } = harness({ rules: RULES, lookUpDraft });
+
+    const outcome = await processWebhook(workflowRunDelivery(payload), deps);
+    await settled(waitUntil);
+
+    expect(outcome.decision, "decision").toBe("reported");
+    expect(lookUpDraft, "lookup calls").not.toHaveBeenCalled();
+    expect(await storedTexts(), "stored texts").toEqual([MAIN_FAILURE_TEXT]);
+  });
+
+  it("processWebhook decides disabled, stores no row and makes no lookup for that run with the default-branch switch off", async () => {
+    await switchOff("ci_failed_default_branch");
+    const payload = variant(MAIN_FAILURE, ["workflow_run", "pull_requests"], [WITH_ENTRY]);
+    const lookUpDraft = lookupAnswering({ kind: "ok", draft: false });
+    const { deps } = harness({ rules: RULES, lookUpDraft });
+
+    const outcome = await processWebhook(workflowRunDelivery(payload), deps);
+
+    expect(outcome.decision, "decision").toBe("disabled");
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(lookUpDraft, "lookup calls").not.toHaveBeenCalled();
+  });
+
+  it("processWebhook decides disabled and makes no lookup when the pull request switch is off", async () => {
+    await switchOff("ci_failed_pull_request");
+    const lookUpDraft = lookupAnswering({ kind: "ok", draft: false });
+    const { deps } = harness({ rules: RULES, lookUpDraft });
+
+    const outcome = await processWebhook(workflowRunDelivery(failedPullRequestRun), deps);
+
+    expect(outcome.decision, "decision").toBe("disabled");
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(lookUpDraft, "lookup calls").not.toHaveBeenCalled();
+  });
+
+  it("processWebhook decides disabled for the default-branch failure with its switch off", async () => {
+    await switchOff("ci_failed_default_branch");
+    const { deps } = harness({ rules: RULES });
+
+    const outcome = await processWebhook(workflowRunDelivery(MAIN_FAILURE), deps);
+
+    expect(outcome.decision, "decision").toBe("disabled");
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it("processWebhook stores one row per delivery id for two failed runs and for a re-run", async () => {
+    const lookUpDraft = lookupAnswering({ kind: "ok", draft: false });
+    const { deps, waitUntil } = harness({ rules: RULES, lookUpDraft });
+    const otherWorkflow = variant(failedPullRequestRun, ["workflow_run", "name"], "Lint");
+    const rerun = variant(failedPullRequestRun, ["workflow_run", "run_attempt"], 2);
+
+    const outcomes = [
+      await processWebhook(workflowRunDelivery(failedPullRequestRun, "delivery-a"), deps),
+      await processWebhook(workflowRunDelivery(otherWorkflow, "delivery-b"), deps),
+      await processWebhook(workflowRunDelivery(rerun, "delivery-c"), deps),
+    ];
+    await settled(waitUntil);
+
+    expect(
+      outcomes.map((outcome) => outcome.decision),
+      "decisions",
+    ).toEqual(["reported", "reported", "reported"]);
+    expect(await count("outbox"), "outbox rows").toBe(3);
+    expect(lookUpDraft, "lookup calls").toHaveBeenCalledTimes(3);
+  });
+
+  it("processWebhook makes no lookup for a delivery id already recorded", async () => {
+    const lookUpDraft = lookupAnswering({ kind: "ok", draft: false });
+    const { deps, waitUntil } = harness({ rules: RULES, lookUpDraft });
+
+    const first = await processWebhook(workflowRunDelivery(failedPullRequestRun, "delivery-d"), deps);
+    const second = await processWebhook(workflowRunDelivery(failedPullRequestRun, "delivery-d"), deps);
+    await settled(waitUntil);
+
+    expect([first.status, second.status], "statuses").toEqual([202, 200]);
+    expect(second.decision, "decision of the second").toBe("duplicate");
+    expect(lookUpDraft, "lookup calls").toHaveBeenCalledTimes(1);
+    expect(await count("outbox"), "outbox rows").toBe(1);
+  });
+
+  it("processWebhook cleans and escapes the branch, workflow name and commit line of a CI failure", async () => {
+    const directional = "x\u202Ey";
+    const branched = variant(
+      variant(MAIN_FAILURE, ["repository", "default_branch"], "a<b>&c"),
+      ["workflow_run", "head_branch"],
+      "a<b>&c",
+    );
+    const payload = variant(
+      variant(branched, ["workflow_run", "name"], directional),
+      ["workflow_run", "head_commit", "message"],
+      "<i>&amp;",
+    );
+    const { deps, waitUntil } = harness({ rules: RULES });
+
+    await processWebhook(workflowRunDelivery(payload), deps);
+    await settled(waitUntil);
+
+    expect(directional.codePointAt(1), "input keeps the directional character").toBe(0x202e);
+    expect(await storedTexts(), "stored texts").toEqual([
+      "<b>CI failed on a&lt;b&gt;&amp;c</b> · example-owner/example-repo\nxy\na&lt;b&gt;&amp;c · &lt;i&gt;&amp;amp;",
+    ]);
   });
 });

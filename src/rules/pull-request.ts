@@ -24,16 +24,16 @@ export interface PullRequestFields {
   readonly base: string;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function stringField(record: Record<string, unknown>, key: string): string | undefined {
+export function stringField(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
   return typeof value === "string" ? value : undefined;
 }
 
-function recordField(record: Record<string, unknown>, key: string): Record<string, unknown> | undefined {
+export function recordField(record: Record<string, unknown>, key: string): Record<string, unknown> | undefined {
   const value = record[key];
   return isRecord(value) ? value : undefined;
 }
