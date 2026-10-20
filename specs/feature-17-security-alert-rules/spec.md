@@ -1,7 +1,7 @@
 # Spec: Security alert rules
 
 Source: Issue #17
-Status: Draft
+Status: Approved by Product Manager
 
 ## Problem
 
@@ -44,8 +44,9 @@ in both languages" holds for every scenario.
 - S11: Given the switch "Secret scanning alert" is on, when a secret pushed to the branch of a draft pull request, or
   written into a draft pull request's title, description or comment, makes GitHub deliver `secret_scanning_alert`
   `created`, then the message of S5 is sent like for any other secret: a pushed secret is exposed whether or not the
-  pull request is a draft, and the delivery names no branch or pull request to filter on (Q10). (Pending the Product
-  Manager's answer to Q10.)
+  pull request is a draft, and the delivery names no branch or pull request to filter on (Q10). Such an alert lies
+  outside the guarantee "a draft pull request triggers no notification", which covers pull request and CI
+  notifications.
 - S7: Given the notification language is German, when any delivery of S1 to S6 arrives, then the titles read
   **Dependabot-Warnung**, **Code-Scanning-Warnung** and **Secret-Scanning-Warnung** (the labels of the switches on the
   German settings page), the button reads "Auf GitHub öffnen", and lines 2 and 3 are the same as in English (GitHub's
@@ -158,8 +159,8 @@ Line 1: `repository.full_name` and `alert.number`; the button: `alert.html_url`.
   header, produces no notification (E1, E2).
 - [ ] AC9: a `code_scanning_alert` `created`, `reopened` or `appeared_in_branch` reports only when
   `ref` is `refs/heads/<repository.default_branch>`; any other `ref` produces nothing (S10, E9, E10).
-- [ ] AC12: a secret scanning alert whose secret came from a draft pull request is reported like any other (S11, E12;
-  pending Q10).
+- [ ] AC12: a secret scanning alert whose secret came from a draft pull request is reported like any other: the rule
+  reads no ref, branch or pull request field, so a delivery that carries one gives the same notification (S11, E12).
 - [ ] AC10: a missing optional field shortens its line as E3 describes (security severity falls back to the rule's
   `severity`), an unknown severity is shown as sent, and the alert is still reported (E3, E4).
 - [ ] AC11: an advisory summary with `<`, `&` and a line break is rendered escaped on one line (E6).
@@ -198,7 +199,8 @@ Line 1: `repository.full_name` and `alert.number`; the button: `alert.html_url`.
   Dependabot and code scanning alike; repeating it in the title would show it twice and make the Dependabot title the
   only one that varies. The title is the switch label "Dependabot alert". This deviates from the issue's table: the
   orchestrator reports it to the Product Manager with the fixture request (Q9); the plan cites the answer and the
-  decision record holds it.
+  decision record holds it. Confirmed by the Product Manager (2026-10-20): the title stays "Dependabot alert", the
+  severity is in line 3.
 - Q3: What is line 2 ("alert name", issue #12) for each event? Answered: the advisory summary
   (`alert.security_advisory.summary`) for Dependabot, the rule description (`alert.rule.description`) for code
   scanning, the display name of the secret type (`alert.secret_type_display_name`) for secret scanning — each is what
@@ -225,10 +227,10 @@ Line 1: `repository.full_name` and `alert.number`; the button: `alert.html_url`.
 
 - Q10: Does a secret scanning alert fall under "a draft pull request triggers no notification"? Secret scanning scans
   pushes to every branch and pull request titles, descriptions and comments, so a secret in a draft pull request
-  raises `created` too, and the delivery names no branch or pull request (E12). Answered: not yet — escalated to the
-  Product Manager with the recommendation to report it (S11, AC12) and to word the guarantee as covering pull request
-  and CI notifications, with a secret scanning alert stated as outside it (`.squad/project.md`, `docs/ARCHITECTURE.md`,
-  a decision record — named in the plan).
+  raises `created` too, and the delivery names no branch or pull request (E12). Answered: by the Product Manager
+  (2026-10-20), option (a) — every secret scanning alert is reported whatever its source (S11, AC12), and the guarantee
+  is reworded: it covers pull request and CI notifications, and a secret scanning alert lies outside it
+  (`.squad/project.md`, `docs/ARCHITECTURE.md` and decision record 0028, named in the plan).
 
 ## Area documents
 
@@ -238,7 +240,8 @@ Line 1: `repository.full_name` and `alert.number`; the button: `alert.html_url`.
   against the event header; the code scanning default-branch rule (Q1: `created`/`reopened` on it, `appeared_in_branch`
   into it, nothing on any other ref); the statement that no part of a secret
   reaches a message, row or log and which fields the secret scanning rule reads; the variants not verified against
-  real deliveries. *Languages* gains the three titles. *Log entries* already names alert texts as never logged.
+  real deliveries; that a secret scanning alert is reported whatever its source, a draft pull request included (the
+  draft guarantee covers pull request and CI notifications). *Languages* gains the three titles. *Log entries* already names alert texts as never logged.
 - No other area document changes: `setup-wizard.md` and `storage.md` already describe the switches, the permissions
   and the events. (`README.md`'s rule list moves the case to "available"; `CHANGELOG.md` gets an entry — named in the
   plan, not area documents.)
@@ -251,7 +254,8 @@ Spec challenge by the Devil's Advocate, one round.
    is true that a secret pushed to a draft pull request's branch, or written into its text, raises a
    `secret_scanning_alert` `created`, and that the delivery has no ref or pull request to filter on (E12 says so). Added
    S11, E12, AC12 and Q10. Whether such an alert lies outside the guarantee changes the wording of a guarantee in
-   `.squad/project.md`, which the Lead may not do alone, so it is escalated (Q10). Recommendation: report it — unlike a
+   `.squad/project.md`, which the Lead may not do alone, so it was escalated (Q10); the Product Manager chose (a):
+   report it, and reword the guarantee. Recommendation: report it — unlike a
    code scanning finding in unmerged work, a pushed secret is exposed the moment it is pushed and must be revoked
    whether or not the pull request is ever merged; staying silent would hide exactly the case the feature exists for.
 2. Minor — name the exact payload field of every value. Accepted: new subsection *Fields shown* with each field and its
@@ -262,5 +266,5 @@ Spec challenge by the Devil's Advocate, one round.
    location field), plus a distinctive random 40-character secret that is a substring of none of them.
 4. Minor — Q2 deviates from the issue's title "Dependabot alert (with severity)". Accepted: Q2 keeps the Lead's
    decision and now states that the orchestrator reports the deviation to the Product Manager with the fixture
-   request; the plan cites the answer and the decision record holds it.
+   request; the plan cites the answer and the decision record holds it. The Product Manager confirmed the title.
 5. Note — E7 should name the burst when code scanning is first set up. Accepted: E7 names it.
