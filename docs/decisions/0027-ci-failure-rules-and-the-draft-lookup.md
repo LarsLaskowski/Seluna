@@ -77,7 +77,7 @@ and failure behavior are in [`areas/notifications.md`](../areas/notifications.md
 ## Consequences
 
 - The guarantee "a draft pull request triggers no notification" has one exception: a CI failure in a pull request
-  whose draft state GitHub did not tell in time is reported, marked _draft status unknown_ (issue #16).
+  whose draft state could not be read (failure or no answer within 8 seconds) is reported, marked _draft status unknown_ (issue #16).
   `docs/ARCHITECTURE.md` and `.squad/project.md` name it.
 - A delivery of a failed run in a pull request can take up to about 8 seconds longer to answer; the D1 work around the
   lookup is expected to fit in the remaining 2 seconds (unverified; the Product Manager's live check on a deployed copy
