@@ -18,4 +18,4 @@ are quoted in full.
 | 2026-10-20 18:04 | 3 Plan security review | squad-security | APPROVED, 3 non-blocking (fork-guard wording, one-lookup assumption, guarantee wording); appended to plan.md as Security notes (opus/medium · 63,019 tokens · 10 tool uses · 101 s) |
 | 2026-10-20 18:06 | 4 Skeleton | squad-dev | Task 1 done: stubs, DraftCheck, i18n keys, lookUpDraft wiring (lazy arrow); typecheck passes (sonnet/medium · 89,405 tokens · 14 tool uses · 50 s) |
 | 2026-10-20 18:09 | 5 Tests first (task 2) | squad-tester | Rule tests written; 136 of 140 fail on stubs, 4 pass (message-text pins); confirmed by orchestrator (sonnet/medium · 109,062 tokens · 9 tool uses · 170 s) |
-| 2026-10-20 18:12 | 5 Tests first (task 3) | squad-tester | Draft lookup, webhook and wiring tests; 22 of 25 new tests fail on stubs, 3 deferred (constant, two no-match pins); confirmed by orchestrator (sonnet/medium · usage pending) |
+| 2026-10-20 18:12 | 5 Tests first (task 3) | squad-tester | Draft lookup, webhook and wiring tests; 22 of 25 new tests fail on stubs, 3 deferred (constant, two no-match pins); confirmed by orchestrator (sonnet/medium · 111,350 tokens · 22 tool uses · 185 s) |
