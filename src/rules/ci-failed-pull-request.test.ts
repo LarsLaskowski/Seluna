@@ -106,7 +106,11 @@ describe("CI_FAILED_PULL_REQUEST", () => {
   });
 
   it("CI_FAILED_PULL_REQUEST reports nothing for a failed default-branch run with an entry of its repository", () => {
-    const payload = variant(MAIN_FAILURE, ["workflow_run", "pull_requests"], prRun.workflow_run.pull_requests);
+    const payload = variant(
+      MAIN_FAILURE,
+      ["workflow_run", "pull_requests"],
+      [{ number: 296, base: { repo: { id: 2000 } } }],
+    );
 
     const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS);
 
@@ -123,7 +127,7 @@ describe("CI_FAILED_PULL_REQUEST", () => {
 
   it("CI_FAILED_PULL_REQUEST reports a fork-named run with an entry of the repository as the pull request case", () => {
     const fork = variant(MAIN_FAILURE, ["workflow_run", "head_repository", "id"], 9999);
-    const payload = variant(fork, ["workflow_run", "pull_requests"], prRun.workflow_run.pull_requests);
+    const payload = variant(fork, ["workflow_run", "pull_requests"], [{ number: 296, base: { repo: { id: 2000 } } }]);
 
     const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS);
 
