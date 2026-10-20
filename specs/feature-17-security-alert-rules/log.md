@@ -21,4 +21,4 @@ are quoted in full.
 | 2026-10-20 20:35 | 3 Plan security round 2 | squad-security | APPROVED, 3 non-blocking (cite code-scanning-ref schema in fact 12; 0028 option 3 ref wording; 0028 context sentence) (opus/medium · 42,264 tokens · 9 tool uses · 70 s) |
 | 2026-10-20 20:36 | 2b Plan revise | squad-lead | 3 non-blocking Security notes applied; RESULT: DONE (opus/medium · 3,117 tokens · 4 tool uses · 26 s · continued from 2a Spec) |
 | 2026-10-20 20:37 | 4 Skeleton | squad-dev | skeleton of 4 new files, registry, 3 title keys EN/DE; typecheck green; no deviations (sonnet/medium · 83,330 tokens · 13 tool uses · 39 s) |
-| 2026-10-20 20:46 | 5 Tests first | squad-tester | fixtures (11 files + READMEs) and tests for AC1-AC12; all new tests fail on skeleton; deferred: MESSAGE_TEXTS titles test (AC4) (sonnet/medium · usage pending) |
+| 2026-10-20 20:46 | 5 Tests first | squad-tester | fixtures (11 files + READMEs) and tests for AC1-AC12; all new tests fail on skeleton; deferred: MESSAGE_TEXTS titles test (AC4) (sonnet/medium · 201,171 tokens · 39 tool uses · 485 s) |
