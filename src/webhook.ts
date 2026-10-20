@@ -1,5 +1,6 @@
 import { deliverMessages } from "./delivery";
 import type { DeliveryLogEntry, PendingMessage } from "./delivery";
+import type { DraftLookup } from "./draft-lookup";
 import { formatMessage } from "./message";
 import { runRules } from "./rules/rule";
 import type { Rule, RuleRun, WebhookPayload } from "./rules/rule";
@@ -44,6 +45,8 @@ export interface WebhookDeps {
   readonly telegramFetch: TelegramFetch;
   readonly sleep: (milliseconds: number) => Promise<void>;
   readonly log: (entry: DeliveryLogEntry) => void;
+  /** Asks GitHub whether a pull request is a draft; never rejects. */
+  readonly lookUpDraft: DraftLookup;
 }
 
 /** The payload: a JSON object from the body (or its form field `payload`), else `undefined`. Never throws. */

@@ -1,7 +1,15 @@
+import type { PullRequestRef } from "../github/api-client";
 import type { NotificationSettings, RuleId } from "../settings";
 
 /** A webhook payload: a JSON object, its fields still unknown. */
 export type WebhookPayload = Readonly<Record<string, unknown>>;
+
+/** The pull request whose draft state decides whether a notification is sent. */
+export interface DraftCheck {
+  readonly pullRequest: PullRequestRef;
+  /** Line 1 title used instead of `title` when the draft state cannot be read. */
+  readonly titleWhenUnknown: string;
+}
 
 export interface Notification {
   /** Line 1, bold: the case, in the notification language. */
@@ -16,6 +24,8 @@ export interface Notification {
   readonly context: string;
   /** Target of the button: `html_url` from the payload. */
   readonly url: string;
+  /** Set when the notification may only be sent for a pull request that is not a draft. */
+  readonly draftCheck?: DraftCheck;
 }
 
 export interface Rule {

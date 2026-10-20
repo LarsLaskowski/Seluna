@@ -1,6 +1,8 @@
 import { version } from "../package.json";
 import { handleRequest } from "./router";
 import { wait } from "./delivery";
+import { boundedDraftLookup, DRAFT_LOOKUP_TIMEOUT_MS } from "./draft-lookup";
+import { isPullRequestDraft } from "./github/api-client";
 import type { DeliveryLogEntry } from "./delivery";
 import type { RequestLogEntry } from "./router";
 import { RULES } from "./rules/registry";
@@ -34,6 +36,17 @@ export default {
           telegramFetch: outboundFetch,
           sleep: wait,
           log,
+          lookUpDraft: (installationId, pullRequest) =>
+            boundedDraftLookup(
+              (id, ref) =>
+                isPullRequestDraft(
+                  { env, db: env.DB, fetcher: outboundFetch, now: () => new Date(), version },
+                  id,
+                  ref,
+                ),
+              DRAFT_LOOKUP_TIMEOUT_MS,
+              wait,
+            )(installationId, pullRequest),
         }),
       setup: { env, db: env.DB, now: () => new Date(), fetch: outboundFetch, githubFetch: outboundFetch, version },
     });

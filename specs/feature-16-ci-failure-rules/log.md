@@ -16,3 +16,4 @@ are quoted in full.
 | 2026-10-20 18:02 | 2b Plan | squad-lead | RESULT: DONE; tier security; spec Approved by Lead; plan.md, tasks.md, decision 0027 (Proposed), area docs written; plan-check passes (opus/medium · 79,882 tokens · 42 tool uses · 411 s · continued) |
 | 2026-10-20 18:04 | 2b Plan challenge | squad-devils-advocate | OBJECTIONS 0 major, 2 minor (fork-guard wording; reuse isRecord helpers); appended to plan.md as Challenge notes (opus/medium · 65,405 tokens · 13 tool uses · 104 s) |
 | 2026-10-20 18:04 | 3 Plan security review | squad-security | APPROVED, 3 non-blocking (fork-guard wording, one-lookup assumption, guarantee wording); appended to plan.md as Security notes (opus/medium · 63,019 tokens · 10 tool uses · 101 s) |
+| 2026-10-20 18:06 | 4 Skeleton | squad-dev | Task 1 done: stubs, DraftCheck, i18n keys, lookUpDraft wiring (lazy arrow); typecheck passes (sonnet/medium · usage pending) |

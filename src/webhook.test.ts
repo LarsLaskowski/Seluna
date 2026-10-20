@@ -6,6 +6,7 @@ import openedDraft from "../test/fixtures/pull_request/opened-draft.json";
 import readyForReview from "../test/fixtures/pull_request/ready_for_review.json";
 import reviewRequested from "../test/fixtures/pull_request/review_requested.json";
 import reviewRequestedDraft from "../test/fixtures/pull_request/review_requested-draft.json";
+import type { DraftLookup } from "./draft-lookup";
 import { RULES } from "./rules/registry";
 import type { Notification, Rule } from "./rules/rule";
 import { readLastDelivery } from "./store/meta";
@@ -105,6 +106,7 @@ function harness(
     telegramFetch: telegram.fetch,
     sleep,
     log: () => undefined,
+    lookUpDraft: vi.fn<DraftLookup>(() => Promise.resolve({ kind: "failed" })),
     ...overrides,
   };
   return { deps, waitUntil, telegram, sleep };
