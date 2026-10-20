@@ -26,3 +26,4 @@ are quoted in full.
 | 2026-10-20 18:25 | 8 Review round 1 | squad-security | diff: APPROVED; non-blocking: pullRequestRefOf without slash (opus/medium · 51,394 tokens · 8 tool uses · 62 s) |
 | 2026-10-20 18:25 | 8 Review round 1 | squad-reviewer | APPROVE, 0 blocking, 4 non-blocking (guarantee wording in ARCHITECTURE.md:6 and 0027:80, ARCHITECTURE.md:18 row, unexplained cast workflow-run.ts:89, no-slash full_name) (opus/medium · 81,247 tokens · 21 tool uses · 158 s) |
 | 2026-10-20 18:26 | 8 Fix non-blocking findings | squad-dev | Removed cast; pullRequestRefOf fails safe without slash; docs wording applied verbatim by orchestrator (sonnet/medium · 58,402 tokens · 6 tool uses · 67 s) |
+| 2026-10-20 18:27 | 8 Fix non-blocking findings | squad-tester | Added pullRequestRefOf malformed-name cases; coverage new 98.8%, overall 96.9% (sonnet/medium · 57,485 tokens · 5 tool uses · 70 s) |
