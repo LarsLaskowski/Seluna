@@ -23,3 +23,4 @@ are quoted in full.
 | 2026-10-20 20:37 | 4 Skeleton | squad-dev | skeleton of 4 new files, registry, 3 title keys EN/DE; typecheck green; no deviations (sonnet/medium · 83,330 tokens · 13 tool uses · 39 s) |
 | 2026-10-20 20:46 | 5 Tests first | squad-tester | fixtures (11 files + READMEs) and tests for AC1-AC12; all new tests fail on skeleton; deferred: MESSAGE_TEXTS titles test (AC4) (sonnet/medium · 201,171 tokens · 39 tool uses · 485 s) |
 | 2026-10-20 20:50 | 6 Implement | squad-dev | tasks 3-6, 8-10 done; suite green, coverage new code 100%, analyzer clean (sonnet/medium · 100,881 tokens · 16 tool uses · 261 s) |
+| 2026-10-20 20:55 | 6 Coverage | squad-tester | deferred AC4 titles test + same-keys test added (sonnet/medium · 2,670 tokens · 3 tool uses · 74 s · continued) |
