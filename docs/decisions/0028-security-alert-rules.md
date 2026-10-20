@@ -21,7 +21,7 @@ alert payloads come from the GitHub Advisory Database, an analysis tool, a repos
 administrator's custom secret pattern; GitHub's webhook schema for `secret_scanning_alert` has no `secret` field, but its REST
 alert has one, so the rules must not depend on its absence.
 
-According to GitHub's documentation, a code scanning alert can exist only on a pull request's merge ref, and an alert
+According to GitHub's documentation, a code scanning alert can also exist on a pull request's ref alone, and an alert
 first found on another branch reaches the default branch as `appeared_in_branch`, not as `created`. Secret scanning
 scans pushes to every branch and the text of pull requests, and its delivery names no branch or pull request.
 
@@ -33,8 +33,8 @@ Which code scanning deliveries are reported (Product Manager's decision, 2026-10
    exception to the draft guarantee, and findings in unmerged work would be noise.
 2. **`created`/`reopened` on any ref that is not a pull request** — keeps the guarantee, but an alert introduced
    through a pull request is never reported, since it reaches the default branch as `appeared_in_branch`.
-3. **The default branch only: `created`/`reopened` with `ref` `refs/heads/<default branch>`, plus
-   `appeared_in_branch` into it** — each alert is reported once, when it reaches the default branch; the guarantee holds
+3. **The default branch only: `created`/`reopened` with `ref` `refs/heads/<default branch>` or the bare default branch
+   name, plus `appeared_in_branch` into it** — each alert is reported once, when it reaches the default branch; the guarantee holds
    and pull requests cause no message. Adds one action beyond the issue's list. Chosen.
 
 Secret scanning alerts and draft pull requests (Product Manager's decision, 2026-10-20):
@@ -82,8 +82,9 @@ fallbacks, titles and the edge cases are in [`areas/notifications.md`](../areas/
   the fixtures are reference-built from GitHub's OpenAPI description (`github/rest-api-description`, commit
   `755ee33b`, the webhook schemas `webhook-<event>-<action>` and the REST alert examples), as the GitHub API fixtures of
   [decision 0026](0026-github-app-authentication-and-installation-tokens.md) are. Residual risk, accepted: the field
-  paths, the format of the code scanning `ref` (the schema says only "the Git reference"; the alert instance's `ref`
-  is documented as `refs/heads/<branch>`, so both that and the bare branch name are accepted), the action names, and
+  paths, the format of the code scanning `ref` (the webhook schema says only "the Git reference"; the REST schema `code-scanning-ref` documents
+  `refs/pull/<n>/merge`, `refs/pull/<n>/head`, `refs/heads/<branch>` or simply `<branch name>`, so both branch forms
+  are accepted), the action names, and
   whether a real `secret_scanning_alert` delivery carries `alert.secret` (the webhook schema has no such field; the
   REST alert does) may differ from what GitHub sends. The schema documents no `rule.security_severity_level` for code
   scanning webhooks, so line 3 normally shows `rule.severity`. Because the rules read only an allow-list of fields, a

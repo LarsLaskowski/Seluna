@@ -19,3 +19,4 @@ are quoted in full.
 | 2026-10-20 20:30 | 2b Plan revise | Product Manager | Q9 answered: (c) no real deliveries; build from GitHub's documented example payloads, residual risk recorded in decision 0028 |
 | 2026-10-20 20:34 | 2b Plan revise | squad-lead | revise after Q9 (c): fixtures from GitHub OpenAPI description, risk in 0028; RESULT: DONE (opus/medium · 57,165 tokens · 19 tool uses · 230 s · continued from 2a Spec) |
 | 2026-10-20 20:35 | 3 Plan security round 2 | squad-security | APPROVED, 3 non-blocking (cite code-scanning-ref schema in fact 12; 0028 option 3 ref wording; 0028 context sentence) (opus/medium · 42,264 tokens · 9 tool uses · 70 s) |
+| 2026-10-20 20:36 | 2b Plan revise | squad-lead | 3 non-blocking Security notes applied; RESULT: DONE (opus/medium · usage pending) |
