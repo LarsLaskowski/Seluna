@@ -266,4 +266,13 @@ describe("pullRequestRefOf", () => {
 
     expect(ref, "ref").toEqual({ owner: "a", repo: "b/c", number: 1 });
   });
+
+  it.each(["noslash", "/name"])(
+    "pullRequestRefOf returns empty owner and repository for the malformed full name %j",
+    (fullName) => {
+      const ref = pullRequestRefOf(fullName, 1);
+
+      expect(ref, "ref").toEqual({ owner: "", repo: "", number: 1 });
+    },
+  );
 });

@@ -86,7 +86,8 @@ export function pullRequestNumberOf(pullRequests: unknown, repositoryId: number)
   if (!Array.isArray(pullRequests)) {
     return undefined;
   }
-  for (const entry of pullRequests as readonly unknown[]) {
+  const entries: readonly unknown[] = pullRequests;
+  for (const entry of entries) {
     if (!isRecord(entry) || !isPositiveSafeInteger(entry.number)) {
       continue;
     }
@@ -98,8 +99,14 @@ export function pullRequestNumberOf(pullRequests: unknown, repositoryId: number)
   return undefined;
 }
 
-/** The pull request `number` in the repository `fullName` (`owner/name`, split at the first `/`). */
+/**
+ * The pull request `number` in the repository `fullName` (`owner/name`, split at the first `/`). A name without a
+ * `/`, or one that starts with it, yields an empty owner and repository, which the draft lookup rejects.
+ */
 export function pullRequestRefOf(fullName: string, number: number): PullRequestRef {
   const slash = fullName.indexOf("/");
+  if (slash < 1) {
+    return { owner: "", repo: "", number };
+  }
   return { owner: fullName.slice(0, slash), repo: fullName.slice(slash + 1), number };
 }
