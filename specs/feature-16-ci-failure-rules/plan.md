@@ -305,3 +305,18 @@ Sweep: `grep -n -i "draft\|CI fail\|planned\|#16"` over `docs/areas/`, `docs/ARC
   "[Squad] Name the draft-status-unknown exception in AGENTS.md (from #16)".
 - Live check after merge (Product Manager): a failing run on a test repository's default branch (S1) and in a draft
   and a ready pull request (S2, S3); the wall time of those deliveries in `wrangler tail` (fact 13).
+
+## Challenge notes
+
+Devil's Advocate, mode `plan`: OBJECTIONS 0 major, 2 minor (appended as returned).
+
+1. minor: the claim "an outside contributor cannot raise the default branch alarm" is broader than the guard delivers. The claim appears in spec E14, `docs/decisions/0027-ci-failure-rules-and-the-draft-lookup.md` option 8, and plan *Security considerations* "Fork guard". Some runs are triggered from outside but execute in the base repository's context: `pull_request_target`, `issue_comment`, and runs chained via `on: workflow_run`. These carry `head_branch` equal to the default branch and `head_repository` equal to the repository itself. An outsider's pull request can make such a run fail, and it then matches `CI_FAILED_DEFAULT_BRANCH` as designed. The text shown still comes from the base repository, so the real guarantee is only "not with a text of their choosing". Instruction for the Lead / Dev: when writing the *CI failure rules* section of `docs/areas/notifications.md` and decision 0027, state the guarantee as "not as a fork's branch and not with a text of their choosing". Name runs triggered by `pull_request_target` or `issue_comment` on the default branch as reported like any default-branch run. No code or test change is needed.
+2. minor: the plan copies `isRecord`, `stringField` and `recordField` into `src/rules/workflow-run.ts`. These are the same bodies as in `src/rules/pull-request.ts:26-39`; a fourth copy adds to SonarQube Cloud's duplication count. Instruction for the Dev: export `isRecord`, `stringField` and `recordField` from `src/rules/pull-request.ts` and import them in `workflow-run.ts` rather than copying them. If the Code Officer's analyzer gate does not flag the copy, keeping it local is acceptable.
+
+## Security notes
+
+Security, mode `plan`: APPROVED, three non-blocking findings (appended as returned).
+
+- N1 – the fork-guard wording is broader than what the guard does (same point as challenge note 1): outsiders can still raise the default-branch alarm through workflows that run on the default branch for their events, but the texts come from the repository. Decision 0027 options 7/8 and the notifications area should say that default-branch runs started by outsiders' events are reported, with repository-controlled texts only.
+- N2 – one-lookup assumption: "at most one draft lookup per delivery" and the 8-second budget hold only because exactly one rule (`CI_FAILED_PULL_REQUEST`) sets `draftCheck`. `applyDraftChecks` resolves draft checks one after another, so a second rule with a draft check would add another 8 seconds. The decision record or a comment on `applyDraftChecks` should name the assumption.
+- N3 – guarantee wording: the proposed `.squad/project.md` text says the draft state was not known "within 8 seconds". The exception covers every failure in E9 (no app, 401/403/404, no `installation.id`, a database error), not only slowness. Wording such as "could not be read (failure or no answer within 8 seconds)" would match decision 0027 and the area document.
