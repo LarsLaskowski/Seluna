@@ -107,7 +107,9 @@ Both report only a delivery whose `action` is `completed` and whose `workflow_ru
 
 - A run is on the default branch when `workflow_run.head_branch` equals `repository.default_branch` and
   `workflow_run.head_repository.id` equals `repository.id`; a fork's branch of the same name is not. `<branch>` is the
-  default branch.
+  default branch. A run that an outsider's event starts in the repository's own context (for example `pull_request_target`
+  or `issue_comment` on the default branch, or a chained `workflow_run`) is reported like any default-branch run: the
+  guard keeps out a fork's branch, and the texts shown still come from the repository, not from the outsider.
 - The pull request case never reports a run on the default branch, whatever the switches: one run gives at most one
   message.
 - The pull request of a run is the first entry of `workflow_run.pull_requests`, in its order, that is an object with a
@@ -144,7 +146,8 @@ unknown)` (German `CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)`).
 - A failure is every failure result of the GitHub API client, an `installation.id` that is not a whole number from 1 to
   2^53 − 1 (then nothing is asked), and a lookup that has not finished 8 seconds after it started: GitHub ends a
   delivery not answered within 10 seconds. A lookup cut off this way may still finish in the background; its result
-  is not used.
+  is not used. The 8-second budget holds because exactly one rule sets a draft check; the checks run one after another,
+  so a second such rule would add another 8 seconds.
 - This is the one exception to "a draft pull request triggers no notification": a pull request whose draft state
   could not be read is reported, marked _draft status unknown_.
 - When the lookup drops the only notification, the decision is `no-match`.

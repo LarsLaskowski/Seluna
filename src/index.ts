@@ -36,17 +36,16 @@ export default {
           telegramFetch: outboundFetch,
           sleep: wait,
           log,
-          lookUpDraft: (installationId, pullRequest) =>
-            boundedDraftLookup(
-              (id, ref) =>
-                isPullRequestDraft(
-                  { env, db: env.DB, fetcher: outboundFetch, now: () => new Date(), version },
-                  id,
-                  ref,
-                ),
-              DRAFT_LOOKUP_TIMEOUT_MS,
-              wait,
-            )(installationId, pullRequest),
+          lookUpDraft: boundedDraftLookup(
+            (installationId, pullRequest) =>
+              isPullRequestDraft(
+                { env, db: env.DB, fetcher: outboundFetch, now: () => new Date(), version },
+                installationId,
+                pullRequest,
+              ),
+            DRAFT_LOOKUP_TIMEOUT_MS,
+            wait,
+          ),
         }),
       setup: { env, db: env.DB, now: () => new Date(), fetch: outboundFetch, githubFetch: outboundFetch, version },
     });

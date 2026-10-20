@@ -56,9 +56,15 @@ The time bound of the lookup:
 Telling the default branch from a fork's branch of the same name:
 
 7. **`head_branch` equal to `repository.default_branch` and `head_repository.id` equal to `repository.id`** — an
-   outside contributor's branch `main` in a fork is not the default branch. Chosen.
+   outside contributor's branch `main` in a fork is not the default branch. Chosen. The guarantee is "not as a fork's
+   branch and not with a text of their choosing": runs that an outsider's event starts in the repository's own context
+   (`pull_request_target`, `issue_comment`, a chained `workflow_run`) are reported like any default-branch run, with
+   texts that come from the repository.
 8. **`head_branch` alone, as the issue's table says** — anyone who can open a pull request from a fork could raise the
    default-branch alarm with a commit message of their choosing.
+
+Assumption: draft checks are resolved one after another, so the 8-second budget and "at most one lookup per delivery"
+hold only while exactly one rule (`ci_failed_pull_request`) sets a `draftCheck`; a second such rule needs a shared bound.
 
 ## Decision
 

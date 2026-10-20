@@ -1,9 +1,11 @@
 import { deliverMessages } from "./delivery";
 import type { DeliveryLogEntry, PendingMessage } from "./delivery";
+import { applyDraftChecks } from "./draft-lookup";
 import type { DraftLookup } from "./draft-lookup";
+import { installationIdOf } from "./github/api-client";
 import { formatMessage } from "./message";
 import { runRules } from "./rules/rule";
-import type { Rule, RuleRun, WebhookPayload } from "./rules/rule";
+import type { Rule, RuleDecision, WebhookPayload } from "./rules/rule";
 import { recordDelivery, isKnownDelivery } from "./store/deliveries";
 import { readNotificationSettings } from "./store/settings";
 import type { NotificationSettings } from "./settings";
@@ -94,15 +96,20 @@ function outcomeOf(
   return { status, decision, ...fields };
 }
 
-/** Runs the rules and renders their notifications; any throw is left to the caller. */
-function notificationsOf(
+/**
+ * Runs the rules, resolves the draft checks of their notifications and renders what is left; any throw is left to the
+ * caller. A reported run whose notifications are all dropped as drafts is `no-match`.
+ */
+async function notificationsOf(
   event: string,
   payload: WebhookPayload,
   settings: NotificationSettings,
-  rules: readonly Rule[],
-): { readonly run: RuleRun; readonly messages: readonly OutboxMessage[] } {
-  const run = runRules(rules, event, payload, settings);
-  return { run, messages: run.notifications.map((notification) => formatMessage(notification)) };
+  deps: WebhookDeps,
+): Promise<{ readonly decision: RuleDecision; readonly messages: readonly OutboxMessage[] }> {
+  const run = runRules(deps.rules, event, payload, settings);
+  const notifications = await applyDraftChecks(run.notifications, installationIdOf(payload), deps.lookUpDraft);
+  const decision = run.decision === "reported" && notifications.length === 0 ? "no-match" : run.decision;
+  return { decision, messages: notifications.map((notification) => formatMessage(notification)) };
 }
 
 /** Records a signed delivery, evaluates the rules, stores the messages and hands their sending to `waitUntil`. */
@@ -125,7 +132,7 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
   const fields = logFieldsOf(payload);
   try {
     const settings = await readNotificationSettings(deps.db);
-    const { run, messages } = notificationsOf(event, payload, settings, deps.rules);
+    const { decision, messages } = await notificationsOf(event, payload, settings, deps);
     const rows = messages.map((message) => ({ text: message.text, buttonUrl: message.buttonUrl, silent: false }));
     const recorded = await recordDelivery(deps.db, { id, event, receivedAt: deps.now() }, rows);
     if (recorded.kind === "duplicate") {
@@ -150,7 +157,7 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
         }),
       );
     }
-    return outcomeOf(202, run.decision, fields);
+    return outcomeOf(202, decision, fields);
   } catch {
     // Database errors and a throwing rule or formatter alike: nothing was stored, and the error text is dropped.
     return outcomeOf(503, "unavailable", fields);

@@ -77,7 +77,7 @@ files or endpoints.
 Deliberate behavior that must not change without the Product Manager. Each one is described in
 `docs/ARCHITECTURE.md` and, where it was a real choice, has a decision record.
 
-- A draft pull request triggers no notification.
+- A draft pull request triggers no notification; the one exception is a CI failure in a pull request whose draft state could not be read (failure or no answer within 8 seconds), reported marked _draft status unknown_ — [decision 0027](../docs/decisions/0027-ci-failure-rules-and-the-draft-lookup.md).
 - A webhook with an invalid signature has no effect: nothing is stored, nothing is sent.
 - A delivery (`X-GitHub-Delivery`) is processed once: a redelivery produces no second message.
 - Each user's data stays in that user's own Cloudflare account — no central service
