@@ -30,26 +30,26 @@ export function boundedDraftLookup(
 
 /**
  * The notifications after their draft checks: drafts dropped, unknown states titled `titleWhenUnknown`.
- * Checks run one after another, so the 8-second budget assumes only one rule sets a `draftCheck`.
+ * The checks run concurrently and keep the order of `notifications`; each lookup is bounded by
+ * `boundedDraftLookup`, so the total stays within one lookup's budget however many checks there are.
  */
 export async function applyDraftChecks(
   notifications: readonly Notification[],
   installationId: number | undefined,
   lookup: DraftLookup,
 ): Promise<readonly Notification[]> {
-  const kept: Notification[] = [];
-  for (const notification of notifications) {
-    const check = notification.draftCheck;
-    if (check === undefined) {
-      kept.push(notification);
-      continue;
-    }
-    const result = installationId === undefined ? FAILED : await lookup(installationId, check.pullRequest);
-    if (result.kind === "failed") {
-      kept.push({ ...notification, title: check.titleWhenUnknown });
-    } else if (!result.draft) {
-      kept.push(notification);
-    }
-  }
-  return kept;
+  const resolved = await Promise.all(
+    notifications.map(async (notification): Promise<Notification | undefined> => {
+      const check = notification.draftCheck;
+      if (check === undefined) {
+        return notification;
+      }
+      const result = installationId === undefined ? FAILED : await lookup(installationId, check.pullRequest);
+      if (result.kind === "failed") {
+        return { ...notification, title: check.titleWhenUnknown };
+      }
+      return result.draft ? undefined : notification;
+    }),
+  );
+  return resolved.filter((notification): notification is Notification => notification !== undefined);
 }

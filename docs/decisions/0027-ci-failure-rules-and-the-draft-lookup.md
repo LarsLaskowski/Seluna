@@ -63,8 +63,9 @@ Telling the default branch from a fork's branch of the same name:
 8. **`head_branch` alone, as the issue's table says** — anyone who can open a pull request from a fork could raise the
    default-branch alarm with a commit message of their choosing.
 
-Assumption: draft checks are resolved one after another, so the 8-second budget and "at most one lookup per delivery"
-hold only while exactly one rule (`ci_failed_pull_request`) sets a `draftCheck`; a second such rule needs a shared bound.
+Assumption: draft checks of one delivery run concurrently, each bounded by its own 8 seconds, so the total stays within
+8 seconds; the number of lookups per delivery equals the number of notifications with a `draftCheck` (today at most one,
+from `ci_failed_pull_request`).
 
 ## Decision
 

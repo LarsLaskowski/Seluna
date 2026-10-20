@@ -146,8 +146,8 @@ unknown)` (German `CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)`).
 - A failure is every failure result of the GitHub API client, an `installation.id` that is not a whole number from 1 to
   2^53 − 1 (then nothing is asked), and a lookup that has not finished 8 seconds after it started: GitHub ends a
   delivery not answered within 10 seconds. A lookup cut off this way may still finish in the background; its result
-  is not used. The 8-second budget holds because exactly one rule sets a draft check; the checks run one after another,
-  so a second such rule would add another 8 seconds.
+  is not used. The draft checks of one delivery run concurrently, each cut off after 8 seconds, so the 8-second budget
+  holds however many rules set a draft check.
 - This is the one exception to "a draft pull request triggers no notification": a pull request whose draft state
   could not be read is reported, marked _draft status unknown_.
 - When the lookup drops the only notification, the decision is `no-match`.
