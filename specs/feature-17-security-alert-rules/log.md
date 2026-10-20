@@ -9,3 +9,4 @@ are quoted in full.
 | 2026-10-20 18:58 | 2a Spec | squad-lead | spec.md written; RESULT: ESCALATE Q1 code scanning outside default branch (opus/medium · 107,534 tokens · 17 tool uses · 294 s) |
 | 2026-10-20 18:58 | 2a Spec | Product Manager | Q1 answered: (c) default branch only (created/reopened there plus appeared_in_branch into it) |
 | 2026-10-20 18:58 | 2a Spec revise | squad-lead | revise: Q1 option (c) worked in; RESULT: DONE (opus/medium · 2,691 tokens · 2 tool uses · 24 s · continued from 2a Spec) |
+| 2026-10-20 19:00 | 2a Spec challenge | squad-devils-advocate | OBJECTIONS 1 major (draft guarantee vs secret scanning), 3 minor (field names, E5/AC7 wording, Q2 title deviation) (opus/medium · 55,846 tokens · 7 tool uses · 92 s) |
