@@ -31,10 +31,10 @@ in both languages" holds for every scenario.
   `octo/shop` on the default branch (`ref` is `refs/heads/` followed by `repository.default_branch`) whose rule is
   `js/sql-injection` with the description "Database query built from user-controlled sources" and the security
   severity `high`, then Telegram shows **Code scanning alert** · octo/shop #12 / Database query built from
-  user-controlled sources / high · js/sql-injection, with the button to the alert's page. (Depends on open question
-  Q1.)
+  user-controlled sources / high · js/sql-injection, with the button to the alert's page (Q1: the default branch
+  only).
 - S4: Given the same, when the delivery's `action` is `reopened` (GitHub reopened a fixed alert because the finding is
-  back) on the default branch, then the same message is sent. (Depends on Q1.)
+  back) on the default branch, then the same message is sent.
 - S5: Given the switch "Secret scanning alert" is on, when GitHub delivers `secret_scanning_alert` `created` for alert 3
   in `octo/shop` whose secret type is `github_personal_access_token` with the display name "GitHub Personal Access
   Token", then Telegram shows **Secret scanning alert** · octo/shop #3 / GitHub Personal Access Token /
@@ -55,7 +55,8 @@ in both languages" holds for every scenario.
   `appeared_in_branch` see S10.)
 - S10: Given the switch "Code scanning alert" is on, when GitHub delivers `code_scanning_alert` `appeared_in_branch` with
   the default branch as `ref` (an alert first found on another branch reached the default branch, for example by a
-  merge), then the message of S3 is sent. (Exists only if Q1 is answered with option (c).)
+  merge), then the message of S3 is sent: each code scanning alert is reported once, when it reaches the default
+  branch (Q1).
 
 ## Errors and edge cases
 
@@ -86,9 +87,7 @@ in both languages" holds for every scenario.
 - E9: A `code_scanning_alert` `created` or `reopened` whose `ref` is not the default branch — a pull request ref
   (`refs/pull/<n>/merge`), another branch, a tag, an empty `ref` — sends nothing. Pull request refs include those of
   draft pull requests, so the guarantee "a draft pull request triggers no notification" stays without a new exception.
-  (Depends on Q1.)
-- E10: A `code_scanning_alert` `appeared_in_branch` whose `ref` is not the default branch sends nothing. (Depends on
-  Q1.)
+- E10: A `code_scanning_alert` `appeared_in_branch` whose `ref` is not the default branch sends nothing (Q1).
 - E11: The alert's `state` and the `sender` are not read: a `created` delivery is reported whoever caused it and
   whatever state the alert has meanwhile reached (a delivery that arrives late after a quick dismissal is still
   reported).
@@ -131,7 +130,7 @@ in both languages" holds for every scenario.
   (E5).
 - [ ] AC8: a delivery with a missing or mistyped identifying field, or with the payload shape of another event than its
   header, produces no notification (E1, E2).
-- [ ] AC9: with option (c) of Q1: a `code_scanning_alert` `created`, `reopened` or `appeared_in_branch` reports only when
+- [ ] AC9: a `code_scanning_alert` `created`, `reopened` or `appeared_in_branch` reports only when
   `ref` is `refs/heads/<repository.default_branch>`; any other `ref` produces nothing (S10, E9, E10).
 - [ ] AC10: a missing optional field shortens its line as E3 describes (security severity falls back to the rule's
   `severity`), an unknown severity is shown as sent, and the alert is still reported (E3, E4).
@@ -143,7 +142,10 @@ in both languages" holds for every scenario.
 - E8: deduplication is the existing processing of `X-GitHub-Delivery` and is not changed.
 - E11: filtering by sender or by the alert's current state.
 - Reporting the Dependabot actions `reintroduced` and `auto_reopened` and the code scanning action `reopened_by_user`:
-  the issue reports `created` and `reopened` only and says "all other actions are not reported" (Q4).
+  the issue reports `created` and `reopened` only and says "all other actions are not reported" (Q4); the Product
+  Manager's answer to Q1 adds only code scanning's `appeared_in_branch` into the default branch.
+- Code scanning alerts found only in a pull request or on another branch than the default branch (Q1, E9, E10);
+  they are reported when they reach the default branch (S10).
 - A separate title or marking for a reopened alert (Q8).
 - Showing where a secret or finding is (file, line, commit): the payloads either lack it or it is attacker-chosen text;
   the button leads to the alert, where GitHub shows it.
@@ -159,8 +161,10 @@ in both languages" holds for every scenario.
   exception to the draft guarantee; (b) `created`/`reopened` only on a ref that is not a pull request — guarantee
   kept, but an alert introduced through a pull request is never reported; (c) only the default branch: `created`/
   `reopened` on it plus `appeared_in_branch` into it — each alert reported once when it reaches the default branch,
-  guarantee kept, but one action beyond the issue's list. Answered: not yet — escalated to the Product Manager with
-  the recommendation (c); S3, S4, S10, E9, E10 and AC2, AC9 are written for (c) and change with the answer.
+  guarantee kept, but one action beyond the issue's list. Answered: (c), by the Product Manager (2026-10-20) — code
+  scanning is reported only on the default branch: `created`/`reopened` with `ref` `refs/heads/<default branch>` and
+  `appeared_in_branch` into it (S3, S4, S10, E9, E10, AC2, AC9). This extends the issue's action list by
+  `appeared_in_branch` for code scanning and keeps the draft guarantee without a new exception.
 - Q2: Does the Dependabot title itself carry the severity (the issue's table says "Dependabot alert (with
   severity)")? Answered: no — Lead decision. The issue's line-3 rule and issue #12 put the severity in line 3 for
   Dependabot and code scanning alike; repeating it in the title would show it twice and make the Dependabot title the
@@ -171,7 +175,8 @@ in both languages" holds for every scenario.
   GitHub's alert page shows as the alert's name.
 - Q4: Which actions are reported? Answered: from the issue — `created` and `reopened` only, "all other actions are not
   reported"; so Dependabot's `reintroduced` and `auto_reopened` and code scanning's `reopened_by_user` stay silent
-  (the Product Manager is told so with the escalation). Q1 may add `appeared_in_branch` for code scanning.
+  (the Product Manager was told so with the escalation of Q1). The one addition is code scanning's
+  `appeared_in_branch` into the default branch (Q1).
 - Q5: Are severities translated in German messages? Answered: no — shown as GitHub sends them, the same in both
   languages, like branch names and commit lines (`notifications.md`, *CI failure rules*: line 3 is the same in both
   languages); the GitHub page the button opens uses the same words.
@@ -193,7 +198,8 @@ in both languages" holds for every scenario.
 - `docs/areas/notifications.md`: a new subsection *Security alert rules* under *Rules* (replacing "the rules for
   security alerts (#17) follow"): the table of the three switch ids with event, reported actions and English and
   German titles; line 2 and line 3 per event with their fallbacks; the fields each rule requires and the shape check
-  against the event header; the code scanning branch rule settled by Q1; the statement that no part of a secret
+  against the event header; the code scanning default-branch rule (Q1: `created`/`reopened` on it, `appeared_in_branch`
+  into it, nothing on any other ref); the statement that no part of a secret
   reaches a message, row or log and which fields the secret scanning rule reads; the variants not verified against
   real deliveries. *Languages* gains the three titles. *Log entries* already names alert texts as never logged.
 - No other area document changes: `setup-wizard.md` and `storage.md` already describe the switches, the permissions
