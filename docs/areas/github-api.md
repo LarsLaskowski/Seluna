@@ -4,8 +4,9 @@
 
 How Seluna calls the GitHub API as the owner's GitHub App: the app token (JWT), where App ID and private key come
 from, the installation tokens per installation and their cache, the rules every request follows, the pull request
-read and the installations list, and the one failure result its callers get. The rules that need the API (the CI
-failure rule, issue #16, first) and the setup wizard's status page rely on it.
+read and the installations list, and the one failure result its callers get. The webhook processing (the draft
+lookup of the CI failure rule in a pull request, [Notifications](notifications.md#draft-lookup)) and the setup
+wizard's status page rely on it.
 
 ## Behavior
 
@@ -68,6 +69,9 @@ failure rule, issue #16, first) and the setup wizard's status page rely on it.
 - `GET /repos/<owner>/<repo>/pulls/<number>` with the installation token answers the pull request's `draft` value; an
   answer without a boolean `draft` is a failure, and so is a 404 (a pull request that does not exist or is outside the
   installation's repositories).
+- The webhook processing calls it with the delivery's `installation.id` and gives the whole call (token and pull
+  request read) at most 8 seconds; a call still running then counts as a failure for the caller and is not cancelled
+  ([Notifications](notifications.md#draft-lookup)).
 
 ### Installations list
 

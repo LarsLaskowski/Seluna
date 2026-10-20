@@ -20,7 +20,8 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
 2. A delivery id that `deliveries` already holds answers **200** and has no other effect: nothing is parsed, stored,
    sent or written to `meta`.
 3. The body is read as the payload (below); a body that is not a JSON object answers **400**, nothing stored.
-4. The notification settings are read and the rules run (below).
+4. The notification settings are read and the rules run (below); then the draft check of a notification that carries
+   one is resolved ([Draft lookup](#draft-lookup)), which may drop the notification or change its title.
 5. In one transaction: the delivery (id, event, time received) is added to `deliveries`, one `outbox` row per
    notification is added, and `meta` `last_delivery` is set to the time received. Either all of it is stored or
    none of it.
@@ -54,9 +55,11 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
   whose switch is off is dropped.
 - A notification holds: the title of the case (line 1, in the notification language, chosen by the rule), the
   repository as `owner/repo`, the number of the pull request or alert (or none), line 2, line 3 and the URL for the
-  button (the `html_url` of the payload).
-- The rules run in the order of the switches in the settings. The pull request rules are below; the rules for CI
-  (#16) and security alerts (#17) follow.
+  button (the `html_url` of the payload). A notification that may only be sent for a pull request that is not a draft
+  also holds a draft check: the pull request (owner, repository name, number) and the title to use when its draft
+  state is unknown.
+- The rules run in the order of the switches in the settings. The pull request rules and the CI failure rules are
+  below; the rules for security alerts (#17) follow.
 
 #### Pull request rules
 
@@ -89,6 +92,64 @@ request triggers nothing.
 - Not verified against real deliveries: a review requested from a team, a pull request from a fork and the
   one-delivery-per-reviewer behavior. The rules read only fields that exist in all of them and stay silent when one
   is missing.
+
+#### CI failure rules
+
+Two rules report the event `workflow_run` (decision [0027](../decisions/0027-ci-failure-rules-and-the-draft-lookup.md)).
+Both report only a delivery whose `action` is `completed` and whose `workflow_run.conclusion` is `failure` or
+`timed_out`; every other conclusion (`success`, `cancelled`, `skipped`, `neutral`, `action_required`, `stale`,
+`startup_failure`, `null`, any new one) and every other action triggers nothing.
+
+| Switch id                  | Case                                                                  | English title               | German title                        |
+| -------------------------- | --------------------------------------------------------------------- | --------------------------- | ----------------------------------- |
+| `ci_failed_default_branch` | the run is on the default branch                                      | `CI failed on <branch>`     | `CI fehlgeschlagen auf <branch>`    |
+| `ci_failed_pull_request`   | the run is not on the default branch and names a pull request (below) | `CI failed in pull request` | `CI im Pull Request fehlgeschlagen` |
+
+- A run is on the default branch when `workflow_run.head_branch` equals `repository.default_branch` and
+  `workflow_run.head_repository.id` equals `repository.id`; a fork's branch of the same name is not. `<branch>` is the
+  default branch.
+- The pull request case never reports a run on the default branch, whatever the switches: one run gives at most one
+  message.
+- The pull request of a run is the first entry of `workflow_run.pull_requests`, in its order, that is an object with a
+  `number` and a `base.repo.id`, each a whole number from 1 to 2^53 − 1, whose `base.repo.id` equals `repository.id`.
+  Other entries (another repository, a missing or mistyped field) are skipped; without such an entry, or when
+  `pull_requests` is not an array, the pull request case reports nothing. A pull request from a fork arrives with an
+  empty `pull_requests` and is not reported.
+- Line 1 is the title, `repository.full_name` and, for the pull request case, the pull request's number; line 2 is
+  `workflow_run.name`; line 3 is `workflow_run.head_branch`, then `·` and the first line of
+  `workflow_run.head_commit.message` (the text before the first line feed or carriage return). When `head_commit` is
+  `null`, its `message` is not a string, or the first line is empty or only spaces, line 3 is the branch alone. The
+  button URL is `workflow_run.html_url`, the page of the run. Line 3 is the same in both languages.
+- A delivery triggers nothing when the event name is not `workflow_run`, `workflow_run` is not an object,
+  `conclusion`, `head_branch`, `name` or `html_url` is not a string, `workflow_run.head_repository.id` or
+  `repository.id` is not a whole number from 1 to 2^53 − 1, or `repository.full_name` or `repository.default_branch`
+  is not a string.
+- The notification of the pull request case carries a draft check of its pull request, in the repository of
+  `repository.full_name` (owner before the first `/`, name after it).
+- Each run is reported once per delivery: two failing workflows on one push give two messages, a workflow that runs on
+  both `push` and `pull_request` gives two, and a re-run that fails again is reported again with the same lines.
+- Not verified against real deliveries: a failed or `timed_out` run on the default branch, a `cancelled` run, a fork's
+  run (its `head_repository` and its empty `pull_requests` follow GitHub's documentation) and a re-run. The rules read
+  only fields both real samples carry.
+
+#### Draft lookup
+
+- After the rules, each notification with a draft check (only the CI failure in a pull request, so at most one per
+  delivery) is resolved before the delivery is recorded. A notification whose switch is off has been dropped by then,
+  so it causes no lookup.
+- The lookup asks GitHub for the pull request's draft state as the app, with the installation of the delivery's
+  `installation.id` ([GitHub API](github-api.md#pull-request-read)). A draft drops the notification; a pull request
+  that is not a draft keeps it as it is; any failure keeps it with the title `CI failed in pull request (draft status
+unknown)` (German `CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)`).
+- A failure is every failure result of the GitHub API client, an `installation.id` that is not a whole number from 1 to
+  2^53 − 1 (then nothing is asked), and a lookup that has not finished 8 seconds after it started: GitHub ends a
+  delivery not answered within 10 seconds. A lookup cut off this way may still finish in the background; its result
+  is not used.
+- This is the one exception to "a draft pull request triggers no notification": a pull request whose draft state
+  could not be read is reported, marked _draft status unknown_.
+- When the lookup drops the only notification, the decision is `no-match`.
+- A delivery whose id is already recorded on arrival causes no lookup. Two deliveries of one id processed at once may
+  each make a lookup; only one of them is stored.
 
 ### Message format
 
@@ -125,7 +186,9 @@ A notification is rendered once, when its row is written, and stored as the row'
   a table with a missing key does not compile.
 - The rules write the title and line 3 in the notification language of the settings, read when the delivery is
   processed.
-- The tables hold the titles and line 3 of the pull request rules ([Pull request rules](#pull-request-rules)).
+- The tables hold the titles and line 3 of the pull request rules ([Pull request rules](#pull-request-rules)), and
+  the titles of the CI failure rules with the draft-unknown title ([CI failure rules](#ci-failure-rules),
+  [Draft lookup](#draft-lookup)).
 - The button reads _Open on GitHub_ in English and _Auf GitHub öffnen_ in German. Its language is the notification
   language at the time the row is sent, so a row still pending when the owner switches the language keeps its text
   and gets the button in the new language.
@@ -184,7 +247,7 @@ A notification is rendered once, when its row is written, and stored as the row'
 - The request's log entry ([HTTP routes](http-routes.md#logging)) carries, besides delivery id and event, the
   payload's `action` when it matches `^[a-z_]{1,64}$`, the repository when `repository.full_name` matches
   `^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$`, each `null` otherwise, and the decision: `reported` (at least one
-  row written), `no-match` (no rule returned a notification), `disabled` (only rules whose switch is off did),
+  row written), `no-match` (no rule returned a notification, or the draft lookup dropped it), `disabled` (only rules whose switch is off did),
   `duplicate` (a known delivery id), `invalid` (a 400 of this processing) or `unavailable` (a 503 of this
   processing).
 - Each row sent writes one log entry with exactly two fields: the row id and the result — `sent`, `rate-limited`,
@@ -216,6 +279,9 @@ A notification is rendered once, when its row is written, and stored as the row'
   the language at sending, the retry bound, 400 for an unprocessable signed delivery.
 - [`decisions/0024-pull-request-rules.md`](../decisions/0024-pull-request-rules.md) — the three pull request rules,
   `draft` required to be `false`, silence on an unexpected shape, line 3 with author and branches.
+- [`decisions/0027-ci-failure-rules-and-the-draft-lookup.md`](../decisions/0027-ci-failure-rules-and-the-draft-lookup.md)
+  — the two CI failure rules, the default branch told from a fork's branch, the draft check resolved by the processing
+  within 8 seconds, the message sent with _draft status unknown_ on a failed lookup.
 - [`decisions/0025-quiet-hours-decided-at-sending.md`](../decisions/0025-quiet-hours-decided-at-sending.md) — quiet
   hours applied at each send rather than when the row is written, one clock reading per row, wall-clock times.
 - [`decisions/0008-delivery-through-a-d1-outbox.md`](../decisions/0008-delivery-through-a-d1-outbox.md) — the

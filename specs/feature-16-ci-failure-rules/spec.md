@@ -1,7 +1,7 @@
 # Spec: CI failure rules
 
 Source: Issue #16
-Status: Draft
+Status: Approved by Lead
 
 ## Problem
 
@@ -97,7 +97,7 @@ bold, `·`, the repository and, where the case has one, ` #` and the number.
 - E14: A pull request from a fork whose branch is named like the default branch (a fork's `main`): its failed run
   has `head_branch` equal to `repository.default_branch` but a `head_repository.id` other than `repository.id`, so it
   is not on the default branch and is never reported as the default branch case. With the empty `pull_requests` GitHub
-  is expected to send for a fork (to be confirmed against a real delivery in the plan) it sends no message and asks
+  is expected to send for a fork (not observed in a real delivery; decision 0027) it sends no message and asks
   GitHub nothing (E2); should an entry of the delivery's repository ever be present, it is handled as the pull
   request case (S2–S4), never as the default branch case. An outside contributor cannot raise the default branch
   alarm with a text of their choosing.
@@ -111,7 +111,7 @@ bold, `·`, the repository and, where the case has one, ` #` and the number.
   the start of the lookup, independent of the API client's 10-second timeout per request; a lookup that has not
   finished then is a failure (E10). The rest of the processing (the duplicate check and the settings read before
   the lookup, the transaction after it) is D1 work expected to take well under the remaining 2 seconds; that
-  expectation is unverified and the plan names its measurement.
+  expectation is unverified; the plan names its measurement (a live check on a deployed copy).
 - Requests: at most one draft lookup per delivery, and only for a failed run that is reported as the pull request
   case with that switch on; no other case of this feature calls GitHub. The lookup uses the existing GitHub API client
   with all its request rules ([GitHub API](../../docs/areas/github-api.md)): the installation token of the
@@ -192,11 +192,13 @@ bold, `·`, the repository and, where the case has one, ` #` and the number.
   only, from the issue's "one run, one message" (E3).
 - What when `pull_requests` names several pull requests? Answered: (Lead) the first of the delivery's repository
   (E4), so a run makes at most one lookup and one message. Entries of another base repository, and malformed
-  entries, are skipped because their number does not name a pull request of the repository the lookup asks; the plan
-  verifies `base.repo.id` against a real delivery.
+  entries, are skipped because their number does not name a pull request of the repository the lookup asks.
+  `pull_requests[].number` and `base.repo.id` are confirmed by the real delivery
+  `test/fixtures/workflow_run/completed-failure-pull-request.json`.
 - How is a run on the default branch told apart from a fork's branch of the same name? Answered: (Lead) by
-  `workflow_run.head_repository.id` equal to `repository.id` (E14); the plan verifies the field against a real
-  delivery.
+  `workflow_run.head_repository.id` equal to `repository.id` (E14). Both real deliveries in
+  `test/fixtures/workflow_run/` carry the field with the repository's own id; a fork's run was not observed, so the
+  fork case rests on GitHub's documentation (decision 0027).
 - May a pull request whose draft state is unknown be reported, against the guarantee that drafts are silent?
   Answered: yes — issue #16, written by the Product Manager, says "If that call fails, the message is sent anyway
   with the note". The guarantee text in `docs/ARCHITECTURE.md` and `.squad/project.md` is amended to name this
@@ -208,11 +210,11 @@ bold, `·`, the repository and, where the case has one, ` #` and the number.
   branch, not the triggering event.
 - Does the app need a new permission? Answered: no; `src/github/manifest.ts` already requests `actions` and
   `pull_requests` read and subscribes to `workflow_run`.
-- Is there a real `workflow_run` delivery to build the rule from? Answered: not yet — `test/fixtures/` has none and the
-  issue attaches none. `.squad/project.md` (*Fixtures from real deliveries*) makes this an escalation at plan time:
-  the Product Manager supplies raw `workflow_run` `completed` deliveries (a `failure` on the default branch, a
-  `failure` in a pull request, ideally a `timed_out`, a `success` and a `cancelled` one). This does not change what the
-  feature does.
+- Is there a real `workflow_run` delivery to build the rule from? Answered: yes — the Product Manager supplied two,
+  anonymized in `test/fixtures/workflow_run/`: a `success` of a scheduled run on the default branch and a `failure` in
+  a pull request of the same repository. A failure on the default branch, `timed_out`, `cancelled`, a fork's run and a
+  re-run could not be produced; tests build them from the real files by changing the deciding field only (Product
+  Manager's decision on the escalation of 2026-10-20).
 
 ## Area documents
 
