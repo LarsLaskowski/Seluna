@@ -10,6 +10,6 @@ are quoted in full.
 | 2026-10-20 18:58 | 2a Spec | Product Manager | Q1 answered: (c) default branch only (created/reopened there plus appeared_in_branch into it) |
 | 2026-10-20 18:58 | 2a Spec revise | squad-lead | revise: Q1 option (c) worked in; RESULT: DONE (opus/medium · 2,691 tokens · 2 tool uses · 24 s · continued from 2a Spec) |
 | 2026-10-20 19:00 | 2a Spec challenge | squad-devils-advocate | OBJECTIONS 1 major (draft guarantee vs secret scanning), 3 minor (field names, E5/AC7 wording, Q2 title deviation) (opus/medium · 55,846 tokens · 7 tool uses · 92 s) |
-| 2026-10-20 19:10 | 2a Spec revise | squad-lead | revise on challenge: all 5 points answered; RESULT: ESCALATE Q10 secret scanning vs draft guarantee (opus/medium · usage pending) |
+| 2026-10-20 19:10 | 2a Spec revise | squad-lead | revise on challenge: all 5 points answered; RESULT: ESCALATE Q10 secret scanning vs draft guarantee (opus/medium · usage not reported) |
 | 2026-10-20 19:10 | 2a Spec revise | Product Manager | Q10 answered: (a) report every secret scanning alert, reword draft guarantee; Q2 accepted: title stays 'Dependabot alert', severity in line 3 |
-| 2026-10-20 19:14 | 2b Plan | squad-lead | spec closed (Approved by PM), plan.md tasks.md decision 0028 written; tier security; RESULT: DONE (opus/medium · usage pending) |
+| 2026-10-20 19:14 | 2b Plan | squad-lead | spec closed (Approved by PM), plan.md tasks.md decision 0028 written; tier security; RESULT: DONE (opus/medium · 57,999 tokens · 17 tool uses · 242 s · continued from 2a Spec) |
