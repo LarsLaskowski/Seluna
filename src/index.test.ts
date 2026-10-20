@@ -11,7 +11,10 @@ import { FIXTURE_CODE, githubDouble, stateFor } from "../test/github";
 import { keyFor, signingKeyFor } from "../test/keys";
 import { writeSecret } from "./store/secrets";
 
-const { WIRING_ZEN } = vi.hoisted(() => ({ WIRING_ZEN: "Seluna wiring test" }));
+const { WIRING_ZEN, WIRING_DRAFT_ZEN } = vi.hoisted(() => ({
+  WIRING_ZEN: "Seluna wiring test",
+  WIRING_DRAFT_ZEN: "Seluna draft wiring test",
+}));
 
 // The mock replaces the real rules: this one reports only the `ping` whose zen is WIRING_ZEN (never the real ping), so
 // a ping can drive the wiring of the Worker (waitUntil, the Telegram fetch) end to end.
@@ -30,7 +33,26 @@ vi.mock("./rules/registry", () => {
           }
         : undefined,
   };
-  return { RULES: [rule] };
+  // A second rule whose notification carries a draft check, to drive the lookup wiring of the Worker.
+  const draftRule: Rule = {
+    id: "ci_failed_pull_request",
+    evaluate: (event, payload) =>
+      event === "ping" && payload.zen === WIRING_DRAFT_ZEN
+        ? {
+            title: "Wiring draft",
+            repository: "octo/repo",
+            number: 2,
+            subject: "Subject",
+            context: "Context",
+            url: "https://github.com/octo/repo/pull/2",
+            draftCheck: {
+              pullRequest: { owner: "octo", repo: "repo", number: 2 },
+              titleWhenUnknown: "Wiring draft (draft status unknown)",
+            },
+          }
+        : undefined,
+  };
+  return { RULES: [rule, draftRule] };
 });
 
 // The throwaway SELUNA_SECRET of vitest.config.ts.
@@ -136,6 +158,43 @@ it("POST /webhook through the Worker sends the message of a matching rule to Tel
   expect(await env.DB.prepare("SELECT status, attempts FROM outbox").first(), "outbox row").toEqual({
     status: "sent",
     attempts: 1,
+  });
+});
+
+it("the Worker resolves a draft check through the GitHub API client and, without a GitHub App, sends the draft-status-unknown title", async () => {
+  await withEmptyCredentials();
+  await withEmptyDeliveries();
+  const telegram = telegramDouble();
+  const outbound = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation((input, init) => telegram.fetch(new Request(input, init)));
+  const workerEnv = { ...env, TELEGRAM_BOT_TOKEN: BOT_TOKEN, TELEGRAM_CHAT_ID: "5001001" };
+  const ctx = createExecutionContext();
+  const text = JSON.stringify({
+    zen: WIRING_DRAFT_ZEN,
+    repository: { full_name: "octo/repo" },
+    installation: { id: 3000 },
+  });
+  const request = new Request("https://example.com/webhook", {
+    method: "POST",
+    body: text,
+    headers: {
+      "content-type": "application/json",
+      "x-github-event": "ping",
+      "x-github-delivery": "wiring-test-draft",
+      "x-hub-signature-256": await signatureOf(text),
+    },
+  });
+
+  const response = await worker.fetch(request, workerEnv, ctx);
+  await waitOnExecutionContext(ctx);
+
+  expect(response.status, "status").toBe(202);
+  expect(telegram.methods(), "Bot API methods called").toEqual(["sendMessage"]);
+  expect(outbound, "outbound requests").toHaveBeenCalledTimes(1);
+  expect(await env.DB.prepare("SELECT text, status FROM outbox").first(), "outbox row").toEqual({
+    text: "<b>Wiring draft (draft status unknown)</b> · octo/repo #2\nSubject\nContext",
+    status: "sent",
   });
 });
 
