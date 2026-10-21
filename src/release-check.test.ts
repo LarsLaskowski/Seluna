@@ -332,12 +332,12 @@ describe("checkForRelease (AC8: failures)", () => {
   });
 
   it("checkForRelease keeps a malformed tag from the message and the version", async () => {
-    const tag = "v0.5.0‮";
+    const tag = "v0.5.0\u202e";
     const { deps } = harness({ latest: latestAnswer(tag) });
 
     const result = await checkForRelease(STARTED_AT, deps);
 
-    expect(tag.includes("‮"), "the input holds U+202E").toBe(true);
+    expect(tag.includes("\u202e"), "the input holds U+202E").toBe(true);
     expect(result, "result").toBe("malformed");
     expect(await outboxRows(), "outbox rows").toEqual([]);
   });
