@@ -7,7 +7,7 @@ export interface Version {
 
 // ASCII digits only and no `u`/`m` flag, so `$` is the end of the input and a trailing line feed does not match.
 const PART = "(0|[1-9][0-9]{0,8})";
-const VERSION_PATTERN = new RegExp(`^${PART}\\.${PART}\\.${PART}$`);
+const VERSION_PATTERN = new RegExp(String.raw`^${PART}\.${PART}\.${PART}$`);
 
 /** The version of `text` (`A.B.C`, ASCII digits, no leading zeros, at most 9 digits a part), or `undefined`. */
 export function parseVersion(text: string): Version | undefined {

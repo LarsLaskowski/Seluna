@@ -78,7 +78,7 @@ describe("readNotifiedRelease", () => {
 
 describe("recordReleaseNotice (AC6: both writes or neither)", () => {
   it("recordReleaseNotice writes the row and the version and returns the row id when nothing was remembered", async () => {
-    const id = await recordReleaseNotice(env.DB, NOTICE, CREATED_AT, "0.5.0", undefined);
+    const id = await recordReleaseNotice(env.DB, NOTICE, CREATED_AT, "0.5.0");
 
     expect(typeof id, "type of the id").toBe("number");
     expect(await outboxRows(), "outbox rows").toEqual([
@@ -115,7 +115,7 @@ describe("recordReleaseNotice (AC6: both writes or neither)", () => {
   });
 
   it("recordReleaseNotice writes a row without button as NULL", async () => {
-    const id = await recordReleaseNotice(env.DB, { ...NOTICE, buttonUrl: undefined }, CREATED_AT, "0.5.0", undefined);
+    const id = await recordReleaseNotice(env.DB, { ...NOTICE, buttonUrl: undefined }, CREATED_AT, "0.5.0");
 
     expect(typeof id, "type of the id").toBe("number");
     expect(await outboxRows(), "outbox rows").toMatchObject([{ button_url: null }]);
@@ -134,7 +134,7 @@ describe("recordReleaseNotice (AC6: both writes or neither)", () => {
   it("recordReleaseNotice writes neither and returns undefined when a version appeared after nothing was read", async () => {
     await putRemembered("0.5.0");
 
-    const id = await recordReleaseNotice(env.DB, NOTICE, CREATED_AT, "0.6.0", undefined);
+    const id = await recordReleaseNotice(env.DB, NOTICE, CREATED_AT, "0.6.0");
 
     expect(id, "id").toBeUndefined();
     expect(await outboxRows(), "outbox rows").toEqual([]);
@@ -150,10 +150,9 @@ describe("recordReleaseNotice (AC6: both writes or neither)", () => {
   });
 
   it("recordReleaseNotice rejects and writes nothing when the database fails", async () => {
-    await expect(
-      recordReleaseNotice(failingDatabase(), NOTICE, CREATED_AT, "0.5.0", undefined),
-      "record",
-    ).rejects.toThrow("The database failed");
+    await expect(recordReleaseNotice(failingDatabase(), NOTICE, CREATED_AT, "0.5.0"), "record").rejects.toThrow(
+      "The database failed",
+    );
     expect(await outboxRows(), "outbox rows").toEqual([]);
   });
 });

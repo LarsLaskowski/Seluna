@@ -18,9 +18,8 @@ export async function recordReleaseNotice(
   row: NewOutboxRow,
   createdAt: Date,
   notified: string,
-  expected: string | undefined,
+  expected: string | undefined = "",
 ): Promise<number | undefined> {
-  const expectedText = expected ?? "";
   // Both guards read the same state: the insert into `outbox` does not touch `meta`.
   const [inserted] = await db.batch([
     db
@@ -28,14 +27,14 @@ export async function recordReleaseNotice(
         "INSERT INTO outbox (text, button_url, silent, created_at) " +
           `SELECT ?1, ?2, 0, ?3 WHERE ${REMEMBERED} = ?4 RETURNING id`,
       )
-      .bind(row.text, row.buttonUrl ?? null, createdAt.getTime(), expectedText),
+      .bind(row.text, row.buttonUrl ?? null, createdAt.getTime(), expected),
     db
       .prepare(
         "INSERT INTO meta (key, value) " +
           `SELECT 'notified_release', ?1 WHERE ${REMEMBERED} = ?2 ` +
           "ON CONFLICT (key) DO UPDATE SET value = excluded.value",
       )
-      .bind(notified, expectedText),
+      .bind(notified, expected),
   ]);
   const created: unknown = inserted?.results[0];
   return typeof created === "object" && created !== null && "id" in created && typeof created.id === "number"
