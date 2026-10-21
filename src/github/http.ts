@@ -25,7 +25,16 @@ export function gitHubRequest(method: "GET" | "POST", path: string, version: str
 
 /** GET `path` on the GitHub API with the standard headers, no `Authorization`, no redirects, a 10-second timeout. */
 export function publicGitHubRequest(path: string, version: string): Request {
-  throw new Error("Not implemented");
+  return new Request(`${GITHUB_API_ORIGIN}${path}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": GITHUB_API_VERSION,
+      "User-Agent": `seluna/${version}`,
+    },
+    redirect: "manual",
+    signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
+  });
 }
 
 /** Sends `request` and reads a 2xx answer within the size limit. Never throws. */

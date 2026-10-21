@@ -1,4 +1,6 @@
+import { parseReleaseTag } from "../version";
 import type { Version } from "../version";
+import { publicGitHubRequest, sendGitHub } from "./http";
 import type { GitHubFetch } from "./conversion";
 
 /** The repository whose releases the release check reads. */
@@ -16,10 +18,23 @@ export type LatestRelease =
 
 /** The version of the answer's `tag_name`, or `undefined` when the answer or the tag has another form. */
 export function parseLatestRelease(body: unknown): Version | undefined {
-  throw new Error("Not implemented");
+  if (typeof body !== "object" || body === null || Array.isArray(body) || !("tag_name" in body)) {
+    return undefined;
+  }
+  return typeof body.tag_name === "string" ? parseReleaseTag(body.tag_name) : undefined;
 }
 
 /** One request; never throws. */
-export function fetchLatestRelease(fetcher: GitHubFetch, version: string): Promise<LatestRelease> {
-  return Promise.reject(new Error("Not implemented"));
+export async function fetchLatestRelease(fetcher: GitHubFetch, version: string): Promise<LatestRelease> {
+  const reply = await sendGitHub(fetcher, publicGitHubRequest(LATEST_RELEASE_PATH, version));
+  switch (reply.kind) {
+    case "failed":
+      return { kind: "unavailable" };
+    case "refused":
+      return reply.status === 404 ? { kind: "none" } : { kind: "refused" };
+    case "ok": {
+      const parsed = parseLatestRelease(reply.body);
+      return parsed === undefined ? { kind: "malformed" } : { kind: "found", version: parsed };
+    }
+  }
 }
