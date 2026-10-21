@@ -87,7 +87,6 @@ Seluna is in active development and can already notify you about pull requests, 
 
 | Release         | What it adds                                                                            |
 | --------------- | --------------------------------------------------------------------------------------- |
-| 0.4.0           | CI failures and security alerts                                                         |
 | 0.5.0           | Retry and cleanup of the outbox, notice of new releases, one-click updates of your copy |
 | 0.6.0           | A tidier setup: new look, navigation, bot token entered in the wizard                   |
 | 0.7.0           | A channel-neutral outbox and a switchable delivery channel                              |
