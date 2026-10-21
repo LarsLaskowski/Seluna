@@ -136,9 +136,10 @@ otherwise):
   stub on `globalThis.fetch`) that records every request and answers `POST /app-manifests/<code>/conversions` from
   the reference-built fixtures under `test/fixtures/github/` (written from GitHub's documentation, not captured,
   decision 0017), a status and body, or a rejection; it fails the test on any other URL. `githubApiDouble(routes)`
-  also answers `POST /app/installations/<id>/access_tokens`, `GET /app/installations?per_page=100` and `GET
-  /repos/<owner>/<repo>/pulls/<number>` from `test/fixtures/github/` (the token and installations answers are
-  reference-built from GitHub's OpenAPI examples, the pull request answer is captured), each route an answer, a
+  also answers `POST /app/installations/<id>/access_tokens`, `GET /app/installations?per_page=100`, `GET
+  /repos/<owner>/<repo>/pulls/<number>` and `GET /repos/LarsLaskowski/Seluna/releases/latest` from
+  `test/fixtures/github/` (the token and installations answers are reference-built from GitHub's OpenAPI examples,
+  the pull request and latest release answers are captured), each route an answer, a
   sequence or a function of the request, and records every request with its `Authorization` header. The check-run
   answers of the later API clients get their fixtures beside these.
 - **Telegram Bot API double** — `test/telegram.ts`: a `vi.fn<TelegramFetch>()` passed as the injected `TelegramFetch`

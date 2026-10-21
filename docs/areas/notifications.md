@@ -231,7 +231,10 @@ A notification is rendered once, when its row is written, and stored as the row'
   or password, and at most 2,048 characters in its normalized form, which is what is stored; otherwise the row has
   no button URL and the message is sent without a button.
 - A new row is written with `silent` 0; whether it is sent without sound is decided when it is sent
-  ([Quiet hours](#quiet-hours)).
+  ([Quiet hours](#quiet-hours)). The release notice of the daily release check is a second kind of row besides the
+  rules' notifications: the same layout (the title in bold, `·` and the repository, line 2), built from fixed texts
+  and the parsed version numbers, which are escaped but not cleaned or cut, and a button URL built from the same
+  numbers ([Scheduled jobs](scheduled-jobs.md#release-message)).
 
 ### Languages
 
