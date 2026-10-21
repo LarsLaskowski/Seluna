@@ -1,7 +1,7 @@
 # Spec: Retry, cleanup and update notice
 
 Source: Issue #18
-Status: Draft
+Status: Approved by Lead
 
 ## Problem
 
@@ -73,13 +73,16 @@ The "run every 10 minutes" is the cron trigger `*/10 * * * *`, the "daily run" t
   earlier run) is marked `failed` without another send, with the same log entry as S3.
 - E5: Telegram accepted a message but recording the row as `sent` failed: the row stays `pending` and the owner may get
   the message again in the next run (at least once, decision 0008/0023), with the log entry `store-failed`.
-- E6: A database failure in the run every 10 minutes (reading the rows, the settings or the chat, or a delete) sends
-  or deletes nothing further in that job, writes one log entry naming the job and a fixed failure result (never the
-  error text), and does not stop the other job of the same run: retry and cleanup fail independently. The next run
-  tries again.
+- E6: A database failure in the run every 10 minutes (marking exhausted rows, reading the rows or the settings, or the
+  cleanup's deletes) sends or deletes nothing further in that job, writes one log entry naming the job and a fixed
+  failure result (never the error text), and does not stop the other job of the same run: retry and cleanup fail
+  independently. The next run tries again. A failed read of the chat happens inside the sending path, as for a first
+  send: each row tried logs `store-failed`, Telegram is not called and no attempt is counted.
 - E7: A large backlog (hundreds of `pending` rows after a long outage, or many rows written before the chat was set):
   each run sends at most 10, oldest first, so a backlog of n rows takes about n / 10 runs.
-- E8: The first cleanup on an instance that has run for months deletes all old rows of each table at once; a later
+- E8: A run deletes at most 1,000 rows of each table, oldest first, so the first cleanup on an instance that has run
+  for months removes a large backlog over several runs (D1 asks for large deletes in chunks of about 1,000 rows, and
+  every deleted row counts against the free plan's 100,000 rows written per day); a later
   redelivery (by the owner, from the GitHub App's delivery list) of a delivery whose row was deleted is processed as a
   new delivery and may produce a message again. GitHub offers redelivery only for recent deliveries (3 days, by its
   documentation), so 7 days covers it.
@@ -108,6 +111,15 @@ The "run every 10 minutes" is the cron trigger `*/10 * * * *`, the "daily run" t
   remembered; the message stays `pending` (E2) and arrives once the setup is finished.
 - E18: The owner switches the notification language between writing and sending the release message: the text keeps
   the language it was written in, the button follows the language at sending (as for every row, decision 0023).
+- E19: The trigger every 10 minutes is delivered twice at the same time (or two runs overlap): both runs may pick the
+  same `pending` row and the owner may get that message twice. Rows are not claimed before they are sent; this is
+  accepted under the at-least-once delivery of decisions 0008 and 0023. A run normally ends within about 4 minutes
+  (10 rows of at most two 10-second requests and a 5-second wait), so two runs of the schedule do not overlap.
+- E20: The bot token or the chat goes missing for a long time (a deleted secret, a removed chat): new rows stay
+  `pending` and are never deleted, each run logs `no-token` or `no-chat` for its 10 oldest rows (about 1,440 entries a
+  day), and once the setup is fixed the backlog arrives oldest first, possibly days late (E7). Accepted residual
+  risk: "nothing is lost" outranks "the database does not grow", and the rows grow only by the owner's own
+  notifications, as they did before this feature.
 
 ## Non-functional requirements
 
@@ -116,7 +128,11 @@ The "run every 10 minutes" is the cron trigger `*/10 * * * *`, the "daily run" t
   and the cron wall-clock limit against Cloudflare's documentation and fixes the number of statements per run.
 - Retention, fixed and not configurable: `deliveries` 7 days (by the time received), `sent` and `failed` `outbox`
   rows 30 days (by the time written; the table has no time of sending), `token_cache` rows until their expiry. `pending`
-  rows are never deleted. The times are compared against the run's injected clock, never a database clock.
+  rows are never deleted. The times are compared against the run's injected clock, never a database clock. A run
+  deletes at most 1,000 rows per table, oldest first (E8).
+- Per-run budget on the free plan (50 subrequests per invocation, D1 and `fetch` alike; 10 ms CPU and 15 minutes wall
+  time per cron invocation): the run every 10 minutes makes at most 17 D1 statements and 20 Telegram requests, the
+  daily run at most 6 D1 statements, one GitHub request and 2 Telegram requests.
 - The retry sends through the same sending path as the first send (decision 0025: quiet hours at the time of each
   send, the button language at sending; the 429 wait of 1 to 5 seconds), so the per-row log entry is unchanged.
 - The release check makes exactly one request, `GET https://api.github.com/repos/LarsLaskowski/Seluna/releases/latest`,
@@ -140,15 +156,17 @@ The "run every 10 minutes" is the cron trigger `*/10 * * * *`, the "daily run" t
 ## Acceptance criteria
 
 - [ ] AC1: The run every 10 minutes sends each `pending` row with fewer than 5 attempts written more than one minute
-  before it starts, at most 10 rows, oldest first, through the first send's path; a row Telegram accepts becomes
-  `sent` (S1, S2, S4, E3, E7).
-- [ ] AC2: A row whose fifth attempt fails becomes `failed`, a `pending` row with 5 or more attempts becomes `failed`
-  without a send, and each writes a log entry with the row id saying it was marked failed (S3, E4).
+  before it starts, at most 10 rows, oldest first (by the time written, then by id), through the first send's path; a
+  row Telegram accepts becomes `sent`. Rows with 5 or more attempts are not among these 10 (S1, S2, S4, E3, E7).
+- [ ] AC2: A row whose fifth attempt fails becomes `failed` in the same database update that counts that attempt, a
+  `pending` row with 5 or more attempts becomes `failed` without a send (at most 10 such rows per run, oldest first,
+  before the rows to send are chosen), and each writes a log entry with the row id saying it was marked failed (S3,
+  E4).
 - [ ] AC3: In a simulated Telegram outage a row stays `pending` with one more attempt per run, and the first run after
   the outage delivers it; without a bot token or chat no attempt is counted and no row is marked failed (E1, E2, E5).
 - [ ] AC4: The run every 10 minutes deletes `deliveries` rows received more than 7 days, `sent` and `failed` `outbox`
-  rows written more than 30 days, and `token_cache` rows expired before the current time, and keeps every `pending`
-  row and every row on or inside these bounds (S5, E8).
+  rows written more than 30 days, and `token_cache` rows expired before the current time, at most 1,000 per table and
+  run, oldest first, and keeps every `pending` row and every row on or inside these bounds (S5, E8).
 - [ ] AC5: A database failure in the retry or the cleanup writes one log entry with a fixed result for that job and
   does not stop the other job of the run (E6).
 - [ ] AC6: With the update notice on, a latest release newer than the running version and the remembered one writes
@@ -175,6 +193,8 @@ The "run every 10 minutes" is the cron trigger `*/10 * * * *`, the "daily run" t
   (exponential backoff): the issue fixes 5 attempts at the 10-minute rhythm.
 - Retrying a failed release check before the next daily run, and authenticating it.
 - Configurable retention periods, retry counts or schedules.
+- Claiming rows so that two retry runs at the same time cannot send one row twice (E19), and an age limit for
+  `pending` rows that wait for a bot token or chat (E20): both accepted as residual risks.
 - Removing `meta` values other than the remembered release, `settings` rows or `secrets`.
 
 ## Open questions
@@ -192,9 +212,12 @@ The "run every 10 minutes" is the cron trigger `*/10 * * * *`, the "daily run" t
   cron. A token lives about an hour, so a row of an earlier app's installation is expired soon after the app changed;
   deleting expired rows removes both kinds.
 - Q4: Which version is "running", and what does a release look like? Answered: the version of `package.json`, fixed
-  at build time (`src/index.ts` imports it; decision 0011); releases are tagged exactly `vA.B.C` on `main` and only a
-  verified one becomes the latest full release, which is what `releases/latest` returns (decision 0009,
-  `docs/CONTRIBUTING.md`). `package.json` stays at the last released version until the release pull request, so a
+  at build time (`src/index.ts` imports it; decision 0011); releases are tagged exactly `vA.B.C` on `main`, and the
+  release workflow turns a pre-release into the latest full release only once it is verified, which is what
+  `releases/latest` returns (decision 0009, `docs/CONTRIBUTING.md`). A release the maintainer publishes by hand
+  without *Set as a pre-release* is the latest release before its checks run (the workflow only warns,
+  `docs/CONTRIBUTING.md`), so such an unverified release can be reported; accepted residual risk, since the notice
+  only links the release and updates nothing. `package.json` stays at the last released version until the release pull request, so a
   copy deployed from `main` between releases is not told about the release it already contains — it reads the same
   version only after that release.
 - Q5: What happens to the remembered version while the update notice is off? Answered: nothing is read or written
@@ -216,7 +239,9 @@ The "run every 10 minutes" is the cron trigger `*/10 * * * *`, the "daily run" t
   5 attempts, marking `failed`, its log entry); the cleanup (the three tables and their retention, `pending` kept);
   the release check (request, accepted tag form, comparison, the remembered version, the message text in both
   languages, the switch); failure isolation between jobs; the log entries; the residual risks (GitHub's
-  unauthenticated limit, an outage over about 40 minutes).
+  unauthenticated limit, an outage over about 40 minutes, a row sent twice by overlapping runs (E19), `pending` rows
+  and log entries piling up without a bot token or chat (E20), an unverified release published by hand (Q4)).
+- `docs/areas/http-routes.md`: the release answer joins the list of external answers read with the 1 MiB bound.
 - `docs/areas/notifications.md`: the cron retry sends through the same sending rules (link to the new area instead of
   `ARCHITECTURE.md`); the release message as a second kind of row besides the rules' notifications, in the message
   format and language tables; the log entry of a row marked failed.
@@ -230,11 +255,38 @@ The "run every 10 minutes" is the cron trigger `*/10 * * * *`, the "daily run" t
 - `docs/ARCHITECTURE.md`: the cron table (link to the new area; the daily job sends the notice), the security model's
   unauthenticated GitHub calls, the guarantee "unsent rows are retried" bounded at 5 attempts.
 
-## Challenge notes
+## Challenge
 
-1. **minor — E6 contradicts the sending path the spec requires.** E6 and the *Logs* requirement say a failed read of the chat ends the retry job with one job-level log entry. But `deliverMessages` → `resolveTarget` (`src/delivery.ts`, around lines 52-66) catches that failure and logs `store-failed` once per row, and the non-functional requirements say the per-row log is unchanged (decision 0025). Instruction: either drop "or the chat" from E6 and allow the existing per-row `store-failed` entries there, or have the plan read the chat before calling `deliverMessages`. State which one, so the Tester does not assert one entry while the code writes ten.
-2. **minor — Q4 overstates "only a verified one becomes the latest full release".** `docs/CONTRIBUTING.md:105-107` says a release published without *Set as a pre-release* is public before the checks run. `.squad/project.md:89-90` says such a release is "only warned about". So `releases/latest` can return an unverified release. Instruction: reword Q4 to say an unverified release published by hand can be reported. Accept this as a residual risk in the new area document; the impact is only a link.
-3. **minor — two retry runs at the same time can send a row twice.** E16 guards only the daily run. The retry selects `pending` rows with no claim, and `markSent` (`src/store/outbox.ts:15-20`) only stops the second update, not the second send. Instruction: add an edge case saying that a 10-minute trigger delivered twice can send a row twice. Accept it under at-least-once (decisions 0008 and 0023), unless the plan claims rows first.
-4. **minor — the switch to `failed` and the 10-row bound need to be stated precisely.** `markAttempted` keeps a row `pending` (`src/store/outbox.ts:23-25`). S3 therefore needs a new update that counts the fifth attempt and sets `failed` in one statement. If it is done as two statements, a failure between them leaves the row for E4, which only covers that case. It is open whether E4 rows (5 or more attempts, marked failed without a send) count toward the "at most 10" of S4/AC1, and whether they come from the same oldest-first query. Instruction: say both in AC2/AC1, so the plan fixes the statement and the statement count.
-5. **minor — no real sample of the release answer.** E9 and E11 define a reader of an external format (`releases/latest`) from its description only. Instruction: require a real answer saved as a fixture under `test/fixtures/` for the Tester, e.g. from `gh api repos/LarsLaskowski/Seluna/releases/latest` (today `v0.4.0`), plus the real 404 body for E10.
-6. **minor — `pending` rows that are never deleted grow without limit while no chat or token is set.** E2 together with "pending rows are never deleted" means an instance that loses its chat or token keeps every new row and logs `no-token`/`no-chat` for 10 rows on every run (about 1,440 entries a day). Once the setup is fixed, the backlog arrives oldest first, possibly weeks late (E7). This goes against the issue's goal that "the database does not grow". Instruction: either list it as an accepted residual risk in the area document's residual risks, or answer it in the spec (for example, an age limit for `pending` rows that were never attempted).
+The six minor objections of the spec challenge (originally *Challenge notes*), each with its answer:
+
+1. **minor — E6 contradicts the sending path for a failed read of the chat.** Accepted — E6 no longer names the
+   chat: the chat is read inside the sending path (`resolveTarget` in `src/delivery.ts`), so a failed read logs
+   `store-failed` once per row tried, calls no Telegram and counts no attempt, exactly as a first send; the job-level
+   entry covers marking exhausted rows, reading the rows and the settings, and the deletes. The Tester asserts the
+   per-row entries for this case.
+2. **minor — Q4 overstates that only a verified release becomes the latest.** Accepted — Q4 now says that a release
+   published by hand without *Set as a pre-release* is the latest before its checks run and can be reported; the
+   new area document lists it as an accepted residual risk.
+3. **minor — two retry runs at the same time can send a row twice.** Accepted — new edge case E19 states it and
+   accepts it under the at-least-once delivery of decisions 0008 and 0023; claiming rows is out of scope (it would
+   need a column or a second meaning of `attempts`, and a run ends in about 4 minutes, well inside the 10-minute
+   rhythm). Listed among the residual risks of the area document.
+4. **minor — the switch to `failed` and the 10-row bound need to be precise.** Accepted — AC2 now says the fifth
+   failed attempt is counted and marks the row `failed` in one database update, so no failure can leave a row
+   between the two; rows already at 5 or more attempts (E4) are marked `failed` by a separate statement before the
+   rows to send are chosen, at most 10 per run, oldest first, and AC1 says they are not among the 10 rows sent. The
+   statement count per run is in the non-functional requirements and fixed in `plan.md`.
+5. **minor — no real sample of the release answer.** Accepted — the answer of
+   `GET /repos/LarsLaskowski/Seluna/releases/latest` (HTTP 200, `v0.4.0`, captured 2026-10-21) is saved anonymized
+   as `release-latest.json` in this work folder; the Tester moves it to `test/fixtures/github/release-latest.json`
+   and the reader's tests read it. No 404 sample is needed: an answer outside 2xx is never read (its body is
+   cancelled unread), so E10 is decided by the status alone; the session also cannot make an unauthenticated
+   request (its proxy authenticates every GitHub request).
+6. **minor — `pending` rows without a chat or token grow without limit.** Accepted as a residual risk — new edge
+   case E20 states the growth, the log volume and the late backlog, and the area document lists it. An age limit
+   for never-attempted rows would break "nothing is lost" for an owner who fixes the setup late; the rows grow only
+   with the owner's own notifications, as they already do in 0.4.0.
+
+While planning, the Lead also fixed E8, the retention requirement and AC4: a run deletes at most 1,000 rows per
+table, oldest first, because Cloudflare's D1 documentation asks for large deletes in chunks of about 1,000 rows and
+counts every deleted row (and its index entry) against the free plan's 100,000 rows written per day.
