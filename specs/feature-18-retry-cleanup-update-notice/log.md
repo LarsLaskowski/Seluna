@@ -17,4 +17,4 @@ are quoted in full.
 | 2026-10-21 18:16 | 5 Tests first (G2) | squad-tester | DONE: outbox, delivery, cleanup tests; 40 fail on skeleton; none deferred (sonnet/medium · 110,453 tokens · 9 tool uses · 93 s) |
 | 2026-10-21 18:18 | 6 Implement (G2) | squad-dev | DONE: outbox statements, bounded deletes, cleanUpRows; 135 tests green (sonnet/medium · 86,635 tokens · 12 tool uses · 99 s) |
 | 2026-10-21 18:20 | 5 Tests first (G3) | squad-tester | DONE: 16 retry-job tests, all fail on skeleton; none deferred (sonnet/medium · 97,572 tokens · 10 tool uses · 87 s) |
-| 2026-10-21 18:20 | 6 Implement (G3) | squad-dev | DONE: retryPendingRows; 16 tests green (sonnet/medium · usage pending) |
+| 2026-10-21 18:20 | 6 Implement (G3) | squad-dev | DONE: retryPendingRows; 16 tests green (sonnet/medium · 85,623 tokens · 10 tool uses · 25 s) |
