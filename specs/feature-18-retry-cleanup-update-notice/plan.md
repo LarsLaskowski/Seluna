@@ -316,3 +316,7 @@ Sweep: `grep` over `docs/areas/*.md`, `docs/ARCHITECTURE.md`, `README.md`, `SECU
 ## Out of scope / follow-ups
 
 As in the spec's *Out of scope*. No follow-up issue: #19 (one-click updates) and #69 (channel-neutral outbox) exist.
+
+## Security notes
+
+- **Replay after cleanup (non-blocking).** Deleting `deliveries` rows after 7 days bounds the guarantee "a delivery is processed once" (`.squad/project.md`, *Guarantees*) in time. The plan's *Architecture check* covers GitHub's own redelivery window of 3 days. It does not cover a replay: anyone holding a captured, validly signed delivery older than 7 days could get one duplicate notification, because the signature has no timestamp and the dedup row is gone. The impact is low (a duplicate message only, and no data leaves the system). I suggest adding the replay case to the residual risks in `docs/areas/scheduled-jobs.md` and to the *Guarantees* edit in `.squad/project.md` (e.g. "within the retention of 7 days"), so the guarantee text is not stricter than the behavior.
