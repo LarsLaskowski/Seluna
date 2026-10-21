@@ -72,8 +72,9 @@ bindings) rely on it.
 | every 10 minutes | `*/10 * * * *` |
 | daily at 05:17   | `17 5 * * *`   |
 
-- Both triggers invoke the Worker's scheduled handler, which does nothing yet; the jobs follow in a later change
-  ([`ARCHITECTURE.md`](../ARCHITECTURE.md#cron-triggers)).
+- Both triggers invoke the Worker's scheduled handler, which runs the jobs of the expression: every 10 minutes the
+  cleanup and the retry, daily the release check ([Scheduled jobs](scheduled-jobs.md#schedules)). The handler
+  recognizes exactly these two expressions; a changed or added expression runs no job and writes one log entry.
 
 ## Limits and errors
 
@@ -103,7 +104,7 @@ bindings) rely on it.
 
 ## Not here
 
-- What the cron jobs do: [`ARCHITECTURE.md`](../ARCHITECTURE.md#cron-triggers).
+- What the cron jobs do: [Scheduled jobs](scheduled-jobs.md).
 - The tables the migrations create and the encryption of stored credentials: [Storage](storage.md).
 - The public routes, including `/health`: [HTTP routes](http-routes.md).
 - Releases of the upstream repository: [`CONTRIBUTING.md`](../CONTRIBUTING.md#versioning-and-releases).

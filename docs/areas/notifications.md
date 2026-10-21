@@ -5,8 +5,8 @@
 What happens to a webhook delivery after its signature was accepted: how a redelivery is recognized, how the rules
 decide on a notification, how a notification becomes an `outbox` row and a Telegram message, in which language, and
 how a row is sent, with or without sound. The owner relies on it to be told once about each case and never lose a
-message; GitHub relies on the status codes; the cron retry (issue #18) sends pending rows through the same sending
-rules.
+message; GitHub relies on the status codes; the retry of the cron ([Scheduled jobs](scheduled-jobs.md#retry)) sends
+pending rows through the same sending rules.
 
 ## Behavior
 
@@ -18,7 +18,8 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
 1. The `X-GitHub-Delivery` value must match `^[0-9A-Za-z-]{1,64}$` and the `X-GitHub-Event` value
    `^[a-z_]{1,64}$`; otherwise **400**, nothing stored.
 2. A delivery id that `deliveries` already holds answers **200** and has no other effect: nothing is parsed, stored,
-   sent or written to `meta`.
+   sent or written to `meta`. A `deliveries` row is kept 7 days ([Scheduled jobs](scheduled-jobs.md#cleanup)), so a
+   redelivery is recognized within that time.
 3. The body is read as the payload (below); a body that is not a JSON object answers **400**, nothing stored.
 4. The notification settings are read and the rules run (below); then the draft check of a notification that carries
    one is resolved ([Draft lookup](#draft-lookup)), which may drop the notification or change its title.
@@ -242,7 +243,8 @@ A notification is rendered once, when its row is written, and stored as the row'
   the titles of the CI failure rules with the draft-unknown title ([CI failure rules](#ci-failure-rules),
   [Draft lookup](#draft-lookup)), and the titles of the security alert rules
   ([Security alert rules](#security-alert-rules)): _Dependabot alert_, _Code scanning alert_, _Secret scanning alert_
-  (German _Dependabot-Warnung_, _Code-Scanning-Warnung_, _Secret-Scanning-Warnung_).
+  (German _Dependabot-Warnung_, _Code-Scanning-Warnung_, _Secret-Scanning-Warnung_), and the title and line 2 of the
+  release notice ([Scheduled jobs](scheduled-jobs.md#release-message)).
 - The button reads _Open on GitHub_ in English and _Auf GitHub öffnen_ in German. Its language is the notification
   language at the time the row is sent, so a row still pending when the owner switches the language keeps its text
   and gets the button in the new language.
@@ -268,7 +270,8 @@ A notification is rendered once, when its row is written, and stored as the row'
     without a further wait;
   - any other answer — a 429 without a usable `retry_after` or with a longer one, a second 429, 401 or 404 (token
     rejected), another status, a network error or a timeout (10 seconds per request) — leaves the row `pending`
-    for the cron.
+    for the cron; when that attempt is the row's fifth, the same update marks the row `failed` and it is never sent
+    again ([Scheduled jobs](scheduled-jobs.md#retry)).
 - A row is changed only while it is still `pending`. The rows of a delivery that the sending step finds failing do
   not stop the next row from being tried.
 - A row is sent at least once, not exactly once: when marking a row `sent` fails after Telegram accepted it, the
@@ -306,7 +309,8 @@ A notification is rendered once, when its row is written, and stored as the row'
   processing).
 - Each row sent writes one log entry with exactly two fields: the row id and the result — `sent`, `rate-limited`,
   `token-rejected`, `failed`, `no-token`, `no-chat` or `store-failed` (the database could not be read or the row
-  could not be updated).
+  could not be updated). When that send was the row's fifth failed attempt and marked it `failed`, a second entry
+  follows with exactly two fields: the row id and the status `failed`.
 - No log entry holds a payload text (title, branch, commit message, alert text), a message text, a chat id, the bot
   token or a Telegram answer.
 
@@ -343,6 +347,8 @@ A notification is rendered once, when its row is written, and stored as the row'
   hours applied at each send rather than when the row is written, one clock reading per row, wall-clock times.
 - [`decisions/0008-delivery-through-a-d1-outbox.md`](../decisions/0008-delivery-through-a-d1-outbox.md) — the
   outbox and the at-least-once delivery.
+- [`decisions/0029-outbox-retry-and-cleanup-by-the-cron.md`](../decisions/0029-outbox-retry-and-cleanup-by-the-cron.md)
+  — the fifth failed attempt marks a row `failed` in the update that counts it.
 - [`decisions/0016-telegram-chat-in-the-setup-wizard.md`](../decisions/0016-telegram-chat-in-the-setup-wizard.md)
   — the chat, `TELEGRAM_CHAT_ID` and the Bot API client built from the reference.
 
@@ -352,5 +358,5 @@ A notification is rendered once, when its row is written, and stored as the row'
   [HTTP routes](http-routes.md).
 - The `deliveries`, `outbox` and `meta` tables and their columns: [Storage](storage.md).
 - Choosing and proving the chat: [Setup wizard](setup-wizard.md#telegram-chat).
-- Resending pending rows, marking rows `failed` and removing old rows: the cron jobs
-  ([`ARCHITECTURE.md`](../ARCHITECTURE.md#cron-triggers)).
+- Resending pending rows, marking rows `failed` and removing old rows, and the release notice:
+  [Scheduled jobs](scheduled-jobs.md).

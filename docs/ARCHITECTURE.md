@@ -21,7 +21,7 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 | Rules | Pure functions of the event name, the payload and the settings to zero or one notification; no I/O, no clock |
 | Outbox | The D1 `outbox` table holding each message as rendered Telegram HTML, and delivery to the Telegram Bot API, with one retry after a 429 and the cron's retry |
 | Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram chat, the setup login, the status page with the settings, the app's installations and the reset after a changed `SELUNA_SECRET` ([decision 0018](decisions/0018-settings-and-status-page.md)) |
-| Cron (`scheduled` handler) | Every 10 minutes: retry the outbox and clean up D1. Daily: check for a new Seluna release |
+| Cron (`scheduled` handler) | Every 10 minutes: clean up D1 and retry the outbox up to the fifth attempt. Daily: check for a new Seluna release and send a notice ([`areas/scheduled-jobs.md`](areas/scheduled-jobs.md), [decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md), [decision 0030](decisions/0030-release-notice-without-credentials.md)) |
 | D1 (`src/store/`) | `settings`, `secrets` (AES-256-GCM), `deliveries`, `outbox`, `token_cache` (AES-256-GCM), `meta`; the only code that reads or writes D1 |
 
 ```mermaid
@@ -31,6 +31,7 @@ flowchart LR
   R -->|notification| O[(D1 outbox)]
   O -->|sendMessage| T[Telegram Bot API]
   C[Cron] -->|retry, cleanup| O
+  C -->|release check, no credentials| GA[GitHub API]
 ```
 
 ## Webhook to Telegram
@@ -55,12 +56,13 @@ flowchart LR
    `outbox` as escaped Telegram HTML ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md)) and `meta`
    records the time of the delivery; then the Worker answers 202. Delivery to the Telegram Bot API is attempted
    right after the answer (`waitUntil`), once more after a short 429 wait, and the cron trigger retries rows that are
-   still pending. A message sent during the owner's quiet hours is sent at once, without sound
+   still pending; the fifth failed attempt marks a row failed, and it is not sent again
+   ([decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md)). A message sent during the owner's quiet hours is sent at once, without sound
    ([decision 0025](decisions/0025-quiet-hours-decided-at-sending.md)). The rules per step are in
    [`areas/notifications.md`](areas/notifications.md) ([decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)).
 
 Guarantees along the way (also in [`.squad/project.md`](../.squad/project.md), *Guarantees*): an invalid signature
-has no effect, a delivery is processed once, a matched event is stored before it is sent, and Telegram never calls
+has no effect, a delivery is processed once (within the 7 days its `deliveries` row is kept), a matched event is stored before it is sent, and Telegram never calls
 the Worker: it has no webhook and no route, the Worker calls only `getUpdates` and `sendMessage`, and the input it
 takes from Telegram is the `getUpdates` answer of the setup wizard's signed-in Telegram step and the status of each
 `sendMessage` answer (for a 429 also its `retry_after`), both read bounded and narrowed; a chat is stored only after the owner typed back the code of
@@ -85,8 +87,11 @@ only. The rules are in [`areas/http-routes.md`](areas/http-routes.md)
 
 | Schedule | Job |
 | -------- | --- |
-| every 10 minutes | Retry unsent `outbox` rows; clean up expired `deliveries`, `outbox` and `token_cache` rows |
-| daily | Compare the running version with the latest Seluna release and record the result in `meta` |
+| every 10 minutes | Delete `deliveries` rows older than 7 days, `sent` and `failed` `outbox` rows older than 30 days and expired `token_cache` rows; then resend up to 10 `pending` `outbox` rows and mark a row `failed` after its fifth attempt ([decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md)) |
+| daily | Unless the update notice is off, read the latest Seluna release without credentials and, when it is newer than the running and the remembered version, write and send a notice and remember the version in `meta` ([decision 0030](decisions/0030-release-notice-without-credentials.md)) |
+
+Each job catches its own failures and logs only a fixed result; the rules are in
+[`areas/scheduled-jobs.md`](areas/scheduled-jobs.md).
 
 ## D1 tables
 
@@ -127,9 +132,12 @@ saves a chat only by typing back the code its test message carried
 credentials are encrypted in D1 ([decision 0007](decisions/0007-github-app-credentials-encrypted-in-d1.md)). The setup
 wizard creates that app through GitHub's manifest flow: the `state` that travels through GitHub is bound to the
 owner's session and to the account the owner chose, the app GitHub returns must belong to that account before
-anything is stored, the answer of the conversion (the Worker's one unauthenticated GitHub call) is read bounded and
+anything is stored, the answer of the conversion (one of the Worker's two unauthenticated GitHub calls) is read bounded and
 narrowed, and the three credentials are stored together or not at all
-([decision 0017](decisions/0017-github-app-manifest-flow.md)). Every other GitHub call is made as the app: a JWT
+([decision 0017](decisions/0017-github-app-manifest-flow.md)). The other unauthenticated call is the daily release
+check: one request to a fixed URL of the upstream repository with no credential, read bounded, narrowed to a
+`tag_name` of the strict form `vA.B.C`, and the notice built from the parsed numbers only
+([decision 0030](decisions/0030-release-notice-without-credentials.md)). Every other GitHub call is made as the app: a JWT
 signed with the private key for each `/app/...` request, never stored, and per installation a token that is cached
 only encrypted and dropped when GitHub refuses it; what enters a URL is allow-listed, redirects are not followed and
 every answer is read bounded and narrowed; the signed-in status page calls GitHub, and so does the webhook processing

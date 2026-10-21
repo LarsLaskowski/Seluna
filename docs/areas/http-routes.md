@@ -66,7 +66,8 @@ does the setup wizard under `/setup`.
   `POST /setup/reset`, `POST /setup/telegram` and `POST /setup/telegram/verify`, `POST /setup/github` and
   `POST /setup/github/callback` read a body, with this limit. The Telegram Bot API answers (also the 429 answer of `sendMessage`, read for its `retry_after`) and the GitHub conversion answer read by the setup wizard are limited the same
   way, through the same reader ([Setup wizard](setup-wizard.md#telegram-chat), [GitHub
-  App](setup-wizard.md#github-app)), and so are the GitHub API answers of the app's calls ([GitHub API](github-api.md#requests)).
+  App](setup-wizard.md#github-app)), and so are the GitHub API answers of the app's calls ([GitHub API](github-api.md#requests)) and the answer of the
+  release check ([Scheduled jobs](scheduled-jobs.md#release-check)).
 
 ### Logging
 
@@ -76,7 +77,7 @@ does the setup wizard under `/setup`.
   it matches `^[a-z_]{1,64}$`), each `null` otherwise, and `action`, `repository` and `decision` (their patterns
   and values are in [Notifications](notifications.md#log-entries)), each `null` when the webhook processing did not
   run (401, 413, 400 of an unreadable body, 503 of the secret). Each row sent additionally writes one entry with
-  its `outbox` id and `result`.
+  its `outbox` id and `result` ([Notifications](notifications.md#log-entries)).
 - The path is the URL path without the query string and without the fragment. Request bodies, signatures, query
   strings and headers other than the two values above are never logged; so the `code` and `state` of GitHub's return
   to `GET /setup/github/callback` never reach a log.

@@ -22,3 +22,4 @@ are quoted in full.
 | 2026-10-21 18:24 | 6 Implement (G4) | squad-dev | DONE: notified-release store and release check; 44 tests green (sonnet/medium · 89,050 tokens · 9 tool uses · 68 s) |
 | 2026-10-21 18:26 | 5 Tests first (G5) | squad-tester | DONE: 16 dispatch/wiring tests fail on skeleton; only deferred: schedule-constant pin (holds on skeleton) (sonnet/medium · 95,290 tokens · 13 tool uses · 114 s) |
 | 2026-10-21 18:30 | 6 Implement (G5) | squad-dev | DONE: runScheduled, docs (project.md, README, CHANGELOG); npm test 2854 green; coverage gate PASS (new 97.8%, overall 97.1%) (sonnet/medium · 85,471 tokens · 14 tool uses · 154 s) |
+| 2026-10-21 18:33 | 6 Docs (G6) | squad-lead | DONE: area docs, ARCHITECTURE, decisions 0029 extended; decision-check passes (opus/medium · usage pending) |

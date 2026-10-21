@@ -49,11 +49,11 @@ the operator relies on its log entries.
 
 One batch of three deletes, all applied or none:
 
-| Table         | A row is deleted when                                                                          | Order of deletion       |
-| ------------- | ---------------------------------------------------------------------------------------------- | ----------------------- |
-| `deliveries`  | `received_at` is more than 7 days (604,800,000 ms) before the run started                      | `received_at`           |
-| `outbox`      | `status` is `sent` or `failed` and `created_at` is more than 30 days (2,592,000,000 ms) before | `created_at`, then `id` |
-| `token_cache` | `expires_at` is before the run started                                                         | `expires_at`            |
+| Table         | A row is deleted when                                                                          | Order of deletion                    |
+| ------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `deliveries`  | `received_at` is more than 7 days (604,800,000 ms) before the run started                      | `received_at`, then `id`             |
+| `outbox`      | `status` is `sent` or `failed` and `created_at` is more than 30 days (2,592,000,000 ms) before | `created_at`, then `id`              |
+| `token_cache` | `expires_at` is before the run started                                                         | `expires_at`, then `installation_id` |
 
 - Each delete removes at most 1,000 rows per run, the oldest first; a larger backlog goes over the next runs.
 - A row exactly on its bound stays. A `pending` row is never deleted, whatever its age. No other table or `meta` row
@@ -142,6 +142,10 @@ The daily run, step by step; the first step that decides ends it with exactly on
     10 oldest rows (about 1,440 entries a day); the backlog arrives oldest first once the setup is fixed.
   - A release published by hand without the pre-release flag can be reported before its checks ran.
   - The release reader rests on one captured answer; a different answer fails closed (no notice, one log entry).
+  - A `deliveries` row is deleted after 7 days, so the guarantee that a delivery is processed once holds within that
+    time ([Notifications](notifications.md#processing-a-delivery)). GitHub redelivers only within 3 days, but a
+    captured, validly signed delivery replayed later (the signature carries no time) is processed again and can send
+    one duplicate message. Nothing else is written and no data leaves the instance.
 
 ## Related decisions
 

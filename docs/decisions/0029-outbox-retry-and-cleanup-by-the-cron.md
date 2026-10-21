@@ -81,7 +81,9 @@ retry and cleanup fail and log independently. The rules are in [`areas/scheduled
   (at-least-once, [0008](0008-delivery-through-a-d1-outbox.md)).
 - Without a bot token or chat, `pending` rows are never deleted and each run logs `no-token` or `no-chat` for its 10
   oldest rows; the backlog arrives once the setup is fixed. Accepted: nothing is lost.
-- A redelivery of a delivery older than 7 days is processed as new; GitHub offers none that old.
+- A redelivery of a delivery older than 7 days is processed as new; GitHub offers none that old, but a captured,
+  validly signed delivery replayed later (the signature carries no time) gives one duplicate message. Accepted: the
+  guarantee "a delivery is processed once" now holds within the 7 days, and nothing but a message is written.
 - Each run's deletes count against the daily row writes; in steady state they equal the rows written 7 or 30 days
   earlier.
 - The per-run statement budget rests on Cloudflare's documented limits, not on a measurement; the CPU time of a run

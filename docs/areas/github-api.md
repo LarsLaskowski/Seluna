@@ -63,6 +63,8 @@ wizard's status page rely on it.
 - Repository owner, repository name and number are checked before they enter a URL: owner
   `^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$`, name `^[A-Za-z0-9._-]{1,100}$` and neither `.` nor `..`, number a
   positive safe integer; anything else is a failure without a request.
+- The release check of the cron sends its one request by the same rules, without `Authorization` and to a fixed
+  path ([Scheduled jobs](scheduled-jobs.md#release-check)); it is not a call of the API client.
 
 ### Pull request read
 
@@ -112,7 +114,7 @@ wizard's status page rely on it.
 
 - The `token_cache` table, its columns and its encryption: [Storage](storage.md).
 - The _Installations:_ line of the status page and its texts: [Setup wizard](setup-wizard.md).
-- The manifest conversion of the setup wizard (the one unauthenticated GitHub request):
-  [Setup wizard](setup-wizard.md#github-app).
-- Removing expired and orphaned `token_cache` rows: the cleanup cron
-  ([`ARCHITECTURE.md`](../ARCHITECTURE.md#cron-triggers)).
+- The two GitHub requests made without credentials: the manifest conversion of the setup wizard
+  ([Setup wizard](setup-wizard.md#github-app)) and the daily release check
+  ([Scheduled jobs](scheduled-jobs.md#release-check)).
+- Removing expired `token_cache` rows: the cleanup of the cron ([Scheduled jobs](scheduled-jobs.md#cleanup)).
