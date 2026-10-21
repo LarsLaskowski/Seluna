@@ -13,7 +13,12 @@ export type RecordDeliveryResult =
 
 /** The bounded delete of `deliveries` rows received before `receivedBefore`, for a batch. */
 export function oldDeliveriesDelete(db: D1Database, receivedBefore: Date, limit: number): D1PreparedStatement {
-  throw new Error("Not implemented");
+  return db
+    .prepare(
+      "DELETE FROM deliveries WHERE id IN (SELECT id FROM deliveries WHERE received_at < ?1 " +
+        "ORDER BY received_at, id LIMIT ?2)",
+    )
+    .bind(receivedBefore.getTime(), limit);
 }
 
 /** Whether a delivery with `id` is recorded. D1 errors are not caught. */

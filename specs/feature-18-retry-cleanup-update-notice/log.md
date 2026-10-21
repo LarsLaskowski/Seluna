@@ -15,3 +15,4 @@ are quoted in full.
 | 2026-10-21 18:13 | 5 Tests first (G1) | squad-tester | DONE: tests for version, public request, release reader; fail on skeleton (115 failed); no deferred tests (sonnet/medium · 89,901 tokens · 11 tool uses · 107 s) |
 | 2026-10-21 18:14 | 6 Implement (G1) | squad-dev | DONE: version, publicGitHubRequest, release reader; 142 tests green (sonnet/medium · 78,327 tokens · 5 tool uses · 31 s) |
 | 2026-10-21 18:16 | 5 Tests first (G2) | squad-tester | DONE: outbox, delivery, cleanup tests; 40 fail on skeleton; none deferred (sonnet/medium · 110,453 tokens · 9 tool uses · 93 s) |
+| 2026-10-21 18:18 | 6 Implement (G2) | squad-dev | DONE: outbox statements, bounded deletes, cleanUpRows; 135 tests green (sonnet/medium · usage pending) |
