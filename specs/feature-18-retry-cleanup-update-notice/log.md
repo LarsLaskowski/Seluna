@@ -18,3 +18,4 @@ are quoted in full.
 | 2026-10-21 18:18 | 6 Implement (G2) | squad-dev | DONE: outbox statements, bounded deletes, cleanUpRows; 135 tests green (sonnet/medium · 86,635 tokens · 12 tool uses · 99 s) |
 | 2026-10-21 18:20 | 5 Tests first (G3) | squad-tester | DONE: 16 retry-job tests, all fail on skeleton; none deferred (sonnet/medium · 97,572 tokens · 10 tool uses · 87 s) |
 | 2026-10-21 18:20 | 6 Implement (G3) | squad-dev | DONE: retryPendingRows; 16 tests green (sonnet/medium · 85,623 tokens · 10 tool uses · 25 s) |
+| 2026-10-21 18:23 | 5 Tests first (G4) | squad-tester | DONE: 44 tests (remembered release, message, release check), all fail on skeleton; none deferred (sonnet/medium · 120,322 tokens · 15 tool uses · 124 s) |

@@ -14,7 +14,7 @@ Each group is one launch per member in steps 4–6, in table order. The skeleton
 | 5 | G2 | Implement the outbox statements, the two delete statements, `src/delivery.ts` and `src/cleanup.ts` | `src/store/outbox.ts`, `src/store/deliveries.ts`, `src/store/token-cache.ts`, `src/delivery.ts`, `src/cleanup.ts` | AC1, AC2, AC4 | 4 | Dev | [x] |
 | 6 | G3 | Failing tests of the retry job | `src/outbox-retry.test.ts` | AC1, AC2, AC3 | 5 | Tester | [x] |
 | 7 | G3 | Implement `src/outbox-retry.ts` | `src/outbox-retry.ts` | AC1, AC2, AC3 | 6 | Dev | [x] |
-| 8 | G4 | Failing tests of the remembered release, the release message and the release check | `src/store/notified-release.test.ts`, `src/release-check.test.ts` | AC6, AC7, AC8, AC9 | 7 | Tester | [ ] |
+| 8 | G4 | Failing tests of the remembered release, the release message and the release check | `src/store/notified-release.test.ts`, `src/release-check.test.ts` | AC6, AC7, AC8, AC9 | 7 | Tester | [x] |
 | 9 | G4 | Implement `src/store/notified-release.ts` and `src/release-check.ts` | `src/store/notified-release.ts`, `src/release-check.ts` | AC6, AC7, AC8, AC9 | 8 | Dev | [ ] |
 | 10 | G5 | Failing tests of the dispatch and the Worker wiring (replaces `src/index.test.ts:203-218`) | `src/scheduled.test.ts`, `src/index.test.ts` | AC5, AC10 | 9 | Tester | [ ] |
 | 11 | G5 | Implement `src/scheduled.ts` and the `scheduled` handler; update `.squad/project.md`, `README.md`, `CHANGELOG.md` as *Documentation updates* says; coverage gate | `src/scheduled.ts`, `src/index.ts`, `.squad/project.md`, `README.md`, `CHANGELOG.md` | AC5, AC10 | 10 | Dev | [ ] |
