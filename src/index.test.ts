@@ -1,13 +1,21 @@
 import { createExecutionContext, createScheduledController, waitOnExecutionContext } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { afterEach, expect, it, onTestFinished, vi } from "vitest";
+import type { MockInstance } from "vitest";
 import worker from "./index";
 import type { Rule } from "./rules/rule";
 import { version } from "../package.json";
 import { body, headers } from "../test/fixtures/ping/form-delivery.json";
 import { applyMigrations } from "../test/d1";
 import { telegramDouble } from "../test/telegram";
-import { FIXTURE_CODE, githubDouble, stateFor } from "../test/github";
+import {
+  FIXTURE_CODE,
+  githubApiDouble,
+  githubDouble,
+  jsonAnswer as githubAnswer,
+  latestReleaseBody,
+  stateFor,
+} from "../test/github";
 import { keyFor, signingKeyFor } from "../test/keys";
 import { writeSecret } from "./store/secrets";
 
@@ -200,22 +208,93 @@ it("the Worker resolves a draft check through the GitHub API client and, without
 
 const FIXED_SCHEDULED_TIME = 1_700_000_000_000;
 
-it.each(["*/10 * * * *", "17 5 * * *"])(
-  "the scheduled handler completes without effect for the cron %s",
-  async (cron) => {
-    const handler: ExportedHandler<Env> = worker;
-    const log = vi.spyOn(console, "log");
-    const controller = createScheduledController({ cron, scheduledTime: FIXED_SCHEDULED_TIME });
-    const ctx = createExecutionContext();
+/** Routes the global `fetch` of the Worker to the doubles of Telegram and the GitHub API by host. */
+function routeGlobalFetch(
+  telegram: ReturnType<typeof telegramDouble>,
+  github: ReturnType<typeof githubApiDouble>,
+): MockInstance<typeof fetch> {
+  return vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+    const request = new Request(input, init);
+    return new URL(request.url).hostname === "api.telegram.org" ? telegram.fetch(request) : github.fetch(request);
+  });
+}
 
-    expect(handler.scheduled, "scheduled handler").toBeTypeOf("function");
-    const result = await handler.scheduled?.(controller, env, ctx);
+async function runScheduledCron(cron: string, workerEnv: Env): Promise<void> {
+  const handler: ExportedHandler<Env> = worker;
+  const controller = createScheduledController({ cron, scheduledTime: FIXED_SCHEDULED_TIME });
+  const ctx = createExecutionContext();
 
-    expect(result, "result").toBeUndefined();
-    expect(log, "console.log calls").not.toHaveBeenCalled();
-    await expect(waitOnExecutionContext(ctx), "pending work on the execution context").resolves.toBeUndefined();
-  },
-);
+  expect(handler.scheduled, "scheduled handler").toBeTypeOf("function");
+  const result = await handler.scheduled?.(controller, workerEnv, ctx);
+
+  expect(result, "result").toBeUndefined();
+  await waitOnExecutionContext(ctx);
+}
+
+it("the scheduled handler for */10 * * * * sends a due outbox row through the global fetch and calls no GitHub API", async () => {
+  await applyMigrations(env.DB);
+  await env.DB.batch([env.DB.prepare("DELETE FROM outbox"), env.DB.prepare("DELETE FROM settings")]);
+  onTestFinished(async () => {
+    await env.DB.prepare("DELETE FROM outbox").run();
+  });
+  const written = Date.now() - 2 * 60_000;
+  await env.DB.prepare("INSERT INTO outbox (text, silent, created_at) VALUES ('<b>T</b> · o/r #7', 0, ?1)")
+    .bind(written)
+    .run();
+  const telegram = telegramDouble();
+  const github = githubApiDouble({});
+  routeGlobalFetch(telegram, github);
+
+  const workerEnv = { ...env, TELEGRAM_BOT_TOKEN: BOT_TOKEN, TELEGRAM_CHAT_ID: "5001001" };
+
+  await runScheduledCron("*/10 * * * *", workerEnv);
+
+  expect(telegram.methods(), "Bot API methods called").toEqual(["sendMessage"]);
+  expect(github.requests.length, "number of GitHub requests").toBe(0);
+  expect(await env.DB.prepare("SELECT status, attempts FROM outbox").first(), "outbox row").toEqual({
+    status: "sent",
+    attempts: 1,
+  });
+});
+
+it("the scheduled handler for 17 5 * * * asks GitHub for the latest release through the global fetch without credentials", async () => {
+  await applyMigrations(env.DB);
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM outbox"),
+    env.DB.prepare("DELETE FROM settings"),
+    env.DB.prepare("DELETE FROM meta"),
+  ]);
+  onTestFinished(async () => {
+    await env.DB.batch([env.DB.prepare("DELETE FROM outbox"), env.DB.prepare("DELETE FROM meta")]);
+  });
+  const telegram = telegramDouble();
+  const github = githubApiDouble({
+    latestRelease: githubAnswer(200, latestReleaseBody({ tag_name: "v999.0.0" })),
+  });
+  routeGlobalFetch(telegram, github);
+
+  const workerEnv = { ...env, TELEGRAM_BOT_TOKEN: BOT_TOKEN, TELEGRAM_CHAT_ID: "5001001" };
+
+  await runScheduledCron("17 5 * * *", workerEnv);
+
+  expect(
+    github.requests.map((request) => request.route),
+    "GitHub routes",
+  ).toEqual(["latestRelease"]);
+  expect(github.requests[0]?.authorization, "Authorization header").toBeNull();
+  expect(telegram.methods(), "Bot API methods called").toEqual(["sendMessage"]);
+});
+
+it("the scheduled handler logs one unknown-schedule entry for another cron and makes no request", async () => {
+  await applyMigrations(env.DB);
+  const log = vi.spyOn(console, "log");
+  const outbound = vi.spyOn(globalThis, "fetch");
+
+  await runScheduledCron("0 * * * *", env);
+
+  expect(log.mock.calls, "console.log calls").toEqual([[{ job: "schedule", result: "unknown" }]]);
+  expect(outbound, "outbound requests").not.toHaveBeenCalled();
+});
 
 it("the Telegram step of /setup calls the Bot API through the global fetch of the Worker", async () => {
   await applyMigrations(env.DB);

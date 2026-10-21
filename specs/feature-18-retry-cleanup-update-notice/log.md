@@ -20,3 +20,4 @@ are quoted in full.
 | 2026-10-21 18:20 | 6 Implement (G3) | squad-dev | DONE: retryPendingRows; 16 tests green (sonnet/medium · 85,623 tokens · 10 tool uses · 25 s) |
 | 2026-10-21 18:23 | 5 Tests first (G4) | squad-tester | DONE: 44 tests (remembered release, message, release check), all fail on skeleton; none deferred (sonnet/medium · 120,322 tokens · 15 tool uses · 124 s) |
 | 2026-10-21 18:24 | 6 Implement (G4) | squad-dev | DONE: notified-release store and release check; 44 tests green (sonnet/medium · 89,050 tokens · 9 tool uses · 68 s) |
+| 2026-10-21 18:26 | 5 Tests first (G5) | squad-tester | DONE: 16 dispatch/wiring tests fail on skeleton; only deferred: schedule-constant pin (holds on skeleton) (sonnet/medium · 95,290 tokens · 13 tool uses · 114 s) |
