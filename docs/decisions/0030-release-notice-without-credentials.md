@@ -1,6 +1,6 @@
 # 0030: Release notice from an unauthenticated release check
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-21
 - **Area:** Scheduled jobs
 - **Source:** Issue #18

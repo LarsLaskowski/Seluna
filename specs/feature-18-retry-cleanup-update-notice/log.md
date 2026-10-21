@@ -27,3 +27,5 @@ are quoted in full.
 | 2026-10-21 18:35 | 8 Review (security diff) | squad-security | APPROVED; no blocking or non-blocking findings (code SHA 17df3ef) (opus/medium · 46,913 tokens · 10 tool uses · 51 s) |
 | 2026-10-21 18:38 | 8 Review (round 1) | squad-reviewer | BLOCKING 2, NON-BLOCKING 1: escape assertions lost in tests (to Tester); 2 verbatim doc fixes applied (notifications.md message format, project.md double routes) in commit following (opus/medium · 129,126 tokens · 30 tool uses · 176 s) |
 | 2026-10-21 18:40 | 8 Fix round 1 (tests) | squad-tester | DONE: escapes restored and input guards added in release.test.ts and version.test.ts; tests only (sonnet/medium · 63,859 tokens · 5 tool uses · 43 s) |
+| 2026-10-21 18:40 | 8 Review (delta round 2) | squad-reviewer | APPROVE; blocking test finding and both verbatim doc fixes resolved (code SHA a153ec2) (opus/medium · 5,799 tokens · 3 tool uses · 15 s · continued) |
+| 2026-10-21 18:40 | 9 PR approval | Orchestrator | Approved by checklist: latest round clean, gates pass on head a153ec2, main unmoved, area docs in diff; decisions 0029/0030 set Accepted, decision-check PASS |

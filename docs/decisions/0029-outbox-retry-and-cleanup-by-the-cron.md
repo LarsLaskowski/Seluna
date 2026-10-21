@@ -1,6 +1,6 @@
 # 0029: Outbox retry and cleanup by the cron
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-21
 - **Area:** Scheduled jobs
 - **Source:** Issue #18
