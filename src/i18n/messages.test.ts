@@ -35,6 +35,26 @@ it("MESSAGE_TEXTS holds the CI titles and the draft-unknown title in en and de",
   );
 });
 
+it("MESSAGE_TEXTS holds the security alert titles in en and de", () => {
+  const { en, de } = MESSAGE_TEXTS;
+
+  expect(en.dependabotAlert, "en Dependabot").toBe("Dependabot alert");
+  expect(en.codeScanningAlert, "en code scanning").toBe("Code scanning alert");
+  expect(en.secretScanningAlert, "en secret scanning").toBe("Secret scanning alert");
+  expect(de.dependabotAlert, "de Dependabot").toBe("Dependabot-Warnung");
+  expect(de.codeScanningAlert, "de code scanning").toBe("Code-Scanning-Warnung");
+  expect(de.secretScanningAlert, "de secret scanning").toBe("Secret-Scanning-Warnung");
+});
+
+it("MESSAGE_TEXTS has the same keys in en and de", () => {
+  const { en, de } = MESSAGE_TEXTS;
+
+  expect(
+    Object.keys(de).sort((a, b) => a.localeCompare(b)),
+    "keys of de",
+  ).toEqual(Object.keys(en).sort((a, b) => a.localeCompare(b)));
+});
+
 it("a text table without openOnGitHub is a type error", () => {
   // @ts-expect-error -- a table must have every key
   const incomplete: MessageTexts = {};

@@ -3,8 +3,10 @@
 <!-- project:begin architecture -->
 Seluna sends a Telegram message when something in the owner's GitHub repositories needs attention: a pull
 request is ready, a review is requested, CI failed or a security alert was opened. Draft pull requests trigger
-nothing (one exception: a CI failure in a pull request whose draft state could not be read (failure or no answer within 8 seconds),
-[decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)). Every user runs their own instance — a Cloudflare Worker (free plan) in the user's own account with its
+nothing; the exceptions are a CI failure in a pull request whose draft state could not be read (failure or no answer within 8 seconds),
+reported marked _draft status unknown_ ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)), and a
+secret scanning alert, which is reported whatever its source, a draft pull request's branch or text included
+([decision 0028](decisions/0028-security-alert-rules.md)). Every user runs their own instance — a Cloudflare Worker (free plan) in the user's own account with its
 state in D1, fed by a private GitHub App and delivering through the user's own Telegram bot; there is no central
 service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript instead of Go:
 [decision 0004](decisions/0004-typescript-instead-of-go.md)).
@@ -46,6 +48,9 @@ flowchart LR
    only by number, so the processing asks GitHub, as the app and within 8 seconds, whether it is a draft: a draft
    produces nothing, and a pull request whose draft state could not be read is reported marked _draft status unknown_
    ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)).
+   New and reopened security alerts (Dependabot, code scanning on the default branch, secret scanning) are reported
+   from the payload alone; no part of a secret reaches a message
+   ([decision 0028](decisions/0028-security-alert-rules.md)).
 4. In one D1 transaction the delivery id is recorded in `deliveries`, each notification becomes a row in the
    `outbox` as escaped Telegram HTML ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md)) and `meta`
    records the time of the delivery; then the Worker answers 202. Delivery to the Telegram Bot API is attempted

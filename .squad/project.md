@@ -77,7 +77,7 @@ files or endpoints.
 Deliberate behavior that must not change without the Product Manager. Each one is described in
 `docs/ARCHITECTURE.md` and, where it was a real choice, has a decision record.
 
-- A draft pull request triggers no notification; the one exception is a CI failure in a pull request whose draft state could not be read (failure or no answer within 8 seconds), reported marked _draft status unknown_ — [decision 0027](../docs/decisions/0027-ci-failure-rules-and-the-draft-lookup.md).
+- A draft pull request triggers no notification; the exceptions are a CI failure in a pull request whose draft state could not be read (failure or no answer within 8 seconds), reported marked _draft status unknown_ — [decision 0027](../docs/decisions/0027-ci-failure-rules-and-the-draft-lookup.md), and a secret scanning alert, which is reported whatever its source — [decision 0028](../docs/decisions/0028-security-alert-rules.md).
 - A webhook with an invalid signature has no effect: nothing is stored, nothing is sent.
 - A delivery (`X-GitHub-Delivery`) is processed once: a redelivery produces no second message.
 - Each user's data stays in that user's own Cloudflare account — no central service
@@ -155,7 +155,9 @@ otherwise):
 - **Real GitHub payloads** — captured events stored as `test/fixtures/<event>/<action>.json`, with secrets and
   personal data removed; never hand-invented payloads for a rule test. A signed
   delivery used to test the signature stays unaltered, because any edit breaks its signature, and is signed with a
-  throwaway secret (decision 0012).
+  throwaway secret (decision 0012). The `dependabot_alert`,
+  `code_scanning_alert` and `secret_scanning_alert` fixtures are reference-built from GitHub's OpenAPI webhook schemas,
+  not captured (Product Manager's decision, [decision 0028](../docs/decisions/0028-security-alert-rules.md)).
 - **D1** — the real D1 binding the Workers test pool provides (migrations applied in a test setup), not a fake.
 
 ## Fixtures from real deliveries

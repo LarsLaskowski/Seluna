@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The status page lists where the GitHub App is installed (account, all or selected repositories, suspended), and Seluna can now call the GitHub API as the app, caching each installation's token encrypted.
 - Notifications for failed CI runs (failure or timeout) on the default branch and in pull requests that are not drafts, each with its own switch; when GitHub cannot tell in time whether the pull request is a draft, the message is sent marked _draft status unknown_.
+- Notifications for new and reopened Dependabot, code scanning (on the default branch) and secret scanning alerts, each with its existing switch; a leaked secret is reported even from a draft pull request, and the secret itself never appears in a message, the outbox or the log.
 
 ## [0.3.0] - 2026-10-18
 
