@@ -11,6 +11,9 @@ import {
   REJECTED,
 } from "../../test/github";
 
+const TAG_WITH_LINE_FEED = "v0.5.0\n";
+const TAG_WITH_OVERRIDE = "v0.5.0\u202e";
+
 const VERSION = "1.2.3-test";
 
 function latest(answer: GitHubAnswer): Promise<Awaited<ReturnType<typeof fetchLatestRelease>>> {
@@ -50,8 +53,8 @@ describe("parseLatestRelease", () => {
     { name: "a tag_name that is an object", body: { tag_name: { value: "v0.5.0" } } },
     { name: "a tag_name without the v", body: { tag_name: "0.5.0" } },
     { name: "a pre-release tag", body: { tag_name: "v0.5.0-rc.1" } },
-    { name: "a tag with a trailing line feed", body: { tag_name: "v0.5.0\n" } },
-    { name: "a tag with a right-to-left override", body: { tag_name: "v0.5.0‮" } },
+    { name: "a tag with a trailing line feed", body: { tag_name: TAG_WITH_LINE_FEED } },
+    { name: "a tag with a right-to-left override", body: { tag_name: TAG_WITH_OVERRIDE } },
     { name: "a tag with markup", body: { tag_name: "v0.5.0<b>" } },
     { name: "a tag with a fullwidth digit", body: { tag_name: "v０.5.0" } },
     { name: "a nine-digit overflow", body: { tag_name: "v1000000000.0.0" } },
@@ -61,13 +64,19 @@ describe("parseLatestRelease", () => {
   });
 
   it("parseLatestRelease reads a JSON escape as the character it stands for", () => {
-    const body: unknown = JSON.parse(String.raw`{"tag_name": "v0.5.0\u000a"}`);
+    const raw = String.raw`{"tag_name": "v0.5.0\u000a"}`;
+    const body: unknown = JSON.parse(raw);
+
+    expect(raw.includes("\\u"), "input keeps its escape").toBe(true);
 
     expect(parseLatestRelease(body), "version").toBeUndefined();
   });
 
   it("parseLatestRelease accepts a tag whose digits are written as JSON escapes", () => {
-    const body: unknown = JSON.parse(String.raw`{"tag_name": "v0.5.0"}`);
+    const raw = String.raw`{"tag_name": "v\u0030.5.0"}`;
+    const body: unknown = JSON.parse(raw);
+
+    expect(raw.includes("\\u"), "input keeps its escape").toBe(true);
 
     expect(parseLatestRelease(body), "version").toEqual({ major: 0, minor: 5, patch: 0 });
   });
@@ -153,5 +162,12 @@ describe("fetchLatestRelease", () => {
     }, VERSION);
 
     expect(result, "result").toEqual({ kind: "unavailable" });
+  });
+});
+
+describe("release tag test inputs", () => {
+  it("the line feed and override cases contain the characters they are about", () => {
+    expect(TAG_WITH_LINE_FEED.includes("\n"), "line feed in input").toBe(true);
+    expect(TAG_WITH_OVERRIDE.includes("\u202e"), "override in input").toBe(true);
   });
 });

@@ -1,6 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { compareVersions, parseReleaseTag, parseVersion, versionText } from "./version";
 
+const TEXT_WITH_LINE_FEED = "1.0.0\n";
+const TEXT_WITH_OVERRIDE = "1.0.0\u202e";
+const TAG_WITH_TRAILING_LINE_FEED = "v0.5.0\n";
+const TAG_WITH_LEADING_LINE_FEED = "\nv0.5.0";
+const TAG_WITH_OVERRIDE = "v0.5.0\u202e";
+
+describe("version test inputs", () => {
+  it("the line feed and override cases contain the characters they are about", () => {
+    expect(TEXT_WITH_LINE_FEED.includes("\n"), "line feed in version text").toBe(true);
+    expect(TEXT_WITH_OVERRIDE.includes("\u202e"), "override in version text").toBe(true);
+    expect(TAG_WITH_TRAILING_LINE_FEED.includes("\n"), "trailing line feed in tag").toBe(true);
+    expect(TAG_WITH_LEADING_LINE_FEED.startsWith("\n"), "leading line feed in tag").toBe(true);
+    expect(TAG_WITH_OVERRIDE.includes("\u202e"), "override in tag").toBe(true);
+  });
+});
+
 describe("parseVersion", () => {
   it.each([
     { text: "0.4.0", expected: { major: 0, minor: 4, patch: 0 } },
@@ -28,8 +44,8 @@ describe("parseVersion", () => {
     "",
     " 1.0.0",
     "1.0.0 ",
-    "1.0.0\n",
-    "1.0.0‮",
+    TEXT_WITH_LINE_FEED,
+    TEXT_WITH_OVERRIDE,
     "１.0.0",
     "1.0.a",
     "-1.0.0",
@@ -64,9 +80,9 @@ describe("parseReleaseTag", () => {
     " v0.5.0",
     "v0.5.0 ",
     "v 0.5.0",
-    "v0.5.0\n",
-    "\nv0.5.0",
-    "v0.5.0‮",
+    TAG_WITH_TRAILING_LINE_FEED,
+    TAG_WITH_LEADING_LINE_FEED,
+    TAG_WITH_OVERRIDE,
     "v０.5.0",
     "v0.５.0",
     "v0.5.0<b>",
