@@ -13,4 +13,4 @@ are quoted in full.
 | 2026-10-21 18:10 | 2b Plan challenge | squad-devils-advocate | NO OBJECTIONS (opus/medium · 69,927 tokens · 15 tool uses · 97 s) |
 | 2026-10-21 18:11 | 4 Skeleton (G0) | squad-dev | DONE: signatures, i18n keys, scheduled wiring; typecheck + build pass (sonnet/medium · 101,463 tokens · 17 tool uses · 87 s) |
 | 2026-10-21 18:13 | 5 Tests first (G1) | squad-tester | DONE: tests for version, public request, release reader; fail on skeleton (115 failed); no deferred tests (sonnet/medium · 89,901 tokens · 11 tool uses · 107 s) |
-| 2026-10-21 18:14 | 6 Implement (G1) | squad-dev | DONE: version, publicGitHubRequest, release reader; 142 tests green (sonnet/medium · usage pending) |
+| 2026-10-21 18:14 | 6 Implement (G1) | squad-dev | DONE: version, publicGitHubRequest, release reader; 142 tests green (sonnet/medium · 78,327 tokens · 5 tool uses · 31 s) |
