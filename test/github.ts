@@ -8,13 +8,14 @@ import conversionFixture from "./fixtures/github/manifest-conversion.json";
 import notFoundFixture from "./fixtures/github/manifest-conversion-not-found.json";
 import pkcs8Fixture from "./fixtures/github/manifest-conversion-pkcs8.json";
 import validationFailedFixture from "./fixtures/github/manifest-conversion-validation-failed.json";
+import latestReleaseFixture from "./fixtures/github/release-latest.json";
 import pullRequestFixture from "./fixtures/github/pull-request.json";
 import keySizesFixture from "./fixtures/github/rsa-key-sizes.json";
 import { base64UrlOf, hmacBase64Url } from "./keys";
 
 /*
  * The GitHub API double. Its answers come from test/fixtures/github/, which are written from GitHub's documentation
- * and OpenAPI description and not captured from GitHub (see the README.md there).
+ * and OpenAPI description or captured from GitHub (see the README.md there).
  */
 
 /** The code of GitHub's documented example: 40 lowercase hexadecimal digits. */
@@ -29,10 +30,11 @@ export const FIXTURE_WEBHOOK_SECRET: string = conversionFixture.webhook_secret;
 export const FIXTURE_CLIENT_SECRET: string = conversionFixture.client_secret;
 
 /** The answers of the fixtures, as parsed JSON. */
-export const FIXTURES: Readonly<Record<"conversion" | "notFound" | "validationFailed", unknown>> = {
+export const FIXTURES: Readonly<Record<"conversion" | "notFound" | "validationFailed" | "latestRelease", unknown>> = {
   conversion: conversionFixture,
   notFound: notFoundFixture,
   validationFailed: validationFailedFixture,
+  latestRelease: latestReleaseFixture,
 };
 
 /** A fresh copy of the documented answer with the top-level fields of `changes` set (a `undefined` value removes the field). */
@@ -68,8 +70,8 @@ export function jsonAnswer(status: number, body: unknown, headers?: HeadersInit)
 /** The answer of a rejected `fetch` (network error). */
 export const REJECTED: GitHubAnswer = { kind: "reject", error: new TypeError("Network connection lost") };
 
-/** The requests the double knows: the manifest conversion and the three calls of the GitHub App authentication. */
-export type GitHubRoute = "conversion" | "installationToken" | "installations" | "pullRequest";
+/** The requests the double knows: the manifest conversion, the three calls of the GitHub App authentication and the latest release. */
+export type GitHubRoute = "conversion" | "installationToken" | "installations" | "pullRequest" | "latestRelease";
 
 /** One request the double received. */
 export interface RecordedGitHubRequest {
@@ -125,6 +127,11 @@ const ROUTE_MATCHES: readonly RouteMatch[] = [
     method: "GET",
     pattern: /^https:\/\/api\.github\.com\/repos\/([^/?#]*)\/([^/?#]*)\/pulls\/([^/?#]*)$/,
   },
+  {
+    route: "latestRelease",
+    method: "GET",
+    pattern: /^https:\/\/api\.github\.com\/repos\/LarsLaskowski\/Seluna\/releases\/latest$/,
+  },
 ];
 
 function respond(answer: GitHubAnswer): Promise<Response> {
@@ -162,7 +169,8 @@ function matchRoute(request: Request): { readonly route: GitHubRoute; readonly p
 /**
  * A `fetch` that stands in for `https://api.github.com`: it records every request, with its `Authorization` header,
  * and answers by method and URL: `POST /app-manifests/<code>/conversions`, `POST /app/installations/<id>/access_tokens`,
- * `GET /app/installations?per_page=100` and `GET /repos/<owner>/<repo>/pulls/<number>`. Each route in `routes` is a
+ * `GET /app/installations?per_page=100`, `GET /repos/<owner>/<repo>/pulls/<number>` and
+ * `GET /repos/LarsLaskowski/Seluna/releases/latest`. Each route in `routes` is a
  * `GitHubAnswer`, a sequence of them (one per request, the last repeated) or a function of the recorded request. A
  * request to another URL, or to a route without an answer, is answered with a rejection and fails the test that
  * created the double when the test ends.
@@ -306,3 +314,11 @@ export function pullRequestBody(draft = false): Record<string, unknown> {
 export const FIXTURE_PULL_REQUEST_DRAFT: boolean = pullRequestFixture.draft;
 /** The `number` of the captured pull request answer. */
 export const FIXTURE_PULL_REQUEST_NUMBER: number = pullRequestFixture.number;
+
+/** The `tag_name` of the captured latest release answer. */
+export const FIXTURE_RELEASE_TAG: string = latestReleaseFixture.tag_name;
+
+/** A fresh copy of the captured latest release answer with the top-level fields of `changes` set. */
+export function latestReleaseBody(changes: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
+  return { ...structuredClone(latestReleaseFixture), ...changes };
+}

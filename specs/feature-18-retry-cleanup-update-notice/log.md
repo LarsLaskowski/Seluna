@@ -12,3 +12,4 @@ are quoted in full.
 | 2026-10-21 18:09 | 3 Plan security review | squad-security | APPROVED; 1 non-blocking note (replay after 7-day cleanup) appended to plan.md (opus/medium · 58,712 tokens · 9 tool uses · 72 s) |
 | 2026-10-21 18:10 | 2b Plan challenge | squad-devils-advocate | NO OBJECTIONS (opus/medium · 69,927 tokens · 15 tool uses · 97 s) |
 | 2026-10-21 18:11 | 4 Skeleton (G0) | squad-dev | DONE: signatures, i18n keys, scheduled wiring; typecheck + build pass (sonnet/medium · 101,463 tokens · 17 tool uses · 87 s) |
+| 2026-10-21 18:13 | 5 Tests first (G1) | squad-tester | DONE: tests for version, public request, release reader; fail on skeleton (115 failed); no deferred tests (sonnet/medium · usage pending) |
