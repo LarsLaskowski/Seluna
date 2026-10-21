@@ -4,6 +4,8 @@ import { wait } from "./delivery";
 import { boundedDraftLookup, DRAFT_LOOKUP_TIMEOUT_MS } from "./draft-lookup";
 import { isPullRequestDraft } from "./github/api-client";
 import type { DeliveryLogEntry } from "./delivery";
+import { runScheduled } from "./scheduled";
+import type { ScheduledLogEntry } from "./scheduled";
 import type { RequestLogEntry } from "./router";
 import { RULES } from "./rules/registry";
 import { processWebhook } from "./webhook";
@@ -14,7 +16,7 @@ function outboundFetch(request: Request): Promise<Response> {
   return fetch(request);
 }
 
-function log(entry: RequestLogEntry | DeliveryLogEntry): void {
+function log(entry: RequestLogEntry | DeliveryLogEntry | ScheduledLogEntry): void {
   console.log(entry);
 }
 
@@ -50,8 +52,17 @@ export default {
       setup: { env, db: env.DB, now: () => new Date(), fetch: outboundFetch, githubFetch: outboundFetch, version },
     });
   },
-  /** Cron triggers from `wrangler.jsonc`; no job runs yet (the jobs follow in issue #18). */
-  scheduled(): Promise<void> {
-    return Promise.resolve();
+  /** Cron triggers from `wrangler.jsonc`: the retry and cleanup run and the daily release check. */
+  scheduled(controller: ScheduledController, env: Env): Promise<void> {
+    return runScheduled(controller.cron, {
+      env,
+      db: env.DB,
+      now: () => new Date(),
+      telegramFetch: outboundFetch,
+      githubFetch: outboundFetch,
+      sleep: wait,
+      log,
+      version,
+    });
   },
 } satisfies ExportedHandler<Env>;

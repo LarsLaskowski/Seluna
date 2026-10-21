@@ -22,11 +22,12 @@ async function insertRow(
   text = "<b>T</b> · o/r #7",
   buttonUrl: string | null = null,
   silent = 0,
+  attempts = 0,
 ): Promise<PendingMessage> {
   const row = await env.DB.prepare(
-    "INSERT INTO outbox (text, button_url, silent, created_at) VALUES (?1, ?2, ?3, 1000) RETURNING id",
+    "INSERT INTO outbox (text, button_url, silent, attempts, created_at) VALUES (?1, ?2, ?3, ?4, 1000) RETURNING id",
   )
-    .bind(text, buttonUrl, silent)
+    .bind(text, buttonUrl, silent, attempts)
     .first();
   const id = row?.id;
   if (typeof id !== "number") {
@@ -386,5 +387,53 @@ describe("wait", () => {
 
     expect(before, "state after 1999 ms").toBe("pending");
     expect(state, "state after 2000 ms").toBe("resolved");
+  });
+});
+
+describe("deliverMessages and the fifth attempt", () => {
+  it.each<{ case: string; answer: TelegramAnswer; result: string }>([
+    { case: "answers 500", answer: jsonAnswer(500, { ok: false, error_code: 500 }), result: "failed" },
+    { case: "answers 401", answer: jsonAnswer(401, FIXTURES.unauthorized), result: "token-rejected" },
+    { case: "answers 429", answer: jsonAnswer(429, { ok: false, error_code: 429 }), result: "rate-limited" },
+  ])(
+    "deliverMessages marks a row with 4 attempts failed and logs its marking after $result when sendMessage $case",
+    async ({ answer, result }) => {
+      const message = await insertRow("<b>T</b>", null, 0, 4);
+      const { deps, log } = harness({ sendMessage: answer });
+
+      await deliverMessages([message], settingsIn("en"), deps);
+
+      expect(await stateOf(message), "row").toEqual({ status: "failed", attempts: 5 });
+      expect(log, "log entries").toEqual([
+        { outbox: message.id, result },
+        { outbox: message.id, status: "failed" },
+      ]);
+    },
+  );
+
+  it("deliverMessages keeps a row with 3 attempts pending after a failed send and logs no marking", async () => {
+    const message = await insertRow("<b>T</b>", null, 0, 3);
+    const { deps, log } = harness({ sendMessage: jsonAnswer(500, { ok: false, error_code: 500 }) });
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(await stateOf(message), "row").toEqual({ status: "pending", attempts: 4 });
+    expect(log, "log entries").toEqual([{ outbox: message.id, result: "failed" }]);
+  });
+
+  it("deliverMessages logs the marking of the exhausted row and goes on with the next row", async () => {
+    const exhausted = await insertRow("first", null, 0, 4);
+    const next = await insertRow("second");
+    const { deps, log } = harness({
+      sendMessage: [jsonAnswer(500, { ok: false }), jsonAnswer(200, FIXTURES.sendMessage)],
+    });
+
+    await deliverMessages([exhausted, next], settingsIn("en"), deps);
+
+    expect(log, "log entries").toEqual([
+      { outbox: exhausted.id, result: "failed" },
+      { outbox: exhausted.id, status: "failed" },
+      { outbox: next.id, result: "sent" },
+    ]);
   });
 });

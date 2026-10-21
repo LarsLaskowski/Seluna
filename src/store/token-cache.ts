@@ -59,3 +59,13 @@ export async function writeCachedToken(
 export async function deleteCachedToken(db: D1Database, installationId: number, iv: string): Promise<void> {
   await db.prepare(DELETE_TOKEN).bind(installationId, iv).run();
 }
+
+/** The bounded delete of `token_cache` rows that expired before `expiredBefore`, for a batch. */
+export function expiredTokensDelete(db: D1Database, expiredBefore: Date, limit: number): D1PreparedStatement {
+  return db
+    .prepare(
+      "DELETE FROM token_cache WHERE installation_id IN (SELECT installation_id FROM token_cache " +
+        "WHERE expires_at < ?1 ORDER BY expires_at, installation_id LIMIT ?2)",
+    )
+    .bind(expiredBefore.getTime(), limit);
+}

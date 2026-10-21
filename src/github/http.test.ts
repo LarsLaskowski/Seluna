@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GITHUB_TIMEOUT_MS, MAX_GITHUB_RESPONSE_BYTES } from "./conversion";
 import type { GitHubFetch } from "./conversion";
-import { gitHubRequest, sendGitHub } from "./http";
+import { gitHubRequest, publicGitHubRequest, sendGitHub } from "./http";
 import { githubApiDouble, jsonAnswer, REJECTED } from "../../test/github";
 import type { GitHubAnswer } from "../../test/github";
 
@@ -54,6 +54,56 @@ describe("gitHubRequest", () => {
     const built = request();
 
     expect(GITHUB_TIMEOUT_MS, "timeout constant").toBe(10_000);
+    expect(timeout, "AbortSignal.timeout calls").toHaveBeenCalledExactlyOnceWith(10_000);
+    expect(built.signal.aborted, "signal aborted").toBe(false);
+  });
+});
+
+describe("publicGitHubRequest", () => {
+  const RELEASE_PATH = "/repos/LarsLaskowski/Seluna/releases/latest";
+
+  it("publicGitHubRequest builds a GET of https://api.github.com<path> without a body", () => {
+    const built = publicGitHubRequest(RELEASE_PATH, VERSION);
+
+    expect(built.method, "method").toBe("GET");
+    expect(built.url, "url").toBe(`https://api.github.com${RELEASE_PATH}`);
+    expect(built.body, "body").toBeNull();
+  });
+
+  it("publicGitHubRequest sets Accept, X-GitHub-Api-Version and User-Agent seluna/<version>", () => {
+    const built = publicGitHubRequest(RELEASE_PATH, VERSION);
+
+    expect(built.headers.get("accept"), "Accept").toBe("application/vnd.github+json");
+    expect(built.headers.get("x-github-api-version"), "X-GitHub-Api-Version").toBe("2022-11-28");
+    expect(built.headers.get("user-agent"), "User-Agent").toBe("seluna/1.2.3-test");
+  });
+
+  it("publicGitHubRequest sends no Authorization header", () => {
+    const built = publicGitHubRequest(RELEASE_PATH, VERSION);
+
+    expect(built.headers.has("authorization"), "has Authorization").toBe(false);
+  });
+
+  it("publicGitHubRequest sends no other header than the three standard ones", () => {
+    const built = publicGitHubRequest(RELEASE_PATH, VERSION);
+
+    expect(
+      [...built.headers.keys()].sort((a, b) => a.localeCompare(b)),
+      "header names",
+    ).toEqual(["accept", "user-agent", "x-github-api-version"]);
+  });
+
+  it("publicGitHubRequest does not follow redirects", () => {
+    const built = publicGitHubRequest(RELEASE_PATH, VERSION);
+
+    expect(built.redirect, "redirect").toBe("manual");
+  });
+
+  it("publicGitHubRequest carries a timeout signal of 10 seconds that has not fired", () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+
+    const built = publicGitHubRequest(RELEASE_PATH, VERSION);
+
     expect(timeout, "AbortSignal.timeout calls").toHaveBeenCalledExactlyOnceWith(10_000);
     expect(built.signal.aborted, "signal aborted").toBe(false);
   });

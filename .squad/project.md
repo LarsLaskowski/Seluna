@@ -27,7 +27,7 @@ files or endpoints.
   resource and a strict Content-Security-Policy (`src/setup/pages.ts`) (decision 0015).
 - **Encrypted credentials:** the GitHub App ID, private key and webhook secret live in the D1 table `secrets` as
   AES-256-GCM ciphertext (random 96-bit nonce per value; code in `src/crypto.ts` and `src/store/secrets.ts`, the three
-  credentials of the manifest flow together through `writeSecrets`); the key comes from the Worker secret `SELUNA_SECRET`. The D1 table `token_cache` holds installation tokens encrypted the same way, each ciphertext is bound to its row (additional data), and a key check value in `meta` reports a changed `SELUNA_SECRET`. The
+  credentials of the manifest flow together through `writeSecrets`); the key comes from the Worker secret `SELUNA_SECRET`. The D1 table `token_cache` holds installation tokens encrypted the same way, each ciphertext is bound to its row (additional data), expired rows are deleted by the cleanup cron (`src/cleanup.ts`), and a key check value in `meta` reports a changed `SELUNA_SECRET`. The
   Telegram bot token is the Worker secret `TELEGRAM_BOT_TOKEN`. Worker secrets are set through the deploy form or
   Wrangler and never committed (`.gitignore` ignores `.dev.vars*` and `.env*`, the files Wrangler loads local secrets
   from, except `.dev.vars.example` and `.env.example`, which hold names and descriptions only). Nothing secret is
@@ -50,7 +50,7 @@ files or endpoints.
   is converted to PKCS#8 and must import as an RS256 key (`src/github/private-key.ts`), the three credentials are
   written in one transaction, and the client secret is discarded. Only the review page has `form-action
   https://github.com`.
-- **GitHub App authentication:** every GitHub call except the manifest conversion is made as the app through
+- **GitHub App authentication:** every GitHub call except the manifest conversion and the release check (`src/github/release.ts`: fixed URL, no credential, same request rules, answer narrowed to `tag_name`) is made as the app through
   `src/github/` (`app-jwt.ts`, `http.ts`, `app-credentials.ts`, `installation-token.ts`, `token-text.ts`,
   `installations.ts`, `api-client.ts`): an RS256 JWT (`iat` now − 60 s, `exp` now + 540 s, `iss` the App ID) signed per request with the
   private key resolved per credential, never stored; installation tokens per `installation.id`, allow-listed
@@ -70,7 +70,7 @@ files or endpoints.
   cleaned, length-limited and escaped (Telegram HTML) in `src/message.ts` before they enter a message, because titles and branch names
   are attacker-controlled text.
 - **Request body size:** every route that reads a request body reads it through the bounded reader in `src/body.ts` (1 MiB; a `Content-Length` above it is rejected before reading, and the body is always counted while read); a route that reads a body any other way is a `security`-tier finding.
-- **Logging of external data:** logs carry event type, delivery id, the action and repository (pattern-checked) and the decision of the processing, each sent outbox row logs its id and result, and per request the method, the URL path without query string and the status (`src/router.ts`); never payload text, headers, query strings, tokens or keys.
+- **Logging of external data:** logs carry event type, delivery id, the action and repository (pattern-checked) and the decision of the processing, each sent outbox row logs its id and result (a row marked failed after its fifth attempt logs its id and status `failed`), each scheduled job logs only a fixed result (`src/scheduled.ts`: `store-failed`, `unknown`, the release check's result), and per request the method, the URL path without query string and the status (`src/router.ts`); never payload text, headers, query strings, tokens or keys.
 
 ## Guarantees
 
@@ -79,13 +79,13 @@ Deliberate behavior that must not change without the Product Manager. Each one i
 
 - A draft pull request triggers no notification; the exceptions are a CI failure in a pull request whose draft state could not be read (failure or no answer within 8 seconds), reported marked _draft status unknown_ — [decision 0027](../docs/decisions/0027-ci-failure-rules-and-the-draft-lookup.md), and a secret scanning alert, which is reported whatever its source — [decision 0028](../docs/decisions/0028-security-alert-rules.md).
 - A webhook with an invalid signature has no effect: nothing is stored, nothing is sent.
-- A delivery (`X-GitHub-Delivery`) is processed once: a redelivery produces no second message.
+- A delivery (`X-GitHub-Delivery`) is processed once within the 7-day retention of its `deliveries` row: a redelivery produces no second message. After the cleanup removed the row, a captured, validly signed delivery replayed later (the signature has no timestamp) would produce one duplicate message; GitHub itself redelivers only within 3 days.
 - Each user's data stays in that user's own Cloudflare account — no central service
   — [decision 0005](../docs/decisions/0005-one-instance-per-user.md).
 - GitHub App credentials are only ever stored encrypted
   — [decision 0007](../docs/decisions/0007-github-app-credentials-encrypted-in-d1.md).
-- A matched event is written to the outbox before delivery is attempted, and unsent rows are retried
-  — [decision 0008](../docs/decisions/0008-delivery-through-a-d1-outbox.md).
+- A matched event is written to the outbox before delivery is attempted, and unsent rows are retried up to the fifth attempt, then marked failed
+  — [decision 0008](../docs/decisions/0008-delivery-through-a-d1-outbox.md), amended by [decision 0029](../docs/decisions/0029-outbox-retry-and-cleanup-by-the-cron.md).
 - The release workflow turns a release into the latest full release only after it has verified its `v*` tag on
   `main`; a release published as a full release by hand is only warned about
   — [decision 0009](../docs/decisions/0009-releases-only-by-tag-push.md).
@@ -136,9 +136,10 @@ otherwise):
   stub on `globalThis.fetch`) that records every request and answers `POST /app-manifests/<code>/conversions` from
   the reference-built fixtures under `test/fixtures/github/` (written from GitHub's documentation, not captured,
   decision 0017), a status and body, or a rejection; it fails the test on any other URL. `githubApiDouble(routes)`
-  also answers `POST /app/installations/<id>/access_tokens`, `GET /app/installations?per_page=100` and `GET
-  /repos/<owner>/<repo>/pulls/<number>` from `test/fixtures/github/` (the token and installations answers are
-  reference-built from GitHub's OpenAPI examples, the pull request answer is captured), each route an answer, a
+  also answers `POST /app/installations/<id>/access_tokens`, `GET /app/installations?per_page=100`, `GET
+  /repos/<owner>/<repo>/pulls/<number>` and `GET /repos/LarsLaskowski/Seluna/releases/latest` from
+  `test/fixtures/github/` (the token and installations answers are reference-built from GitHub's OpenAPI examples,
+  the pull request and latest release answers are captured), each route an answer, a
   sequence or a function of the request, and records every request with its `Authorization` header. The check-run
   answers of the later API clients get their fixtures beside these.
 - **Telegram Bot API double** — `test/telegram.ts`: a `vi.fn<TelegramFetch>()` passed as the injected `TelegramFetch`

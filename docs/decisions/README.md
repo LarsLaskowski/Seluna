@@ -80,5 +80,7 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0026](0026-github-app-authentication-and-installation-tokens.md) | GitHub App authentication and cached installation tokens | Accepted | 2026-10-19 |
 | [0027](0027-ci-failure-rules-and-the-draft-lookup.md) | CI failure rules and the draft lookup | Accepted | 2026-10-20 |
 | [0028](0028-security-alert-rules.md) | Security alert rules | Accepted | 2026-10-20 |
+| [0029](0029-outbox-retry-and-cleanup-by-the-cron.md) | Outbox retry and cleanup by the cron | Accepted | 2026-10-21 |
+| [0030](0030-release-notice-without-credentials.md) | Release notice from an unauthenticated release check | Accepted | 2026-10-21 |
 
 <!-- project:end index -->

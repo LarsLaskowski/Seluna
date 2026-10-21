@@ -77,8 +77,14 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   again). A row that does not decrypt, or whose token is not of the allowed form, is treated as no cached token and
   replaced by the next token. The row of a token GitHub refused is deleted only while it still has the IV of that
   token, so a row another call replaced in between stays. Expired rows and rows of an earlier app's installations
-  are not removed by these reads and writes.
-- `meta` holds the last notified release, the time of the last delivery, the key check value
+  are not removed by these reads and writes; the cleanup of the cron deletes every row whose `expires_at` has passed
+  ([Scheduled jobs](scheduled-jobs.md#cleanup)).
+- An `outbox` row is written `pending` and changed only while it is still `pending`: to `sent` when Telegram accepted
+  it, to `failed` by its fifth failed attempt or, for a row that already holds 5 or more attempts, by the retry of the
+  cron ([Scheduled jobs](scheduled-jobs.md#retry)). A `pending` row is never deleted; `sent` and `failed` rows are
+  deleted 30 days after they were written, `deliveries` rows 7 days after they were received
+  ([Scheduled jobs](scheduled-jobs.md#cleanup)).
+- `meta` holds the last notified release (`notified_release`, below), the time of the last delivery, the key check value
   (`key_check`, below), the GitHub App's slug and the setup login's failed-attempt count (`login_attempts`, format
   and rules in [Setup wizard](setup-wizard.md#failed-attempts-and-the-lock)).
 - The `meta` row `last_delivery` is the time of the last received webhook delivery, as decimal milliseconds since
@@ -88,6 +94,10 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
 - The `meta` row `github_app_slug` is `<appId>:<slug>`: `<appId>` the decimal App ID, `<slug>` matching
   `^[a-z0-9-]{1,100}$`. It is plain text (a slug is public) and is written by the GitHub App step after the three
   credentials were stored; it counts only for the App ID in its value, any other value reads as absent.
+- The `meta` row `notified_release` is the newest Seluna release the release check reported, as `A.B.C` (each part a
+  whole number from 0 to 999,999,999 without leading zeros). Only the release check writes it, in one transaction
+  with the notice's `outbox` row and only while it still holds the value read before, and never lowers it; a value of
+  another form counts as none ([Scheduled jobs](scheduled-jobs.md#release-check)). The reset keeps it.
 - Wrangler keeps its own record of the applied migrations in the table `d1_migrations`; no Seluna code reads or
   writes it.
 - The setup login reads the table names from `sqlite_master` after a failed D1 access to tell a database without its
@@ -210,5 +220,5 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
 
 - How and when migrations are applied to an instance's database: [Deployment](deployment.md#d1-database).
 - What each setting means and how the setup wizard writes it: [Setup wizard](setup-wizard.md).
-- When rows of `deliveries`, `outbox` and `token_cache` are removed: the cron jobs
-  ([`ARCHITECTURE.md`](../ARCHITECTURE.md#cron-triggers)).
+- The jobs that resend, mark `failed` and remove rows and the release check that writes `notified_release`:
+  [Scheduled jobs](scheduled-jobs.md).

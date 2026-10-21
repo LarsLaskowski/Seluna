@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Unsent messages are retried every ten minutes; a message that is still unsent after its fifth attempt is marked `failed` and not retried again.
+- Old rows are cleaned up (recorded deliveries after 7 days, sent or failed messages after 30 days, expired installation tokens).
+- A daily check for a new Seluna release sends a notice with a button to the release page; switch "Notice about a new Seluna release" (on by default).
+
 ## [0.4.0] - 2026-10-21
 
 ### Added
