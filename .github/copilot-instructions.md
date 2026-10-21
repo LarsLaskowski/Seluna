@@ -16,9 +16,12 @@ license to pick either one.
 
 <!-- project:begin overview -->
 Seluna sends a Telegram message when something in the owner's GitHub repositories needs attention (a pull request is
-ready, a review is requested, CI failed, a security alert was opened; draft pull requests trigger nothing). Every user
-runs their own instance: a private GitHub App sends webhooks to a Cloudflare Worker in the user's own account, which
-keeps its state in D1 and delivers through the user's own Telegram bot. See
+ready, a review is requested, CI failed, a security alert was opened). A draft pull request triggers no notification;
+the exceptions are a CI failure in a pull request whose draft state could not be read, reported marked _draft status
+unknown_ ([decision 0027](/docs/decisions/0027-ci-failure-rules-and-the-draft-lookup.md)), and a secret scanning
+alert, which is reported whatever its source ([decision 0028](/docs/decisions/0028-security-alert-rules.md)). Every
+user runs their own instance: a private GitHub App sends webhooks to a Cloudflare Worker in the user's own account,
+which keeps its state in D1 and delivers through the user's own Telegram bot. See
 [`ARCHITECTURE.md`](/docs/ARCHITECTURE.md) for how it fits together.
 <!-- project:end overview -->
 
