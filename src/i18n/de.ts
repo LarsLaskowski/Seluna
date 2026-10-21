@@ -12,4 +12,6 @@ export const DE: MessageTexts = {
   codeScanningAlert: "Code-Scanning-Warnung",
   secretScanningAlert: "Secret-Scanning-Warnung",
   pullRequestContext: (author, head, base) => `von ${author} · ${head} → ${base}`,
+  newSelunaRelease: "Neue Seluna-Version",
+  releaseAvailable: (latest, running) => `Version ${latest} ist verfügbar; diese Instanz läuft mit ${running}.`,
 };

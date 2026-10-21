@@ -59,3 +59,8 @@ export async function writeCachedToken(
 export async function deleteCachedToken(db: D1Database, installationId: number, iv: string): Promise<void> {
   await db.prepare(DELETE_TOKEN).bind(installationId, iv).run();
 }
+
+/** The bounded delete of `token_cache` rows that expired before `expiredBefore`, for a batch. */
+export function expiredTokensDelete(db: D1Database, expiredBefore: Date, limit: number): D1PreparedStatement {
+  throw new Error("Not implemented");
+}

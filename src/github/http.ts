@@ -23,6 +23,11 @@ export function gitHubRequest(method: "GET" | "POST", path: string, version: str
   });
 }
 
+/** GET `path` on the GitHub API with the standard headers, no `Authorization`, no redirects, a 10-second timeout. */
+export function publicGitHubRequest(path: string, version: string): Request {
+  throw new Error("Not implemented");
+}
+
 /** Sends `request` and reads a 2xx answer within the size limit. Never throws. */
 export async function sendGitHub(fetcher: GitHubFetch, request: Request): Promise<GitHubReply> {
   try {

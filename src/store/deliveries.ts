@@ -11,6 +11,11 @@ export interface NewDelivery {
 export type RecordDeliveryResult =
   { readonly kind: "recorded"; readonly outboxIds: readonly number[] } | { readonly kind: "duplicate" };
 
+/** The bounded delete of `deliveries` rows received before `receivedBefore`, for a batch. */
+export function oldDeliveriesDelete(db: D1Database, receivedBefore: Date, limit: number): D1PreparedStatement {
+  throw new Error("Not implemented");
+}
+
 /** Whether a delivery with `id` is recorded. D1 errors are not caught. */
 export async function isKnownDelivery(db: D1Database, id: string): Promise<boolean> {
   const row = await db.prepare("SELECT 1 AS known FROM deliveries WHERE id = ?1").bind(id).first();

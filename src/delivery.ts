@@ -1,6 +1,7 @@
 import { isQuietTime } from "./quiet-hours";
 import type { NotificationSettings } from "./settings";
 import { markAttempted, markSent } from "./store/outbox";
+import type { AttemptOutcome } from "./store/outbox";
 import { readSetting, TELEGRAM_CHAT_ID_SETTING } from "./store/settings";
 import { botTokenFromEnv, CHAT_ID_SECRET_NAME, isChatIdSecretSet, parseChatId, sendNotification } from "./telegram";
 import type { SendNotificationResult, TelegramFetch } from "./telegram";
@@ -16,10 +17,8 @@ export interface PendingMessage {
 export type DeliveryResult =
   "sent" | "rate-limited" | "token-rejected" | "failed" | "no-token" | "no-chat" | "store-failed";
 
-export interface DeliveryLogEntry {
-  readonly outbox: number;
-  readonly result: DeliveryResult;
-}
+export type DeliveryLogEntry =
+  { readonly outbox: number; readonly result: DeliveryResult } | { readonly outbox: number; readonly status: "failed" };
 
 /** What sending reads from the settings: the button's language and the quiet hours with their time zone. */
 export type DeliverySettings = Pick<NotificationSettings, "language" | "timeZone" | "quietHours">;
@@ -74,14 +73,20 @@ function quietAtSend(settings: DeliverySettings, deps: DeliveryDeps): boolean {
   }
 }
 
-/** Sends one row, records the attempt and returns the result to log. Never rejects. */
+/** What sending one row came to: the result to log and, when the attempt was counted, the row's status afterwards. */
+interface DeliveryOutcome {
+  readonly result: DeliveryResult;
+  readonly status: AttemptOutcome | undefined;
+}
+
+/** Sends one row, records the attempt and returns the outcome to log. Never rejects. */
 async function deliverOne(
   message: PendingMessage,
   target: { readonly token: string; readonly chatId: number },
   settings: DeliverySettings,
   buttonText: string,
   deps: DeliveryDeps,
-): Promise<DeliveryResult> {
+): Promise<DeliveryOutcome> {
   let sent: SendNotificationResult;
   try {
     const silent = message.silent || quietAtSend(settings, deps);
@@ -98,13 +103,12 @@ async function deliverOne(
   try {
     if (sent === "sent") {
       await markSent(deps.db, message.id);
-    } else {
-      await markAttempted(deps.db, message.id);
+      return { result: sent, status: undefined };
     }
+    return { result: sent, status: await markAttempted(deps.db, message.id) };
   } catch {
-    return "store-failed";
+    return { result: "store-failed", status: undefined };
   }
-  return sent;
 }
 
 /** Delivers `messages[index]` and then the rows after it, one after the other. Never rejects. */
@@ -120,10 +124,15 @@ async function deliverFrom(
   if (message === undefined) {
     return;
   }
-  const result =
-    target.kind === "ready" ? await deliverOne(message, target, settings, buttonText, deps) : target.result;
+  const outcome: DeliveryOutcome =
+    target.kind === "ready"
+      ? await deliverOne(message, target, settings, buttonText, deps)
+      : { result: target.result, status: undefined };
   try {
-    deps.log({ outbox: message.id, result });
+    deps.log({ outbox: message.id, result: outcome.result });
+    if (outcome.status === "failed") {
+      deps.log({ outbox: message.id, status: "failed" });
+    }
   } catch {
     // A failing log sink must not stop the next row.
   }

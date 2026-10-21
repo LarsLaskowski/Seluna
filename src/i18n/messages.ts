@@ -25,6 +25,10 @@ export interface MessageTexts {
   readonly secretScanningAlert: string;
   /** Line 3 of a pull request notification: the author and the branches. */
   readonly pullRequestContext: (author: string, head: string, base: string) => string;
+  /** Title of the notice that a new Seluna release is available. */
+  readonly newSelunaRelease: string;
+  /** Line 2 of the release notice: the latest and the running version, as `A.B.C`. */
+  readonly releaseAvailable: (latest: string, running: string) => string;
 }
 
 export const MESSAGE_TEXTS: Readonly<Record<Language, MessageTexts>> = { en: EN, de: DE };
