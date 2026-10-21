@@ -1,16 +1,19 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import codeScanningCreated from "../test/fixtures/code_scanning_alert/created.json";
+import dependabotCreated from "../test/fixtures/dependabot_alert/created.json";
 import { body as pingBody, headers as pingHeaders } from "../test/fixtures/ping/form-delivery.json";
 import opened from "../test/fixtures/pull_request/opened.json";
 import openedDraft from "../test/fixtures/pull_request/opened-draft.json";
 import readyForReview from "../test/fixtures/pull_request/ready_for_review.json";
 import reviewRequested from "../test/fixtures/pull_request/review_requested.json";
 import reviewRequestedDraft from "../test/fixtures/pull_request/review_requested-draft.json";
+import secretCreated from "../test/fixtures/secret_scanning_alert/created.json";
 import failedPullRequestRun from "../test/fixtures/workflow_run/completed-failure-pull-request.json";
 import successfulDefaultBranchRun from "../test/fixtures/workflow_run/completed-success-default-branch.json";
 import type { DraftLookup } from "./draft-lookup";
 import { RULES } from "./rules/registry";
-import type { Notification, Rule } from "./rules/rule";
+import type { Notification, Rule, WebhookPayload } from "./rules/rule";
 import { readLastDelivery } from "./store/meta";
 import { writeSetting } from "./store/settings";
 import type { TelegramFetch } from "./telegram";
@@ -18,6 +21,7 @@ import { parseWebhookPayload, processWebhook } from "./webhook";
 import type { SignedDelivery, WebhookDeps, WebhookOutcome } from "./webhook";
 import { applyMigrations, migrationTestDb } from "../test/d1";
 import { ABSENT, variant } from "../test/pull-request";
+import { SECRET, SECRET_SCANNING_READ_PATHS, replaceStringsOutside, withFields } from "../test/security-alert";
 import { jsonAnswer, telegramDouble } from "../test/telegram";
 import type { RecordedRequest, TelegramAnswers } from "../test/telegram";
 
@@ -652,5 +656,149 @@ describe("processWebhook with the CI failure rules", () => {
     expect(await storedTexts(), "stored texts").toEqual([
       "<b>CI failed on a&lt;b&gt;&amp;c</b> · example-owner/example-repo\nxy\na&lt;b&gt;&amp;c · &lt;i&gt;&amp;amp;",
     ]);
+  });
+});
+
+const DEPENDABOT_TEXT =
+  "<b>Dependabot alert</b> · example-owner/example-repo #1\nInsertion of Sensitive Information into Log File in ansible\nmedium · ansible";
+const DEPENDABOT_BUTTON = "https://github.com/example-owner/example-repo/security/dependabot/1";
+const CODE_SCANNING_TEXT =
+  '<b>Code scanning alert</b> · example-owner/example-repo #42\nArbitrary file write during zip extraction ("Zip Slip")\nerror · js/zipslip';
+const CODE_SCANNING_BUTTON = "https://github.com/example-owner/example-repo/code-scanning/42";
+const SECRET_TEXT =
+  "<b>Secret scanning alert</b> · example-owner/example-repo #42\nMailchimp API Key\nmailchimp_api_key";
+const SECRET_BUTTON = "https://github.com/example-owner/example-repo/security/secret-scanning/42";
+
+/** A signed delivery of a security alert event whose JSON body is `payload`. */
+function alertDelivery(event: string, payload: object, delivery = DELIVERY_ID): SignedDelivery {
+  return jsonDelivery(JSON.stringify(payload), { event, delivery });
+}
+
+async function storedMessages(): Promise<unknown[]> {
+  const rows = await env.DB.prepare("SELECT text, button_url FROM outbox ORDER BY id").all();
+  return rows.results.map((row) => [row.text, row.button_url]);
+}
+
+describe("processWebhook with the security alert rules", () => {
+  it.each<{ event: string; payload: WebhookPayload; text: string; button: string }>([
+    { event: "dependabot_alert", payload: dependabotCreated, text: DEPENDABOT_TEXT, button: DEPENDABOT_BUTTON },
+    {
+      event: "code_scanning_alert",
+      payload: codeScanningCreated,
+      text: CODE_SCANNING_TEXT,
+      button: CODE_SCANNING_BUTTON,
+    },
+    { event: "secret_scanning_alert", payload: secretCreated, text: SECRET_TEXT, button: SECRET_BUTTON },
+  ])(
+    "processWebhook stores the message of the documented created $event alert",
+    async ({ event, payload, text, button }) => {
+      const { deps } = harness({ rules: RULES });
+
+      const outcome = await processWebhook(alertDelivery(event, payload), deps);
+
+      expect(outcome.status, "status").toBe(202);
+      expect(outcome.decision, "decision").toBe("reported");
+      expect(outcome.repository, "repository").toBe("example-owner/example-repo");
+      expect(await storedMessages(), "stored messages").toEqual([[text, button]]);
+    },
+  );
+
+  it.each<{ event: string; payload: WebhookPayload; rule: string }>([
+    { event: "dependabot_alert", payload: dependabotCreated, rule: "dependabot_alert" },
+    { event: "code_scanning_alert", payload: codeScanningCreated, rule: "code_scanning_alert" },
+    { event: "secret_scanning_alert", payload: secretCreated, rule: "secret_scanning_alert" },
+  ])(
+    "processWebhook decides disabled and stores no row for a created $event with its switch off",
+    async ({ event, payload, rule }) => {
+      await switchOff(rule);
+      const { deps, waitUntil } = harness({ rules: RULES });
+
+      const outcome = await processWebhook(alertDelivery(event, payload), deps);
+
+      expect(outcome.status, "status").toBe(202);
+      expect(outcome.decision, "decision").toBe("disabled");
+      expect(await count("outbox"), "outbox rows").toBe(0);
+      expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+    },
+  );
+
+  it("processWebhook decides no-match for a dismissed Dependabot alert", async () => {
+    const { deps } = harness({ rules: RULES });
+
+    const outcome = await processWebhook(
+      alertDelivery("dependabot_alert", variant(dependabotCreated, ["action"], "dismissed")),
+      deps,
+    );
+
+    expect(outcome.decision, "decision").toBe("no-match");
+    expect(outcome.action, "action").toBe("dismissed");
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it("processWebhook escapes an advisory summary with <, & and a line break and keeps it on one line", async () => {
+    const payload = variant(dependabotCreated, ["alert", "security_advisory", "summary"], "a <b> & c\nd");
+    const { deps } = harness({ rules: RULES });
+
+    await processWebhook(alertDelivery("dependabot_alert", payload), deps);
+
+    expect(await storedMessages(), "stored messages").toEqual([
+      [
+        "<b>Dependabot alert</b> · example-owner/example-repo #1\na &lt;b&gt; &amp; c d\nmedium · ansible",
+        DEPENDABOT_BUTTON,
+      ],
+    ]);
+  });
+
+  it("processWebhook stores the same outbox text and button URL and returns the same log fields for a secret scanning delivery with and without a secret", async () => {
+    const leaking = withFields(secretCreated, [
+      [["alert", "secret"], SECRET],
+      [["alert", "resolution_comment"], SECRET],
+      [
+        ["alert", "locations_url"],
+        `https://api.github.com/repos/example-owner/example-repo/secret-scanning/alerts/42/locations?q=${SECRET}`,
+      ],
+      [["alert", "location"], { path: SECRET, details: { blob_sha: SECRET } }],
+    ]);
+    const log = vi.fn<WebhookDeps["log"]>();
+    const { deps, waitUntil, telegram } = harness({ rules: RULES, log });
+
+    const plainOutcome = await processWebhook(
+      alertDelivery("secret_scanning_alert", secretCreated, "delivery-plain"),
+      deps,
+    );
+    const leakingOutcome = await processWebhook(
+      alertDelivery("secret_scanning_alert", leaking, "delivery-leaking"),
+      deps,
+    );
+    await settled(waitUntil);
+
+    const stored = await storedMessages();
+    expect(stored, "stored messages").toEqual([
+      [SECRET_TEXT, SECRET_BUTTON],
+      [SECRET_TEXT, SECRET_BUTTON],
+    ]);
+    expect(leakingOutcome, "log fields of the delivery with the secret").toEqual(plainOutcome);
+    expect(
+      JSON.stringify([stored, leakingOutcome, log.mock.calls, telegram.requests]),
+      "everything stored, logged or sent",
+    ).not.toContain(SECRET);
+  });
+
+  it("processWebhook stores the same outbox text and button URL for a secret scanning delivery whose other strings are all the secret", async () => {
+    const everywhere = replaceStringsOutside(secretCreated, SECRET_SCANNING_READ_PATHS, SECRET);
+    const log = vi.fn<WebhookDeps["log"]>();
+    const { deps, waitUntil, telegram } = harness({ rules: RULES, log });
+
+    const outcome = await processWebhook(alertDelivery("secret_scanning_alert", everywhere), deps);
+    await settled(waitUntil);
+
+    const stored = await storedMessages();
+    expect(stored, "stored messages").toEqual([[SECRET_TEXT, SECRET_BUTTON]]);
+    expect(outcome.repository, "repository").toBe("example-owner/example-repo");
+    expect(outcome.action, "action").toBe("created");
+    expect(
+      JSON.stringify([stored, outcome, log.mock.calls, telegram.requests]),
+      "everything stored, logged or sent",
+    ).not.toContain(SECRET);
   });
 });

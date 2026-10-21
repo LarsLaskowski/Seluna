@@ -59,7 +59,7 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
   also holds a draft check: the pull request (owner, repository name, number) and the title to use when its draft
   state is unknown.
 - The rules run in the order of the switches in the settings. The pull request rules and the CI failure rules are
-  below; the rules for security alerts (#17) follow.
+  below, then the security alert rules.
 
 #### Pull request rules
 
@@ -134,6 +134,54 @@ Both report only a delivery whose `action` is `completed` and whose `workflow_ru
   run (its `head_repository` and its empty `pull_requests` follow GitHub's documentation) and a re-run. The rules read
   only fields both real samples carry.
 
+#### Security alert rules
+
+Three rules report the events `dependabot_alert`, `code_scanning_alert` and `secret_scanning_alert` (decision
+[0028](../decisions/0028-security-alert-rules.md)). No new permission, event or setting: the three switches exist, on by
+default.
+
+| Switch id               | Event                   | Reported `action`                           | English title           | German title              |
+| ----------------------- | ----------------------- | ------------------------------------------- | ----------------------- | ------------------------- |
+| `dependabot_alert`      | `dependabot_alert`      | `created`, `reopened`                       | `Dependabot alert`      | `Dependabot-Warnung`      |
+| `code_scanning_alert`   | `code_scanning_alert`   | `created`, `reopened`, `appeared_in_branch` | `Code scanning alert`   | `Code-Scanning-Warnung`   |
+| `secret_scanning_alert` | `secret_scanning_alert` | `created`, `reopened`                       | `Secret scanning alert` | `Secret-Scanning-Warnung` |
+
+Every other action (for example `dismissed`, `fixed`, `resolved`, `auto_reopened`, `reopened_by_user`, or one GitHub
+adds later) triggers nothing. A new and a reopened alert give the same message; the alert's `state` and the `sender` are
+not read.
+
+- **Fields shown.** Line 1 is the title, the repository (`repository.full_name`) and `alert.number`; the button is
+  `alert.html_url`. Lines 2 and 3 are GitHub's own words, the same in both languages, and a value that is missing,
+  `null`, not a string or blank falls back as listed; an empty line is left out and the alert is still reported. An
+  unknown severity is shown as sent.
+
+  | Event                   | Line 2                            | Line 3                                                                                                                                                                                              |
+  | ----------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `dependabot_alert`      | `alert.security_advisory.summary` | severity `alert.security_advisory.severity` (fallback `alert.security_vulnerability.severity`), `·`, package `alert.dependency.package.name` (fallback `alert.security_vulnerability.package.name`) |
+  | `code_scanning_alert`   | `alert.rule.description`          | severity `alert.rule.security_severity_level` (fallback `alert.rule.severity`), `·`, rule `alert.rule.id`                                                                                           |
+  | `secret_scanning_alert` | `alert.secret_type_display_name`  | `alert.secret_type`                                                                                                                                                                                 |
+
+- **Required fields and shape.** A delivery is reported only when `alert` is an object, `alert.number` a whole number
+  from 1 to 2^53 − 1, and `alert.html_url` and `repository.full_name` strings; in addition a Dependabot alert needs
+  `alert.security_advisory` as an object, a code scanning alert `alert.rule` as an object and `ref` and
+  `repository.default_branch` as strings, a secret scanning alert `alert.secret_type` as a string. Anything else gives
+  `no-match`; the event header is not signed, so this also keeps out a payload of another event.
+- **Code scanning: default branch only.** `created`, `reopened` and `appeared_in_branch` are reported only when `ref`
+  is `refs/heads/<repository.default_branch>` or exactly `<repository.default_branch>`; a pull request ref
+  (`refs/pull/<n>/merge`), another branch, a tag, an empty or missing `ref` triggers nothing. Each alert is thus reported
+  once, when it reaches the default branch, and a draft pull request triggers nothing.
+- **Secrets.** The secret scanning rule reads exactly `alert.number`, `alert.html_url`, `alert.secret_type`,
+  `alert.secret_type_display_name` and `repository.full_name`. No part of a secret reaches an outbox row, a message or
+  a log entry, whether or not the payload carries it (`alert.secret`, `resolution_comment`, a location field): a field
+  that is not read cannot be shown.
+- **Whatever its source.** A secret scanning alert names no branch or pull request, so it is reported even when the
+  secret was pushed to a draft pull request or written into its text. This is the second exception to "a draft pull
+  request triggers no notification" ([Draft lookup](#draft-lookup)). Dependabot alerts stay under the guarantee.
+- **Documented, not observed.** Every field path comes from GitHub's OpenAPI webhook schemas, and the fixtures are
+  reference-built from them: no real delivery of these events was observed. The residual risk (accepted in decision 0028) is a path, a `ref` format, an action name or the presence of `alert.secret` that differs in real deliveries;
+  because only an allow-list of fields is read, such a difference can shorten a line or silence an alert, never leak a
+  secret.
+
 #### Draft lookup
 
 - After the rules, each notification with a draft check (only the CI failure in a pull request, so at most one per
@@ -148,8 +196,9 @@ unknown)` (German `CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)`).
   delivery not answered within 10 seconds. A lookup cut off this way may still finish in the background; its result
   is not used. The draft checks of one delivery run concurrently, each cut off after 8 seconds, so the 8-second budget
   holds however many rules set a draft check.
-- This is the one exception to "a draft pull request triggers no notification": a pull request whose draft state
-  could not be read is reported, marked _draft status unknown_.
+- This is one of the two exceptions to "a draft pull request triggers no notification": a pull request whose draft
+  state could not be read is reported, marked _draft status unknown_ (the other: a secret scanning alert, [Security
+  alert rules](#security-alert-rules)).
 - When the lookup drops the only notification, the decision is `no-match`.
 - A delivery whose id is already recorded on arrival causes no lookup. Two deliveries of one id processed at once may
   each make a lookup; only one of them is stored.
@@ -191,7 +240,9 @@ A notification is rendered once, when its row is written, and stored as the row'
   processed.
 - The tables hold the titles and line 3 of the pull request rules ([Pull request rules](#pull-request-rules)), and
   the titles of the CI failure rules with the draft-unknown title ([CI failure rules](#ci-failure-rules),
-  [Draft lookup](#draft-lookup)).
+  [Draft lookup](#draft-lookup)), and the titles of the security alert rules
+  ([Security alert rules](#security-alert-rules)): _Dependabot alert_, _Code scanning alert_, _Secret scanning alert_
+  (German _Dependabot-Warnung_, _Code-Scanning-Warnung_, _Secret-Scanning-Warnung_).
 - The button reads _Open on GitHub_ in English and _Auf GitHub öffnen_ in German. Its language is the notification
   language at the time the row is sent, so a row still pending when the owner switches the language keeps its text
   and gets the button in the new language.
@@ -285,6 +336,9 @@ A notification is rendered once, when its row is written, and stored as the row'
 - [`decisions/0027-ci-failure-rules-and-the-draft-lookup.md`](../decisions/0027-ci-failure-rules-and-the-draft-lookup.md)
   — the two CI failure rules, the default branch told from a fork's branch, the draft check resolved by the processing
   within 8 seconds, the message sent with _draft status unknown_ on a failed lookup.
+- [`decisions/0028-security-alert-rules.md`](../decisions/0028-security-alert-rules.md) — the three security alert
+  rules, code scanning on the default branch only, secret scanning outside the draft guarantee, the field allow-list
+  that keeps a secret out of rows, messages and logs.
 - [`decisions/0025-quiet-hours-decided-at-sending.md`](../decisions/0025-quiet-hours-decided-at-sending.md) — quiet
   hours applied at each send rather than when the row is written, one clock reading per row, wall-clock times.
 - [`decisions/0008-delivery-through-a-d1-outbox.md`](../decisions/0008-delivery-through-a-d1-outbox.md) — the

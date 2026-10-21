@@ -21,7 +21,7 @@
 
 ## Why Seluna
 
-Pull requests wait for a review, a build turns red, a security alert opens, and you only notice when you happen to look at GitHub. Seluna turns those moments into a notification on your phone, so the state of your repositories comes to you. Drafts stay quiet.
+Pull requests wait for a review, a build turns red, a security alert opens, and you only notice when you happen to look at GitHub. Seluna turns those moments into a notification on your phone, so the state of your repositories comes to you. Drafts stay quiet, except for a leaked secret.
 
 - **Yours alone.** Every user runs their own instance. A private GitHub App sends webhooks to a Cloudflare Worker in your own account, which keeps its state in D1 and delivers through a messenger of your own, today a Telegram bot. No data passes through a third party.
 - **Your messenger.** Telegram works today. ntfy, Gotify, Matrix and Discord are planned, and you will be able to switch between the ones you have set up.
@@ -32,16 +32,16 @@ Pull requests wait for a review, a build turns red, a security alert opens, and 
 
 ## What you get notified about
 
-| Event                                                          | Status            |
-| -------------------------------------------------------------- | ----------------- |
-| A pull request is opened                                       | available         |
-| A draft pull request is marked ready for review                | available         |
-| A review is requested                                          | available         |
-| CI failed on the default branch or in a pull request           | available         |
-| A Dependabot, code scanning or secret scanning alert is opened | planned for 0.4.0 |
-| A new Seluna release is available                              | planned for 0.5.0 |
+| Event                                                                                                 | Status            |
+| ----------------------------------------------------------------------------------------------------- | ----------------- |
+| A pull request is opened                                                                              | available         |
+| A draft pull request is marked ready for review                                                       | available         |
+| A review is requested                                                                                 | available         |
+| CI failed on the default branch or in a pull request                                                  | available         |
+| A Dependabot, code scanning or secret scanning alert is opened (code scanning: on the default branch) | available         |
+| A new Seluna release is available                                                                     | planned for 0.5.0 |
 
-Each message names the repository and the case, shows the title and the context (for a pull request its author and branches, for a failed CI run the branch and the first line of the commit message) and carries a button that opens the item on GitHub. Draft pull requests trigger nothing; when GitHub cannot tell in time whether a pull request with a failed CI run is a draft, the message says so. Quiet hours deliver messages without sound instead of holding them back.
+Each message names the repository and the case, shows the title and the context (for a pull request its author and branches, for a failed CI run the branch and the first line of the commit message, for a security alert its name and severity or type) and carries a button that opens the item on GitHub. Draft pull requests trigger nothing; a leaked secret is reported even when it was pushed to a draft pull request, and the secret itself is never shown. When GitHub cannot tell in time whether a pull request with a failed CI run is a draft, the message says so. Quiet hours deliver messages without sound instead of holding them back.
 
 ## How it works
 
@@ -83,7 +83,7 @@ The switches for notifications that arrive in a later release are already there;
 
 ## Status
 
-Seluna is in active development and can already notify you about pull requests and failed CI runs. The path to 1.0.0 is planned release by release:
+Seluna is in active development and can already notify you about pull requests, failed CI runs and security alerts. The path to 1.0.0 is planned release by release:
 
 | Release         | What it adds                                                                            |
 | --------------- | --------------------------------------------------------------------------------------- |
