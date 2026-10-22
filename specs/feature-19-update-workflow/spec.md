@@ -3,11 +3,6 @@
 Source: Issue #19
 Status: Draft
 
-> Pending the Product Manager: open question Q1 (how the update gets past GitHub's refusal to let a workflow's own
-> token change files under `.github/workflows/`) is escalated. This draft is written for the Lead's recommended
-> answer (the copy keeps its own workflow files); scenarios and criteria that depend on the answer are marked
-> _(Q1)_.
-
 ## Problem
 
 Every owner runs an independent copy of `LarsLaskowski/Seluna` that the Deploy to Cloudflare button created in the
@@ -43,11 +38,19 @@ brings never reach their D1 database.
   checkbox **Allow a new major version** left off (its default), then the run fails with
   `Release vY is a new major version (copy on vX). Read its release notes and docs/update.md, then run the workflow again with "Allow a new major version" checked.`
   and changes nothing; started with the checkbox on, it updates as in S1.
-- S7 _(Q1)_: Given a release that changes files under `.github/workflows/` (as every release from `v0.4.0` to
-  `v0.5.0` does: `codeql.yml`, `release.yml` and the new `update.yml`), when the owner runs the workflow, then
-  everything else of the release is applied as in S1, the copy's own workflow files stay as they were, and the
-  summary lists the workflow files the release changed with a pointer to `docs/update.md`, which says when and how to
-  take one over by hand.
+- S7: Given a release `vY` that adds, changes or removes files under `.github/workflows/` compared with `vX` (as the
+  release after `v0.4.0` does: `codeql.yml` and `release.yml` changed, `update.yml` added), when the owner runs the
+  workflow, then everything else of the release is applied as in S1, every file under `.github/workflows/` of the
+  copy stays exactly as it was (none added, changed or removed), and the run still ends green with the summary of S1
+  followed by
+  `The release changed these workflow files, which your copy keeps as they are: <file>, <file>. See docs/update.md, "Workflow files".`
+  The list names each such file whose content in the copy differs from the release's (a file the owner already took
+  over is not listed); when none differs, the line is left out.
+- S8: Given the summary of S7 names `update.yml`, when the owner follows `docs/update.md` (_Workflow files_), then the
+  guide has them open the file in the release on GitHub, copy its content and paste it over the copy's file in
+  GitHub's web interface (**Edit file → Commit changes** on `main`), without a command line and without a token; the
+  next run uses the new workflow. The guide says the same steps take over any other listed file, and that the other
+  workflow files only serve the original repository's own checks and releases, so keeping them is safe.
 
 ## Errors and edge cases
 
@@ -85,11 +88,15 @@ brings never reach their D1 database.
 - E11: A release removes or renames a file the copy changed locally: reported as a conflict as in E1.
 - E12: GitHub Actions is disabled in the copy: there is no **Run workflow** button; `docs/update.md` says how to
   enable Actions for the copy.
+- E13: The copy changed a file under `.github/workflows/` locally, and the release changes the same file: no
+  conflict is reported (the copy's file is kept as in S7), and the file is listed in the summary line of S7.
+- E14: A release removes a workflow file, or the copy has a workflow file the release never had: the copy's file
+  stays; a file the release removed is listed in the summary line of S7, one the release never had is not.
 
 ## Non-functional requirements
 
-- Security: the run gets only the permission to write the copy's contents, no other secret or credential _(Q1: no
-  new credential under the recommended answer)_; it installs nothing and runs no code of the release (no `npm`
+- Security: the run gets only the permission to write the copy's contents, no other secret or credential (no
+  token the owner creates, no Actions secret), and never pushes a change under `.github/workflows/`; it installs nothing and runs no code of the release (no `npm`
   install, no project script), so a release's code first runs in Workers Builds, as it does for any push to `main`.
 - Source: only the latest full release of `LarsLaskowski/Seluna` (never a pre-release, a draft or upstream `main`),
   the same release the daily release check reports
@@ -127,14 +134,18 @@ brings never reach their D1 database.
 - [ ] AC8: The run never force-pushes; a `main` that changed during the run, a run started on another branch, or a
   push GitHub refuses ends the run red with the message of E5, E7 or E8 and leaves `main` as it was; two runs never
   run at the same time (E5, E6, E7, E8).
-- [ ] AC9: _(Q1)_ A release that changes files under `.github/workflows/` is applied without them: the copy's
-  workflow files are unchanged after the run and the summary lists each workflow file the release changed (S7).
+- [ ] AC9: A release that adds, changes or removes files under `.github/workflows/` is applied without them: the
+  run ends green, every file under `.github/workflows/` of the copy is byte for byte as before, no conflict is
+  reported for a workflow file, and the summary line of S7 lists exactly the workflow files the release added,
+  changed or removed since `vX` whose content in the copy differs from the release's, and is left out when there is
+  none (S7, E13, E14).
 - [ ] AC10: A copy whose Git history shares no commit with the upstream repository is updated with the same results
   as AC1 and AC4 (E9).
 - [ ] AC11: `docs/update.md` explains, without a command line: starting the update; adding the workflow to a copy
   on `v0.4.0` or earlier; conflicts and how to resolve them on GitHub; a new major version; checking the build and
-  the deploy command afterwards; the permission and Actions settings the run needs; and (Q1) taking over a changed
-  workflow file. `docs/setup.md` (_Updates_) links it (S5, E10, E12).
+  the deploy command afterwards; the permission and Actions settings the run needs; and, in a section _Workflow
+  files_, why the copy keeps its workflow files and how to take one over by hand in GitHub's web interface, `update.yml`
+  first. `docs/setup.md` (_Updates_) links it (S5, S8, E10, E12).
 
 ## Out of scope
 
@@ -145,6 +156,8 @@ brings never reach their D1 database.
 - A link from the Telegram release notice to `docs/update.md` (the notice's text is decision 0030's).
 - Resolving a conflict for the owner.
 - A German version of `docs/update.md` (issue #20 covers the translated guides).
+- Applying workflow files with a token the owner creates and saves as an Actions secret (a possible later add-on,
+  see Q1); the workflow never changes `.github/workflows/` itself.
 
 ## Open questions
 
@@ -154,9 +167,10 @@ brings never reach their D1 database.
   `.github/workflows` needs the _Workflows_ permission). The update from `v0.4.0` to the next release already changes
   `codeql.yml` and `release.yml` and adds `update.yml` (`git diff --stat v0.4.0..main -- .github/workflows`), so the
   issue's "merge and push" cannot work with that token. How should the update treat workflow files?
-  Answered: not yet — escalated to the Product Manager. The draft is written for the Lead's recommendation (the copy
-  keeps its own workflow files; S7, AC9); the alternatives are an owner-created token saved as an Actions secret, or
-  both.
+  Answered: by the Product Manager — the copy keeps its own workflow files; the update applies everything else and
+  lists the workflow files the release changed, and `docs/update.md` shows how to copy one over by hand, `update.yml`
+  above all (S7, S8, E13, E14, AC9, AC11). No token and no extra setup; an owner-created token saved as an Actions
+  secret may follow later as an add-on (out of scope).
 - Q2: Does a copy the button created share Git history with `LarsLaskowski/Seluna`, so a plain merge has a common
   base? Answered: not documented — Cloudflare's `workers/platform/deploy-buttons` (cloudflare-docs `ef31931`) says
   only that the button "clones your source repository" and updates the Wrangler configuration with the ids of new
@@ -182,8 +196,8 @@ brings never reach their D1 database.
 ## Area documents
 
 - [`docs/areas/deployment.md`](../../docs/areas/deployment.md): a new section _Update_ — the workflow, who starts
-  it, the release it takes (latest full release, `vA.B.C`), what it keeps (local changes, the copy's workflow files
-  under Q1's answer), the original-repository and other-branch cases, the major-version checkbox, the conflict and
+  it, the release it takes (latest full release, `vA.B.C`), what it keeps (local changes, and every file under
+  `.github/workflows/`, listed in the summary when the release changed it), the original-repository and other-branch cases, the major-version checkbox, the conflict and
   the other failures with their messages, no force-push and one run at a time; under _Limits and errors_ the build
   that fails after an update. Its *Scope* and its index row in `docs/areas/README.md` name the update of a copy.
 - `docs/update.md` (user guide, not an area document) and `docs/setup.md` (_Updates_) as AC11 lists them;
