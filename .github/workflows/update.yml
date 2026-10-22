@@ -133,7 +133,8 @@ jobs:
           join_paths() {
             local sorted=() path joined=''
             if (($# > 0)); then
-              mapfile -d '' -t sorted < <(printf '%s\0' "$@" | sort -zu)
+              printf '%s\0' "$@" | sort -zu > "$work/sorted"
+              mapfile -d '' -t sorted < "$work/sorted"
             fi
             for path in "${sorted[@]}"; do
               if [[ -n $joined ]]; then
@@ -295,7 +296,8 @@ jobs:
           fi
 
           if [[ -z $base ]]; then
-            mapfile -t roots < <(git rev-list --max-parents=0 "$start")
+            git rev-list --max-parents=0 "$start" > "$work/roots"
+            mapfile -t roots < "$work/roots"
             if ((${#roots[@]} != 1)); then
               fail "$E15"
             fi
@@ -401,7 +403,8 @@ jobs:
 
           # 14. The workflow files of the copy the release changed or removed (read before the push, printed after it).
           workflow_files=()
-          mapfile -d '' -t copy_workflows < <(git ls-tree -r -z --name-only "$start" -- .github/workflows)
+          git ls-tree -r -z --name-only "$start" -- .github/workflows > "$work/copy-workflows"
+          mapfile -d '' -t copy_workflows < "$work/copy-workflows"
           for workflow_path in "${copy_workflows[@]}"; do
             copy_blob=$(git rev-parse "${start}:${workflow_path}")
             release_blob=$(git rev-parse -q --verify "refs/seluna/${tag}:${workflow_path}" 2> /dev/null || true)
