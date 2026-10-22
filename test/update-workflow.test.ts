@@ -49,7 +49,8 @@ const DOC_A = "docs/a.md";
 const DOC_B = "docs/b.md";
 const MIGRATION = "migrations/0002_add.sql";
 const CODEQL = ".github/workflows/codeql.yml";
-const RELEASE_WORKFLOW = ".github/workflows/release.yml";
+const NEW_WORKFLOW = ".github/workflows/new.yml";
+const LOCK = "package-lock.json";
 const OLD_WORKFLOW = ".github/workflows/old.yml";
 const UPDATE_WORKFLOW = ".github/workflows/update.yml";
 const OWN_WORKFLOW = ".github/workflows/mine.yml";
@@ -66,8 +67,27 @@ function numbered(prefix: string, changes: Readonly<Record<number, string>> = {}
   return `${lines.join("\n")}\n`;
 }
 
-function packageText(version: string): string {
-  return `{\n  "name": "seluna",\n  "version": "${version}",\n  "private": true\n}\n`;
+/** The `name` line is directly above the `version` line, as in the repository's `package.json`. */
+function packageText(version: string, name = "seluna"): string {
+  return `{\n  "name": "${name}",\n  "version": "${version}",\n  "private": true\n}\n`;
+}
+
+/** A lock file with the package name and version at the top and in the root package. */
+function lockText(version: string): string {
+  return [
+    "{",
+    '  "name": "seluna",',
+    `  "version": "${version}",`,
+    '  "lockfileVersion": 3,',
+    '  "packages": {',
+    '    "": {',
+    '      "name": "seluna",',
+    `      "version": "${version}"`,
+    "    }",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
 }
 
 interface WranglerParts {
@@ -77,9 +97,15 @@ interface WranglerParts {
   readonly databaseId?: string;
 }
 
-/** A `wrangler.jsonc` with the lines the button edits (`name`, `database_name`, `database_id`) and `compatibility_date`. */
+/**
+ * A `wrangler.jsonc` with the lines the button edits (`name`, `database_name`) and `compatibility_date`; the button
+ * appends `database_id` to the `migrations_dir` line.
+ */
 function wranglerText(parts: WranglerParts = {}): string {
-  const databaseId = parts.databaseId === undefined ? [] : [`      "database_id": "${parts.databaseId}",`];
+  const migrations =
+    parts.databaseId === undefined
+      ? ['      "migrations_dir": "migrations"']
+      : ['      "migrations_dir": "migrations",', `      "database_id": "${parts.databaseId}"`];
   return [
     "{",
     `  "name": "${parts.name ?? "seluna"}",`,
@@ -91,8 +117,7 @@ function wranglerText(parts: WranglerParts = {}): string {
     "    {",
     '      "binding": "DB",',
     `      "database_name": "${parts.databaseName ?? "seluna"}",`,
-    ...databaseId,
-    '      "migrations_dir": "migrations"',
+    ...migrations,
     "    }",
     "  ]",
     "}",
@@ -100,14 +125,29 @@ function wranglerText(parts: WranglerParts = {}): string {
   ].join("\n");
 }
 
-/** What the button changes in its copy: a renamed `name` and `database_name` and the inserted `database_id`. */
-const BUTTON_PARTS: WranglerParts = { name: "my-seluna", databaseName: "my-seluna-db", databaseId: "1234-abcd" };
-const BUTTON_EDITS: FileTree = { [WRANGLER]: wranglerText(BUTTON_PARTS) };
+/** What the button writes (values anonymized from a real copy): the names and the generated `database_id`. */
+const BUTTON_NAME = "my-seluna";
+const BUTTON_PARTS: WranglerParts = {
+  name: BUTTON_NAME,
+  databaseName: "my_seluna_db",
+  databaseId: "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f",
+};
+
+/** The name edits of the button: package name and Wrangler names; `package-lock.json` stays as it is. */
+function nameEdits(version: string): FileTree {
+  return { [PACKAGE_JSON]: packageText(version, BUTTON_NAME), [WRANGLER]: wranglerText(BUTTON_PARTS) };
+}
+
+/** A copy as the button makes it: the name edits and no workflow files (the sample's `.github/workflows` is missing). */
+function buttonEdits(version: string): FileTree {
+  return { ...nameEdits(version), [CODEQL]: null, [UPDATE_WORKFLOW]: null, [OLD_WORKFLOW]: null };
+}
 
 /** The files of the release `version` (the whole tree of the first upstream commit). */
 function baseFiles(version: string): FileTree {
   return {
     [PACKAGE_JSON]: packageText(version),
+    [LOCK]: lockText(version),
     [WRANGLER]: wranglerText(),
     [README]: numbered("readme"),
     [INDEX]: numbered("index"),
@@ -116,7 +156,7 @@ function baseFiles(version: string): FileTree {
     [DOC_B]: numbered("doc-b"),
     "migrations/0001_init.sql": numbered("init"),
     [CODEQL]: numbered("codeql"),
-    [RELEASE_WORKFLOW]: numbered("release"),
+    [UPDATE_WORKFLOW]: numbered("update"),
     [OLD_WORKFLOW]: numbered("old"),
   };
 }
@@ -125,6 +165,7 @@ function baseFiles(version: string): FileTree {
 function releaseChanges(version: string): FileTree {
   return {
     [PACKAGE_JSON]: packageText(version),
+    [LOCK]: lockText(version),
     [WRANGLER]: wranglerText({ compatibilityDate: "2026-03-01" }),
     [README]: numbered("readme", { 2: "release note" }),
     [INDEX]: numbered("index", { 3: "release change" }),
@@ -140,7 +181,7 @@ interface Scenario {
   readonly baseExtra?: FileTree;
   /** Overrides the default changes of the release. */
   readonly release?: FileTree;
-  /** The button's edits of the first commit (default `BUTTON_EDITS`). */
+  /** The button's edits of the first commit (default `buttonEdits(from)`). */
   readonly buttonEdits?: FileTree;
   /** One commit of the owner on top of the copy. */
   readonly local?: FileTree;
@@ -152,7 +193,7 @@ function arrange(sandbox: Sandbox, scenario: Scenario = {}): void {
   const to = scenario.to ?? TO;
   const base = commitUpstream(sandbox, { ...baseFiles(from), ...scenario.baseExtra }, `v${from}`);
   commitUpstream(sandbox, { ...releaseChanges(to), ...scenario.release }, `v${to}`);
-  createCopy(sandbox, scenario.kind ?? "button", base, scenario.buttonEdits ?? BUTTON_EDITS);
+  createCopy(sandbox, scenario.kind ?? "button", base, scenario.buttonEdits ?? buttonEdits(from));
   if (scenario.local !== undefined) {
     commitToCopy(sandbox, scenario.local, "Local change");
   }
@@ -217,7 +258,15 @@ describe("update.yml", { timeout: 20_000 }, () => {
 
       update(sandbox);
 
-      expect(readOriginFile(sandbox, PACKAGE_JSON), "package.json of the copy").toBe(packageText(TO));
+      expect(readOriginFile(sandbox, PACKAGE_JSON), "package.json of the copy").toBe(packageText(TO, BUTTON_NAME));
+    });
+
+    it("leaves package-lock.json with the version lines of the release", () => {
+      arrange(sandbox);
+
+      update(sandbox);
+
+      expect(readOriginFile(sandbox, LOCK), "package-lock.json of the copy").toBe(lockText(TO));
     });
 
     it("applies the changes of the release to files the copy did not change", () => {
@@ -528,25 +577,28 @@ describe("update.yml", { timeout: 20_000 }, () => {
   describe("AC9: workflow files", () => {
     const RELEASE_WORKFLOWS: FileTree = {
       [CODEQL]: numbered("codeql", { 4: "release v2" }),
-      [UPDATE_WORKFLOW]: numbered("update"),
+      [UPDATE_WORKFLOW]: numbered("update", { 4: "release v2" }),
       [OLD_WORKFLOW]: null,
+      [NEW_WORKFLOW]: numbered("new"),
     };
-    const ALL_THREE = [CODEQL, OLD_WORKFLOW, UPDATE_WORKFLOW];
+    /** The copy keeps the workflow files of the base (a fork, or an owner who added them). */
+    const WITH_WORKFLOWS = { buttonEdits: nameEdits(FROM) };
+    const THREE = [CODEQL, OLD_WORKFLOW, UPDATE_WORKFLOW];
 
     it("applies the release without changing any file under .github/workflows", () => {
-      arrange(sandbox, { release: RELEASE_WORKFLOWS });
+      arrange(sandbox, { ...WITH_WORKFLOWS, release: RELEASE_WORKFLOWS });
 
       update(sandbox);
 
       expect(readOriginFile(sandbox, INDEX), "src/index.ts, applied from the release").toBe(releaseChanges(TO)[INDEX]);
       expect(readOriginFile(sandbox, CODEQL), "codeql.yml").toBe(numbered("codeql"));
-      expect(readOriginFile(sandbox, RELEASE_WORKFLOW), "release.yml").toBe(numbered("release"));
+      expect(readOriginFile(sandbox, UPDATE_WORKFLOW), "update.yml").toBe(numbered("update"));
       expect(readOriginFile(sandbox, OLD_WORKFLOW), "old.yml").toBe(numbered("old"));
-      expect(readOriginFile(sandbox, UPDATE_WORKFLOW), "update.yml").toBeNull();
+      expect(readOriginFile(sandbox, NEW_WORKFLOW), "new.yml").toBeNull();
     });
 
     it("pushes a commit that changes no path under .github/workflows", () => {
-      arrange(sandbox, { release: RELEASE_WORKFLOWS });
+      arrange(sandbox, { ...WITH_WORKFLOWS, release: RELEASE_WORKFLOWS });
 
       update(sandbox);
 
@@ -558,19 +610,37 @@ describe("update.yml", { timeout: 20_000 }, () => {
       ).toEqual([]);
     });
 
-    it("lists the three workflow files the release added, changed and removed", () => {
-      arrange(sandbox, { release: RELEASE_WORKFLOWS });
+    it("lists the copy's workflow files the release changed or removed and not the one it added", () => {
+      arrange(sandbox, { ...WITH_WORKFLOWS, release: RELEASE_WORKFLOWS });
 
       const result = update(sandbox);
 
       expect(result.exitCode, "exit code").toBe(0);
       expect(result.summary.trimEnd(), "summary of the run").toBe(
-        `${updated(TAG_FROM, TAG_TO)}\n\n${workflowLine(ALL_THREE)}`,
+        `${updated(TAG_FROM, TAG_TO)}\n\n${workflowLine(THREE)}`,
+      );
+    });
+
+    it("tells a button copy that has only update.yml only about update.yml", () => {
+      arrange(sandbox, {
+        release: RELEASE_WORKFLOWS,
+        local: { [UPDATE_WORKFLOW]: numbered("update") },
+      });
+
+      const result = update(sandbox);
+
+      expect(result.exitCode, "exit code").toBe(0);
+      expect(result.summary.trimEnd(), "summary of the run").toBe(
+        `${updated(TAG_FROM, TAG_TO)}\n\n${workflowLine([UPDATE_WORKFLOW])}`,
       );
     });
 
     it("does not list a file the copy already took over", () => {
-      arrange(sandbox, { release: RELEASE_WORKFLOWS, local: { [UPDATE_WORKFLOW]: numbered("update") } });
+      arrange(sandbox, {
+        ...WITH_WORKFLOWS,
+        release: RELEASE_WORKFLOWS,
+        local: { [UPDATE_WORKFLOW]: numbered("update", { 4: "release v2" }) },
+      });
 
       const result = update(sandbox);
 
@@ -582,10 +652,11 @@ describe("update.yml", { timeout: 20_000 }, () => {
 
     it("leaves the line out when no changed workflow file differs", () => {
       arrange(sandbox, {
+        ...WITH_WORKFLOWS,
         release: RELEASE_WORKFLOWS,
         local: {
           [CODEQL]: numbered("codeql", { 4: "release v2" }),
-          [UPDATE_WORKFLOW]: numbered("update"),
+          [UPDATE_WORKFLOW]: numbered("update", { 4: "release v2" }),
           [OLD_WORKFLOW]: null,
         },
       });
@@ -597,7 +668,11 @@ describe("update.yml", { timeout: 20_000 }, () => {
 
     it("reports no conflict for a workflow file the copy and the release changed, keeps the copy's file and lists it", () => {
       const own = numbered("codeql", { 4: "my own change" });
-      arrange(sandbox, { release: { [CODEQL]: numbered("codeql", { 4: "release v2" }) }, local: { [CODEQL]: own } });
+      arrange(sandbox, {
+        ...WITH_WORKFLOWS,
+        release: { [CODEQL]: numbered("codeql", { 4: "release v2" }) },
+        local: { [CODEQL]: own },
+      });
 
       const result = update(sandbox);
 
@@ -610,6 +685,7 @@ describe("update.yml", { timeout: 20_000 }, () => {
 
     it("keeps and does not list a workflow file only the copy has", () => {
       arrange(sandbox, {
+        ...WITH_WORKFLOWS,
         release: { [CODEQL]: numbered("codeql", { 4: "release v2" }) },
         local: { [OWN_WORKFLOW]: numbered("mine") },
       });
@@ -670,7 +746,7 @@ describe("update.yml", { timeout: 20_000 }, () => {
         },
         TAG_TO,
       );
-      createCopy(sandbox, "button", between, BUTTON_EDITS);
+      createCopy(sandbox, "button", between, buttonEdits(FROM));
     }
 
     it("raises no conflict for an upstream change the copy holds and the release revised, and ends as in the release", () => {
@@ -707,7 +783,7 @@ describe("update.yml", { timeout: 20_000 }, () => {
       const base = commitUpstream(sandbox, baseFiles(FROM), TAG_FROM);
       commitUpstream(sandbox, { ...releaseChanges(TO), [GUIDE]: numbered("guide", { 3: "second" }) }, TAG_TO);
       commitUpstream(sandbox, { ...releaseChanges("0.6.0"), [GUIDE]: numbered("guide", { 3: "third" }) }, "v0.6.0");
-      createCopy(sandbox, "button", base, BUTTON_EDITS);
+      createCopy(sandbox, "button", base, buttonEdits(FROM));
       update(sandbox);
       commitToCopy(sandbox, { [README]: numbered("readme", { 2: "release note", 9: "owner note" }) }, "Owner change");
 
@@ -728,7 +804,7 @@ describe("update.yml", { timeout: 20_000 }, () => {
         TAG_FROM,
       );
       commitUpstream(sandbox, { ...releaseChanges(TO), [GUIDE]: numbered("guide", { 3: "new" }) }, TAG_TO);
-      createCopy(sandbox, "fork", base, BUTTON_EDITS);
+      createCopy(sandbox, "fork", base, buttonEdits(FROM));
       commitToCopy(
         sandbox,
         { [README]: numbered("readme", { 9: "squashed" }) },
@@ -741,25 +817,19 @@ describe("update.yml", { timeout: 20_000 }, () => {
       expect(readOriginFile(sandbox, GUIDE), "docs/guide.md of the copy").toBe(numbered("guide", { 3: "new" }));
     });
 
-    it("matches a button copy whose first commit lacks the upstream workflow files", () => {
-      arrange(sandbox, {
-        buttonEdits: {
-          ...BUTTON_EDITS,
-          [CODEQL]: null,
-          [RELEASE_WORKFLOW]: null,
-          [OLD_WORKFLOW]: null,
-        },
-      });
+    it("matches a button copy built as the real button does, between releases, to its upstream commit", () => {
+      arrangeBetweenReleases();
 
       const result = update(sandbox);
 
       expectGreen(result, updated(TAG_FROM, TAG_TO));
+      expect(readOriginFile(sandbox, PACKAGE_JSON), "package.json of the copy").toBe(packageText(TO, BUTTON_NAME));
     });
   });
 
   describe("AC12: the base cannot be found", () => {
     it("fails with the message of E15 when no trailer, no shared history and no matching upstream commit exist", () => {
-      arrange(sandbox, { buttonEdits: { ...BUTTON_EDITS, [INDEX]: "a different file\n" } });
+      arrange(sandbox, { buttonEdits: { ...buttonEdits(FROM), [INDEX]: "a different file\n" } });
 
       const result = update(sandbox);
 
@@ -784,7 +854,31 @@ describe("update.yml", { timeout: 20_000 }, () => {
       const base = commitUpstream(sandbox, baseFiles(FROM), TAG_FROM);
       commitUpstream(sandbox, { [WRANGLER]: wranglerText({ compatibilityDate: "2026-02-01" }) });
       commitUpstream(sandbox, releaseChanges(TO), TAG_TO);
-      createCopy(sandbox, "button", base, BUTTON_EDITS);
+      createCopy(sandbox, "button", base, buttonEdits(FROM));
+
+      const result = update(sandbox);
+
+      expectRed(result, UNKNOWN_BASE);
+    });
+
+    it("takes the newer of two upstream commits that differ only in a workflow file instead of failing", () => {
+      const base = commitUpstream(sandbox, baseFiles(FROM), TAG_FROM);
+      commitUpstream(sandbox, { [CODEQL]: numbered("codeql", { 2: "changed later" }) });
+      commitUpstream(sandbox, releaseChanges(TO), TAG_TO);
+      createCopy(sandbox, "button", base, buttonEdits(FROM));
+
+      const result = update(sandbox);
+
+      expectGreen(result, updated(TAG_FROM, TAG_TO));
+    });
+
+    it("fails with the message of E15 when package.json differs from every candidate in more than the name line", () => {
+      arrange(sandbox, {
+        buttonEdits: {
+          ...buttonEdits(FROM),
+          [PACKAGE_JSON]: `${packageText(FROM, BUTTON_NAME).replace("true", "false")}`,
+        },
+      });
 
       const result = update(sandbox);
 

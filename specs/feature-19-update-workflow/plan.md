@@ -276,6 +276,12 @@ relies on decision 0009 (only the latest full release). *Deployment* in `docs/AR
   replaced as literals (step 10b); printed paths only from the allow-list; the answer only up to 1 MiB, only
   `tag_name` read.
 
+Security, round 3 (APPROVED), non-blocking, verbatim:
+
+- NB3: AC1's names (`my-seluna`, `my_seluna_db`) contain no regex metacharacter. Add a 10b case where the sandbox upstream uses U = `sel.una` and the release also has a name line `selXuna` that must stay unchanged. That makes a regex or sed implementation fail.
+- NB4: When B' and T' are written, keep each rewritten entry's original mode. A test could pin that `git diff --name-only <base> B'` and `T T'` list only the three files.
+- NB5: A name line with value U that the release adds elsewhere in `wrangler.jsonc` (for example a nested binding) is also rewritten to C. If a release renames the package or Worker away from U, it silently overwrites the owner's name, because B' and HEAD agree. Mention both in `docs/update.md` or decision 0031, or limit 10b to the first name line of each file.
+
 ## Out of scope / follow-ups
 
 The spec's *Out of scope*. No follow-up issue now; a token add-on for workflow files (spec Q1) would be a new issue
