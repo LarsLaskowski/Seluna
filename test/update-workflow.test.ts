@@ -458,19 +458,16 @@ describe("update.yml", { timeout: 20_000 }, () => {
 
       const result = update(sandbox, extra, tag);
 
-      const stdoutWithoutMask = result.stdout
-        .split("\n")
-        .filter((line) => !line.startsWith("::add-mask::"))
-        .join("\n");
-      for (const [where, text] of [
-        ["stdout", stdoutWithoutMask],
-        ["stderr", result.stderr],
-        ["summary", result.summary],
-        ["the add-mask line", result.stdout.replace(`::add-mask::${encoded}`, "")],
-      ] as const) {
-        expect(text, `the token in ${where}`).not.toContain(TEST_TOKEN);
-        expect(text, `the base64 header value in ${where}`).not.toContain(encoded);
-      }
+      const unmasked = [
+        ...result.stdout.split("\n").filter((line) => !line.startsWith("::add-mask::")),
+        result.stderr,
+        result.summary,
+      ].join("\n");
+      expect(unmasked, "the token in the output").not.toContain(TEST_TOKEN);
+      expect(unmasked, "the base64 header value in the output").not.toContain(encoded);
+      expect(result.stdout.replace(`::add-mask::${encoded}`, ""), "the token next to the mask").not.toContain(
+        TEST_TOKEN,
+      );
     });
   });
 
