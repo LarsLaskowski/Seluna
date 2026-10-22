@@ -29,10 +29,13 @@ brings never reach their D1 database.
   the workflow there, then it ends green with the summary
   `This is the original repository LarsLaskowski/Seluna; it is not updated by this workflow.`, reads no release and
   pushes nothing.
-- S4: Given a copy with local changes in lines the release neither changes nor borders on — among them the button's
-  edits to `wrangler.jsonc` (the `database_id` it inserts after `database_name`, a renamed `name` or
-  `database_name`) while the release changes another line of that file such as `compatibility_date` — when the owner runs the workflow, then the release is applied
-  as in S1 and every local change is still in `main` afterwards.
+- S4: Given a copy the button created, which carries the button's edits — the package `name` in `package.json`, the
+  Worker `name` and the `database_name` in `wrangler.jsonc` set to the names the owner chose, the `database_id`
+  appended to the `migrations_dir` line, and no file under `.github/workflows/` — and other local changes in lines
+  the release neither changes nor borders on, when the owner runs the workflow on a release that changes the
+  `version` line next to the package `name` and `compatibility_date` in `wrangler.jsonc`, then the release is applied
+  as in S1, the names the owner chose stay as they are without a conflict, and every local change is still in
+  `main` afterwards.
 - S5: Given a copy on `v0.4.0` or earlier, which has no update workflow, when the owner follows `docs/update.md`, then
   the guide has them add `.github/workflows/update.yml` with the content of the latest release in GitHub's web
   interface (**Add file → Create new file**), without a command line, and run it as in S1.
@@ -48,8 +51,10 @@ brings never reach their D1 database.
   copy stays exactly as it was (none added, changed or removed), and the run still ends green with the summary of S1
   followed by
   `The release changed these workflow files, which your copy keeps as they are: <file>, <file>. See docs/update.md, "Workflow files".`
-  The list names each such file whose content in the copy differs from the release's (a file the owner already took
-  over is not listed); when none differs, the line is left out.
+  The list names each file the copy has under `.github/workflows/` whose content differs from the release's or that
+  the release removed (a file the owner already took over is not listed, nor is a file the copy does not have, so a
+  copy the button created, which has no workflow file but the `update.yml` its owner added, is only ever told about
+  `update.yml`); when none is left, the line is left out.
 - S8: Given the summary of S7 names `update.yml`, when the owner follows `docs/update.md` (_Workflow files_), then the
   guide has them open the file in the release on GitHub, copy its content and paste it over the copy's file in
   GitHub's web interface (**Edit file → Commit changes** on `main`), without a command line and without a token; the
@@ -65,7 +70,7 @@ brings never reach their D1 database.
   its own latest update commit on `main` names (a release named in any other commit, such as an upstream commit in a
   fork's history, counts for nothing); otherwise, for a copy sharing history with upstream (a fork), the latest
   upstream commit in its history; otherwise the upstream commit whose files equal the copy's first commit apart from
-  `wrangler.jsonc` and `.github/workflows/`.
+  `wrangler.jsonc`, `.github/workflows/` and the package `name` in `package.json`.
 - S10: Given a copy on `v0.x` and a latest release `v1.0.0`, when the owner runs the workflow without the checkbox,
   then it updates as in S1: `1.0.0` marks the project ready for everyone, not an incompatible change
   (`docs/CONTRIBUTING.md`, _Release plan up to 1.0.0_).
@@ -114,11 +119,12 @@ brings never reach their D1 database.
   enable Actions for the copy.
 - E13: The copy changed a file under `.github/workflows/` locally, and the release changes the same file: no
   conflict is reported (the copy's file is kept as in S7), and the file is listed in the summary line of S7.
-- E14: A release removes a workflow file, or the copy has a workflow file the release never had: the copy's file
-  stays; a file the release removed is listed in the summary line of S7, one the release never had is not.
+- E14: A release removes a workflow file, adds one, or the copy has a workflow file the release never had: the
+  copy's files stay; a file the copy has and the release removed is listed in the summary line of S7, a file the
+  copy lacks and one the release never had are not.
 - E15: The run cannot find the copy's base (S9): no release applied by this workflow is recorded, no upstream commit
   matches the copy's first commit and its history holds no upstream commit (several matching commits count as found when
-  they also agree in `wrangler.jsonc` and `.github/workflows/`, and as not found when they differ there). The run fails with
+  they also agree in `wrangler.jsonc`, and as not found when they differ there). The run fails with
   `The update cannot tell which Seluna version your copy was built from. Nothing was changed. See docs/update.md, "Unknown base".`
   and pushes nothing; it never falls back to the `vX` tag. `docs/update.md` tells the owner to open an issue in
   `LarsLaskowski/Seluna`.
@@ -153,8 +159,9 @@ brings never reach their D1 database.
 
 - [ ] AC1: In a copy on a release `vX` with the update workflow, one run with a newer latest release `vY` of the same
   major version leaves `main` with the release's files and `package.json` version `Y`, keeps every local change in
-  lines the release neither changes nor borders on (the button's `database_id` line and a renamed `name` in
-  `wrangler.jsonc` included, while the release changes `compatibility_date`), pushes exactly once a single new
+  lines the release neither changes nor borders on and, in a copy the button created, the names the button wrote
+  into `package.json` and `wrangler.jsonc` and its `database_id` without a conflict, also when the release changes the
+  `version` line next to the package name and `compatibility_date`, pushes exactly once a single new
   commit whose parent is the start commit, ends green with `Updated Seluna from vX to vY.`, and the push starts a
   Workers Build that deploys `Y` (S1, S4, E10).
 - [ ] AC2: A run in a copy whose `package.json` version equals the latest release ends green with
@@ -177,9 +184,9 @@ brings never reach their D1 database.
   run at the same time, and a waiting run cancelled by a third start changes nothing (E5, E6, E7, E8, E16).
 - [ ] AC9: A release that adds, changes or removes files under `.github/workflows/` is applied without them: the
   run ends green, every file under `.github/workflows/` of the copy is byte for byte as before, no conflict is
-  reported for a workflow file, and the summary line of S7 lists exactly the workflow files the release added,
-  changed or removed since the copy's base whose content in the copy differs from the release's, and is left out when there is
-  none (S7, E13, E14).
+  reported for a workflow file, and the summary line of S7 lists exactly the copy's workflow files whose content
+  differs from the release's or that the release removed since the copy's base, and is left out when there is none
+  (S7, E13, E14).
 - [ ] AC10: A copy whose Git history shares no commit with the upstream repository and a fork are updated with the
   same results as AC1 and AC4 (E9).
 - [ ] AC11: A copy built from an upstream commit between `vX` and `vY` (its `package.json` saying `X`) is updated
@@ -225,9 +232,12 @@ brings never reach their D1 database.
   base? Answered: not documented — Cloudflare's `workers/platform/deploy-buttons` (cloudflare-docs `ef31931`) says
   only that the button "clones your source repository" and updates the Wrangler configuration with the ids of new
   resources. The spec therefore requires both kinds of copy to update (E9, AC10), and the update never relies on
-  shared history: it is one new commit computed from the copy's base (S1, S9). Which kind exists, and whether the
-  button's first commit holds the upstream files with only `wrangler.jsonc` changed (what S9 finds the base by), is
-  verified on the maintainer's copy from issue #46 when planning.
+  shared history: it is one new commit computed from the copy's base (S1, S9). Checked when planning on the
+  Product Manager's button copy `LarsLaskowski/selunatest` (public; its Workers Builds log and a clone): its history is
+  one commit `source repo import` by `cloudflare[bot]` sharing nothing with upstream; its files equal upstream
+  `main` at `f26cad2` (after `v0.4.0`, while `package.json` says `0.4.0`, the case of S9) except `package.json`
+  (package `name`), `wrangler.jsonc` (`name`, `database_name`, `database_id` appended to the `migrations_dir` line)
+  and `.github/workflows/`, which is missing entirely (S4).
 - Q8: How does a copy built from upstream `main` between releases look? Answered: `docs/CONTRIBUTING.md` (_Release
   plan up to 1.0.0_): the `package.json` version stays at the last release until the release pull request, and the
   button clones `main` (`README.md`), so such a copy says `vX` but holds later upstream commits (decision 0030,
@@ -302,3 +312,8 @@ the allow-list for printed paths (*Logs*), which the plan's script needs and the
 Plan challenge (Lead, revise): the base rule of S9 now ignores a release named outside the workflow's own update
 commits (Security B2), and the first-commit match ignores `.github/workflows/` (m2); E15 fails when several
 matching commits differ in `wrangler.jsonc` or the workflow files (m3).
+
+Plan revision after the button copy `LarsLaskowski/selunatest` was read (Lead): the button renames the package in
+`package.json` next to the `version` line and removes every workflow file. S4 and AC1 now require the button's names
+to survive a version change without a conflict, S9 and Q2 name the package name as ignored, E15 drops the workflow
+files from the ambiguity rule, and S7, E14 and AC9 list only workflow files the copy has.

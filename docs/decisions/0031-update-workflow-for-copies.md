@@ -49,6 +49,12 @@ How the release reaches `main`:
 2. **`git merge` of the release tag (the issue's wording)** — the push would carry upstream commits that touch
    workflow files, which GitHub refuses for this token, and needs shared history.
 
+How the names the button wrote are merged: the package name sits on the line next to `version`, which every
+release changes, so a plain three-way merge reports a conflict in every button copy. The workflow writes the copy's
+names into the base and the release before merging (only the `name` and `database_name` lines, compared as literal
+values), so they are no local change; updating the version line by the workflow itself was the alternative, but it
+would not cover the Worker and database names and adds a second way files change.
+
 How a rename is treated: Git's merge follows a release's rename and carries the copy's change to the new name, also
 with `-X no-renames`; the spec reports it as a conflict instead, so the workflow detects such renames itself.
 
@@ -56,11 +62,12 @@ Which state the merge starts from (the base):
 
 1. **The release named by the workflow's own newest update commit on `main` (first-parent history, the bot as
    committer, the exact subject and trailer), else the newest common commit with the release (a fork), else the
-   upstream commit whose files equal the copy's first commit apart from `wrangler.jsonc` and `.github/workflows/`,
-   provided all such commits agree in those two; otherwise the run fails** — right for a copy built between releases
-   and for both kinds of history. A trailer anywhere in the history would let an upstream squash commit in a fork's
-   history pick an old base, so only the workflow's own commits count; the button may not be allowed to write
-   workflow files, so the match ignores them. Chosen.
+   upstream commit whose files equal the copy's first commit apart from `wrangler.jsonc`, `.github/workflows/` and
+   the package name in `package.json`, provided all such commits agree in `wrangler.jsonc`; otherwise the run fails**
+   — right for a copy built between releases and for both kinds of history. A trailer anywhere in the history would
+   let an upstream squash commit in a fork's history pick an old base, so only the workflow's own commits count. A
+   real button copy (`LarsLaskowski/selunatest`) has one unrelated root commit, renames the package, the Worker and
+   the database, appends the database id and has no workflow files, so the match ignores exactly these. Chosen.
 2. **The tag of the version in `package.json`** — wrong for every copy built between releases: upstream changes
    revised later would conflict, reverted ones would stay.
 
@@ -78,7 +85,7 @@ workflow files — are in [Deployment](../areas/deployment.md#update).
   (`docs/CONTRIBUTING.md`).
 - A conflict stops the run; the owner resolves it in GitHub's web interface and runs it again. No pull request or
   branch is created.
-- The base search rests on the form of the button's first commit, which no documentation states; a copy whose base
+- The base search rests on the form of the button's first commit, which no documentation states and one real copy shows; a copy whose base
   cannot be found fails with a message (fail closed) and needs the maintainer. The form is checked once on a real
   copy before the pull request is marked ready.
 - That Workers Builds deploys a push made with the workflow token is checked on the same copy; GitHub only documents
