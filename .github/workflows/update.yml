@@ -1,0 +1,30 @@
+name: Update Seluna
+
+on:
+  workflow_dispatch:
+    inputs:
+      allow-major-version:
+        description: Allow a new major version
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: seluna-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - id: update
+        shell: bash
+        env:
+          ALLOW_MAJOR: ${{ inputs.allow-major-version }}
+          REPO_TOKEN: ${{ github.token }}
+        run: |
+          printf '::error::Not implemented\n'
+          exit 1
