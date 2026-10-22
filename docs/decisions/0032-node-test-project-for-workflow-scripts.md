@@ -1,6 +1,6 @@
 # 0032: Node test project for workflow scripts
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-22
 - **Area:** —
 - **Source:** Issue #19
