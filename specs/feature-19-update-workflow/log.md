@@ -39,3 +39,4 @@ are quoted in full.
 | 2026-10-22 18:16 | 6 Fix round 2 (ls-tree, rev-list, sort substitutions) | squad-dev | DONE; no process substitutions left; 91/91 node tests (sonnet/medium · 2,340 tokens · 3 tool uses · 120 s · continued from 6 Implement (task 5)) |
 | 2026-10-22 18:18 | 7 Code check (after fixes) | Orchestrator | format, typecheck, lint, build, tests 2947, coverage overall 97.1%, analyzer, scope, config, decisions PASS; Sonar skipped (no token) |
 | 2026-10-22 18:19 | 8 Review round 2 (delta) | squad-reviewer | APPROVE; all blocking findings resolved, nothing new (opus/medium · 10,929 tokens · 4 tool uses · 35 s · continued from 8 Review round 1) |
+| 2026-10-22 18:20 | 8 Security diff review (delta) | squad-security | APPROVED; non-blocking: join_paths after successful push could print wrong E16 on sort/mapfile failure (opus/medium · 47,106 tokens · 7 tool uses · 128 s) |
