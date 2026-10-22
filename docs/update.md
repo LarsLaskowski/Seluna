@@ -7,7 +7,7 @@ The update applies the latest full release of [`LarsLaskowski/Seluna`](https://g
 ## Start the update
 
 1. Open your copy on GitHub and select **Actions**.
-2. In the list on the left select **Update Seluna**. If it is missing, see _Add the workflow to an older copy_.
+2. In the list on the left select **Update Seluna**. If **Actions** asks you to enable workflows, enable them first (see _Permissions_); if **Update Seluna** is still missing, see _Add the workflow to an older copy_.
 3. Select **Run workflow**, keep the branch `main` and select **Run workflow** again.
 4. Open the run when it appears. A green run says `Updated Seluna from vA.B.C to vX.Y.Z.`; `Seluna is already on the latest release` means there is nothing to do. A red run stops before it changes anything and says why. The sections below belong to the messages.
 
@@ -66,7 +66,7 @@ To take one over, copy it by hand:
 2. In your copy open the file with the same path and select **Edit this file**. If your copy has not got it, use **Add file** and **Create new file** as in _Add the workflow to an older copy_.
 3. Replace the text with the copied one and select **Commit changes** to `main`.
 
-Take `update.yml` over first when it is listed: it is the file that applies updates. It changes rarely and stays free of actions, so the copy you have keeps working with later releases until you replace it. The other workflow files are optional; your copy works with its old ones.
+Take `update.yml` over first when it is listed: it is the file that applies updates. It changes rarely and stays free of actions, so the copy you have keeps working with later releases until you replace it. The other workflow files only serve the original repository's own checks and releases, so keeping them is safe: your copy works with its old ones, and you take one over only if you want to.
 
 ## Unknown base
 
