@@ -407,6 +407,46 @@ describe("update.yml", { timeout: 20_000 }, () => {
     });
   });
 
+  describe("AC8: failures inside substitutions and large files", () => {
+    /** A lock file of about 300 KB with the name lines near the top, as in a real one. */
+    function largeLockText(version: string): string {
+      const entries = Array.from({ length: 2500 }, (_, index) => {
+        const name = `node_modules/package-${String(index)}`;
+        return `    "${name}": { "version": "1.0.0", "resolved": "https://registry.example.invalid/${name}.tgz" }`;
+      });
+      return lockText(version).replace('    "": {', `${entries.join(",\n")},\n    "": {`);
+    }
+
+    it("updates a copy whose package-lock.json is larger than a pipe buffer although awk stops reading early", () => {
+      expect(largeLockText(FROM).length, "size of the lock file").toBeGreaterThan(200_000);
+      arrange(sandbox, { baseExtra: { [LOCK]: largeLockText(FROM) }, release: { [LOCK]: largeLockText(TO) } });
+
+      const result = update(sandbox, { awkStopsEarly: true });
+
+      expectGreen(result, updated(TAG_FROM, TAG_TO));
+      expect(readOriginFile(sandbox, LOCK), "package-lock.json of the copy").toBe(largeLockText(TO));
+    });
+
+    it.each(["write-tree", "commit-tree", "hash-object", "ls-tree", "rev-list", "read-tree"])(
+      "reports one unexpected error without the text of the failing %s",
+      (command) => {
+        arrange(sandbox);
+
+        const result = update(sandbox, { failingGitCommand: command });
+
+        expectRed(result, UNEXPECTED_ERROR);
+        expect(
+          result.stdout.split("\n").filter((line) => line === `::error::${UNEXPECTED_ERROR}`),
+          "error annotations on stdout",
+        ).toHaveLength(1);
+        expect(result.summary.split(UNEXPECTED_ERROR).length - 1, "messages in the summary").toBe(1);
+        expect(result.stdout, "text of the failing command on stdout").not.toContain("simulated failure");
+        expect(result.stderr, "text of the failing command on stderr").not.toContain("simulated failure");
+        expect(result.stdout.split("::add-mask::").length - 1, "number of add-mask lines").toBe(1);
+      },
+    );
+  });
+
   describe("AC2: a copy on the latest release", () => {
     it("ends green with the already-on-latest summary and leaves origin unchanged", () => {
       arrange(sandbox);

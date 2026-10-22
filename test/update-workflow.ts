@@ -58,6 +58,8 @@ export interface RunOptions {
   readonly recordHeaderMatch?: boolean;
   /** The commit the script builds for the push gets an added file under `.github/workflows/` (a fault injection). */
   readonly plantWorkflowChange?: boolean;
+  /** `awk -v mode=get` reads at most 20 lines of its input, like gawk after an `exit`, so a writing pipe breaks. */
+  readonly awkStopsEarly?: boolean;
 }
 
 export interface RunResult {
@@ -208,6 +210,20 @@ if [[ -f "$here/record-header" && "$sub" == clone && ! -f "$here/header-matches"
   cp "$(<"$here/stdout-path")" "$here/stdout-at-clone"
 fi
 exec "$real" "$@"
+`;
+
+/** The fake `awk`: for `-v mode=get` it hands the real awk only the first lines of its input when asked to. */
+const FAKE_AWK = `#!/usr/bin/env bash
+here=$(dirname "\${BASH_SOURCE[0]}")
+if [[ -f "$here/early-awk" ]]; then
+  for arg in "$@"; do
+    if [[ "$arg" == mode=get ]]; then
+      head -n 20 | /usr/bin/awk "$@"
+      exit
+    fi
+  done
+fi
+exec /usr/bin/awk "$@"
 `;
 
 function nextStamp(sandbox: Sandbox): string {
@@ -507,6 +523,7 @@ export function runUpdate(sandbox: Sandbox, options: RunOptions): RunResult {
     "move-main",
     "fail-command",
     "record-header",
+    "early-awk",
     "plant-workflow",
   ]) {
     rmSync(join(fakes, state), { force: true });
@@ -524,6 +541,12 @@ export function runUpdate(sandbox: Sandbox, options: RunOptions): RunResult {
     writeExecutable(join(fakes, "git"), FAKE_GIT);
   } else {
     rmSync(join(fakes, "git"), { force: true });
+  }
+  if (options.awkStopsEarly === true) {
+    writeExecutable(join(fakes, "awk"), FAKE_AWK);
+    writeFileSync(join(fakes, "early-awk"), "");
+  } else {
+    rmSync(join(fakes, "awk"), { force: true });
   }
   if (options.moveMainDuringRun === true) {
     writeFileSync(join(fakes, "move-main"), "");
