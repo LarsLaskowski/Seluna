@@ -33,7 +33,9 @@ A conflict means you changed lines of a file that the release changed as well. T
 3. Run the workflow again (_Start the update_). It now finds no conflict and applies the release.
 4. Afterwards apply your own change again in the updated file, as a new commit.
 
-If a release renames or removes a file that you changed, the run reports it as a conflict as well; take over the release's version of that file in the same way.
+If a release removes a file that you changed, the run reports it as a conflict as well; delete that file in your copy.
+
+If a release renames a file that you changed, the run names the old path. Deleting that file or editing it to match the release does not resolve this conflict. Instead, change the file back so that it reads exactly as it did before your own changes: as in the release your copy was last updated to (the version in the last `Update Seluna to` commit of your copy), or, if the workflow has never updated your copy, as in the version of the original repository your copy was made from. Run the workflow again, and afterwards apply your change to the file under its new name.
 
 ## New major version
 

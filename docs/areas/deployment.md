@@ -142,7 +142,8 @@ How the owner uses it is in [`update.md`](../update.md); the rules it follows ar
   ([`update.md`](../update.md#workflow-files)).
 - **Conflicts.** A conflict is a file that the copy and the release changed in the same or adjacent lines, a file
   the copy changed and the release removed, or a file the copy changed and the release renamed (named by its old
-  path). Any conflict fails the run; it is never resolved by taking either side.
+  path). Any conflict fails the run; it is never resolved by taking either side. A renamed file stays a conflict
+  until the copy's file at the old path equals the base's again; a removed one clears once the copy removes it too.
 - **Messages.** Every message is a fixed text with at most versions (`vA.B.C`) and file paths in it: nothing from the
   release answer, from Git or from the tools is printed. A path is printed only when it is 1 to 255 characters of
   `A`–`Z`, `a`–`z`, `0`–`9`, `.`, `_`, `/` and `-`, otherwise as `(a file with an unusual name)`; several paths are

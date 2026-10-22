@@ -198,8 +198,9 @@ brings never reach their D1 database.
   updated from the `vX` tag instead (E15).
 - [ ] AC13: `docs/update.md` explains, without a command line: starting the update; adding the workflow to a copy
   on `v0.4.0` or earlier; in a section _Conflicts_, resolving one in GitHub's web interface by editing each listed
-  file so its conflicting lines match the release's, running the workflow again and re-applying the owner's own
-  change afterwards; a new major version; a section _Unknown base_ (E15); checking the build and
+  file so its conflicting lines match the release's (a file the release removed: deleting it; a file the release
+  renamed: changing it back to the base's content), running the workflow again and re-applying the owner's own
+  change afterwards (for a renamed file, under its new name); a new major version; a section _Unknown base_ (E15); checking the build and
   the deploy command afterwards; the permission and Actions settings the run needs; and, in a section _Workflow
   files_, why the copy keeps its workflow files and how to take one over by hand in GitHub's web interface, `update.yml`
   first. `docs/setup.md` (_Updates_) links it (S5, S8, E10, E12).
@@ -317,3 +318,8 @@ Plan revision after the button copy `LarsLaskowski/selunatest` was read (Lead): 
 `package.json` next to the `version` line and removes every workflow file. S4 and AC1 now require the button's names
 to survive a version change without a conflict, S9 and Q2 name the package name as ignored, E15 drops the workflow
 files from the ambiguity rule, and S7, E14 and AC9 list only workflow files the copy has.
+
+Review decision (Lead, decide): the rename advice of `docs/update.md` did not clear the conflict, since step 11 names
+the old path while the copy's file there differs from the base in any way, deleting it included. The behavior stays
+(it fails closed and keeps one rule, decision 0031); AC13 now names the resolution per kind: delete a file the release
+removed, change a renamed one back to the base's content and re-apply the change under the new name.

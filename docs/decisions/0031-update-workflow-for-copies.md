@@ -56,7 +56,11 @@ values), so they are no local change; updating the version line by the workflow 
 would not cover the Worker and database names and adds a second way files change.
 
 How a rename is treated: Git's merge follows a release's rename and carries the copy's change to the new name, also
-with `-X no-renames`; the spec reports it as a conflict instead, so the workflow detects such renames itself.
+with `-X no-renames`; the spec reports it as a conflict instead, so the workflow detects such renames itself. The
+check asks only whether the copy's file at the old path differs from the base, so the owner clears it by restoring
+that file and re-applies the change under the new name afterwards. Accepting a copy that deleted the old path was the
+alternative, but it needs a second rule for how the merge then treats the old path and the release's new file, and
+it lets the owner's change disappear without the run naming it; the stricter check fails closed and keeps one rule.
 
 Which state the merge starts from (the base):
 
