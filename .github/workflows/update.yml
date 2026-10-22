@@ -413,6 +413,11 @@ jobs:
               workflow_files+=("$workflow_path")
             fi
           done
+          workflow_line=''
+          if ((${#workflow_files[@]} > 0)); then
+            workflow_list=$(join_paths "${workflow_files[@]}")
+            workflow_line="The release changed these workflow files, which your copy keeps as they are: ${workflow_list}. See docs/update.md, \"Workflow files\"."
+          fi
 
           # 13. The push: never forced; a refused push is told apart by looking at main afterwards.
           if ! quiet git push origin "${commit}:refs/heads/main"; then
@@ -425,7 +430,6 @@ jobs:
 
           printf '%s\n' "Updated Seluna from v${copy_version} to ${tag}." >&3
           printf '%s\n' "Updated Seluna from v${copy_version} to ${tag}." >> "$GITHUB_STEP_SUMMARY"
-          if ((${#workflow_files[@]} > 0)); then
-            printf '\nThe release changed these workflow files, which your copy keeps as they are: %s. See docs/update.md, "Workflow files".\n' \
-              "$(join_paths "${workflow_files[@]}")" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -n $workflow_line ]]; then
+            printf '\n%s\n' "$workflow_line" >> "$GITHUB_STEP_SUMMARY"
           fi
