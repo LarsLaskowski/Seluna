@@ -9,7 +9,7 @@ Plan: [plan.md](plan.md) — Status: Draft
 | 2 | G1 | Workflow skeleton: the full YAML of *Approach*, `run` block failing with `Not implemented` | `.github/workflows/update.yml` | AC1–AC12 | — | Dev | [x] |
 | 3 | G2 | Harness with the signatures of the plan | `test/update-workflow.ts` | AC1–AC13 | 1, 2 | Tester | [x] |
 | 4 | G2 | Tests of *Tests per criterion*, failing against the skeleton (AC13's tests fail until task 8) | `test/update-workflow.test.ts` | AC1–AC13 | 3 | Tester | [x] |
-| 5 | G3 | Implement the script, steps 1–14 of *Approach* (step 9 as revised after task 1a, if needed), until every test passes and actionlint and shellcheck are clean | `.github/workflows/update.yml` | AC1–AC12 | 1a, 4 | Dev | [ ] |
+| 5 | G3 | Implement the script, steps 1–14 of *Approach* (step 9 as revised after task 1a, if needed), until every test passes and actionlint and shellcheck are clean | `.github/workflows/update.yml` | AC1–AC12 | 1a, 4 | Dev | [x] |
 | 6 | G4 | Write `docs/update.md` with the eight sections of *Documentation updates* | `docs/update.md` | AC13 | 5 | Dev | [ ] |
 | 7 | G4 | Link the guide from *Updates*; changelog entry | `docs/setup.md`, `CHANGELOG.md` | AC13 | 6 | Dev | [ ] |
 | 8 | G4 | Release-notes rule and `update.yml` rules; Node project in the test layout; security area *Update workflow* | `docs/CONTRIBUTING.md`, `.squad/stack.md`, `docs/UNIT_TESTS.md`, `.squad/project.md` | AC13 | 5 | Dev | [ ] |

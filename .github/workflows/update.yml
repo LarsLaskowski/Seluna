@@ -26,5 +26,399 @@ jobs:
           ALLOW_MAJOR: ${{ inputs.allow-major-version }}
           REPO_TOKEN: ${{ github.token }}
         run: |
-          printf '::error::Not implemented\n'
-          exit 1
+          set -Eeuo pipefail
+          export LC_ALL=C
+          umask 077
+
+          # Update Seluna: applies the latest release of the original repository to this copy as one new commit on main.
+          # The script reads only the public original repository, runs no code of the release and never pushes a change
+          # under .github/workflows/. Every message it prints is a fixed text; nothing from the release answer, from Git or
+          # from curl is ever printed. See docs/update.md.
+
+          readonly UPSTREAM_SLUG='LarsLaskowski/Seluna'
+          readonly UPSTREAM_URL="https://github.com/${UPSTREAM_SLUG}.git"
+          readonly RELEASE_URL="https://api.github.com/repos/${UPSTREAM_SLUG}/releases/latest"
+          readonly BOT_NAME='github-actions[bot]'
+          readonly BOT_EMAIL='41898282+github-actions[bot]@users.noreply.github.com'
+          readonly TAG_FILTER='select(type == "string" and test("\\Av(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\z"))'
+          readonly VERSION_FILTER='select(type == "string" and test("\\A(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\z"))'
+          readonly UNUSUAL_NAME='(a file with an unusual name)'
+          readonly E16='The update stopped because of an unexpected error. Nothing was changed.'
+          readonly E3='The latest Seluna release has no usable version tag. Nothing was changed.'
+          readonly E15='The update cannot tell which Seluna version your copy was built from. Nothing was changed. See docs/update.md, "Unknown base".'
+
+          # Reads the value of the first name line of a JSON file, or replaces the value of its name lines (the button writes
+          # the owner's names into package.json and wrangler.jsonc). A name line is `<spaces>"<key>": "<value>"[,]` with a
+          # value of 1 to 214 characters of A-Z a-z 0-9 . _ -; values are compared and replaced as plain strings.
+          read -r -d '' NAME_AWK <<'AWK' || true
+          function parse(line, name,    rest, prefix, q) {
+            P_INDENT = ""; P_VALUE = ""; P_TAIL = ""
+            if (!match(line, /^ +"/)) return 0
+            P_INDENT = substr(line, 1, RLENGTH - 1)
+            rest = substr(line, RLENGTH + 1)
+            prefix = name "\": \""
+            if (substr(rest, 1, length(prefix)) != prefix) return 0
+            rest = substr(rest, length(prefix) + 1)
+            q = index(rest, "\"")
+            if (q < 2 || q > 215) return 0
+            P_VALUE = substr(rest, 1, q - 1)
+            P_TAIL = substr(rest, q + 1)
+            if (P_TAIL != "" && P_TAIL != ",") return 0
+            if (P_VALUE !~ /^[A-Za-z0-9._-]+$/) return 0
+            return 1
+          }
+          {
+            if (parse($0, key)) {
+              if (mode == "get") { print P_VALUE; exit }
+              if ((P_VALUE "") == (from "")) {
+                print P_INDENT "\"" key "\": \"" to "\"" P_TAIL
+                next
+              }
+            }
+            if (mode == "put") print
+          }
+          AWK
+          readonly NAME_AWK
+
+          work=''
+          fail() {
+            local message=$1
+            if [[ -z $work || ! -e $work/failed ]]; then
+              if [[ -n $work ]]; then
+                : > "$work/failed"
+              fi
+              printf '::error::%s\n' "$message"
+              printf '%s\n' "$message" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 1
+          }
+          trap 'fail "$E16"' ERR
+          trap 'if [[ -n $work ]]; then rm -rf "$work"; fi' EXIT
+
+          finish() {
+            local message=$1
+            printf '%s\n' "$message"
+            printf '%s\n' "$message" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+
+          could_not_read() {
+            local reason=$1
+            fail "Could not read the latest Seluna release: ${reason}. Nothing was changed; run the workflow again later."
+          }
+
+          quiet() {
+            "$@" > /dev/null 2>&1
+          }
+
+          # valid_tag <text>: the whole text is vA.B.C (parts without leading zeros, at most nine digits).
+          valid_tag() {
+            local text=$1
+            printf '%s' "$text" | jq -sRe "$TAG_FILTER" > /dev/null 2>&1
+          }
+
+          # printable <path>: the path, or a fixed text when it has other characters than A-Z a-z 0-9 . _ / - or is too long.
+          printable() {
+            local path=$1
+            if [[ -z $path || ${#path} -gt 255 || $path == *[!A-Za-z0-9._/-]* ]]; then
+              printf '%s' "$UNUSUAL_NAME"
+            else
+              printf '%s' "$path"
+            fi
+          }
+
+          # join_paths <path>...: the unique paths, sorted, as printable names joined by ", ".
+          join_paths() {
+            local sorted=() path joined=''
+            if (($# > 0)); then
+              mapfile -d '' -t sorted < <(printf '%s\0' "$@" | sort -zu)
+            fi
+            for path in "${sorted[@]}"; do
+              if [[ -n $joined ]]; then
+                joined+=', '
+              fi
+              joined+=$(printable "$path")
+            done
+            printf '%s' "$joined"
+          }
+
+          # name_value <revision:path> <key>: the value of the first name line of that file, or nothing.
+          name_value() {
+            local source=$1 key=$2
+            git cat-file blob "$source" 2> /dev/null | awk -v mode=get -v key="$key" "$NAME_AWK"
+          }
+
+          # replace_names <file> <key> <from> <to>: name lines with the value <from> get the value <to>, in place.
+          replace_names() {
+            local file=$1 key=$2 from=$3 to=$4
+            awk -v mode=put -v key="$key" -v from="$from" -v to="$to" "$NAME_AWK" < "$file" > "$file.new"
+            if [[ -n $(tail -c 1 "$file") ]]; then
+              truncate -s -1 "$file.new"
+            fi
+            mv "$file.new" "$file"
+          }
+
+          # retarget <index> <file> <key> <from> <to>: replace_names on the file's entry of a temporary index, keeping its mode.
+          retarget() {
+            local index=$1 file=$2 key=$3 from=$4 to=$5 entry mode blob
+            entry=$(GIT_INDEX_FILE=$index git ls-files -s -- ":(literal)${file}")
+            if [[ -z $entry ]]; then
+              return 0
+            fi
+            mode=${entry%% *}
+            GIT_INDEX_FILE=$index git cat-file blob ":${file}" > "$work/blob"
+            replace_names "$work/blob" "$key" "$from" "$to"
+            blob=$(git hash-object -w "$work/blob")
+            GIT_INDEX_FILE=$index git update-index --cacheinfo "${mode},${blob},${file}"
+          }
+
+          # commit_of_index <index>: the index as a tree, wrapped in a commit that is never published.
+          commit_of_index() {
+            local index=$1 tree
+            tree=$(GIT_INDEX_FILE=$index git write-tree)
+            git commit-tree "$tree" -m 'Update Seluna (working commit)'
+          }
+
+          # diff_differs <a> <b> <pathspec>...: 0 when the two commits differ in the pathspec, 1 when they do not.
+          diff_differs() {
+            local first=$1 second=$2 status=0
+            shift 2
+            git diff --quiet "$first" "$second" -- "$@" > /dev/null 2>&1 || status=$?
+            case $status in
+              0) return 1 ;;
+              1) return 0 ;;
+              *) fail "$E16" ;;
+            esac
+          }
+
+          # 1. The original repository is not updated.
+          if [[ ${GITHUB_REPOSITORY,,} == "${UPSTREAM_SLUG,,}" ]]; then
+            finish "This is the original repository ${UPSTREAM_SLUG}; it is not updated by this workflow."
+          fi
+
+          # 2. Only main is updated.
+          if [[ $GITHUB_REF != 'refs/heads/main' ]]; then
+            fail 'Start the update on the main branch.'
+          fi
+
+          if [[ ! $GITHUB_REPOSITORY =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
+            fail "$E16"
+          fi
+
+          work=$(mktemp -d)
+
+          # 3. The latest release of the original repository. The workflow token goes only into a header file of mode 600.
+          printf 'Authorization: Bearer %s\n' "$REPO_TOKEN" > "$work/auth-header"
+          if ! http_code=$(curl --silent --proto '=https' --max-time 10 --max-filesize 1048576 \
+            -H "@${work}/auth-header" -H 'Accept: application/vnd.github+json' \
+            -o "$work/release.json" -w '%{http_code}' "$RELEASE_URL" 2> /dev/null); then
+            could_not_read 'GitHub did not answer'
+          fi
+          case $http_code in
+            200) ;;
+            404) could_not_read 'there is no latest release' ;;
+            *) could_not_read 'GitHub answered with an error' ;;
+          esac
+          if ! jq -e '.tag_name | type == "string"' "$work/release.json" > /dev/null 2>&1; then
+            could_not_read 'the answer could not be read'
+          fi
+
+          # 4. The tag is exactly vA.B.C.
+          if ! tag=$(jq -e -j ".tag_name | ${TAG_FILTER}" "$work/release.json" 2> /dev/null); then
+            fail "$E3"
+          fi
+          release_version=${tag#v}
+
+          # 5. The copy, cloned with the token only in the environment of Git and only for the copy's own URL.
+          header_value="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$REPO_TOKEN" | base64 -w 0)"
+          printf '::add-mask::%s\n' "${header_value#AUTHORIZATION: basic }"
+          export GIT_CONFIG_COUNT=2
+          export GIT_CONFIG_KEY_0="http.https://github.com/${GITHUB_REPOSITORY}.git/.extraheader"
+          export GIT_CONFIG_VALUE_0=$header_value
+          export GIT_CONFIG_KEY_1='core.hooksPath'
+          export GIT_CONFIG_VALUE_1='/dev/null'
+          export GIT_TERMINAL_PROMPT=0
+          export GIT_AUTHOR_NAME=$BOT_NAME GIT_AUTHOR_EMAIL=$BOT_EMAIL
+          export GIT_COMMITTER_NAME=$BOT_NAME GIT_COMMITTER_EMAIL=$BOT_EMAIL
+          quiet git clone --no-checkout --no-tags --branch main "https://github.com/${GITHUB_REPOSITORY}.git" "$work/repo"
+          cd "$work/repo"
+          start=$(git rev-parse HEAD)
+
+          # 6. The version of the copy.
+          if ! copy_version=$(git show "${start}:package.json" 2> /dev/null | jq -e -j ".version | ${VERSION_FILTER}" 2> /dev/null); then
+            fail "Your copy's version cannot be compared with the latest release ${tag}. Nothing was changed. See docs/update.md."
+          fi
+          if [[ $copy_version == "$release_version" ]]; then
+            finish "Seluna is already on the latest release ${tag}; nothing to update."
+          fi
+          IFS=. read -r copy_major copy_minor copy_patch <<< "$copy_version"
+          IFS=. read -r release_major release_minor release_patch <<< "$release_version"
+          if ((copy_major > release_major ||
+            (copy_major == release_major && (copy_minor > release_minor ||
+              (copy_minor == release_minor && copy_patch > release_patch))))); then
+            fail "Your copy's version cannot be compared with the latest release ${tag}. Nothing was changed. See docs/update.md."
+          fi
+
+          # 7. A new major version only on the owner's choice, from major version 1 on.
+          if ((copy_major >= 1 && release_major > copy_major)) && [[ $ALLOW_MAJOR != 'true' ]]; then
+            fail "Release ${tag} is a new major version (copy on v${copy_version}). Read its release notes and docs/update.md, then run the workflow again with \"Allow a new major version\" checked."
+          fi
+
+          # 8. The release, fetched from the original repository without any credential.
+          if ! quiet git fetch --no-tags "$UPSTREAM_URL" "refs/tags/${tag}:refs/seluna/${tag}"; then
+            fail "$E3"
+          fi
+
+          # 9. The base: the upstream state the copy was built from or last updated to.
+          base=''
+          git rev-list --first-parent --fixed-strings --committer="$BOT_EMAIL" "$start" "^refs/seluna/${tag}" > "$work/updates" 2> /dev/null
+          while IFS= read -r candidate; do
+            [[ $(git log -1 --format=%ce "$candidate") == "$BOT_EMAIL" ]] || continue
+            subject=$(git log -1 --format=%s "$candidate")
+            [[ $subject == 'Update Seluna to '* ]] || continue
+            applied=${subject#Update Seluna to }
+            valid_tag "$applied" || continue
+            [[ $(git log -1 --format='%(trailers:key=Seluna-Release,valueonly)' "$candidate") == "$applied" ]] || continue
+            if ! quiet git fetch --no-tags "$UPSTREAM_URL" "refs/tags/${applied}:refs/seluna/${applied}"; then
+              fail "$E15"
+            fi
+            base=$(git rev-parse "refs/seluna/${applied}^{commit}")
+            break
+          done < "$work/updates"
+
+          if [[ -z $base ]] && merge_base=$(git merge-base "$start" "refs/seluna/${tag}" 2> /dev/null); then
+            base=$merge_base
+          fi
+
+          if [[ -z $base ]]; then
+            mapfile -t roots < <(git rev-list --max-parents=0 "$start")
+            if ((${#roots[@]} != 1)); then
+              fail "$E15"
+            fi
+            root=${roots[0]}
+            git rev-list "refs/seluna/${tag}" > "$work/upstream-commits"
+            matches=()
+            while IFS= read -r candidate; do
+              if diff_differs "$candidate" "$root" . ':(exclude,literal)wrangler.jsonc' ':(exclude,literal).github/workflows' ':(exclude,literal)package.json'; then
+                continue
+              fi
+              git cat-file blob "${candidate}:package.json" > "$work/candidate.json" 2> /dev/null || continue
+              candidate_name=$(name_value "${candidate}:package.json" name)
+              root_name=$(name_value "${root}:package.json" name)
+              if [[ -n $candidate_name && -n $root_name && $candidate_name != "$root_name" ]]; then
+                replace_names "$work/candidate.json" name "$candidate_name" "$root_name"
+              fi
+              git cat-file blob "${root}:package.json" > "$work/root.json" 2> /dev/null || continue
+              if cmp -s "$work/candidate.json" "$work/root.json"; then
+                matches+=("$candidate")
+              fi
+            done < "$work/upstream-commits"
+            if ((${#matches[@]} == 0)); then
+              fail "$E15"
+            fi
+            first_wrangler=$(git rev-parse -q --verify "${matches[0]}:wrangler.jsonc" 2> /dev/null || printf 'absent')
+            for candidate in "${matches[@]}"; do
+              wrangler=$(git rev-parse -q --verify "${candidate}:wrangler.jsonc" 2> /dev/null || printf 'absent')
+              if [[ $wrangler != "$first_wrangler" ]]; then
+                fail "$E15"
+              fi
+            done
+            base=${matches[0]}
+          fi
+
+          # 10. The release without changes to .github/workflows: those files are the base's.
+          index_release=$work/index-release
+          GIT_INDEX_FILE=$index_release git read-tree "refs/seluna/${tag}^{tree}"
+          GIT_INDEX_FILE=$index_release git rm -r -q --cached --ignore-unmatch -- .github/workflows
+          if git cat-file -e "${base}:.github/workflows" 2> /dev/null; then
+            GIT_INDEX_FILE=$index_release git read-tree --prefix=.github/workflows/ "${base}:.github/workflows"
+          fi
+          release_tree=$(GIT_INDEX_FILE=$index_release git write-tree)
+
+          # 10b. The copy's names (package name, Worker name, database name) become part of the base and of the release.
+          index_base=$work/index-base
+          index_target=$work/index-target
+          GIT_INDEX_FILE=$index_base git read-tree "$base"
+          GIT_INDEX_FILE=$index_target git read-tree "$release_tree"
+          for pair in package.json:name package-lock.json:name wrangler.jsonc:name wrangler.jsonc:database_name; do
+            name_file=${pair%%:*}
+            name_key=${pair#*:}
+            copy_name=$(name_value "${start}:${name_file}" "$name_key")
+            base_name=$(name_value "${base}:${name_file}" "$name_key")
+            if [[ -n $copy_name && -n $base_name && $copy_name != "$base_name" ]]; then
+              retarget "$index_base" "$name_file" "$name_key" "$base_name" "$copy_name"
+              retarget "$index_target" "$name_file" "$name_key" "$base_name" "$copy_name"
+            fi
+          done
+          base_commit=$(commit_of_index "$index_base")
+          target_commit=$(commit_of_index "$index_target")
+
+          # 11. Conflicts: renames of a file the copy changed (Git follows the rename and merges), then the merge itself.
+          conflicts=()
+          git diff --find-renames --name-status -z "$base_commit" "$target_commit" > "$work/changes"
+          while IFS= read -r -d '' status; do
+            case $status in
+              R* | C*)
+                IFS= read -r -d '' old_path
+                IFS= read -r -d '' _
+                if [[ $status == R* ]] && diff_differs "$base_commit" "$start" ":(literal)${old_path}"; then
+                  conflicts+=("$old_path")
+                fi
+                ;;
+              *)
+                IFS= read -r -d '' _
+                ;;
+            esac
+          done < "$work/changes"
+
+          merge_status=0
+          git merge-tree --write-tree --name-only -z --no-messages --merge-base="$base_commit" "$start" "$target_commit" \
+            > "$work/merge" 2> /dev/null || merge_status=$?
+          if ((merge_status > 1)); then
+            fail "$E16"
+          fi
+          {
+            IFS= read -r -d '' result_tree
+            while IFS= read -r -d '' conflict_path; do
+              conflicts+=("$conflict_path")
+            done
+          } < "$work/merge"
+          if ((${#conflicts[@]} > 0)); then
+            fail "The update to ${tag} conflicts with changes in your copy: $(join_paths "${conflicts[@]}"). Nothing was changed. See docs/update.md, \"Conflicts\"."
+          fi
+
+          # 12. One commit on top of the start commit.
+          commit=$(git commit-tree "$result_tree" -p "$start" -m "Update Seluna to ${tag}" -m "Seluna-Release: ${tag}")
+
+          # The workflow token cannot push a change under .github/workflows/: nothing there may differ.
+          if diff_differs "$start" "$commit" ':(literal).github/workflows'; then
+            fail "$E16"
+          fi
+
+          # 14. The workflow files of the copy the release changed or removed (read before the push, printed after it).
+          workflow_files=()
+          mapfile -d '' -t copy_workflows < <(git ls-tree -r -z --name-only "$start" -- .github/workflows)
+          for workflow_path in "${copy_workflows[@]}"; do
+            copy_blob=$(git rev-parse "${start}:${workflow_path}")
+            release_blob=$(git rev-parse -q --verify "refs/seluna/${tag}:${workflow_path}" 2> /dev/null || true)
+            base_blob=$(git rev-parse -q --verify "${base}:${workflow_path}" 2> /dev/null || true)
+            if [[ -n $release_blob && $release_blob != "$copy_blob" ]] || [[ -z $release_blob && -n $base_blob ]]; then
+              workflow_files+=("$workflow_path")
+            fi
+          done
+
+          # 13. The push: never forced; a refused push is told apart by looking at main afterwards.
+          if ! quiet git push origin "${commit}:refs/heads/main"; then
+            remote_main=$(git ls-remote origin refs/heads/main)
+            if [[ ${remote_main%%[[:space:]]*} != "$start" ]]; then
+              fail 'main of your copy changed during the update. Nothing was changed; run the workflow again.'
+            fi
+            fail 'GitHub refused the push: the workflow may not write to this repository. See docs/update.md, "Permissions".'
+          fi
+
+          printf '%s\n' "Updated Seluna from v${copy_version} to ${tag}."
+          printf '%s\n' "Updated Seluna from v${copy_version} to ${tag}." >> "$GITHUB_STEP_SUMMARY"
+          if ((${#workflow_files[@]} > 0)); then
+            printf '\nThe release changed these workflow files, which your copy keeps as they are: %s. See docs/update.md, "Workflow files".\n' \
+              "$(join_paths "${workflow_files[@]}")" >> "$GITHUB_STEP_SUMMARY"
+          fi
