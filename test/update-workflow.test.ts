@@ -447,6 +447,33 @@ describe("update.yml", { timeout: 20_000 }, () => {
     );
   });
 
+  describe("AC1: the token is never printed", () => {
+    it.each<readonly [string, Partial<RunOptions>, string]>([
+      ["a successful update", {}, TAG_TO],
+      ["a failure after the clone (refused push)", { refusePush: true }, TAG_TO],
+      ["a failure before the clone (unusable tag)", {}, "v1.2"],
+    ])("prints neither the token nor its base64 form outside the add-mask line for %s", (_label, extra, tag) => {
+      arrange(sandbox);
+      const encoded = Buffer.from(`x-access-token:${TEST_TOKEN}`).toString("base64");
+
+      const result = update(sandbox, extra, tag);
+
+      const stdoutWithoutMask = result.stdout
+        .split("\n")
+        .filter((line) => !line.startsWith("::add-mask::"))
+        .join("\n");
+      for (const [where, text] of [
+        ["stdout", stdoutWithoutMask],
+        ["stderr", result.stderr],
+        ["summary", result.summary],
+        ["the add-mask line", result.stdout.replace(`::add-mask::${encoded}`, "")],
+      ] as const) {
+        expect(text, `the token in ${where}`).not.toContain(TEST_TOKEN);
+        expect(text, `the base64 header value in ${where}`).not.toContain(encoded);
+      }
+    });
+  });
+
   describe("AC2: a copy on the latest release", () => {
     it("ends green with the already-on-latest summary and leaves origin unchanged", () => {
       arrange(sandbox);
