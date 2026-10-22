@@ -27,6 +27,8 @@ jobs:
           REPO_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
+          # fd 3 is the real stdout; stderr of every tool is discarded, so no tool text reaches the log
+          exec 3>&1 2>/dev/null
           export LC_ALL=C
           umask 077
 
@@ -87,7 +89,7 @@ jobs:
               if [[ -n $work ]]; then
                 : > "$work/failed"
               fi
-              printf '::error::%s\n' "$message"
+              printf '::error::%s\n' "$message" >&3
               printf '%s\n' "$message" >> "$GITHUB_STEP_SUMMARY"
             fi
             exit 1
@@ -97,7 +99,7 @@ jobs:
 
           finish() {
             local message=$1
-            printf '%s\n' "$message"
+            printf '%s\n' "$message" >&3
             printf '%s\n' "$message" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           }
@@ -145,7 +147,9 @@ jobs:
           # name_value <revision:path> <key>: the value of the first name line of that file, or nothing.
           name_value() {
             local source=$1 key=$2
-            git cat-file blob "$source" 2> /dev/null | awk -v mode=get -v key="$key" "$NAME_AWK"
+            # through a file: awk stops reading after the first match, and a pipe would die with SIGPIPE
+            git cat-file blob "$source" > "$work/name-source" 2> /dev/null || return 0
+            awk -v mode=get -v key="$key" "$NAME_AWK" < "$work/name-source"
           }
 
           # replace_names <file> <key> <from> <to>: name lines with the value <from> get the value <to>, in place.
@@ -416,7 +420,7 @@ jobs:
             fail 'GitHub refused the push: the workflow may not write to this repository. See docs/update.md, "Permissions".'
           fi
 
-          printf '%s\n' "Updated Seluna from v${copy_version} to ${tag}."
+          printf '%s\n' "Updated Seluna from v${copy_version} to ${tag}." >&3
           printf '%s\n' "Updated Seluna from v${copy_version} to ${tag}." >> "$GITHUB_STEP_SUMMARY"
           if ((${#workflow_files[@]} > 0)); then
             printf '\nThe release changed these workflow files, which your copy keeps as they are: %s. See docs/update.md, "Workflow files".\n' \
