@@ -17,7 +17,7 @@ Only one update runs at a time; start it again when a run says that `main` chang
 
 A copy made from version 0.4.0 or earlier has no **Update Seluna** workflow. Add it once by hand; it is one file.
 
-1. Open [`.github/workflows/update.yml`](https://github.com/LarsLaskowski/Seluna/blob/main/.github/workflows/update.yml) in the original repository and select **Copy raw file**.
+1. Open the [latest release](https://github.com/LarsLaskowski/Seluna/releases/latest) of the original repository, select its tag (for example `v0.5.0`) and switch to that version. Open `.github/workflows/update.yml` there, the version of the latest release and not the one of `main`, and select **Copy raw file**.
 2. In your copy select **Add file**, **Create new file**, and type `.github/workflows/update.yml` as the name (typing `/` creates the folders).
 3. Paste the text, select **Commit changes** and commit to `main`.
 4. Open **Actions** in your copy; **Update Seluna** is listed now. Continue with _Start the update_.
@@ -43,7 +43,7 @@ From version 1.0.0 on, a release with a new major number can change how Seluna w
 
 1. Wait for the build: in the Cloudflare dashboard open **Workers & Pages**, your Worker and **Deployments**. The new version is live when the build succeeds; `https://<worker>.<your-subdomain>.workers.dev/health` answers with it.
 2. Check that the **Deploy command** under **Settings** and **Build** is still `npm run deploy` (see [Setup](setup.md)), so that the release's database migrations are applied. If the build fails after an update, its log names the reason; the update commit is an ordinary commit that you can revert on GitHub.
-3. Your instance keeps its own names. The update leaves the Worker name, the database name and the package name of your copy as they are (the lines `name` and `database_name` in `package.json` and `wrangler.jsonc` keep your values). The same happens to a further line with the same value elsewhere in `wrangler.jsonc`. If a release itself renames the package or the Worker, your name stays; change it by hand if you want the new one.
+3. Your instance keeps its own names. The update leaves the package name (in `package.json` and `package-lock.json`), the Worker name and the database name (in `wrangler.jsonc`) of your copy as they are. This covers every `name` or `database_name` line of that file whose value is the one the original repository had when your copy was built, also a nested one, not only the first. If a release renames the package, the Worker or the database away from that value, the update replaces your name with the release's new one; set your own name again by hand afterwards in the web interface (**Edit this file**).
 
 ## Permissions
 
