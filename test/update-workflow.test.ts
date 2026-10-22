@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   commitToCopy,
+  extractUpdateScript,
   commitUpstream,
   createCopy,
   createSandbox,
@@ -426,6 +427,14 @@ describe("update.yml", { timeout: 20_000 }, () => {
       expect(second.originMainAfter, "main of the copy").toBe(second.originMainBefore);
     });
 
+    it("declares the concurrency group seluna-update without cancelling a run in progress", () => {
+      const workflow = readWorkflowText();
+
+      expect(workflow, "the concurrency block").toMatch(
+        /^concurrency:\n {2}group: seluna-update\n {2}cancel-in-progress: false$/m,
+      );
+    });
+
     it("clones the main branch of the copy", () => {
       const script = readWorkflowText();
 
@@ -494,6 +503,20 @@ describe("update.yml", { timeout: 20_000 }, () => {
       const result = update(sandbox);
 
       expectRed(result, conflictOf(TAG_TO, DOC_A));
+    });
+
+    it("takes the old path of a rename literally and reports no conflict for a file its glob would match", () => {
+      const globbed = "docs/a*.md";
+      arrange(sandbox, {
+        baseExtra: { [globbed]: numbered("globbed") },
+        release: { [globbed]: null, "docs/renamed.md": numbered("globbed") },
+        local: { [DOC_A]: numbered("doc-a", { 3: "local" }) },
+      });
+
+      const result = update(sandbox);
+
+      expectGreen(result, updated(TAG_FROM, TAG_TO));
+      expect(readOriginFile(sandbox, DOC_A), "docs/a.md of the copy").toBe(numbered("doc-a", { 3: "local" }));
     });
 
     it("prints a file name outside the allow-list as a file with an unusual name", () => {
@@ -636,6 +659,25 @@ describe("update.yml", { timeout: 20_000 }, () => {
       const result = update(sandbox, { refusePush: true });
 
       expectRed(result, PUSH_REFUSED);
+    });
+
+    it("never forces the push: the script has no --force, no -f option and no + refspec on a push", () => {
+      const script = extractUpdateScript(readWorkflowText());
+      const pushes = script.split("\n").filter((line) => /\bgit push\b/.test(line));
+
+      expect(script, "the script").not.toMatch(/--force|--mirror/);
+      expect(pushes.length, "lines that push").toBeGreaterThan(0);
+      for (const line of pushes) {
+        expect(line, "a push line").not.toMatch(/\s-[a-zA-Z]*f|\s\+/);
+      }
+    });
+
+    it("fails with the message of E16 and pushes nothing when the commit would change a workflow file", () => {
+      arrange(sandbox);
+
+      const result = update(sandbox, { plantWorkflowChange: true });
+
+      expectRed(result, UNEXPECTED_ERROR);
     });
 
     it("fails with the message of E16 when a Git command fails unexpectedly", () => {

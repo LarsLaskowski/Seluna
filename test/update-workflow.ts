@@ -6,7 +6,8 @@
  * - `https://github.com/LarsLaskowski/Seluna.git` and `https://github.com/<copy>.git` are redirected to bare
  *   repositories of the sandbox by `url.<path>.insteadOf` in a Git configuration file of the sandbox;
  * - `curl` is a script first on `PATH` that answers the release request from the options of the run;
- * - `git` is wrapped only when a run asks for it (`moveMainDuringRun`, `failingGitCommand`, `recordHeaderMatch`);
+ * - `git` is wrapped only when a run asks for it (`moveMainDuringRun`, `failingGitCommand`, `recordHeaderMatch`,
+ *   `plantWorkflowChange`);
  * - the commits of the harness carry fixed dates.
  *
  * The script runs with an explicit environment, never with `process.env`.
@@ -55,6 +56,8 @@ export interface RunOptions {
   readonly failingGitCommand?: string;
   /** Record which `http.extraheader` applies to the copy's and the upstream URL when the script clones. */
   readonly recordHeaderMatch?: boolean;
+  /** The commit the script builds for the push gets an added file under `.github/workflows/` (a fault injection). */
+  readonly plantWorkflowChange?: boolean;
 }
 
 export interface RunResult {
@@ -180,6 +183,21 @@ if [[ -f "$here/move-main" && "$sub" == merge-tree && ! -f "$here/moved" ]]; the
     GIT_COMMITTER_EMAIL=owner@example.invalid "$real" --git-dir="$origin" commit-tree "$tree" -p "$parent" \\
     -m 'Owner commit during the update')
   "$real" --git-dir="$origin" update-ref refs/heads/main "$moved"
+fi
+if [[ -f "$here/plant-workflow" && "$sub" == commit-tree ]]; then
+  args=("$@")
+  for i in "\${!args[@]}"; do
+    if [[ "\${args[$i]}" == commit-tree ]]; then
+      index="$here/plant-index"
+      rm -f "$index"
+      GIT_INDEX_FILE="$index" "$real" read-tree "\${args[$((i + 1))]}"
+      blob=$(printf 'planted\\n' | "$real" hash-object -w --stdin)
+      GIT_INDEX_FILE="$index" "$real" update-index --add --cacheinfo "100644,$blob,.github/workflows/planted.yml"
+      args[$((i + 1))]=$(GIT_INDEX_FILE="$index" "$real" write-tree)
+      break
+    fi
+  done
+  exec "$real" "\${args[@]}"
 fi
 if [[ -f "$here/record-header" && "$sub" == clone && ! -f "$here/header-matches" ]]; then
   copy_url=$(<"$here/copy-url")
@@ -476,7 +494,10 @@ export function runUpdate(sandbox: Sandbox, options: RunOptions): RunResult {
   const summaryPath = join(run, "summary.md");
   const lockPath = join(sandbox.origin, "refs", "heads", "main.lock");
   const wrapsGit =
-    options.moveMainDuringRun === true || options.failingGitCommand !== undefined || options.recordHeaderMatch === true;
+    options.moveMainDuringRun === true ||
+    options.failingGitCommand !== undefined ||
+    options.recordHeaderMatch === true ||
+    options.plantWorkflowChange === true;
 
   for (const state of [
     "curl-calls",
@@ -486,6 +507,7 @@ export function runUpdate(sandbox: Sandbox, options: RunOptions): RunResult {
     "move-main",
     "fail-command",
     "record-header",
+    "plant-workflow",
   ]) {
     rmSync(join(fakes, state), { force: true });
   }
@@ -511,6 +533,9 @@ export function runUpdate(sandbox: Sandbox, options: RunOptions): RunResult {
   }
   if (options.recordHeaderMatch === true) {
     writeFileSync(join(fakes, "record-header"), "");
+  }
+  if (options.plantWorkflowChange === true) {
+    writeFileSync(join(fakes, "plant-workflow"), "");
   }
 
   const env: Record<string, string> = {
