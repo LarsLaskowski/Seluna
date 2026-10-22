@@ -82,5 +82,7 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0028](0028-security-alert-rules.md) | Security alert rules | Accepted | 2026-10-20 |
 | [0029](0029-outbox-retry-and-cleanup-by-the-cron.md) | Outbox retry and cleanup by the cron | Accepted | 2026-10-21 |
 | [0030](0030-release-notice-without-credentials.md) | Release notice from an unauthenticated release check | Accepted | 2026-10-21 |
+| [0031](0031-update-workflow-for-copies.md) | Update workflow for copies | Proposed | 2026-10-22 |
+| [0032](0032-node-test-project-for-workflow-scripts.md) | Node test project for workflow scripts | Proposed | 2026-10-22 |
 
 <!-- project:end index -->

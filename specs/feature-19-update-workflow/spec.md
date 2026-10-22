@@ -1,7 +1,7 @@
 # Spec: Update workflow for users' copies
 
 Source: Issue #19
-Status: Draft
+Status: Approved by Lead
 
 ## Problem
 
@@ -41,8 +41,9 @@ brings never reach their D1 database.
   checkbox **Allow a new major version** left off (its default), then the run fails with
   `Release vY is a new major version (copy on vX). Read its release notes and docs/update.md, then run the workflow again with "Allow a new major version" checked.`
   and changes nothing; started with the checkbox on, it updates as in S1.
-- S7: Given a release `vY` that adds, changes or removes files under `.github/workflows/` compared with `vX` (as the
-  release after `v0.4.0` does: `codeql.yml` and `release.yml` changed, `update.yml` added), when the owner runs the
+- S7: Given a release `vY` that adds, changes or removes files under `.github/workflows/` compared with `vX` (as `v0.4.0`
+  did by changing `codeql.yml` and `release.yml` since `v0.3.0`, and as the release after it does by adding
+  `update.yml`), when the owner runs the
   workflow, then everything else of the release is applied as in S1, every file under `.github/workflows/` of the
   copy stays exactly as it was (none added, changed or removed), and the run still ends green with the summary of S1
   followed by
@@ -75,7 +76,8 @@ brings never reach their D1 database.
 - E2: The upstream repository cannot be read (GitHub outage, a refused request) or has no latest release: the run
   fails with `Could not read the latest Seluna release: <reason>. Nothing was changed; run the workflow again later.`
   and pushes nothing. `<reason>` is a fixed text chosen by the workflow, never text from the answer.
-- E3: The latest release's tag is not exactly `vA.B.C` (each part a whole number without leading zeros), or its tag
+- E3: The latest release's tag is not exactly `vA.B.C` (each part a whole number of at most nine digits without leading
+  zeros), or its tag
   cannot be fetched: the run fails with `The latest Seluna release has no usable version tag. Nothing was changed.`
   and pushes nothing; no part of the tag is printed.
 - E4: The copy's `package.json` version is not `A.B.C`, or is newer than the latest release (a copy built from
@@ -118,6 +120,9 @@ brings never reach their D1 database.
   `The update cannot tell which Seluna version your copy was built from. Nothing was changed. See docs/update.md, "Unknown base".`
   and pushes nothing; it never falls back to the `vX` tag. `docs/update.md` tells the owner to open an issue in
   `LarsLaskowski/Seluna`.
+- E16: A tool on the runner fails in a way none of the cases above covers (a Git too old for the update, a full
+  disk): the run fails with `The update stopped because of an unexpected error. Nothing was changed.` and pushes
+  nothing.
 
 ## Non-functional requirements
 
@@ -138,7 +143,9 @@ brings never reach their D1 database.
 - Configuration: one workflow input, **Allow a new major version** (default off); no new Worker secret, binding,
   setting or D1 change, and no change to the Worker's code.
 - Logs: the run's messages and summary name versions, file paths and the fixed texts of this spec only; never a
-  token, an answer body or a commit message of the release.
+  token, an answer body or a commit message of the release. A file path is printed only when it consists of the
+  characters `A`-`Z`, `a`-`z`, `0`-`9`, `.`, `_`, `/` and `-` (at most 255); any other path is printed as
+  `(a file with an unusual name)`.
 
 ## Acceptance criteria
 
@@ -164,8 +171,8 @@ brings never reach their D1 database.
   with **Allow a new major version**; without it the run ends red with the message of S6 and pushes nothing. A copy
   on `0.x` updates to `1.0.0` without the checkbox (S6, S10).
 - [ ] AC8: The run never force-pushes; a `main` that changed during the run, a run started on another branch, or a
-  push GitHub refuses ends the run red with the message of E5, E7 or E8 and leaves `main` as it was; two runs never
-  run at the same time, and a waiting run cancelled by a third start changes nothing (E5, E6, E7, E8).
+  push GitHub refuses, or an unexpected failure ends the run red with the message of E5, E7, E8 or E16 and leaves `main` as it was; two runs never
+  run at the same time, and a waiting run cancelled by a third start changes nothing (E5, E6, E7, E8, E16).
 - [ ] AC9: A release that adds, changes or removes files under `.github/workflows/` is applied without them: the
   run ends green, every file under `.github/workflows/` of the copy is byte for byte as before, no conflict is
   reported for a workflow file, and the summary line of S7 lists exactly the workflow files the release added,
@@ -205,9 +212,9 @@ brings never reach their D1 database.
 - Q1: GitHub refuses any push that creates or changes a file under `.github/workflows/` with a workflow's own token:
   that token (`GITHUB_TOKEN`) has no _Workflows_ permission (GitHub docs, `github-token-scope-descriptions.md` at
   github/docs `5815d11`: no `workflows` entry; `choosing-permissions-for-a-github-app.md`: editing
-  `.github/workflows` needs the _Workflows_ permission). The update from `v0.4.0` to the next release already changes
-  `codeql.yml` and `release.yml` and adds `update.yml` (`git diff --stat v0.4.0..main -- .github/workflows`), so the
-  issue's "merge and push" cannot work with that token. How should the update treat workflow files?
+  `.github/workflows` needs the _Workflows_ permission). Releases change workflow files: `v0.4.0` changed `codeql.yml`
+  and `release.yml` (`git diff --stat v0.3.0 v0.4.0 -- .github/workflows`), and the next release adds `update.yml`, so
+  the issue's "merge and push" cannot work with that token. How should the update treat workflow files?
   Answered: by the Product Manager — the copy keeps its own workflow files; the update applies everything else and
   lists the workflow files the release changed, and `docs/update.md` shows how to copy one over by hand, `update.yml`
   above all (S7, S8, E13, E14, AC9, AC13). No token and no extra setup; an owner-created token saved as an Actions
@@ -284,3 +291,8 @@ brings never reach their D1 database.
 - m5 (`0.x` to `1.0.0` would need the checkbox): accepted and settled from the documentation. `1.0.0` marks issue
   #20's criteria, not an incompatible change (`docs/CONTRIBUTING.md`, "nothing else makes a version 1.0.0"). S6 and
   AC7 now apply the checkbox from major version 1 on, new S10 covers `0.x` to `1.0.0`, and Q4 records the reason.
+
+Fixed while planning (Lead): S7 and Q1 claimed the release after `v0.4.0` changes `codeql.yml` and `release.yml`;
+`git diff --stat v0.4.0 HEAD -- .github/` is empty, so both now name `v0.4.0`'s own change since `v0.3.0` and the new
+`update.yml`. Added E16 (an unexpected tool failure, covered by AC8), the nine-digit bound of a version part (E3) and
+the allow-list for printed paths (*Logs*), which the plan's script needs and the spec lacked.
