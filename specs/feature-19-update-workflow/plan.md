@@ -287,6 +287,13 @@ the latest full release is applied. *Deployment* in `docs/ARCHITECTURE.md` gains
   from the bot's own first-parent commit and under the same rule; a printed path only from the allow-list; the
   release answer only up to 1 MiB (fact 16), and only `tag_name` is read.
 
+## Security notes
+
+Security, round 2 (APPROVED), non-blocking, verbatim:
+
+- NB1: Steps 11 and 14 pass paths taken from the release diff as pathspecs (`git diff --quiet <base> HEAD -- <source>`). A path starting with `:` would still be read as pathspec magic, and a `*` could widen the match. The worst outcome is a missed or extra rename conflict, not a security problem. Prefixing each path with `:(literal)` avoids it; a global `GIT_LITERAL_PATHSPECS` would not work, because step 9 needs `:(exclude)`.
+- NB2: Before the push, the script could check `git diff --quiet <start> <result> -- .github/workflows` and fail with a fixed text. Today GitHub's refusal is the only runtime backstop, and it reaches the owner as the misleading E8. This ties to the unverified fact 4, which the live run (task 13) still has to confirm.
+
 ## Out of scope / follow-ups
 
 The spec's *Out of scope*. No follow-up issue now; a token add-on for workflow files (spec Q1) would be a new issue
