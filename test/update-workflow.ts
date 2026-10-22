@@ -233,6 +233,9 @@ function applyTree(directory: string, files: FileTree): void {
     } else {
       mkdirSync(dirname(target), { recursive: true });
       writeFileSync(target, content);
+      if (path.endsWith(".sh")) {
+        chmodSync(target, 0o755); // by convention a `.sh` file of the sandbox is executable (mode 100755)
+      }
     }
   }
 }
@@ -356,6 +359,12 @@ export function commitToCopy(
   committer: Committer = "owner",
 ): string {
   return commitOnOrigin(sandbox, files, message, IDENTITIES[committer]);
+}
+
+/** The Git mode of `path` at `ref` in origin (default `main`), for example `100755`, or `null` when it does not exist. */
+export function readOriginMode(sandbox: Sandbox, path: string, ref = "refs/heads/main"): string | null {
+  const line = originGit(sandbox, ["ls-tree", ref, "--", path]).trim();
+  return line === "" ? null : (line.split(" ")[0] ?? null);
 }
 
 /** The content of `path` at `ref` in origin (default `main`), or `null` when the file does not exist there. */

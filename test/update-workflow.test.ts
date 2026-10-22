@@ -7,6 +7,7 @@ import {
   createSandbox,
   originCommit,
   readOriginFile,
+  readOriginMode,
   readRepositoryFile,
   readWorkflowText,
   removeSandbox,
@@ -330,6 +331,78 @@ describe("update.yml", { timeout: 20_000 }, () => {
       const result = update(sandbox, { recordHeaderMatch: true });
 
       expect(result.stdoutAtClone, "stdout when the clone started").toContain("::add-mask::");
+    });
+  });
+
+  describe("AC1: names and file modes", () => {
+    const RUN_SCRIPT = "scripts/run.sh";
+    const SCRIPT_TEXT = "#!/bin/sh\necho hi\n";
+
+    /** A `package.json` whose first name line is the package name and a second, name-like line sits below it. */
+    function packageWithNested(version: string, name: string): string {
+      return `{\n  "name": "${name}",\n  "version": "${version}",\n  "config": {\n    "name": "selXuna"\n  }\n}\n`;
+    }
+
+    it("replaces the upstream name only as a literal string and leaves a name-like line unchanged", () => {
+      arrange(sandbox, {
+        baseExtra: { [PACKAGE_JSON]: packageWithNested(FROM, "sel.una") },
+        release: { [PACKAGE_JSON]: packageWithNested(TO, "sel.una") },
+        buttonEdits: { ...buttonEdits(FROM), [PACKAGE_JSON]: packageWithNested(FROM, BUTTON_NAME) },
+      });
+
+      const result = update(sandbox);
+
+      expectGreen(result, updated(TAG_FROM, TAG_TO));
+      expect(readOriginFile(sandbox, PACKAGE_JSON), "package.json of the copy").toBe(
+        packageWithNested(TO, BUTTON_NAME),
+      );
+    });
+
+    it("changes in the update commit only the files the release changed", () => {
+      arrange(sandbox);
+
+      update(sandbox);
+
+      expect(originCommit(sandbox, "refs/heads/main").changedPaths, "paths changed by the pushed commit").toEqual([
+        README,
+        MIGRATION,
+        LOCK,
+        PACKAGE_JSON,
+        INDEX,
+        WRANGLER,
+      ]);
+    });
+
+    it("does not rewrite package.json, package-lock.json or wrangler.jsonc when the release does not change them", () => {
+      arrange(sandbox, {
+        release: {
+          [PACKAGE_JSON]: packageText(FROM),
+          [LOCK]: lockText(FROM),
+          [WRANGLER]: wranglerText(),
+          [INDEX]: numbered("index"),
+          [MIGRATION]: null,
+        },
+      });
+
+      update(sandbox);
+
+      expect(originCommit(sandbox, "refs/heads/main").changedPaths, "paths changed by the pushed commit").toEqual([
+        README,
+      ]);
+    });
+
+    it("keeps the mode of an executable file the release did not touch and of one it changed", () => {
+      const changed = "scripts/changed.sh";
+      arrange(sandbox, {
+        baseExtra: { [RUN_SCRIPT]: SCRIPT_TEXT, [changed]: SCRIPT_TEXT },
+        release: { [changed]: `${SCRIPT_TEXT}echo more\n` },
+      });
+
+      update(sandbox);
+
+      expect(readOriginMode(sandbox, RUN_SCRIPT), "mode of the untouched script").toBe("100755");
+      expect(readOriginMode(sandbox, changed), "mode of the changed script").toBe("100755");
+      expect(readOriginFile(sandbox, changed), "content of the changed script").toBe(`${SCRIPT_TEXT}echo more\n`);
     });
   });
 
@@ -861,7 +934,7 @@ describe("update.yml", { timeout: 20_000 }, () => {
       expectRed(result, UNKNOWN_BASE);
     });
 
-    it("takes the newer of two upstream commits that differ only in a workflow file instead of failing", () => {
+    it("accepts two matching upstream commits that differ only in a workflow file", () => {
       const base = commitUpstream(sandbox, baseFiles(FROM), TAG_FROM);
       commitUpstream(sandbox, { [CODEQL]: numbered("codeql", { 2: "changed later" }) });
       commitUpstream(sandbox, releaseChanges(TO), TAG_TO);
