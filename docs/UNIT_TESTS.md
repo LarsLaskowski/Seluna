@@ -11,6 +11,9 @@ neighboring test file before inventing a new pattern.
 
 - Test runner: Vitest (`vitest run`), coverage with `@vitest/coverage-v8`; assertions: `expect`
   (`expect(actual, "message").toBe(expected)`).
+- Tests of workflow scripts run in a second Vitest project, `node` (`vitest.config.ts`), because they start Git and
+  Bash against local repositories; all other tests run in the `workers` project. `npx vitest run --project node` runs
+  only the first kind (decision 0032).
 - No mocking library beyond what Vitest ships with (`vi.fn`, `vi.useFakeTimers`) — prefer real objects and the
   hand-written fakes listed in `.squad/project.md` (_Test doubles_), typed against the real interface.
 
@@ -22,6 +25,9 @@ neighboring test file before inventing a new pattern.
 
 - One test file per module under test, `<module>.test.ts`, next to the module (or under `test/`, mirroring
   `src/`).
+- A script in a workflow file is tested as `test/<name>-workflow.test.ts` with the harness `test/<name>-workflow.ts`
+  (the node project); the harness runs the script from the YAML against local Git repositories and a local release
+  answer, never the network.
 
 <!-- project:end layout -->
 

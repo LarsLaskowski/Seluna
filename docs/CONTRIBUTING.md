@@ -95,6 +95,9 @@ never publishes a release. User-visible changes are listed in the `Unreleased` s
 2. Merge the pull request.
 3. On GitHub, draft a new release: create the new tag `vA.B.C` with target `main`, use `vA.B.C` as the title,
    write the release text, check **Set as a pre-release** and publish it.
+   When the release changes `.github/workflows/update.yml`, say so in the release text: copies keep their own
+   workflow files, so their owners must copy that file over by hand
+   ([`docs/update.md`](update.md), _Workflow files_).
 
 Publishing the pre-release creates the tag and starts the release workflow (`.github/workflows/release.yml`).
 It rejects a tag that is not exactly `vA.B.C`, a tag on a commit that is not on `main`, a version that differs
@@ -109,6 +112,14 @@ warns about it.
 The "on `main`" check only catches mistakes: a release-triggered run uses the workflow file of the tagged commit,
 so it cannot stop someone who is allowed to create tags. Restrict who can create `v*` tags with a repository tag
 ruleset; that is the actual control.
+
+### The update workflow
+
+`.github/workflows/update.yml` applies a release to a copy ([decision 0031](decisions/0031-update-workflow-for-copies.md)).
+A copy keeps the file it has until its owner replaces it by hand, so the file changes rarely, stays free of actions
+(one Bash script with Git, `curl` and `jq`, and `contents: write` as its only permission) and keeps working with the
+files of every later release. Its messages name sections of [`docs/update.md`](update.md); a change to a message or a
+section name changes both. Its tests run in the Node project of Vitest (`test/update-workflow.test.ts`).
 
 ### Release plan up to 1.0.0
 

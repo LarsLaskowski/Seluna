@@ -156,7 +156,11 @@ that copy starts a Workers Build whose deploy command, `npm run deploy`, applies
 ([decision 0013](decisions/0013-deploy-to-cloudflare-and-workers-builds.md), [decision 0020](decisions/0020-deploy-command-checked-in-the-setup-guide.md), rules in
 [`areas/deployment.md`](areas/deployment.md)). A release is published on GitHub as a pre-release with its `v*` tag on `main`; the release workflow
 (`.github/workflows/release.yml`) verifies the tagged commit and only then turns it into the latest full release
-([decision 0009](decisions/0009-releases-only-by-tag-push.md)).
+([decision 0009](decisions/0009-releases-only-by-tag-push.md)). The owner applies a release to the copy with the
+update workflow (`.github/workflows/update.yml`), started by hand in the copy's GitHub Actions: it pushes the latest
+full release as one new commit on `main`, keeping the copy's own changes and workflow files, and Workers Builds
+deploys that push like any other ([decision 0031](decisions/0031-update-workflow-for-copies.md), rules in
+[`areas/deployment.md`](areas/deployment.md#update)).
 <!-- project:end architecture -->
 
 ## Development process
