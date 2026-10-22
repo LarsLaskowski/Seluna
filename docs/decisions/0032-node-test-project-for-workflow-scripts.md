@@ -26,7 +26,7 @@ run Git or Bash. The type check covers `test/` with the Workers types only.
 
 `vitest.config.ts` defines two projects: the Workers project for every existing test and a `node` project for the
 tests of workflow scripts; both run with `npm test` and the coverage run. The layout is in `.squad/stack.md`
-(*Layout*) and `docs/UNIT_TESTS.md`.
+(_Layout_) and `docs/UNIT_TESTS.md`.
 
 ## Consequences
 
@@ -34,5 +34,5 @@ tests of workflow scripts; both run with `npm test` and the coverage run. The la
   unchanged and the workflow is outside it without an exclusion.
 - These tests need `git` (2.40 or later), `bash`, `jq` on the machine that runs them, as the CI runner and the
   session have.
-- Should `@types/node` and the Workers types conflict in one type check, the Node tests get a `tsconfig` of their own
-  and the type check runs both.
+- `@types/node` and the Workers types type-check together in one `tsc` run today; should a later version make them
+  conflict, the Node tests get a `tsconfig` of their own and the type check runs both.

@@ -85,9 +85,14 @@ workflow files — are in [Deployment](../areas/deployment.md#update).
   (`docs/CONTRIBUTING.md`).
 - A conflict stops the run; the owner resolves it in GitHub's web interface and runs it again. No pull request or
   branch is created.
-- The base search rests on the form of the button's first commit, which no documentation states and one real copy shows; a copy whose base
-  cannot be found fails with a message (fail closed) and needs the maintainer. The form is checked once on a real
-  copy before the pull request is marked ready.
+- The base search rests on the form of the button's first commit, which no documentation states and one real copy
+  (`LarsLaskowski/selunatest`) shows; a copy whose base cannot be found fails with a message (fail closed) and needs
+  the maintainer. Further button copies are compared with that form before the pull request is marked ready.
+- The names are rewritten by value, not by position: every name line of the key with the base's value takes the
+  copy's value, and a release that renames the package, the Worker or the database away from the base's name
+  replaces the copy's name, because the copy's name counts as unchanged. Accepted as a documented limit: limiting the
+  rewrite to the first line would make the second package name line of `package-lock.json`, which sits next to a
+  version line, conflict in every release ([Deployment](../areas/deployment.md#limits-and-errors)).
 - That Workers Builds deploys a push made with the workflow token is checked on the same copy; GitHub only documents
   that such a push starts no other workflow.
 - A fork that the owner also syncs with GitHub's **Sync fork** is not supported beyond what the base rule gives.

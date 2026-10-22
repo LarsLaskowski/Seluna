@@ -13,8 +13,8 @@ Plan: [plan.md](plan.md) — Status: Draft
 | 6 | G4 | Write `docs/update.md` with the eight sections of *Documentation updates* | `docs/update.md` | AC13 | 5 | Dev | [x] |
 | 7 | G4 | Link the guide from *Updates*; changelog entry | `docs/setup.md`, `CHANGELOG.md` | AC13 | 6 | Dev | [x] |
 | 8 | G4 | Release-notes rule and `update.yml` rules; Node project in the test layout; security area *Update workflow* | `docs/CONTRIBUTING.md`, `.squad/stack.md`, `docs/UNIT_TESTS.md`, `.squad/project.md` | AC13 | 5 | Dev | [x] |
-| 9 | G5 | Section *Update*, *Scope*, *Limits and errors*; index row | `docs/areas/deployment.md`, `docs/areas/README.md` | AC1–AC13 | 5 | Lead | [ ] |
-| 10 | G5 | *Not here* entry for applying a release | `docs/areas/scheduled-jobs.md` | AC13 | 5 | Lead | [ ] |
-| 11 | G5 | *Deployment*: the update path, linking decision 0031 | `docs/ARCHITECTURE.md` | AC13 | 9 | Lead | [ ] |
-| 12 | G5 | Check decisions 0031 and 0032 against the built workflow and tests; `decision-check.py` | `docs/decisions/0031-update-workflow-for-copies.md`, `docs/decisions/0032-node-test-project-for-workflow-scripts.md` | AC1–AC13 | 5 | Lead | [ ] |
+| 9 | G5 | Section *Update*, *Scope*, *Limits and errors*; index row | `docs/areas/deployment.md`, `docs/areas/README.md` | AC1–AC13 | 5 | Lead | [x] |
+| 10 | G5 | *Not here* entry for applying a release | `docs/areas/scheduled-jobs.md` | AC13 | 5 | Lead | [x] |
+| 11 | G5 | *Deployment*: the update path, linking decision 0031 | `docs/ARCHITECTURE.md` | AC13 | 9 | Lead | [x] |
+| 12 | G5 | Check decisions 0031 and 0032 against the built workflow and tests; `decision-check.py` | `docs/decisions/0031-update-workflow-for-copies.md`, `docs/decisions/0032-node-test-project-for-workflow-scripts.md` | AC1–AC13 | 5 | Lead | [x] |
 | 13 | G6 | Live check before the PR is marked ready, on `LarsLaskowski/selunatest` (or another button copy): add `update.yml` by hand and run it; record facts 4 and 5 (push accepted, Workers Build deploys, `/health` version) and the run time; fact 6 is settled for this copy, so fact 17 remains: read the root diff of any further button copy (`git diff --stat <matched upstream commit> <root>`) | none (results in `log.md`) | AC1, AC10, AC11 | 5 | Orchestrator with the Product Manager | [ ] |

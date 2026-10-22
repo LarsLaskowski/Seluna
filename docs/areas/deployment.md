@@ -3,9 +3,9 @@
 ## Scope
 
 What a Seluna instance consists of in the user's Cloudflare account and how it gets there and stays current: the
-Deploy to Cloudflare button, the D1 database binding, the Worker secrets, the cron triggers and the deploy command
-Workers Builds runs. The user (who deploys and updates an instance) and the Worker code (which relies on the
-bindings) rely on it.
+Deploy to Cloudflare button, the D1 database binding, the Worker secrets, the cron triggers, the deploy command
+Workers Builds runs, and the update workflow that applies a release to the user's copy of the repository. The user
+(who deploys and updates an instance) and the Worker code (which relies on the bindings) rely on it.
 
 ## Behavior
 
@@ -76,6 +76,100 @@ bindings) rely on it.
   cleanup and the retry, daily the release check ([Scheduled jobs](scheduled-jobs.md#schedules)). The handler
   recognizes exactly these two expressions; a changed or added expression runs no job and writes one log entry.
 
+### Update
+
+How the owner uses it is in [`update.md`](../update.md); the rules it follows are these.
+
+- **Start.** The owner applies a release to the copy with the workflow **Update Seluna**
+  (`.github/workflows/update.yml`), started only by hand (**Run workflow**), never on a schedule or by another event.
+  It has one input, **Allow a new major version**, off by default. It runs with the permission to write the copy's
+  contents and nothing else, uses no action and no credential besides the run's own token, installs nothing and runs
+  no code of the release: a release's code first runs in Workers Builds, as for any push to `main`.
+- **One run at a time.** Runs of the workflow in one copy never run in parallel: a started run waits for the running
+  one and then reads `main` as it is when it starts. GitHub keeps at most one waiting run; a further start cancels
+  the waiting one, which shows as cancelled and changes nothing. A run is stopped after 10 minutes.
+- **Release.** The run takes the latest full release of `LarsLaskowski/Seluna` (the name is fixed in the workflow,
+  never an input), the one the daily release check reports ([Scheduled jobs](scheduled-jobs.md)); never a
+  pre-release, a draft or upstream `main`. Of the answer only the tag is read, and only when the answer arrives
+  within 10 seconds and is at most 1 MiB. The tag must be exactly `vA.B.C`: each part a whole number of one to nine digits without a leading zero,
+  nothing before or after it (a trailing newline included). The release's files are fetched from the public
+  repository without any credential.
+- **Order of the checks.** Each check runs before anything later is read, fetched or pushed:
+  1. In `LarsLaskowski/Seluna` itself (the repository name compared without regard to case) the run ends green and
+     reads no release.
+  2. A run started on a branch other than `main` fails.
+  3. The latest release is read and its tag checked.
+  4. The copy's version is the `version` in `package.json` of `main`, which must be exactly `A.B.C` under the same
+     rule. Equal to the release's: the run ends green and pushes nothing. Not of that form, or newer than the
+     release's: the run fails.
+  5. From major version 1 on, a release with a higher major version than the copy's is applied only when the run was
+     started with **Allow a new major version**; otherwise the run fails. From a `0.x` version, `1.0.0` and any
+     later release are applied without it.
+- **Base.** The run applies what changed between the copy's base and the release. The base is the first of these
+  that applies:
+  1. the release named by the newest update commit of this workflow in the first-parent history of `main` that the
+     release does not contain: a commit whose committer email is
+     `41898282+github-actions[bot]@users.noreply.github.com`, whose subject is exactly `Update Seluna to vA.B.C` (a
+     tag under the rule above) and whose `Seluna-Release` trailer is that same tag. A commit that does not meet all
+     three counts for nothing, so a trailer in an upstream commit of a fork's history is ignored. When the tag it
+     names cannot be fetched from the upstream repository, the run fails;
+  2. the newest commit that `main` shares with the release (a fork);
+  3. when `main` has exactly one first commit: the newest commit of the release's history whose files equal that
+     first commit's, apart from `wrangler.jsonc`, everything under `.github/workflows/`, and the name line (see
+     _Names_) of `package.json`. Several such commits count only when they all have the same `wrangler.jsonc` (or
+     all lack it).
+
+  When none applies, the run fails; it never falls back to the tag of the copy's version.
+
+- **Names.** The copy's own names stay: for the package `name` in `package.json` and `package-lock.json`, and the
+  Worker `name` and the `database_name` in `wrangler.jsonc`, a _name line_ is a whole line of one or more spaces,
+  `"<key>": "<value>"` and an optional comma, the value 1 to 214 characters of `A`–`Z`, `a`–`z`, `0`–`9`, `.`, `_`
+  and `-`. When the first name line of a key in the copy's file and in the base's file both exist and differ, every
+  name line of that key whose value equals the base's value is given the copy's value, in the base and in the
+  release, before the merge (values compared and replaced as whole literal strings). So the names the button wrote
+  are no local change and the release's lines beside them merge without a conflict.
+- **The commit.** The run merges the copy's `main` with the release, both measured from the base, and adds exactly
+  one commit on top of the commit `main` pointed to when the run started: parent that start commit, subject
+  `Update Seluna to vY`, trailer `Seluna-Release: vY`, author and committer `github-actions[bot]`. No upstream
+  commit enters the copy's history. The commit is pushed once to `main`, never forced, and Workers Builds builds and
+  deploys it like any push.
+- **Workflow files.** The workflow's token cannot push a change under `.github/workflows/`, so every file there stays
+  as the copy has it, byte for byte: the release's additions, changes and removals there are not applied, a local
+  change to a workflow file is never a conflict, and a commit that would still change a path there is not pushed
+  (the run fails with the unexpected-error message). After a green update the run summary lists each workflow file
+  the copy has whose content differs from the release's, or that the base has and the release removed; a file only
+  the release has and one only the copy has are not listed. The owner takes one over by hand
+  ([`update.md`](../update.md#workflow-files)).
+- **Conflicts.** A conflict is a file that the copy and the release changed in the same or adjacent lines, a file
+  the copy changed and the release removed, or a file the copy changed and the release renamed (named by its old
+  path). Any conflict fails the run; it is never resolved by taking either side.
+- **Messages.** Every message is a fixed text with at most versions (`vA.B.C`) and file paths in it: nothing from the
+  release answer, from Git or from the tools is printed. A path is printed only when it is 1 to 255 characters of
+  `A`–`Z`, `a`–`z`, `0`–`9`, `.`, `_`, `/` and `-`, otherwise as `(a file with an unusual name)`; several paths are
+  printed once each, sorted, joined by `, `. A green run prints its message in the log and as the first line of the
+  run summary; a red run prints its message once as an error annotation and once in the run summary, and exits with
+  failure. Every red run has pushed nothing.
+
+| Outcome                                                                                    | Run   | Message                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Updated                                                                                    | green | `Updated Seluna from vX to vY.`                                                                                                                                    |
+| Updated, and workflow files are listed (a blank line, then this line, in the summary only) | green | `The release changed these workflow files, which your copy keeps as they are: <file>, <file>. See docs/update.md, "Workflow files".`                               |
+| Already on the latest release                                                              | green | `Seluna is already on the latest release vY; nothing to update.`                                                                                                   |
+| The original repository                                                                    | green | `This is the original repository LarsLaskowski/Seluna; it is not updated by this workflow.`                                                                        |
+| Started on another branch                                                                  | red   | `Start the update on the main branch.`                                                                                                                             |
+| No answer (also an answer over 1 MiB)                                                      | red   | `Could not read the latest Seluna release: GitHub did not answer. Nothing was changed; run the workflow again later.`                                              |
+| No latest release (status 404)                                                             | red   | `Could not read the latest Seluna release: there is no latest release. Nothing was changed; run the workflow again later.`                                         |
+| Any other status than 200                                                                  | red   | `Could not read the latest Seluna release: GitHub answered with an error. Nothing was changed; run the workflow again later.`                                      |
+| Not JSON, or no string `tag_name`                                                          | red   | `Could not read the latest Seluna release: the answer could not be read. Nothing was changed; run the workflow again later.`                                       |
+| Tag not `vA.B.C`, or not fetchable                                                         | red   | `The latest Seluna release has no usable version tag. Nothing was changed.`                                                                                        |
+| Copy's version not `A.B.C`, or newer than the release                                      | red   | `Your copy's version cannot be compared with the latest release vY. Nothing was changed. See docs/update.md.`                                                      |
+| New major version without the input                                                        | red   | `Release vY is a new major version (copy on vX). Read its release notes and docs/update.md, then run the workflow again with "Allow a new major version" checked.` |
+| No base                                                                                    | red   | `The update cannot tell which Seluna version your copy was built from. Nothing was changed. See docs/update.md, "Unknown base".`                                   |
+| Conflict                                                                                   | red   | `The update to vY conflicts with changes in your copy: <file>, <file>. Nothing was changed. See docs/update.md, "Conflicts".`                                      |
+| Push refused and `main` moved since the start                                              | red   | `main of your copy changed during the update. Nothing was changed; run the workflow again.`                                                                        |
+| Push refused and `main` unchanged                                                          | red   | `GitHub refused the push: the workflow may not write to this repository. See docs/update.md, "Permissions".`                                                       |
+| Anything else (a tool failure, a failed clone, a commit that would change a workflow file) | red   | `The update stopped because of an unexpected error. Nothing was changed.`                                                                                          |
+
 ## Limits and errors
 
 - With any other deploy command, such as Workers Builds' default `npx wrangler deploy`, no migration is applied: the
@@ -85,6 +179,18 @@ bindings) rely on it.
   to `npm run deploy` and retrying the build applies the missing migrations.
 - A deploy against an account in which the database does not exist yet fails at the migration step with
   Wrangler's message and deploys nothing.
+- A Workers Build that fails after an update (a migration fails, the deploy command is not `npm run deploy`) does not
+  change the run, which has already ended green: `main` holds the release and the previously deployed version keeps
+  running until a build succeeds. The update commit is an ordinary commit the owner can revert.
+- A copy in which GitHub Actions is disabled has no **Run workflow**; a copy on `v0.4.0` or earlier has no update
+  workflow until the owner adds the file by hand ([`update.md`](../update.md)).
+- A name line of the same key whose value equals the base's name is given the copy's name wherever it sits in the
+  file, not only the first one. A release that renames the package, the Worker or the database away from the base's
+  name changes a line the copy did not change (the copy's name counts as the base's), so the update replaces the
+  copy's name with the release's new one; the owner sets their own name again by hand.
+- The base found by the first-commit rule rests on the form of the button's first commit seen in one real copy
+  (the button changes only the names and the database id in `package.json` and `wrangler.jsonc` and drops the
+  workflow files); a copy whose first commit differs in any other file fails with the no-base message.
 - Without `GITHUB_WEBHOOK_SECRET` and without a webhook secret stored by the setup wizard an instance answers every
   `POST /webhook` with 503, and so it does when the stored secret cannot be read or D1 fails
   ([HTTP routes](http-routes.md#webhook-signature)).
@@ -101,6 +207,9 @@ bindings) rely on it.
   stay out of the build command.
 - [`decisions/0017-github-app-manifest-flow.md`](../decisions/0017-github-app-manifest-flow.md) — the optional
   GitHub Worker secrets and their precedence over the credentials the wizard stores.
+- [`decisions/0031-update-workflow-for-copies.md`](../decisions/0031-update-workflow-for-copies.md) — why the
+  update is one Bash step without actions that pushes one commit computed from the copy's base, and keeps the
+  copy's workflow files.
 
 ## Not here
 
@@ -108,3 +217,5 @@ bindings) rely on it.
 - The tables the migrations create and the encryption of stored credentials: [Storage](storage.md).
 - The public routes, including `/health`: [HTTP routes](http-routes.md).
 - Releases of the upstream repository: [`CONTRIBUTING.md`](../CONTRIBUTING.md#versioning-and-releases).
+- The notice that a release exists: [Scheduled jobs](scheduled-jobs.md).
+- The owner's steps for an update, a conflict or a workflow file: [`update.md`](../update.md).
