@@ -876,7 +876,7 @@ describe("update.yml", { timeout: 20_000 }, () => {
       arrange(sandbox, {
         buttonEdits: {
           ...buttonEdits(FROM),
-          [PACKAGE_JSON]: `${packageText(FROM, BUTTON_NAME).replace("true", "false")}`,
+          [PACKAGE_JSON]: packageText(FROM, BUTTON_NAME).replace("true", "false"),
         },
       });
 
