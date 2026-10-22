@@ -88,9 +88,9 @@ See [spec.md](spec.md), *Problem*.
 9. Base (S9), first that applies:
    - the newest commit of `git log --first-parent HEAD ^refs/seluna/vY` whose subject is exactly `Update Seluna to
      v<A.B.C>`, whose committer email is `41898282+github-actions[bot]@users.noreply.github.com` and that carries a
-     `Seluna-Release` trailer equal to that version (checked with the rule of step 4, its tag fetched the same way;
-     invalid or not fetchable → E15) — a trailer in any other commit, such as an upstream squash commit in a fork,
-     counts for nothing;
+     `Seluna-Release` trailer equal to that version (checked with the rule of step 4: an invalid tag makes the commit
+     count for nothing; a valid tag that cannot be fetched → E15) — a trailer in any other commit, such as an
+     upstream squash commit in a fork, counts for nothing;
    - `git merge-base HEAD refs/seluna/vY`;
    - the single root of `HEAD` compared with every commit `c` of `git rev-list refs/seluna/vY` by
      `git diff --quiet <c> <root> -- . ':(exclude)wrangler.jsonc' ':(exclude).github/workflows' ':(exclude)package.json'`
