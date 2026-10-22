@@ -50,6 +50,15 @@ files or endpoints.
   is converted to PKCS#8 and must import as an RS256 key (`src/github/private-key.ts`), the three credentials are
   written in one transaction, and the client secret is discarded. Only the review page has `form-action
   https://github.com`.
+- **Update workflow:** `.github/workflows/update.yml` (decision 0031) runs with `contents: write` as the only permission,
+  no action and no code of the release; it is started only by `workflow_dispatch`, reads only the public original
+  repository (the `curl` header from a mode-600 file, the release answer bounded to 1 MiB and narrowed to `tag_name`,
+  tag and version only as a whole string under anchored rules), prints only fixed texts with allow-listed paths (never
+  output of Git, `curl` or `jq`), pushes one new commit without force and never a change under `.github/workflows/`
+  (checked before the push), and copies the owner's names with literal comparison (only name lines of `package.json`
+  and `wrangler.jsonc`, values of `[A-Za-z0-9._-]` up to 214 characters). Known: a name line with the owner's value
+  elsewhere in `wrangler.jsonc` is rewritten too, and a release that renames the package or Worker does not change the
+  owner's name (`docs/update.md`, _After the update_).
 - **GitHub App authentication:** every GitHub call except the manifest conversion and the release check (`src/github/release.ts`: fixed URL, no credential, same request rules, answer narrowed to `tag_name`) is made as the app through
   `src/github/` (`app-jwt.ts`, `http.ts`, `app-credentials.ts`, `installation-token.ts`, `token-text.ts`,
   `installations.ts`, `api-client.ts`): an RS256 JWT (`iat` now − 60 s, `exp` now + 540 s, `iss` the App ID) signed per request with the

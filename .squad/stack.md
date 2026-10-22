@@ -25,6 +25,10 @@ profile and owned by this repository: keep it true when the build changes.
   `test/fixtures/<event>/<action>.json`; one test file per module under test, named
   `<module>.test.ts`; test files and `test/` are part of the TypeScript project (`include` in `tsconfig.json`), so the type
   check and the type-aware lint cover them.
+- Tests of workflow scripts (`.github/workflows/*.yml` with a Bash script): `test/*-workflow.test.ts` with their
+  harness `test/*-workflow.ts`, run in the `node` project of `vitest.config.ts` (they start Git and Bash, which the
+  Workers runtime cannot; decision 0032). Every other test runs in the `workers` project. `npx vitest run --project node`
+  runs only the former.
 
 ## Commands
 

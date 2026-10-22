@@ -10,9 +10,9 @@ Plan: [plan.md](plan.md) — Status: Draft
 | 3 | G2 | Harness with the signatures of the plan | `test/update-workflow.ts` | AC1–AC13 | 1, 2 | Tester | [x] |
 | 4 | G2 | Tests of *Tests per criterion*, failing against the skeleton (AC13's tests fail until task 8) | `test/update-workflow.test.ts` | AC1–AC13 | 3 | Tester | [x] |
 | 5 | G3 | Implement the script, steps 1–14 of *Approach* (step 9 as revised after task 1a, if needed), until every test passes and actionlint and shellcheck are clean | `.github/workflows/update.yml` | AC1–AC12 | 1a, 4 | Dev | [x] |
-| 6 | G4 | Write `docs/update.md` with the eight sections of *Documentation updates* | `docs/update.md` | AC13 | 5 | Dev | [ ] |
-| 7 | G4 | Link the guide from *Updates*; changelog entry | `docs/setup.md`, `CHANGELOG.md` | AC13 | 6 | Dev | [ ] |
-| 8 | G4 | Release-notes rule and `update.yml` rules; Node project in the test layout; security area *Update workflow* | `docs/CONTRIBUTING.md`, `.squad/stack.md`, `docs/UNIT_TESTS.md`, `.squad/project.md` | AC13 | 5 | Dev | [ ] |
+| 6 | G4 | Write `docs/update.md` with the eight sections of *Documentation updates* | `docs/update.md` | AC13 | 5 | Dev | [x] |
+| 7 | G4 | Link the guide from *Updates*; changelog entry | `docs/setup.md`, `CHANGELOG.md` | AC13 | 6 | Dev | [x] |
+| 8 | G4 | Release-notes rule and `update.yml` rules; Node project in the test layout; security area *Update workflow* | `docs/CONTRIBUTING.md`, `.squad/stack.md`, `docs/UNIT_TESTS.md`, `.squad/project.md` | AC13 | 5 | Dev | [x] |
 | 9 | G5 | Section *Update*, *Scope*, *Limits and errors*; index row | `docs/areas/deployment.md`, `docs/areas/README.md` | AC1–AC13 | 5 | Lead | [ ] |
 | 10 | G5 | *Not here* entry for applying a release | `docs/areas/scheduled-jobs.md` | AC13 | 5 | Lead | [ ] |
 | 11 | G5 | *Deployment*: the update path, linking decision 0031 | `docs/ARCHITECTURE.md` | AC13 | 9 | Lead | [ ] |
