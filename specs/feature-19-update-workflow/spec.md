@@ -62,8 +62,10 @@ brings never reach their D1 database.
   reported as a conflict, one that upstream revised or reverted before `vY` ends up as `vY` has it, and the update
   ends as in S1. The base of
   every copy is the upstream state it was built from or last updated to: after an update by this workflow, the release
-  that update applied; otherwise the upstream commit whose files equal the copy's first commit (`wrangler.jsonc`
-  aside), or for a copy sharing history with upstream (a fork), the latest upstream commit in its history.
+  its own latest update commit on `main` names (a release named in any other commit, such as an upstream commit in a
+  fork's history, counts for nothing); otherwise, for a copy sharing history with upstream (a fork), the latest
+  upstream commit in its history; otherwise the upstream commit whose files equal the copy's first commit apart from
+  `wrangler.jsonc` and `.github/workflows/`.
 - S10: Given a copy on `v0.x` and a latest release `v1.0.0`, when the owner runs the workflow without the checkbox,
   then it updates as in S1: `1.0.0` marks the project ready for everyone, not an incompatible change
   (`docs/CONTRIBUTING.md`, _Release plan up to 1.0.0_).
@@ -115,8 +117,8 @@ brings never reach their D1 database.
 - E14: A release removes a workflow file, or the copy has a workflow file the release never had: the copy's file
   stays; a file the release removed is listed in the summary line of S7, one the release never had is not.
 - E15: The run cannot find the copy's base (S9): no release applied by this workflow is recorded, no upstream commit
-  matches the copy's first commit and its history holds no upstream commit (several matching commits with equal
-  files give the same result and count as found). The run fails with
+  matches the copy's first commit and its history holds no upstream commit (several matching commits count as found when
+  they also agree in `wrangler.jsonc` and `.github/workflows/`, and as not found when they differ there). The run fails with
   `The update cannot tell which Seluna version your copy was built from. Nothing was changed. See docs/update.md, "Unknown base".`
   and pushes nothing; it never falls back to the `vX` tag. `docs/update.md` tells the owner to open an issue in
   `LarsLaskowski/Seluna`.
@@ -296,3 +298,7 @@ Fixed while planning (Lead): S7 and Q1 claimed the release after `v0.4.0` change
 `git diff --stat v0.4.0 HEAD -- .github/` is empty, so both now name `v0.4.0`'s own change since `v0.3.0` and the new
 `update.yml`. Added E16 (an unexpected tool failure, covered by AC8), the nine-digit bound of a version part (E3) and
 the allow-list for printed paths (*Logs*), which the plan's script needs and the spec lacked.
+
+Plan challenge (Lead, revise): the base rule of S9 now ignores a release named outside the workflow's own update
+commits (Security B2), and the first-commit match ignores `.github/workflows/` (m2); E15 fails when several
+matching commits differ in `wrangler.jsonc` or the workflow files (m3).
