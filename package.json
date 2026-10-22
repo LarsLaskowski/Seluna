@@ -21,6 +21,7 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.23.0",
     "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
     "@vitest/coverage-istanbul": "^4.1.12",
     "eslint": "^10.13.0",
     "eslint-plugin-sonarjs": "^4.2.2",

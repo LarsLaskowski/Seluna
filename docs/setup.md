@@ -17,7 +17,7 @@ How to deploy your own Seluna instance. A fuller guide follows in a later versio
 
 ## Updates
 
-Every push to `main` of your copy builds and deploys it; with the deploy command `npm run deploy` it applies the database migrations first.
+Every push to `main` of your copy builds and deploys it; with the deploy command `npm run deploy` it applies the database migrations first. To apply a new release to your copy, run the update workflow in GitHub's web interface; [Update](update.md) explains how, and what to do about conflicts and permissions.
 
 ## Next steps
 

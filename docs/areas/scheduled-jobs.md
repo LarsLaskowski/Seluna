@@ -164,3 +164,4 @@ The daily run, step by step; the first step that decides ends it with exactly on
 - Sending a row, the message format and the per-row log entry: [Notifications](notifications.md).
 - The tables, the `meta` row `notified_release` and the switch `update_notice`: [Storage](storage.md).
 - GitHub calls made as the app: [GitHub API](github-api.md).
+- Applying a release to the user's copy: [Deployment](deployment.md#update).
