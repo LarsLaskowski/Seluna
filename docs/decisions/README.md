@@ -61,7 +61,7 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0007](0007-github-app-credentials-encrypted-in-d1.md) | GitHub App credentials encrypted in D1 | Accepted | 2026-10-15 |
 | [0008](0008-delivery-through-a-d1-outbox.md) | Delivery through a D1 outbox | Accepted | 2026-10-14 |
 | [0009](0009-releases-only-by-tag-push.md) | Releases published as a pre-release and promoted by the release workflow | Accepted | 2026-10-14 |
-| [0010](0010-istanbul-coverage.md) | Istanbul coverage instead of V8 | Accepted | 2026-10-14 |
+| [0010](0010-istanbul-coverage.md) | Istanbul coverage instead of V8 | Superseded by [0033](0033-v8-coverage.md) | 2026-10-14 |
 | [0011](0011-public-http-surface.md) | Public HTTP surface of the Worker | Accepted | 2026-10-14 |
 | [0012](0012-webhook-signature-verification.md) | Webhook signature verification | Accepted | 2026-10-14 |
 | [0013](0013-deploy-to-cloudflare-and-workers-builds.md) | Deployment through the Deploy to Cloudflare button and Workers Builds | Accepted | 2026-10-14 |
@@ -84,5 +84,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0030](0030-release-notice-without-credentials.md) | Release notice from an unauthenticated release check | Accepted | 2026-10-21 |
 | [0031](0031-update-workflow-for-copies.md) | Update workflow for copies | Accepted | 2026-10-22 |
 | [0032](0032-node-test-project-for-workflow-scripts.md) | Node test project for workflow scripts | Accepted | 2026-10-22 |
+| [0033](0033-v8-coverage.md) | V8 coverage under the Workers test plugin | Accepted | 2026-10-23 |
 
 <!-- project:end index -->
