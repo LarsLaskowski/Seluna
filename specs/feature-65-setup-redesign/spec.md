@@ -64,7 +64,9 @@ counterparts in the same places.
 ## Errors and edge cases
 
 - E1: Long text without spaces — a Telegram chat name of 128 code points, an app slug of 100 characters, an
-  installation login of 39 characters, the version string, `GITHUB_APP_PRIVATE_KEY` or
+  installation's login or enterprise slug of any length (GitHub's answer is not cut by Seluna:
+  `parseAccount`, `src/github/installations.ts:31-37`; shown by `accountHtml`, `src/setup/pages.ts:149-175`), the
+  version string, `GITHUB_APP_PRIVATE_KEY` or
   `npx wrangler secret put TELEGRAM_BOT_TOKEN` in a German or English text — wraps inside its card at 360 px; the page
   never grows wider than the viewport.
 - E2: Long lists — 100 installations with the _more installations_ text, 100 chats in the Telegram list, the full
@@ -101,6 +103,15 @@ counterparts in the same places.
   and the focus ring at least 3:1 against their surroundings, in light and in dark mode (WCAG 2.1 AA, 1.4.3 and
   1.4.11); each page keeps exactly one `<h1>`, and the header's product name is not a heading; no animation or
   transition.
+- Verification: the project has no browser tooling (tests run in the Workers runtime only), so every criterion is
+  checked on the rendered markup and on `STYLE` itself: the layout rules that make S4, S5, E1, E2, E4 and E5 hold
+  are stated as properties of `STYLE` (AC10–AC13), and the colours are declared so that a test can read them (below).
+  How the pages look in a real browser is not checked by this change; the residual risk (a rule that holds in the
+  constant but renders badly) is accepted, and the screenshots of the setup guide (#20) are the first real
+  rendering.
+- Colours: each mode declares its colours once, as `#rrggbb` values of named custom properties (the light set on
+  `:root`, the dark set inside `@media (prefers-color-scheme: dark)`), and every rule uses them through `var(...)`,
+  so the contrast of every pair can be computed from `STYLE`.
 - Compatibility: the current versions of Chrome, Edge, Firefox and Safari on desktop, Android and iOS; older
   browsers get a readable page (E8). The interface languages are left-to-right.
 - Behavior: routes, status codes, headers, cookies, form fields, form actions and methods, CSRF fields and every text
@@ -144,16 +155,31 @@ counterparts in the same places.
   the _Worker secrets_ text and the created page's "The GitHub App is saved." in the info style; the _partial Worker
   secrets_ and _reset needed_ texts of the GitHub App step in the error style (S7, S8).
 - [ ] AC10: `STYLE` declares light colours by default and dark colours under `@media (prefers-color-scheme: dark)`,
-  sets `color-scheme` so that the browser's form controls follow, and every text, border and focus colour pair it
-  declares meets the contrast ratios of the non-functional requirements in both modes (S4, E8).
-- [ ] AC11: Every link, button, input, select, checkbox and radio button shows a focus ring on keyboard focus in both
-  modes, drawn as an outline that stays visible in forced-colours mode (S6, E4).
-- [ ] AC12: Rendered in a browser, no page view of AC1 scrolls sideways at a 360 px wide viewport, filled with the
-  long texts and long lists of E1 and E2, nor at 1280 px window width with 200 % zoom; nothing overlaps (S5, E1, E2,
-  E5).
-- [ ] AC13: Rendered in a browser in light and in dark mode, the start page's status view shows its cards visibly
-  separate from the page background and from each other, and the screenshots of the start page, the login page and
-  one step page in both modes at desktop and 360 px width are attached to the pull request (S2, S4, S11).
+  as custom properties (non-functional requirements, _Colours_), and sets `color-scheme: light dark` so that the
+  browser's form controls follow. In each mode, the WCAG 2.1 contrast ratio computed from the declared colours is at
+  least 4.5:1 for: body text on the page background, body text on the card background, link text on the card
+  background, muted text (if declared) on the card background, the text of the primary, secondary and danger buttons
+  on their own backgrounds, the text of the error and info notices on their backgrounds; and at least 3:1 for: the
+  card border against the page background, the input and button borders against the card background (a button whose
+  background has 3:1 against the card counts instead of its border), the notice borders against the card background,
+  and the focus ring against both the page and the card background (S4, E8).
+- [ ] AC11: `STYLE` gives every link, button, input, select, checkbox and radio button a focus ring under
+  `:focus-visible`, drawn with `outline` (not only `box-shadow`) with a width of at least 2px, and does not remove
+  the outline under plain `:focus` (so E8's browsers keep their default); cards, buttons, inputs, selects and
+  notices each have a `border` (not only a background), so they stay distinguishable in forced-colours mode (S6, E4,
+  E8).
+- [ ] AC12: `STYLE` holds the width rules that keep a 360 px viewport free of sideways scrolling: `overflow-wrap:
+  anywhere` (or `break-word` together with `word-break: break-word`) on the body, so E1's texts and `<code>` wrap;
+  `box-sizing: border-box` and `max-width: 100%` on inputs, selects and buttons; no `white-space: nowrap` or `pre`;
+  no `width`, `min-width` or `flex-basis` with an absolute length above 20rem; the main column limited by
+  `max-width` only; font sizes in `rem`, `em` or `%`, never `px`, so zoom and a large default font scale the page
+  (E5); lists such as E2's take no fixed height. The `viewport` meta element of every page stays as it is
+  (`width=device-width, initial-scale=1`). Every page view of AC1 renders the long texts of E1 and 100
+  installations and chats of E2 without any of them being cut (S5, E1, E2, E5).
+- [ ] AC13: In each mode, the card background colour declared in `STYLE` differs from the page background colour, the
+  card border meets the 3:1 ratio of AC10 against the page background, and consecutive cards are separated by a
+  vertical margin or gap of at least 0.75rem, so the start page's parts stay visibly separate in light and dark mode
+  (S2, S4, S11).
 - [ ] AC14: `docs/areas/setup-wizard.md` (_Pages and response headers_) describes the layout rules: header, main
   column, cards per section, the grouped settings, the button kinds, the notice kinds, dark mode, the width and
   contrast limits and the constraints of AC1–AC3 (S2).
@@ -163,6 +189,8 @@ counterparts in the same places.
 - New links or navigation between the pages (the navigation issue that follows #65).
 - New routes, a stylesheet route, external fonts or assets (decision 0015, options 18 and 19).
 - Text changes in either language, also new texts for headings or legends, and a new order of the parts of a page.
+- Screenshots of the pages and a browser test tool: no browser dependency is added, and the screenshots belong to
+  the setup guide of #20, which needs them anyway.
 - A light/dark switch on the page (the pages follow the system setting only), a print style, and a right-to-left
   layout of the page.
 - Changes to roles and ARIA attributes beyond `aria-hidden` on decoration (the notices keep `role="alert"`; the info
@@ -215,5 +243,33 @@ counterparts in the same places.
   content), the two settings groups with their legends, primary, secondary and danger buttons, error and info
   notices and which texts use which, light and dark colours after the system setting, the 360 px width, the contrast
   ratios and the visible focus ring, and the style's limits (one `<style>`, no `style=` attribute, no `url(`,
-  `@import` or `@font-face`, system fonts, at most 8 KiB). _Paths_ keeps the order of the start page and names its
-  parts as cards. Nothing else in the area changes.
+  `@import` or `@font-face`, system fonts, at most 8 KiB). It also states that every page has the header and the main
+  column, and that the descriptions of a page or view elsewhere in the area (what it "shows", "shows only" or "in this
+  order") list the content of the main column. Those descriptions — _Paths_ (the order of the start page), _Status and
+  settings_ (the notice-only start page), _Telegram chat_ (the _chat id secret_ view "only the heading and …", the
+  step page, the notice-only page, the code page), _GitHub App_ (the step page's views, the notice-only page, the
+  review, finish and created pages) — are reread against the new markup and reworded where they would contradict the
+  header (for example "shows only the heading" becomes "shows in its main column only the heading"); _Paths_ also
+  names the start page's parts as cards.
+
+## Challenge
+
+1. MAJOR — AC12 and AC13 need a browser no one in the pipeline has, and screenshots cannot be attached by the squad.
+   Accepted, scope narrowed: both criteria are rewritten as properties of `STYLE` that a unit test checks on the
+   constant (AC12: `overflow-wrap`, `box-sizing` and `max-width: 100%` on controls, no `nowrap`, no fixed width above
+   20rem, relative font sizes, an unchanged viewport meta; AC13: card and page backgrounds differ, the card border's
+   3:1 ratio, a gap of at least 0.75rem between cards). AC11 now names the static rules behind S6 and E4 (outline
+   under `:focus-visible`, borders on cards, buttons, controls and notices). Screenshots leave #65 and stay with
+   #20 (_Out of scope_); a new _Verification_ requirement records that no real rendering is checked and accepts that
+   residual risk. No browser dependency is added, so no decision record is needed for one; no escalation, because
+   the issue does not ask for screenshots or a browser check, only for the look, which the static rules carry.
+2. MINOR — AC10's contrast clause has no verification path. Accepted: AC10 lists every colour pair with its required
+   ratio in both modes, and a new _Colours_ requirement has each mode declare its colours once as `#rrggbb` custom
+   properties used through `var(...)`, so a test computes each ratio from `STYLE`.
+3. MINOR — E1 misses the enterprise slug. Accepted, and widened: `parseAccount` (`src/github/installations.ts:31-37`)
+   bounds neither the login nor the enterprise slug, so E1 now names both as "of any length", and AC12's long-text
+   data covers them through E1.
+4. MINOR — the area-document outline is too narrow. Accepted: _Area documents_ now says that _Pages and response
+   headers_ states the header and main column of every page and that page descriptions elsewhere list the main
+   column's content, and names the sections whose "shows" and "shows only" wordings are reread and reworded where
+   they would contradict the header, instead of "Nothing else in the area changes".
