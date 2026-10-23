@@ -10,4 +10,4 @@ are quoted in full.
 | 2026-10-23 17:52 | 3 Plan security review | Security | APPROVED; 1 non-blocking note appended (opus/medium · 38,862 tokens · 8 tool uses · 40 s) |
 | 2026-10-23 17:59 | 6 Implement | Dev | V8 switch done; 68/2950 tests; coverage 97.1% (1942/2001) = Istanbul (sonnet/medium · 78,862 tokens · 13 tool uses · 272 s) |
 | 2026-10-23 17:59 | 7 Code check | Orchestrator | format, typecheck, lint, coverage (97.1%), analyzer, scope, decision-check PASS; Sonar gate not run (no token) - CI |
-| 2026-10-23 18:02 | 8 Review round 1 | Reviewer | BLOCKING 1: lock still holds optional-peer @vitest/coverage-istanbul + Babel chain (35 entries) (opus/medium · usage pending) |
+| 2026-10-23 18:02 | 8 Review round 1 | Reviewer | BLOCKING 1: lock still holds optional-peer @vitest/coverage-istanbul + Babel chain (35 entries) (opus/medium · 47,523 tokens · 14 tool uses · 190 s) |
