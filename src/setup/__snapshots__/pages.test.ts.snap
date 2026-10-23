@@ -1,0 +1,725 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the pages before this change > the body text of the 'github created without a slug' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch GitHub-App Die GitHub-App ist gespeichert. Installiere sie auf GitHub: Öffne in den Einstellungen deines Kontos oder deiner Organisation Developer settings, dann GitHub Apps, wähle die App und klicke auf Install App. Empfohlen ist die Auswahl All repositories, damit auch neue Repositories erfasst werden."`;
+
+exports[`the pages before this change > the body text of the 'github created without a slug' page in 'en' is unchanged 1`] = `"Language: English | Deutsch GitHub App The GitHub App is saved. Install it on GitHub: in the settings of your account or organization, open Developer settings, then GitHub Apps, choose the app and select Install App. Choosing All repositories is recommended, so that new repositories are covered too."`;
+
+exports[`the pages before this change > the body text of the 'github created' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch GitHub-App Die GitHub-App ist gespeichert. Installiere sie jetzt auf deinem Konto oder deiner Organisation. Empfohlen ist die Auswahl All repositories, damit auch neue Repositories erfasst werden. App auf GitHub installieren"`;
+
+exports[`the pages before this change > the body text of the 'github created' page in 'en' is unchanged 1`] = `"Language: English | Deutsch GitHub App The GitHub App is saved. Now install it on your account or organization. Choosing All repositories is recommended, so that new repositories are covered too. Install the app on GitHub"`;
+
+exports[`the pages before this change > the body text of the 'github finish with a notice' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch GitHub-App GitHub hat die App erstellt. Wähle Abschließen, damit Seluna ihre Zugangsdaten abruft und speichert. GitHub war nicht erreichbar. Wähle gleich noch einmal Abschließen; die Rückkehr bleibt eine Stunde lang gültig. Abschließen"`;
+
+exports[`the pages before this change > the body text of the 'github finish with a notice' page in 'en' is unchanged 1`] = `"Language: English | Deutsch GitHub App GitHub has created the app. Select Finish so that Seluna fetches and saves its credentials. GitHub could not be reached. Select Finish again in a moment; the return stays valid for one hour. Finish"`;
+
+exports[`the pages before this change > the body text of the 'github finish' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch GitHub-App GitHub hat die App erstellt. Wähle Abschließen, damit Seluna ihre Zugangsdaten abruft und speichert. Abschließen"`;
+
+exports[`the pages before this change > the body text of the 'github finish' page in 'en' is unchanged 1`] = `"Language: English | Deutsch GitHub App GitHub has created the app. Select Finish so that Seluna fetches and saves its credentials. Finish"`;
+
+exports[`the pages before this change > the body text of the 'github form with a notice' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch GitHub-App Seluna empfängt die Ereignisse deiner Repositories über eine eigene, private GitHub-App. Erstelle sie hier für dein persönliches Konto oder für eine Organisation: Seluna sendet GitHub ein Manifest mit dem Namen der App, der Webhook-Adresse dieser Instanz und reinen Leserechten und speichert die Zugangsdaten der App verschlüsselt, sobald du auf GitHub bestätigt hast. Wähle dein persönliches Konto oder eine Organisation und gib den Namen ein: 1 bis 39 Buchstaben, Ziffern und Bindestriche, ohne Bindestrich am Anfang oder Ende. Es ist noch keine GitHub-App gespeichert. Mein persönliches Konto Eine Organisation Name des Kontos oder der Organisation, wie in github.com/name Weiter"`;
+
+exports[`the pages before this change > the body text of the 'github form with a notice' page in 'en' is unchanged 1`] = `"Language: English | Deutsch GitHub App Seluna receives the events of your repositories through a private GitHub App of its own. Create it here for your personal account or for an organization: Seluna sends GitHub a manifest with the app&#39;s name, the webhook address of this instance and read-only permissions, and saves the app&#39;s credentials encrypted once you have confirmed on GitHub. Choose your personal account or an organization and enter its name: 1 to 39 letters, digits and hyphens, not starting or ending with a hyphen. No GitHub App is saved yet. My personal account An organization Name of the account or organization, as in github.com/name Next"`;
+
+exports[`the pages before this change > the body text of the 'github form with a saved app' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch GitHub-App Seluna empfängt die Ereignisse deiner Repositories über eine eigene, private GitHub-App. Erstelle sie hier für dein persönliches Konto oder für eine Organisation: Seluna sendet GitHub ein Manifest mit dem Namen der App, der Webhook-Adresse dieser Instanz und reinen Leserechten und speichert die Zugangsdaten der App verschlüsselt, sobald du auf GitHub bestätigt hast. Gespeicherte GitHub-App, App-ID: 12345 Eine neue App ersetzt die gespeicherte. Lösche die alte App danach auf GitHub: in den Einstellungen deines Kontos oder deiner Organisation unter Developer settings, dann GitHub Apps. Mein persönliches Konto Eine Organisation Name des Kontos oder der Organisation, wie in github.com/name Weiter"`;
+
+exports[`the pages before this change > the body text of the 'github form with a saved app' page in 'en' is unchanged 1`] = `"Language: English | Deutsch GitHub App Seluna receives the events of your repositories through a private GitHub App of its own. Create it here for your personal account or for an organization: Seluna sends GitHub a manifest with the app&#39;s name, the webhook address of this instance and read-only permissions, and saves the app&#39;s credentials encrypted once you have confirmed on GitHub. Saved GitHub App, App ID: 12345 Creating a new app replaces the saved one. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. My personal account An organization Name of the account or organization, as in github.com/name Next"`;
+
+exports[`the pages before this change > the body text of the 'github form' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch GitHub-App Seluna empfängt die Ereignisse deiner Repositories über eine eigene, private GitHub-App. Erstelle sie hier für dein persönliches Konto oder für eine Organisation: Seluna sendet GitHub ein Manifest mit dem Namen der App, der Webhook-Adresse dieser Instanz und reinen Leserechten und speichert die Zugangsdaten der App verschlüsselt, sobald du auf GitHub bestätigt hast. Es ist noch keine GitHub-App gespeichert. Mein persönliches Konto Eine Organisation Name des Kontos oder der Organisation, wie in github.com/name Weiter"`;
+
+exports[`the pages before this change > the body text of the 'github form' page in 'en' is unchanged 1`] = `"Language: English | Deutsch GitHub App Seluna receives the events of your repositories through a private GitHub App of its own. Create it here for your personal account or for an organization: Seluna sends GitHub a manifest with the app&#39;s name, the webhook address of this instance and read-only permissions, and saves the app&#39;s credentials encrypted once you have confirmed on GitHub. No GitHub App is saved yet. My personal account An organization Name of the account or organization, as in github.com/name Next"`;
+
+exports[`the pages before this change > the body text of the 'github notice-only' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch GitHub-App Diese Rückkehr von GitHub gehört nicht zu deiner aktuellen Anmeldung oder ist älter als eine Stunde, daher wurde nichts gespeichert. Falls GitHub eine App erstellt hat, lösche sie auf GitHub und beginne erneut. Zurück zum Schritt GitHub-App"`;
+
+exports[`the pages before this change > the body text of the 'github notice-only' page in 'en' is unchanged 1`] = `"Language: English | Deutsch GitHub App This return from GitHub does not belong to your current sign-in or is older than one hour, so nothing was saved. If GitHub created an app, delete it on GitHub and start again. Back to the GitHub App step"`;
+
+exports[`the pages before this change > the body text of the 'github partial-worker-secrets' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch GitHub-App Einige, aber nicht alle der Worker-Secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY und GITHUB_WEBHOOK_SECRET sind gesetzt. Setze alle drei, um die App von Hand zu konfigurieren, oder lösche sie, um die App hier zu erstellen."`;
+
+exports[`the pages before this change > the body text of the 'github partial-worker-secrets' page in 'en' is unchanged 1`] = `"Language: English | Deutsch GitHub App Some, but not all, of the Worker secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET are set. Set all three to configure the app by hand, or delete them to create the app here."`;
+
+exports[`the pages before this change > the body text of the 'github reset-needed' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch GitHub-App Die gespeicherten GitHub-Zugangsdaten lassen sich mit dem aktuellen SELUNA_SECRET nicht lesen: Es wurde geändert, oder die gespeicherten Werte sind beschädigt. Setze das frühere SELUNA_SECRET wieder, oder setze die gespeicherten Zugangsdaten auf der Startseite zurück und erstelle die App danach erneut. Startseite öffnen"`;
+
+exports[`the pages before this change > the body text of the 'github reset-needed' page in 'en' is unchanged 1`] = `"Language: English | Deutsch GitHub App The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. Set the earlier SELUNA_SECRET again, or reset the saved credentials on the start page and create the app again. Open the start page"`;
+
+exports[`the pages before this change > the body text of the 'github review of a personal account' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch GitHub-App Seluna bittet GitHub, diese App zu erstellen. Prüfe auf GitHub die Angaben und wähle Create GitHub App; GitHub schickt dich danach hierher zurück. Seluna speichert die App nur, wenn GitHub sie für das hier gezeigte Konto erstellt hat. Konto: octocat (Mein persönliches Konto) App-Name: seluna-demo Berechtigungen, alle nur lesend: Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata Ereignisse: Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert Weiter zu GitHub"`;
+
+exports[`the pages before this change > the body text of the 'github review of a personal account' page in 'en' is unchanged 1`] = `"Language: English | Deutsch GitHub App Seluna asks GitHub to create this app. On GitHub, check the details and select Create GitHub App; GitHub then sends you back here. Seluna saves the app only if GitHub created it for the account shown here. Account: octocat (My personal account) App name: seluna-demo Permissions, all read-only: Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata Events: Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert Continue to GitHub"`;
+
+exports[`the pages before this change > the body text of the 'github review of an organization' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch GitHub-App Seluna bittet GitHub, diese App zu erstellen. Prüfe auf GitHub die Angaben und wähle Create GitHub App; GitHub schickt dich danach hierher zurück. Seluna speichert die App nur, wenn GitHub sie für das hier gezeigte Konto erstellt hat. Konto: octo-org (Eine Organisation) App-Name: seluna-demo Berechtigungen, alle nur lesend: Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata Ereignisse: Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert Weiter zu GitHub"`;
+
+exports[`the pages before this change > the body text of the 'github review of an organization' page in 'en' is unchanged 1`] = `"Language: English | Deutsch GitHub App Seluna asks GitHub to create this app. On GitHub, check the details and select Create GitHub App; GitHub then sends you back here. Seluna saves the app only if GitHub created it for the account shown here. Account: octo-org (An organization) App name: seluna-demo Permissions, all read-only: Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata Events: Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert Continue to GitHub"`;
+
+exports[`the pages before this change > the body text of the 'github worker-secrets' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch GitHub-App Die GitHub-App wird durch die Worker-Secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY und GITHUB_WEBHOOK_SECRET festgelegt, die Vorrang vor einer hier erstellten App haben. Um die App hier zu erstellen, lösche diese Secrets."`;
+
+exports[`the pages before this change > the body text of the 'github worker-secrets' page in 'en' is unchanged 1`] = `"Language: English | Deutsch GitHub App The GitHub App is set by the Worker secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET, which take precedence over an app created here. To create the app here, delete those secrets."`;
+
+exports[`the pages before this change > the body text of the 'login with a notice' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Anmelden Gib das SELUNA_SECRET dieser Instanz ein, um die Einrichtung zu öffnen. Das ist nicht das SELUNA_SECRET dieser Instanz. SELUNA_SECRET Anmelden"`;
+
+exports[`the pages before this change > the body text of the 'login with a notice' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Sign in Enter the SELUNA_SECRET of this instance to open the setup. That is not the SELUNA_SECRET of this instance. SELUNA_SECRET Sign in"`;
+
+exports[`the pages before this change > the body text of the 'login' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Anmelden Gib das SELUNA_SECRET dieser Instanz ein, um die Einrichtung zu öffnen. SELUNA_SECRET Anmelden"`;
+
+exports[`the pages before this change > the body text of the 'login' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Sign in Enter the SELUNA_SECRET of this instance to open the setup. SELUNA_SECRET Sign in"`;
+
+exports[`the pages before this change > the body text of the 'not-configured' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch SELUNA_SECRET ist nicht gesetzt Die Einrichtung kann nicht starten, weil das Worker-Secret SELUNA_SECRET fehlt oder kürzer als 32 Zeichen ist. Erzeuge eine zufällige Zeichenfolge mit mindestens 32 Zeichen, zum Beispiel mit einem Passwortmanager oder mit: openssl rand -hex 32 Öffne im Cloudflare-Dashboard diesen Worker, dann Settings, dann Variables and Secrets, und füge ein Secret namens SELUNA_SECRET mit dieser Zeichenfolge hinzu. Oder führe aus: npx wrangler secret put SELUNA_SECRET Lade danach diese Seite neu."`;
+
+exports[`the pages before this change > the body text of the 'not-configured' page in 'en' is unchanged 1`] = `"Language: English | Deutsch SELUNA_SECRET is not set The setup cannot start because the Worker secret SELUNA_SECRET is missing or shorter than 32 characters. Create a random string of at least 32 characters, for example with a password manager or with: openssl rand -hex 32 In the Cloudflare dashboard open this Worker, then Settings, then Variables and Secrets, and add a secret named SELUNA_SECRET with that string. Or run: npx wrangler secret put SELUNA_SECRET Then reload this page."`;
+
+exports[`the pages before this change > the body text of the 'start notice-only' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Du bist angemeldet Richte deine Instanz Schritt für Schritt ein: Die Einrichtung ist gerade nicht verfügbar. Bitte versuche es gleich noch einmal. Telegram-Chat GitHub-App Abmelden"`;
+
+exports[`the pages before this change > the body text of the 'start notice-only' page in 'en' is unchanged 1`] = `"Language: English | Deutsch You are signed in Set up your instance step by step: The setup is unavailable right now. Please try again in a moment. Telegram chat GitHub App Sign out"`;
+
+exports[`the pages before this change > the body text of the 'start status with Worker secrets and …' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Du bist angemeldet Richte deine Instanz Schritt für Schritt ein: Status Version: 1.2.3-test Telegram-Chat: -1001234567890 GitHub-App: Gesetzt durch die Worker-Secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY und GITHUB_WEBHOOK_SECRET. Installationen: Kann gerade nicht von GitHub geladen werden. Letzte Zustellung von GitHub: 2026-10-17 12:34 (UTC) Telegram-Chat GitHub-App Einstellungen Sprache der Benachrichtigungen English Deutsch Zeitzone Ruhezeiten: Benachrichtigungen kommen ohne Ton Beginn Ende Benachrichtige mich über Neuer Pull Request Pull Request bereit zum Review Review angefordert CI auf dem Standard-Branch fehlgeschlagen CI in einem Pull Request fehlgeschlagen Dependabot-Warnung Code-Scanning-Warnung Secret-Scanning-Warnung Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist Einstellungen speichern Abmelden"`;
+
+exports[`the pages before this change > the body text of the 'start status with Worker secrets and …' page in 'en' is unchanged 1`] = `"Language: English | Deutsch You are signed in Set up your instance step by step: Status Version: 1.2.3-test Telegram chat: -1001234567890 GitHub App: Set by the Worker secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET. Installations: Cannot be loaded from GitHub right now. Last delivery from GitHub: 2026-10-17 12:34 (UTC) Telegram chat GitHub App Settings Language of the notifications English Deutsch Time zone Quiet hours: notifications arrive without sound Start End Notify me about New pull request Pull request ready for review Review requested CI failed on the default branch CI failed in a pull request Dependabot alert Code scanning alert Secret scanning alert Tell me when a new Seluna release is available Save settings Sign out"`;
+
+exports[`the pages before this change > the body text of the 'start status with a notice' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Du bist angemeldet Richte deine Instanz Schritt für Schritt ein: Das Formular ist abgelaufen. Bitte sende es erneut ab. Status Version: 1.2.3-test Telegram-Chat: -1001234567890 GitHub-App: App-ID 12345 Letzte Zustellung von GitHub: 2026-10-17 12:34 (UTC) Telegram-Chat GitHub-App Einstellungen Sprache der Benachrichtigungen English Deutsch Zeitzone Ruhezeiten: Benachrichtigungen kommen ohne Ton Beginn Ende Benachrichtige mich über Neuer Pull Request Pull Request bereit zum Review Review angefordert CI auf dem Standard-Branch fehlgeschlagen CI in einem Pull Request fehlgeschlagen Dependabot-Warnung Code-Scanning-Warnung Secret-Scanning-Warnung Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist Einstellungen speichern Abmelden"`;
+
+exports[`the pages before this change > the body text of the 'start status with a notice' page in 'en' is unchanged 1`] = `"Language: English | Deutsch You are signed in Set up your instance step by step: The form has expired. Please submit it again. Status Version: 1.2.3-test Telegram chat: -1001234567890 GitHub App: App ID 12345 Last delivery from GitHub: 2026-10-17 12:34 (UTC) Telegram chat GitHub App Settings Language of the notifications English Deutsch Time zone Quiet hours: notifications arrive without sound Start End Notify me about New pull request Pull request ready for review Review requested CI failed on the default branch CI failed in a pull request Dependabot alert Code scanning alert Secret scanning alert Tell me when a new Seluna release is available Save settings Sign out"`;
+
+exports[`the pages before this change > the body text of the 'start status with a saved app, instal…' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Du bist angemeldet Richte deine Instanz Schritt für Schritt ein: Status Version: 1.2.3-test Telegram-Chat: -1001234567890 GitHub-App: seluna-demo (App-ID 12345) Installationen: octocat (persönliches Konto), ausgewählte Repositories Letzte Zustellung von GitHub: 2026-10-17 12:34 (UTC) Die gespeicherten Zugangsdaten sind nicht lesbar Die gespeicherten GitHub-Zugangsdaten sind mit dem aktuellen SELUNA_SECRET nicht lesbar: Es wurde geändert, oder die gespeicherten Werte sind beschädigt. Wenn du das frühere SELUNA_SECRET noch kennst, setze es stattdessen wieder. Andernfalls setze zurück: Seluna löscht die gespeicherten GitHub-Zugangsdaten und Installations-Tokens, und du erstellst die GitHub-App neu. Lösche die alte App danach auf GitHub: in den Einstellungen deines Kontos oder deiner Organisation unter Developer settings, dann GitHub Apps. Der Telegram-Chat und die Einstellungen bleiben erhalten. Zurücksetzen und GitHub-App neu erstellen Telegram-Chat GitHub-App Einstellungen Sprache der Benachrichtigungen English Deutsch Zeitzone Ruhezeiten: Benachrichtigungen kommen ohne Ton Beginn Ende Benachrichtige mich über Neuer Pull Request Pull Request bereit zum Review Review angefordert CI auf dem Standard-Branch fehlgeschlagen CI in einem Pull Request fehlgeschlagen Dependabot-Warnung Code-Scanning-Warnung Secret-Scanning-Warnung Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist Einstellungen speichern Abmelden"`;
+
+exports[`the pages before this change > the body text of the 'start status with a saved app, instal…' page in 'en' is unchanged 1`] = `"Language: English | Deutsch You are signed in Set up your instance step by step: Status Version: 1.2.3-test Telegram chat: -1001234567890 GitHub App: seluna-demo (App ID 12345) Installations: octocat (personal account), selected repositories Last delivery from GitHub: 2026-10-17 12:34 (UTC) The saved credentials cannot be read The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials and installation tokens, and you create the GitHub App again. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept. Reset and create the GitHub App again Telegram chat GitHub App Settings Language of the notifications English Deutsch Time zone Quiet hours: notifications arrive without sound Start End Notify me about New pull request Pull request ready for review Review requested CI failed on the default branch CI failed in a pull request Dependabot alert Code scanning alert Secret scanning alert Tell me when a new Seluna release is available Save settings Sign out"`;
+
+exports[`the pages before this change > the body text of the 'start status without an app' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Du bist angemeldet Richte deine Instanz Schritt für Schritt ein: Status Version: 1.2.3-test Telegram-Chat: Noch nichts gespeichert. GitHub-App: Noch nichts gespeichert. Letzte Zustellung von GitHub: Noch nichts empfangen. Telegram-Chat GitHub-App Einstellungen Sprache der Benachrichtigungen English Deutsch Zeitzone Ruhezeiten: Benachrichtigungen kommen ohne Ton Beginn Ende Benachrichtige mich über Neuer Pull Request Pull Request bereit zum Review Review angefordert CI auf dem Standard-Branch fehlgeschlagen CI in einem Pull Request fehlgeschlagen Dependabot-Warnung Code-Scanning-Warnung Secret-Scanning-Warnung Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist Einstellungen speichern Abmelden"`;
+
+exports[`the pages before this change > the body text of the 'start status without an app' page in 'en' is unchanged 1`] = `"Language: English | Deutsch You are signed in Set up your instance step by step: Status Version: 1.2.3-test Telegram chat: None saved yet. GitHub App: None saved yet. Last delivery from GitHub: None received yet. Telegram chat GitHub App Settings Language of the notifications English Deutsch Time zone Quiet hours: notifications arrive without sound Start End Notify me about New pull request Pull request ready for review Review requested CI failed on the default branch CI failed in a pull request Dependabot alert Code scanning alert Secret scanning alert Tell me when a new Seluna release is available Save settings Sign out"`;
+
+exports[`the pages before this change > the body text of the 'telegram chat id secret' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Der Chat wird durch das Worker-Secret TELEGRAM_CHAT_ID festgelegt, das Vorrang vor einem hier gewählten Chat hat. Um den Chat hier zu wählen, lösche dieses Secret."`;
+
+exports[`the pages before this change > the body text of the 'telegram chat id secret' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat The chat is set by the Worker secret TELEGRAM_CHAT_ID, which takes precedence over a chat chosen here. To choose the chat here, delete that secret."`;
+
+exports[`the pages before this change > the body text of the 'telegram chats' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Es ist noch kein Chat gespeichert. Nach Chats suchen Chats, die dein Bot kürzlich gesehen hat. Jeder, der deinem Bot schreibt, erscheint hier. Wähle deshalb nur deinen eigenen Chat: Seluna sendet eine Testnachricht mit einem Code dorthin, und der Chat wird gespeichert, sobald du diesen Code eingibst. Anna Beispiel @anna_example (Privatchat) Seluna Testgroup (Gruppe) Testnachricht senden"`;
+
+exports[`the pages before this change > the body text of the 'telegram chats' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. No chat is saved yet. Search for chats Chats your bot has seen recently. Anyone who messages your bot appears here, so choose only your own chat: Seluna sends a test message with a code to it, and the chat is saved once you enter that code. Anna Beispiel @anna_example (Private chat) Seluna Testgroup (Group) Send test message"`;
+
+exports[`the pages before this change > the body text of the 'telegram code with a notice' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Der Code passt nicht zur Testnachricht. Prüfe den Code in deinem Chat und gib ihn erneut ein. Testnachricht gesendet an Chat: 5001001 Gib den sechsstelligen Code aus dieser Nachricht ein, um den Chat zu speichern. Ist keine Nachricht angekommen, ist der Chat nicht deiner: Suche erneut und wähle einen anderen. Code Chat speichern Nach Chats suchen"`;
+
+exports[`the pages before this change > the body text of the 'telegram code with a notice' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat The code does not match the test message. Check the code in your chat and enter it again. Test message sent to chat: 5001001 Enter the six-digit code from that message to save the chat. If no message arrived, the chat is not yours: search again and choose another. Code Save chat Search for chats"`;
+
+exports[`the pages before this change > the body text of the 'telegram code' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Testnachricht gesendet an Chat: 5001001 Gib den sechsstelligen Code aus dieser Nachricht ein, um den Chat zu speichern. Ist keine Nachricht angekommen, ist der Chat nicht deiner: Suche erneut und wähle einen anderen. Code Chat speichern Nach Chats suchen"`;
+
+exports[`the pages before this change > the body text of the 'telegram code' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Test message sent to chat: 5001001 Enter the six-digit code from that message to save the chat. If no message arrived, the chat is not yours: search again and choose another. Code Save chat Search for chats"`;
+
+exports[`the pages before this change > the body text of the 'telegram no chats' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Gespeicherter Chat: -1001234567890 Nach Chats suchen Kein Chat gefunden. Sende deinem Bot /start oder füge ihn einer Gruppe hinzu und suche dann erneut. Telegram hält Nachrichten an den Bot 24 Stunden vor, und Seluna sieht nur die neuesten 100: Wenn dein Bot viele Nachrichten erhält, sende kurz vor der Suche erneut /start."`;
+
+exports[`the pages before this change > the body text of the 'telegram no chats' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. Saved chat: -1001234567890 Search for chats No chat found. Send /start to your bot or add it to a group, then search again. Telegram keeps messages to the bot for 24 hours, and Seluna sees only the newest 100: if your bot receives many messages, send /start again just before you search."`;
+
+exports[`the pages before this change > the body text of the 'telegram notice-only' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Die Testnachricht konnte nicht gesendet werden, daher wurde der Chat nicht gespeichert. Prüfe, ob der Bot noch im Chat ist und nicht blockiert wurde, und suche dann erneut. Nach Chats suchen"`;
+
+exports[`the pages before this change > the body text of the 'telegram notice-only' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. The test message could not be sent, so the chat was not saved. Check that the bot is still in the chat and not blocked, then search again. Search for chats"`;
+
+exports[`the pages before this change > the body text of the 'telegram problem with a saved chat' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Das Worker-Secret TELEGRAM_BOT_TOKEN ist nicht gesetzt. Sende in Telegram /newbot an @BotFather und kopiere den zurückgegebenen Token. Öffne im Cloudflare-Dashboard diesen Worker, dann Settings, dann Variables and Secrets, und füge ein Secret namens TELEGRAM_BOT_TOKEN mit diesem Token hinzu. Oder führe aus: npx wrangler secret put TELEGRAM_BOT_TOKEN Gespeicherter Chat: -1001234567890 Nach Chats suchen"`;
+
+exports[`the pages before this change > the body text of the 'telegram problem with a saved chat' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. The Worker secret TELEGRAM_BOT_TOKEN is not set. In Telegram, send /newbot to @BotFather and copy the token it returns. In the Cloudflare dashboard open this Worker, then Settings, then Variables and Secrets, and add a secret named TELEGRAM_BOT_TOKEN with that token. Or run: npx wrangler secret put TELEGRAM_BOT_TOKEN Saved chat: -1001234567890 Search for chats"`;
+
+exports[`the pages before this change > the body text of the 'telegram problem without a saved chat' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Das Worker-Secret TELEGRAM_BOT_TOKEN ist nicht gesetzt. Sende in Telegram /newbot an @BotFather und kopiere den zurückgegebenen Token. Öffne im Cloudflare-Dashboard diesen Worker, dann Settings, dann Variables and Secrets, und füge ein Secret namens TELEGRAM_BOT_TOKEN mit diesem Token hinzu. Oder führe aus: npx wrangler secret put TELEGRAM_BOT_TOKEN Es ist noch kein Chat gespeichert. Nach Chats suchen"`;
+
+exports[`the pages before this change > the body text of the 'telegram problem without a saved chat' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. The Worker secret TELEGRAM_BOT_TOKEN is not set. In Telegram, send /newbot to @BotFather and copy the token it returns. In the Cloudflare dashboard open this Worker, then Settings, then Variables and Secrets, and add a secret named TELEGRAM_BOT_TOKEN with that token. Or run: npx wrangler secret put TELEGRAM_BOT_TOKEN No chat is saved yet. Search for chats"`;
+
+exports[`the pages before this change > the forms of the 'github created without a slug' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'github created without a slug' page in 'en' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'github created' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'github created' page in 'en' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'github finish with a notice' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/github/callback
+input type=hidden name=code value=abc123
+input type=hidden name=state value=v1.personal.octocat.1700003600000.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'github finish with a notice' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/github/callback
+input type=hidden name=code value=abc123
+input type=hidden name=state value=v1.personal.octocat.1700003600000.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'github finish' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/github/callback
+input type=hidden name=code value=abc123
+input type=hidden name=state value=v1.personal.octocat.1700003600000.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'github finish' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/github/callback
+input type=hidden name=code value=abc123
+input type=hidden name=state value=v1.personal.octocat.1700003600000.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'github form with a notice' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/github
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label
+input type=radio name=account_type value=personal required=
+label
+input type=radio name=account_type value=organization required=
+label for=account
+input type=text name=account id=account required= maxlength=39 autocomplete=off
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'github form with a notice' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/github
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label
+input type=radio name=account_type value=personal required=
+label
+input type=radio name=account_type value=organization required=
+label for=account
+input type=text name=account id=account required= maxlength=39 autocomplete=off
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'github form with a saved app' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/github
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label
+input type=radio name=account_type value=personal required=
+label
+input type=radio name=account_type value=organization required=
+label for=account
+input type=text name=account id=account required= maxlength=39 autocomplete=off
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'github form with a saved app' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/github
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label
+input type=radio name=account_type value=personal required=
+label
+input type=radio name=account_type value=organization required=
+label for=account
+input type=text name=account id=account required= maxlength=39 autocomplete=off
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'github form' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/github
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label
+input type=radio name=account_type value=personal required=
+label
+input type=radio name=account_type value=organization required=
+label for=account
+input type=text name=account id=account required= maxlength=39 autocomplete=off
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'github form' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/github
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label
+input type=radio name=account_type value=personal required=
+label
+input type=radio name=account_type value=organization required=
+label for=account
+input type=text name=account id=account required= maxlength=39 autocomplete=off
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'github notice-only' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'github notice-only' page in 'en' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'github partial-worker-secrets' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'github partial-worker-secrets' page in 'en' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'github reset-needed' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'github reset-needed' page in 'en' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'github review of a personal account' page in 'de' are unchanged 1`] = `
+"form method=post action=https://github.com/settings/apps/new?state=v1.personal.octocat.1700003600000.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+input type=hidden name=manifest value={&quot;name&quot;:&quot;seluna-demo&quot;}
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'github review of a personal account' page in 'en' are unchanged 1`] = `
+"form method=post action=https://github.com/settings/apps/new?state=v1.personal.octocat.1700003600000.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+input type=hidden name=manifest value={&quot;name&quot;:&quot;seluna-demo&quot;}
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'github review of an organization' page in 'de' are unchanged 1`] = `
+"form method=post action=https://github.com/settings/apps/new?state=v1.personal.octocat.1700003600000.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+input type=hidden name=manifest value={&quot;name&quot;:&quot;seluna-demo&quot;}
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'github review of an organization' page in 'en' are unchanged 1`] = `
+"form method=post action=https://github.com/settings/apps/new?state=v1.personal.octocat.1700003600000.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+input type=hidden name=manifest value={&quot;name&quot;:&quot;seluna-demo&quot;}
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'github worker-secrets' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'github worker-secrets' page in 'en' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'login with a notice' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/login
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=secret
+input type=password name=secret id=secret required= autocomplete=current-password
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'login with a notice' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/login
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=secret
+input type=password name=secret id=secret required= autocomplete=current-password
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'login' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/login
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=secret
+input type=password name=secret id=secret required= autocomplete=current-password
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'login' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/login
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=secret
+input type=password name=secret id=secret required= autocomplete=current-password
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'not-configured' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'not-configured' page in 'en' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'start notice-only' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/logout
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'start notice-only' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/logout
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'start status with Worker secrets and …' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/settings
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=notification_language
+select name=notification_language id=notification_language
+option value=en selected=
+option value=de
+label for=time_zone
+select name=time_zone id=time_zone
+option value=UTC selected=
+label
+input type=checkbox name=quiet_hours value=on
+label for=quiet_start
+input type=time name=quiet_start value=22:00 id=quiet_start
+label for=quiet_end
+input type=time name=quiet_end value=07:00 id=quiet_end
+label
+input type=checkbox name=rule_pull_request_opened value=on checked=
+label
+input type=checkbox name=rule_pull_request_ready_for_review value=on checked=
+label
+input type=checkbox name=rule_pull_request_review_requested value=on checked=
+label
+input type=checkbox name=rule_ci_failed_default_branch value=on checked=
+label
+input type=checkbox name=rule_ci_failed_pull_request value=on checked=
+label
+input type=checkbox name=rule_dependabot_alert value=on checked=
+label
+input type=checkbox name=rule_code_scanning_alert value=on checked=
+label
+input type=checkbox name=rule_secret_scanning_alert value=on checked=
+label
+input type=checkbox name=update_notice value=on checked=
+button type=submit
+
+form method=post action=/setup/logout
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'start status with Worker secrets and …' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/settings
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=notification_language
+select name=notification_language id=notification_language
+option value=en selected=
+option value=de
+label for=time_zone
+select name=time_zone id=time_zone
+option value=UTC selected=
+label
+input type=checkbox name=quiet_hours value=on
+label for=quiet_start
+input type=time name=quiet_start value=22:00 id=quiet_start
+label for=quiet_end
+input type=time name=quiet_end value=07:00 id=quiet_end
+label
+input type=checkbox name=rule_pull_request_opened value=on checked=
+label
+input type=checkbox name=rule_pull_request_ready_for_review value=on checked=
+label
+input type=checkbox name=rule_pull_request_review_requested value=on checked=
+label
+input type=checkbox name=rule_ci_failed_default_branch value=on checked=
+label
+input type=checkbox name=rule_ci_failed_pull_request value=on checked=
+label
+input type=checkbox name=rule_dependabot_alert value=on checked=
+label
+input type=checkbox name=rule_code_scanning_alert value=on checked=
+label
+input type=checkbox name=rule_secret_scanning_alert value=on checked=
+label
+input type=checkbox name=update_notice value=on checked=
+button type=submit
+
+form method=post action=/setup/logout
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'start status with a notice' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/settings
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=notification_language
+select name=notification_language id=notification_language
+option value=en selected=
+option value=de
+label for=time_zone
+select name=time_zone id=time_zone
+option value=UTC selected=
+label
+input type=checkbox name=quiet_hours value=on
+label for=quiet_start
+input type=time name=quiet_start value=22:00 id=quiet_start
+label for=quiet_end
+input type=time name=quiet_end value=07:00 id=quiet_end
+label
+input type=checkbox name=rule_pull_request_opened value=on checked=
+label
+input type=checkbox name=rule_pull_request_ready_for_review value=on checked=
+label
+input type=checkbox name=rule_pull_request_review_requested value=on checked=
+label
+input type=checkbox name=rule_ci_failed_default_branch value=on checked=
+label
+input type=checkbox name=rule_ci_failed_pull_request value=on checked=
+label
+input type=checkbox name=rule_dependabot_alert value=on checked=
+label
+input type=checkbox name=rule_code_scanning_alert value=on checked=
+label
+input type=checkbox name=rule_secret_scanning_alert value=on checked=
+label
+input type=checkbox name=update_notice value=on checked=
+button type=submit
+
+form method=post action=/setup/logout
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'start status with a notice' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/settings
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=notification_language
+select name=notification_language id=notification_language
+option value=en selected=
+option value=de
+label for=time_zone
+select name=time_zone id=time_zone
+option value=UTC selected=
+label
+input type=checkbox name=quiet_hours value=on
+label for=quiet_start
+input type=time name=quiet_start value=22:00 id=quiet_start
+label for=quiet_end
+input type=time name=quiet_end value=07:00 id=quiet_end
+label
+input type=checkbox name=rule_pull_request_opened value=on checked=
+label
+input type=checkbox name=rule_pull_request_ready_for_review value=on checked=
+label
+input type=checkbox name=rule_pull_request_review_requested value=on checked=
+label
+input type=checkbox name=rule_ci_failed_default_branch value=on checked=
+label
+input type=checkbox name=rule_ci_failed_pull_request value=on checked=
+label
+input type=checkbox name=rule_dependabot_alert value=on checked=
+label
+input type=checkbox name=rule_code_scanning_alert value=on checked=
+label
+input type=checkbox name=rule_secret_scanning_alert value=on checked=
+label
+input type=checkbox name=update_notice value=on checked=
+button type=submit
+
+form method=post action=/setup/logout
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'start status with a saved app, instal…' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/reset
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit
+
+form method=post action=/setup/settings
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=notification_language
+select name=notification_language id=notification_language
+option value=en selected=
+option value=de
+label for=time_zone
+select name=time_zone id=time_zone
+option value=UTC selected=
+label
+input type=checkbox name=quiet_hours value=on
+label for=quiet_start
+input type=time name=quiet_start value=22:00 id=quiet_start
+label for=quiet_end
+input type=time name=quiet_end value=07:00 id=quiet_end
+label
+input type=checkbox name=rule_pull_request_opened value=on checked=
+label
+input type=checkbox name=rule_pull_request_ready_for_review value=on checked=
+label
+input type=checkbox name=rule_pull_request_review_requested value=on checked=
+label
+input type=checkbox name=rule_ci_failed_default_branch value=on checked=
+label
+input type=checkbox name=rule_ci_failed_pull_request value=on checked=
+label
+input type=checkbox name=rule_dependabot_alert value=on checked=
+label
+input type=checkbox name=rule_code_scanning_alert value=on checked=
+label
+input type=checkbox name=rule_secret_scanning_alert value=on checked=
+label
+input type=checkbox name=update_notice value=on checked=
+button type=submit
+
+form method=post action=/setup/logout
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'start status with a saved app, instal…' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/reset
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit
+
+form method=post action=/setup/settings
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=notification_language
+select name=notification_language id=notification_language
+option value=en selected=
+option value=de
+label for=time_zone
+select name=time_zone id=time_zone
+option value=UTC selected=
+label
+input type=checkbox name=quiet_hours value=on
+label for=quiet_start
+input type=time name=quiet_start value=22:00 id=quiet_start
+label for=quiet_end
+input type=time name=quiet_end value=07:00 id=quiet_end
+label
+input type=checkbox name=rule_pull_request_opened value=on checked=
+label
+input type=checkbox name=rule_pull_request_ready_for_review value=on checked=
+label
+input type=checkbox name=rule_pull_request_review_requested value=on checked=
+label
+input type=checkbox name=rule_ci_failed_default_branch value=on checked=
+label
+input type=checkbox name=rule_ci_failed_pull_request value=on checked=
+label
+input type=checkbox name=rule_dependabot_alert value=on checked=
+label
+input type=checkbox name=rule_code_scanning_alert value=on checked=
+label
+input type=checkbox name=rule_secret_scanning_alert value=on checked=
+label
+input type=checkbox name=update_notice value=on checked=
+button type=submit
+
+form method=post action=/setup/logout
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'start status without an app' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/settings
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=notification_language
+select name=notification_language id=notification_language
+option value=en selected=
+option value=de
+label for=time_zone
+select name=time_zone id=time_zone
+option value=UTC selected=
+label
+input type=checkbox name=quiet_hours value=on
+label for=quiet_start
+input type=time name=quiet_start value=22:00 id=quiet_start
+label for=quiet_end
+input type=time name=quiet_end value=07:00 id=quiet_end
+label
+input type=checkbox name=rule_pull_request_opened value=on checked=
+label
+input type=checkbox name=rule_pull_request_ready_for_review value=on checked=
+label
+input type=checkbox name=rule_pull_request_review_requested value=on checked=
+label
+input type=checkbox name=rule_ci_failed_default_branch value=on checked=
+label
+input type=checkbox name=rule_ci_failed_pull_request value=on checked=
+label
+input type=checkbox name=rule_dependabot_alert value=on checked=
+label
+input type=checkbox name=rule_code_scanning_alert value=on checked=
+label
+input type=checkbox name=rule_secret_scanning_alert value=on checked=
+label
+input type=checkbox name=update_notice value=on checked=
+button type=submit
+
+form method=post action=/setup/logout
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'start status without an app' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/settings
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=notification_language
+select name=notification_language id=notification_language
+option value=en selected=
+option value=de
+label for=time_zone
+select name=time_zone id=time_zone
+option value=UTC selected=
+label
+input type=checkbox name=quiet_hours value=on
+label for=quiet_start
+input type=time name=quiet_start value=22:00 id=quiet_start
+label for=quiet_end
+input type=time name=quiet_end value=07:00 id=quiet_end
+label
+input type=checkbox name=rule_pull_request_opened value=on checked=
+label
+input type=checkbox name=rule_pull_request_ready_for_review value=on checked=
+label
+input type=checkbox name=rule_pull_request_review_requested value=on checked=
+label
+input type=checkbox name=rule_ci_failed_default_branch value=on checked=
+label
+input type=checkbox name=rule_ci_failed_pull_request value=on checked=
+label
+input type=checkbox name=rule_dependabot_alert value=on checked=
+label
+input type=checkbox name=rule_code_scanning_alert value=on checked=
+label
+input type=checkbox name=rule_secret_scanning_alert value=on checked=
+label
+input type=checkbox name=update_notice value=on checked=
+button type=submit
+
+form method=post action=/setup/logout
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram chat id secret' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram chat id secret' page in 'en' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram chats' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/telegram
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label
+input type=radio name=chat value=5001001 required=
+label
+input type=radio name=chat value=-4001001 required=
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram chats' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/telegram
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label
+input type=radio name=chat value=5001001 required=
+label
+input type=radio name=chat value=-4001001 required=
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram code with a notice' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/telegram/verify
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+input type=hidden name=proof value=v1.5001001.1700000600000.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+label for=code
+input type=text name=code id=code required= pattern=[0-9]{6} maxlength=6 inputmode=numeric autocomplete=one-time-code
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram code with a notice' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/telegram/verify
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+input type=hidden name=proof value=v1.5001001.1700000600000.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+label for=code
+input type=text name=code id=code required= pattern=[0-9]{6} maxlength=6 inputmode=numeric autocomplete=one-time-code
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram code' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/telegram/verify
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+input type=hidden name=proof value=v1.5001001.1700000600000.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+label for=code
+input type=text name=code id=code required= pattern=[0-9]{6} maxlength=6 inputmode=numeric autocomplete=one-time-code
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram code' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/telegram/verify
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+input type=hidden name=proof value=v1.5001001.1700000600000.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+label for=code
+input type=text name=code id=code required= pattern=[0-9]{6} maxlength=6 inputmode=numeric autocomplete=one-time-code
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram no chats' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram no chats' page in 'en' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram notice-only' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram notice-only' page in 'en' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram problem with a saved chat' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram problem with a saved chat' page in 'en' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram problem without a saved chat' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram problem without a saved chat' page in 'en' are unchanged 1`] = `""`;

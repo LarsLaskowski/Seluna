@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Setup wizard: the setup pages have a new look — a header with the language links, the parts of each page in separate cards, grouped settings, distinct buttons for sign-out and the reset, error and info notices, a dark mode that follows the system setting, a visible focus ring and a layout that fits a 360 px phone screen; texts, forms and the strict Content-Security-Policy are unchanged.
+
 ## [0.5.0] - 2026-10-23
 
 ### Added

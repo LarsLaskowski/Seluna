@@ -27,10 +27,12 @@ it and add their pages behind the login.
      ([Status and settings](#status-and-settings), [Reset](#reset)), `GET` and `POST /setup/telegram` and `POST /setup/telegram/verify` are the Telegram step
      ([Telegram chat](#telegram-chat)), `GET` and `POST /setup/github` and `POST /setup/github/callback` are the
      GitHub App step ([GitHub App](#github-app)), everything else answers **404** with an empty body.
-- The start page (`GET /setup`) is the status page. In this order it shows: the heading and the _start body_, a
-  notice if any, the status section, the reset section when a reset is needed ([Reset](#reset)), the setup steps as
-  links (_Telegram chat_, to `/setup/telegram`, and _GitHub App_, to `/setup/github`), the settings form and the
-  sign-out form. `GET` on `/setup/settings` or `/setup/reset` answers **404** with a session.
+- The start page (`GET /setup`) is the status page. In this order its main column
+  ([Pages and response headers](#pages-and-response-headers)) shows: the heading, the _start body_ and a notice if
+  any; then, each in its own card, the status section, the reset section when a reset is needed ([Reset](#reset)),
+  the setup steps as links (_Telegram chat_, to `/setup/telegram`, and _GitHub App_, to `/setup/github`) and the
+  settings form; last the sign-out form in the actions area. `GET` on `/setup/settings` or `/setup/reset` answers
+  **404** with a session.
 
 ### Login
 
@@ -169,9 +171,9 @@ it and add their pages behind the login.
   notice-only start page and _unavailable_.
 - Quiet hours are stored as one value (`off`, or `<start>-<end>`), so switching them off drops the times and the form
   shows 22:00 and 07:00 again when they are next switched on.
-- `GET /setup` with a D1 failure answers **503** with the notice-only start page (notice, step links, sign-out form)
-  and _unavailable_. The 403 answers of the sign-out, settings and reset forms render the notice-only page too and
-  read no D1.
+- `GET /setup` with a D1 failure answers **503** with the notice-only start page (in its main column the heading,
+  the _start body_ and the notice, the step links card and the sign-out form in the actions area) and _unavailable_.
+  The 403 answers of the sign-out, settings and reset forms render the notice-only page too and read no D1.
 
 ### Reset
 
@@ -199,8 +201,9 @@ The step that tells Seluna which Telegram chat to send to. The bot token is the 
 route. The only Bot API methods called are `getUpdates` (this step's page) and `sendMessage` (its test message).
 
 - **Precedence:** when the Worker secret `TELEGRAM_CHAT_ID` is a non-empty string, it decides the chat. `GET
-/setup/telegram` then answers **200** with a page that shows only the heading and the _chat id secret_ text (no
-  intro, no saved-chat line, no form, no search link), and calls neither Telegram nor D1; both POSTs answer **409**
+/setup/telegram` then answers **200** with a page whose main column shows only the heading and a card with the
+  _chat id secret_ text as an info notice (no intro, no saved-chat line, no form, no search link), and calls neither
+  Telegram nor D1; both POSTs answer **409**
   with the same view. No page shows the secret's value.
   Delivery uses `TELEGRAM_CHAT_ID` first, then the `settings` key `telegram_chat_id` ([Storage](storage.md)).
 - **Bot token:** read from the environment and never trimmed. It must match exactly `^\d{1,20}:[A-Za-z0-9_-]{1,200}$`
@@ -232,15 +235,16 @@ route. The only Bot API methods called are `getUpdates` (this step's page) and `
   update; channels, other types, ids that are not safe integers and updates without one of the three fields are
   skipped. A chat whose newest update is a `my_chat_member` with `new_chat_member.status` `left` or `kicked`, or a
   message carrying `migrate_to_chat_id`, is left out until a newer update of it arrives.
-- **Page:** heading, intro, the saved chat (_Saved chat:_ and the id, or _no saved chat_), a link to
+- **Page:** the heading, then one card with the intro, a notice when one is given, the saved chat (_Saved chat:_
+  and the id, or _no saved chat_), a link to
   `/setup/telegram` (_search_) and then either the _chats intro_ with a form `POST /setup/telegram` (one required
   radio input `chat` per chat with the decimal id as value, a label with the name, the `@username` and the kind,
   the session-bound CSRF field and the confirm button) or, with no chat, the _no chats_ text and no form. Every name
   is HTML-escaped and wrapped in its own `<bdi>`; a username is shown as `@<username>` in a separate
   `<bdi class="username">` after the name, so a name cannot pose as a username. A problem (token missing,
   malformed or rejected, conflict, unavailable) shows its notice instead of the chats, with the saved-chat line.
-- When reading `settings` fails, the answer is **503** with the notice-only page (heading, intro, notice, search
-  link) and the _unavailable_ notice; Telegram is not called.
+- When reading `settings` fails, the answer is **503** with the notice-only page (the heading, then one card with
+  the intro, the notice and the search link) and the _unavailable_ notice; Telegram is not called.
 
 #### Confirming a chat
 
@@ -253,7 +257,8 @@ route. The only Bot API methods called are `getUpdates` (this step's page) and `
 in the page language> <code>"}`, no `parse_mode`, 10 second abort). `sendMessage` 401 or 404 answers **502** with
   _token rejected_; any other failure (status, `ok` not `true`, rejected fetch, unreadable or oversized answer)
   answers **502** with _send failed_. Telegram is not called in the 413, 400, 403, 409 and 503 cases.
-- Success answers **200** with the code page: heading, the _code sent_ text with the chat id, the _code intro_, a
+- Success answers **200** with the code page: the heading, then one card with a notice when one is given (_wrong
+  code_, below), the _code sent_ text with the chat id, the _code intro_, a
   form `POST /setup/telegram/verify` with the session-bound CSRF field, a hidden field `proof`, a text input `code`
   (`required`, `inputmode="numeric"`, `autocomplete="one-time-code"`, `pattern="[0-9]{6}"`, `maxlength="6"`), the
   _code button_ and the search link. The code appears in the message to Telegram only, never in the page or the
@@ -292,8 +297,9 @@ The step that creates the private GitHub App through GitHub's manifest flow ([de
 encrypted ([Storage](storage.md)). The Worker secrets `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and
 `GITHUB_WEBHOOK_SECRET` stay a manual alternative and take precedence.
 
-- **Worker secrets:** each of the three that is a non-empty string counts as set. All three set: the step shows the
-  _Worker secrets_ text and no form. One or two set: the _partial Worker secrets_ text and no form. While any of the
+- **Worker secrets:** each of the three that is a non-empty string counts as set. All three set: the step's main
+  column shows the heading and one card with the _Worker secrets_ text as an info notice, and no form. One or two
+  set: the same with the _partial Worker secrets_ text as an error notice. While any of the
   three is set, both POSTs answer **409** with the same view and call neither GitHub nor D1. No page shows a value.
 - **Account name:** the account or organization name is checked against `^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$`
   (1 to 39 letters, digits and inner hyphens) before it enters a URL or the app name, and is never encoded or
@@ -305,11 +311,13 @@ encrypted ([Storage](storage.md)). The Worker secrets `GITHUB_APP_ID`, `GITHUB_A
 
 - `GET /setup/github` (signed in) answers **200** with one of: the _Worker secrets_ view, the _partial Worker
   secrets_ view, the _reset needed_ view (the stored `github_app_id` cannot be read with the current `SELUNA_SECRET`,
-  or the key check value is damaged; no form, and a link to the start page, `/setup`), or the form. The form shows the saved App ID (or _no saved app_ and,
-  with an app, the _replace hint_), two radio inputs `account_type` (`personal`, `organization`), a text input
+  or the key check value is damaged; the heading and one card with the _reset needed_ text as an error notice and a
+  link to the start page, `/setup`, no form), or the form. The form view shows the heading and one card with the
+  _intro_, a notice when one is given, the saved App ID (or _no saved app_ and, with an app, the _replace hint_) and
+  the form: two radio inputs `account_type` (`personal`, `organization`), a text input
   `account`, the session-bound CSRF field and the _next_ button. A stored value that is not an App ID is shown as _no
   saved app_. The view reads D1 only when none of the Worker secrets is set; a D1 failure answers **503** with the
-  notice-only page (heading, notice, link back to the step) and _unavailable_.
+  notice-only page (the heading, then one card with the notice and the link back to the step) and _unavailable_.
 
 #### Starting the flow
 
@@ -318,9 +326,9 @@ encrypted ([Storage](storage.md)). The Worker secrets `GITHUB_APP_ID`, `GITHUB_A
   `account_type` that parses and exactly one `account` that is an account name, else **400** with the form page and
   _invalid account_; the key check changed or corrupt, **409** with the _reset needed_ view; a D1 failure, **503**
   with _unavailable_.
-- Success answers **200** with the **review page**: the account and its type, the app name, the permissions, the
-  events, and one form `method="post"` whose `action` is `https://github.com/settings/apps/new?state=<state>` for a
-  personal account or `https://github.com/organizations/<account>/settings/apps/new?state=<state>` for an
+- Success answers **200** with the **review page**: the heading, then one card with the review intro, the account
+  and its type, the app name, the permissions, the events, and one form `method="post"` whose `action` is
+  `https://github.com/settings/apps/new?state=<state>` for a personal account or `https://github.com/organizations/<account>/settings/apps/new?state=<state>` for an
   organization, with the hidden field `manifest` as its only field (no `csrf` field: the form posts to another
   site). This is the only page whose `Content-Security-Policy` has `form-action https://github.com` in place of
   `form-action 'self'`.
@@ -345,8 +353,9 @@ encrypted ([Storage](storage.md)). The Worker secrets `GITHUB_APP_ID`, `GITHUB_A
 - GitHub redirects to `/setup/github/callback?code=<code>&state=<state>` without the wizard's cookies
   (`SameSite=Strict`). `GET /setup/github/callback` answers, signed in or not and after the `SELUNA_SECRET` check,
   **200** with the **finish page** when the query has exactly one `code` that passes the manifest code allow-list and
-  exactly one `state` of the form above; the page's one form posts the hidden fields `code` and `state` (escaped) to
-  `/setup/github/callback` and carries no `csrf` field. Otherwise it answers **400** with the notice-only page and
+  exactly one `state` of the form above. Its main column shows the heading, then one card with the finish intro, a
+  notice when one is given (_GitHub unavailable_, below) and the page's one form, which posts the hidden fields
+  `code` and `state` (escaped) to `/setup/github/callback` and carries no `csrf` field. Otherwise it answers **400** with the notice-only page and
   _invalid return_. Neither answer calls GitHub or D1 or sets a cookie (a valid `lang` parameter still sets the
   language cookie); the response carries `Referrer-Policy: no-referrer`.
 - The finish form is a request from the instance's own page, so the browser sends the session cookie. The valid state
@@ -373,7 +382,8 @@ encrypted ([Storage](storage.md)). The Worker secrets `GITHUB_APP_ID`, `GITHUB_A
      invalid_;
   9. the three credentials are stored in one transaction ([Storage](storage.md)); a result other than stored, or a D1
      failure, answers **503** with _store failed_;
-  10. stored: **200** with the **created page**: _app saved_, the _install intro_ and a link to
+  10. stored: **200** with the **created page**: the heading, then one card with _app saved_ as an info notice, the
+      _install intro_ and a link to
       `https://github.com/apps/<slug>/installations/new`, or, when the answer has no slug that passes the allow-list,
       the _install manually_ text and no link. After the three credentials were stored, the slug is kept in `meta`
       `github_app_slug` as `<appId>:<slug>` (only when the answer has an allow-listed slug); a failure of that write
@@ -404,6 +414,53 @@ KEY-----`, lines of 64 characters), `github_webhook_secret` the webhook secret a
 - Pages are complete HTML documents rendered on the server, UTF-8, without a framework, without any script,
   without any external resource (no script, font, style or image is loaded from anywhere), and with one inline
   `<style>` element.
+- **Frame:** the body of every page starts with a header bar (`<header>`) that holds the page title ("Seluna setup",
+  "Seluna-Einrichtung") as text, not as a heading, and the two language links ([Language](#language)); below it one
+  centred main column (`<main>`, limited by a maximum width only) holds the page's only `<h1>` and the rest of the
+  page. The descriptions of a page or view elsewhere in this area (what it shows, shows only, or in which order)
+  list the content of the main column.
+- **Cards:** the parts of a page sit in cards (a bordered box whose background differs from the page's, cards
+  separated by at least 0.75rem). The login page has its heading, intro and notice above one card with the form;
+  the _not configured_ page its heading above one card with the paragraphs; the start page its heading, _start
+  body_ and notice above one card each for the status, the reset, the setup steps and the settings, and the
+  sign-out form last in an actions area without a card ([Paths](#paths)). The Telegram and GitHub App step pages,
+  in every view, and the review, finish and created pages have their heading above one card with everything else,
+  in the order their sections above give. A part that is not shown leaves no empty card or notice behind.
+- **Settings groups:** in the settings form, the quiet hours switch with its label is the legend of a framed group
+  (`<fieldset>`) holding _Start_ and _End_; "Notify me about" is the legend of a second group holding the eight rule
+  switches and the release notice switch.
+- **Buttons:** _Sign out_ is a secondary button, _Reset and create the GitHub App again_ a danger button, and every
+  other submit button (_Sign in_, _Save settings_, _Send test message_, _Save chat_, _Next_, _Continue to GitHub_,
+  _Finish_) a primary button. Buttons are at least 2.75rem high.
+- **Notices:** every notice of [Texts](#texts) is shown as an error notice with `role="alert"`. The _partial Worker
+  secrets_ and _reset needed_ texts of the GitHub App step are error notices too, and the _chat id secret_ text, the
+  _Worker secrets_ text of the GitHub App step and the created page's _app saved_ are info notices; these five
+  carry no role.
+- **Colours:** the pages follow the system setting: light colours by default, dark colours under
+  `@media (prefers-color-scheme: dark)`, and `color-scheme: light dark`, so the browser's own controls (selects,
+  time fields, checkboxes, radio buttons) follow too; a browser without the media query shows the light colours.
+  Each mode declares its colours once, as `#rrggbb` custom properties on `:root` (the dark set inside the media
+  query), and every rule uses them through `var(...)`. In each mode the WCAG 2.1 contrast ratio is at least 4.5:1
+  for text on the page and card backgrounds, links on both, the text of each button kind and of each notice kind on
+  its background, and at least 3:1 for the card border on the page, the control border on the card and the page,
+  the primary and danger button backgrounds and the notice borders on the card (the notice borders on the page too),
+  and the focus ring on both.
+- **Focus and borders:** links, buttons, inputs (checkboxes and radio buttons included) and selects get a 3px
+  outline in the focus colour under `:focus-visible`; no rule removes the outline under plain `:focus`, so a browser
+  without `:focus-visible` keeps its default. Cards, buttons, inputs, selects and notices have a border, so they stay
+  distinguishable in forced-colours mode.
+- **Width:** a 360 px viewport needs no sideways scrolling: the body wraps long words (`overflow-wrap: anywhere`),
+  inputs, selects and buttons are `box-sizing: border-box` with `max-width: 100%`, and the style has no `white-space:
+nowrap` or `pre`, no width above 20rem, no fixed height, and font sizes only in `rem`, `em` or `%`, so zoom and a
+  large default font scale the page. The `viewport` meta element is `width=device-width, initial-scale=1`. Nothing
+  is animated.
+- **Style limits:** the content of the `<style>` element is one constant, the same on every page and response; no
+  page has another `<style>` element, a `style=` attribute, a `<link>`, `<img>`, `<iframe>` or `xlink:href`, and
+  the only external addresses in `src`, `href` and `action` are the status section's app link, the created page's
+  install link and the review page's form action. The style loads nothing: no `url(`, no at-rule but `@media`, no
+  CSS escape (`\`), none of the functions `image-set(`, `-webkit-image-set(`, `image(`, `src(`, `cross-fade(` and
+  `element(`; it names only system and generic font families, is printable ASCII without `<` (so the bytes the
+  browser hashes are the bytes the policy names) and is at most 8,192 bytes as UTF-8.
 - Every text placed in a page is HTML-escaped (`&`, `<`, `>`, `"`, `'`). No page echoes anything from the request
   (not the secret, not a token other than the page's own CSRF token, not a header, not the path) except the GitHub
   finish page, which echoes the `code` and `state` of the return in hidden fields after their allow-lists, escaped.
@@ -629,6 +686,9 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   — the 32-character minimum of `SELUNA_SECRET` and separate keys per purpose.
 - [`decisions/0026-github-app-authentication-and-installation-tokens.md`](../decisions/0026-github-app-authentication-and-installation-tokens.md)
   — the installations list on the status page, the app token and the installation tokens behind it.
+- [`decisions/0034-setup-page-layout-checked-on-the-style.md`](../decisions/0034-setup-page-layout-checked-on-the-style.md)
+  — the page layout and its colours as custom properties per mode, verified on the style and the rendered markup
+  instead of in a browser.
 
 ## Not here
 
