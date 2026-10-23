@@ -12,9 +12,10 @@ profile and owned by this repository: keep it true when the build changes.
 - **ESLint** with **typescript-eslint** `strictTypeChecked` and `stylisticTypeChecked` (type-aware, through
   `parserOptions.projectService`) and **eslint-plugin-sonarjs** (the SonarQube JS/TS rules locally, so SonarQube
   issues surface before the push); **Prettier** as the formatter.
-- **Vitest** running in `@cloudflare/vitest-pool-workers` (the tests execute inside the Workers runtime) as test
-  runner. That pool does not support V8 coverage, so coverage uses `@vitest/coverage-istanbul` instead of the
-  profile's `@vitest/coverage-v8` (decision 0010).
+- **Vitest** with `@cloudflare/vitest-plugin` (the successor of `@cloudflare/vitest-pool-workers`; the tests
+  execute inside the Workers runtime) as test runner. Coverage uses `@vitest/coverage-istanbul` instead of the
+  profile's `@vitest/coverage-v8` (decision 0010, made when the pool had no V8 coverage; the plugin's V8 support is
+  not evaluated yet).
 - **Wrangler** bundles and deploys the Worker; `wrangler types` regenerates `worker-configuration.d.ts`.
 - The SessionStart hook `.claude/hooks/session-start.sh` runs `npm ci` in remote sessions.
 

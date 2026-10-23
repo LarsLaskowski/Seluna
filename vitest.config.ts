@@ -1,10 +1,10 @@
-import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
+import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
     coverage: {
-      // The workers pool does not support V8 coverage; see docs/decisions (Istanbul coverage).
+      // Istanbul instead of V8: see docs/decisions (Istanbul coverage).
       provider: "istanbul",
       include: ["src/**/*.ts"],
       exclude: ["**/*.test.ts", "**/*.d.ts"],
