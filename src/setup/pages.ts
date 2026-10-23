@@ -17,11 +17,47 @@ const DEFAULT_QUIET_END = "07:00";
 
 /** The content of every page's single `<style>` element. */
 export const STYLE =
-  "body{font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem;line-height:1.5}" +
-  "label,input{display:block;width:100%;box-sizing:border-box}input{margin:.25rem 0 1rem;padding:.5rem}" +
-  "select{display:block;width:100%;box-sizing:border-box;margin:.25rem 0 1rem;padding:.5rem}" +
-  "input[type=radio],input[type=checkbox]{display:inline;width:auto;margin:0 .5rem 0 0}" +
-  "button{padding:.5rem 1rem}.notice{padding:.5rem;border:1px solid currentcolor}nav{font-size:.9rem}";
+  ":root{color-scheme:light dark;--bg:#f3f4f6;--fg:#1f2933;--card:#ffffff;--border:#7c8591;--control:#5f6b7a;" +
+  "--link:#1a4bc4;--primary:#1a4bc4;--on-primary:#ffffff;--secondary:#ffffff;--on-secondary:#1f2933;" +
+  "--danger:#b42318;--on-danger:#ffffff;--error-bg:#fdecea;--error-fg:#7a1c13;--error-border:#b42318;" +
+  "--info-bg:#e6f0fb;--info-fg:#0f3563;--info-border:#2a62b0;--focus:#1a4bc4}" +
+  "@media (prefers-color-scheme:dark){:root{--bg:#111827;--fg:#f3f4f6;--card:#1f2937;--border:#6b7686;" +
+  "--control:#9ca3af;--link:#8ab4ff;--primary:#93c5fd;--on-primary:#0b1220;--secondary:#1f2937;" +
+  "--on-secondary:#f3f4f6;--danger:#f87171;--on-danger:#1a0505;--error-bg:#3b1414;--error-fg:#fecaca;" +
+  "--error-border:#f87171;--info-bg:#0f2a4a;--info-fg:#cfe3ff;--info-border:#60a5fa;--focus:#facc15}}" +
+  'body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;' +
+  "line-height:1.5;overflow-wrap:anywhere}" +
+  "a{color:var(--link)}" +
+  "header.site{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:.25rem 1rem;" +
+  "padding:.75rem 1rem;background:var(--card);border-bottom:1px solid var(--border)}" +
+  ".brand{margin:0;font-size:1.1rem;font-weight:700}" +
+  "nav{font-size:.9rem}" +
+  "main{max-width:36rem;margin:0 auto;padding:1rem}" +
+  "h1{font-size:1.6rem;line-height:1.25;margin:.5rem 0 1rem}" +
+  "h2{font-size:1.25rem;line-height:1.3;margin:0 0 .75rem}" +
+  ".card{background:var(--card);border:1px solid var(--border);border-radius:.5rem;padding:1rem;margin-bottom:1rem}" +
+  ".card p:last-child,.card ul:last-child{margin-bottom:0}" +
+  ".actions{margin-bottom:1rem}" +
+  "label{display:block;margin:.5rem 0 .25rem}" +
+  'input,select,button{box-sizing:border-box;max-width:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:1rem}' +
+  "input,select{display:block;width:100%;margin:.25rem 0 1rem;padding:.5rem;color:var(--fg);" +
+  "background:var(--card);border:1px solid var(--control);border-radius:.375rem}" +
+  "input[type=radio],input[type=checkbox]{display:inline;width:auto;margin:0 .5rem 0 0;padding:0;" +
+  "accent-color:var(--primary)}" +
+  "button{min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--control);border-radius:.375rem;" +
+  "cursor:pointer;font-weight:600}" +
+  ".primary{background:var(--primary);color:var(--on-primary);border-color:var(--primary)}" +
+  ".secondary{background:var(--secondary);color:var(--on-secondary);border-color:var(--control)}" +
+  ".danger{background:var(--danger);color:var(--on-danger);border-color:var(--danger)}" +
+  ".group{border:1px solid var(--control);border-radius:.375rem;margin:0 0 1rem;padding:.5rem 1rem 1rem}" +
+  "legend{padding:0 .5rem}" +
+  ".notice{margin:0 0 1rem;padding:.5rem .75rem;border:1px solid var(--border);border-radius:.375rem}" +
+  ".notice.error{background:var(--error-bg);color:var(--error-fg);border-color:var(--error-border);" +
+  "border-inline-start-width:.375rem}" +
+  ".notice.info{background:var(--info-bg);color:var(--info-fg);border-color:var(--info-border);" +
+  "border-inline-start-width:.375rem}" +
+  "a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--focus);" +
+  "outline-offset:2px}";
 
 const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   "X-Content-Type-Options": "nosniff",
@@ -57,7 +93,17 @@ export async function contentSecurityPolicy(formTarget: FormTarget = "self"): Pr
 function noticeHtml(language: Language, notice: Notice | undefined): string {
   return notice === undefined
     ? ""
-    : `<p class="notice" role="alert">${escapeHtml(TEXTS[language].notices[notice])}</p>`;
+    : `<p class="notice error" role="alert">${escapeHtml(TEXTS[language].notices[notice])}</p>`;
+}
+
+/** A card: one section of the main column. */
+function card(content: string): string {
+  return `<section class="card">\n${content}\n</section>`;
+}
+
+/** The page heading followed by one card holding `content`. */
+function titled(heading: string, content: string): string {
+  return `${heading}\n${card(content)}`;
 }
 
 function csrfInput(csrfToken: string): string {
@@ -70,8 +116,9 @@ function layout(language: Language, body: string): string {
     `<!DOCTYPE html>\n<html lang="${language}">\n<head>\n<meta charset="utf-8">\n` +
     `<meta name="viewport" content="width=device-width, initial-scale=1">\n` +
     `<title>${escapeHtml(texts.pageTitle)}</title>\n<style>${STYLE}</style>\n</head>\n<body>\n` +
-    `<nav>${escapeHtml(texts.languageLabel)}: <a href="/setup?lang=en">English</a> | <a href="/setup?lang=de">Deutsch</a></nav>\n` +
-    `${body}\n</body>\n</html>\n`
+    `<header class="site">\n<p class="brand">${escapeHtml(texts.pageTitle)}</p>\n` +
+    `<nav>${escapeHtml(texts.languageLabel)}: <a href="/setup?lang=en">English</a> | <a href="/setup?lang=de">Deutsch</a></nav>\n</header>\n` +
+    `<main>\n${body}\n</main>\n</body>\n</html>\n`
   );
 }
 
@@ -81,10 +128,12 @@ export function renderLoginPage(language: Language, csrfToken: string, notice?: 
   return layout(
     language,
     `<h1>${escapeHtml(texts.loginHeading)}</h1>\n<p>${escapeHtml(texts.loginIntro)}</p>\n${noticeHtml(language, notice)}\n` +
-      `<form method="post" action="/setup/login">\n${csrfInput(csrfToken)}\n` +
-      `<label for="secret">${escapeHtml(texts.secretLabel)}</label>\n` +
-      `<input id="secret" type="password" name="secret" autocomplete="current-password" required>\n` +
-      `<button type="submit">${escapeHtml(texts.loginButton)}</button>\n</form>`,
+      card(
+        `<form method="post" action="/setup/login">\n${csrfInput(csrfToken)}\n` +
+          `<label for="secret">${escapeHtml(texts.secretLabel)}</label>\n` +
+          `<input id="secret" type="password" name="secret" autocomplete="current-password" required>\n` +
+          `<button type="submit" class="primary">${escapeHtml(texts.loginButton)}</button>\n</form>`,
+      ),
   );
 }
 
@@ -93,16 +142,16 @@ export type StartPageView = { readonly kind: "status"; readonly status: StatusVi
 
 function stepLinksHtml(language: Language): string {
   const texts = TEXTS[language];
-  return (
+  return card(
     `<ul>\n<li><a href="/setup/telegram">${escapeHtml(texts.telegramHeading)}</a></li>\n` +
-    `<li><a href="/setup/github">${escapeHtml(texts.githubHeading)}</a></li>\n</ul>`
+      `<li><a href="/setup/github">${escapeHtml(texts.githubHeading)}</a></li>\n</ul>`,
   );
 }
 
 function logoutFormHtml(language: Language, csrfToken: string): string {
   return (
-    `<form method="post" action="/setup/logout">\n${csrfInput(csrfToken)}\n` +
-    `<button type="submit">${escapeHtml(TEXTS[language].logoutButton)}</button>\n</form>`
+    `<section class="actions">\n<form method="post" action="/setup/logout">\n${csrfInput(csrfToken)}\n` +
+    `<button type="submit" class="secondary">${escapeHtml(TEXTS[language].logoutButton)}</button>\n</form>\n</section>`
   );
 }
 
@@ -213,22 +262,22 @@ function statusHtml(language: Language, status: StatusView): string {
     status.lastDelivery === undefined
       ? escapeHtml(texts.noneReceivedYet)
       : escapeHtml(formatDeliveryTime(status.lastDelivery, status.settings.timeZone));
-  return (
+  return card(
     `<h2>${escapeHtml(texts.statusHeading)}</h2>\n` +
-    `<p>${escapeHtml(texts.versionLabel)} <code>${escapeHtml(status.version)}</code></p>\n` +
-    `<p>${escapeHtml(texts.telegramChatLabel)} ${chatStatusHtml(language, status.chat)}</p>\n` +
-    `<p>${escapeHtml(texts.githubAppLabel)} ${appStatusHtml(language, status.app)}</p>\n` +
-    installationsHtml(language, status.installations) +
-    `<p>${escapeHtml(texts.lastDeliveryLabel)} ${delivery}</p>`
+      `<p>${escapeHtml(texts.versionLabel)} <code>${escapeHtml(status.version)}</code></p>\n` +
+      `<p>${escapeHtml(texts.telegramChatLabel)} ${chatStatusHtml(language, status.chat)}</p>\n` +
+      `<p>${escapeHtml(texts.githubAppLabel)} ${appStatusHtml(language, status.app)}</p>\n` +
+      installationsHtml(language, status.installations) +
+      `<p>${escapeHtml(texts.lastDeliveryLabel)} ${delivery}</p>`,
   );
 }
 
 function resetHtml(language: Language, csrfToken: string): string {
   const texts = TEXTS[language];
-  return (
+  return card(
     `<h2>${escapeHtml(texts.resetHeading)}</h2>\n<p>${escapeHtml(texts.resetText)}</p>\n` +
-    `<form method="post" action="${RESET_PATH}">\n${csrfInput(csrfToken)}\n` +
-    `<button type="submit">${escapeHtml(texts.resetButton)}</button>\n</form>`
+      `<form method="post" action="${RESET_PATH}">\n${csrfInput(csrfToken)}\n` +
+      `<button type="submit" class="danger">${escapeHtml(texts.resetButton)}</button>\n</form>`,
   );
 }
 
@@ -245,21 +294,21 @@ function settingsFormHtml(language: Language, csrfToken: string, settings: Notif
   const { quietHours } = settings;
   const zones = timeZones().map((zone) => optionHtml(zone, zone, zone === settings.timeZone));
   const rules = RULE_IDS.map((id) => checkboxHtml(`rule_${id}`, texts.ruleLabels[id], settings.rules[id]));
-  return (
+  return card(
     `<h2>${escapeHtml(texts.settingsHeading)}</h2>\n<form method="post" action="${SETTINGS_PATH}">\n${csrfInput(csrfToken)}\n` +
-    `<label for="notification_language">${escapeHtml(texts.notificationLanguageLabel)}</label>\n` +
-    `<select id="notification_language" name="notification_language">\n` +
-    `${optionHtml("en", "English", settings.language === "en")}\n${optionHtml("de", "Deutsch", settings.language === "de")}\n</select>\n` +
-    `<label for="time_zone">${escapeHtml(texts.timeZoneLabel)}</label>\n` +
-    `<select id="time_zone" name="time_zone">\n${zones.join("\n")}\n</select>\n` +
-    `${checkboxHtml("quiet_hours", texts.quietHoursLabel, quietHours !== undefined)}\n` +
-    `<label for="quiet_start">${escapeHtml(texts.quietStartLabel)}</label>\n` +
-    `<input id="quiet_start" type="time" name="quiet_start" value="${quietHours?.start ?? DEFAULT_QUIET_START}">\n` +
-    `<label for="quiet_end">${escapeHtml(texts.quietEndLabel)}</label>\n` +
-    `<input id="quiet_end" type="time" name="quiet_end" value="${quietHours?.end ?? DEFAULT_QUIET_END}">\n` +
-    `<p>${escapeHtml(texts.rulesLabel)}</p>\n${rules.join("\n")}\n` +
-    `${checkboxHtml("update_notice", texts.updateNoticeLabel, settings.updateNotice)}\n` +
-    `<button type="submit">${escapeHtml(texts.saveSettingsButton)}</button>\n</form>`
+      `<label for="notification_language">${escapeHtml(texts.notificationLanguageLabel)}</label>\n` +
+      `<select id="notification_language" name="notification_language">\n` +
+      `${optionHtml("en", "English", settings.language === "en")}\n${optionHtml("de", "Deutsch", settings.language === "de")}\n</select>\n` +
+      `<label for="time_zone">${escapeHtml(texts.timeZoneLabel)}</label>\n` +
+      `<select id="time_zone" name="time_zone">\n${zones.join("\n")}\n</select>\n` +
+      `<fieldset class="group">\n<legend>${checkboxHtml("quiet_hours", texts.quietHoursLabel, quietHours !== undefined)}</legend>\n` +
+      `<label for="quiet_start">${escapeHtml(texts.quietStartLabel)}</label>\n` +
+      `<input id="quiet_start" type="time" name="quiet_start" value="${quietHours?.start ?? DEFAULT_QUIET_START}">\n` +
+      `<label for="quiet_end">${escapeHtml(texts.quietEndLabel)}</label>\n` +
+      `<input id="quiet_end" type="time" name="quiet_end" value="${quietHours?.end ?? DEFAULT_QUIET_END}">\n</fieldset>\n` +
+      `<fieldset class="group">\n<legend>${escapeHtml(texts.rulesLabel)}</legend>\n${rules.join("\n")}\n` +
+      `${checkboxHtml("update_notice", texts.updateNoticeLabel, settings.updateNotice)}\n</fieldset>\n` +
+      `<button type="submit" class="primary">${escapeHtml(texts.saveSettingsButton)}</button>\n</form>`,
   );
 }
 
@@ -292,7 +341,7 @@ export function renderStartPage(language: Language, csrfToken: string, view: Sta
 export function renderNotConfiguredPage(language: Language): string {
   const texts = TEXTS[language];
   const paragraphs = texts.notConfiguredParagraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("\n");
-  return layout(language, `<h1>${escapeHtml(texts.notConfiguredHeading)}</h1>\n${paragraphs}`);
+  return layout(language, `<h1>${escapeHtml(texts.notConfiguredHeading)}</h1>\n${card(paragraphs)}`);
 }
 
 async function securityHeaders(formTarget: FormTarget = "self"): Promise<Headers> {
@@ -375,7 +424,7 @@ function chatsHtml(language: Language, csrfToken: string, chats: readonly Telegr
   return (
     `<p>${escapeHtml(texts.telegramChatsIntro)}</p>\n<form method="post" action="/setup/telegram">\n${csrfInput(csrfToken)}\n` +
     `${chats.map((chat) => chatOptionHtml(language, chat)).join("\n")}\n` +
-    `<button type="submit">${escapeHtml(texts.telegramConfirmButton)}</button>\n</form>`
+    `<button type="submit" class="primary">${escapeHtml(texts.telegramConfirmButton)}</button>\n</form>`
   );
 }
 
@@ -387,7 +436,7 @@ function codeHtml(language: Language, csrfToken: string, chatId: number, proof: 
     `<input type="hidden" name="proof" value="${escapeHtml(proof)}">\n` +
     `<label for="code">${escapeHtml(texts.telegramCodeLabel)}</label>\n` +
     `<input id="code" type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>\n` +
-    `<button type="submit">${escapeHtml(texts.telegramCodeButton)}</button>\n</form>`
+    `<button type="submit" class="primary">${escapeHtml(texts.telegramCodeButton)}</button>\n</form>`
   );
 }
 
@@ -404,23 +453,32 @@ export function renderTelegramPage(
   let body: string;
   switch (view.kind) {
     case "chat-id-secret":
-      body = `${heading}\n<p>${escapeHtml(texts.telegramChatIdSecret)}</p>`;
+      body = titled(heading, `<p class="notice info">${escapeHtml(texts.telegramChatIdSecret)}</p>`);
       break;
     case "notice-only":
-      body = `${heading}\n${intro}\n${noticeHtml(language, notice)}\n${searchLink(language)}`;
+      body = titled(heading, `${intro}\n${noticeHtml(language, notice)}\n${searchLink(language)}`);
       break;
     case "code":
-      body = `${heading}\n${noticeHtml(language, notice)}\n${codeHtml(language, csrfToken, view.chatId, view.proof)}\n${searchLink(language)}`;
+      body = titled(
+        heading,
+        `${noticeHtml(language, notice)}\n${codeHtml(language, csrfToken, view.chatId, view.proof)}\n${searchLink(language)}`,
+      );
       break;
     case "problem":
       body =
-        `${heading}\n${intro}\n${noticeHtml(language, notice ?? PROBLEM_NOTICES[view.problem])}\n` +
-        `${savedChatHtml(language, view.savedChatId)}\n${searchLink(language)}`;
+        `${heading}\n` +
+        card(
+          `${intro}\n${noticeHtml(language, notice ?? PROBLEM_NOTICES[view.problem])}\n` +
+            `${savedChatHtml(language, view.savedChatId)}\n${searchLink(language)}`,
+        );
       break;
     case "chats":
       body =
-        `${heading}\n${intro}\n${noticeHtml(language, notice)}\n${savedChatHtml(language, view.savedChatId)}\n` +
-        `${searchLink(language)}\n${chatsHtml(language, csrfToken, view.chats)}`;
+        `${heading}\n` +
+        card(
+          `${intro}\n${noticeHtml(language, notice)}\n${savedChatHtml(language, view.savedChatId)}\n` +
+            `${searchLink(language)}\n${chatsHtml(language, csrfToken, view.chats)}`,
+        );
       break;
     default: {
       const unreachable: never = view;
@@ -452,7 +510,7 @@ function githubFormHtml(language: Language, csrfToken: string): string {
     `<label><input type="radio" name="account_type" value="organization" required> ${escapeHtml(texts.githubOrganization)}</label>\n` +
     `<label for="account">${escapeHtml(texts.githubAccountLabel)}</label>\n` +
     `<input id="account" type="text" name="account" maxlength="39" autocomplete="off" required>\n` +
-    `<button type="submit">${escapeHtml(texts.githubNextButton)}</button>\n</form>`
+    `<button type="submit" class="primary">${escapeHtml(texts.githubNextButton)}</button>\n</form>`
   );
 }
 
@@ -463,7 +521,7 @@ function githubCreatedHtml(language: Language, slug: string | undefined): string
       ? `<p>${escapeHtml(texts.githubInstallManual)}</p>`
       : `<p>${escapeHtml(texts.githubInstallIntro)}</p>\n` +
         `<p><a href="https://github.com/apps/${escapeHtml(slug)}/installations/new">${escapeHtml(texts.githubInstallLink)}</a></p>`;
-  return `<p>${escapeHtml(texts.githubCreated)}</p>\n${install}`;
+  return `<p class="notice info">${escapeHtml(texts.githubCreated)}</p>\n${install}`;
 }
 
 /** The GitHub App step page; links like the login page. */
@@ -474,24 +532,30 @@ export function renderGitHubPage(language: Language, csrfToken: string, view: Gi
   let body: string;
   switch (view.kind) {
     case "worker-secrets":
-      body = `${heading}\n<p>${escapeHtml(texts.githubWorkerSecrets)}</p>`;
+      body = titled(heading, `<p class="notice info">${escapeHtml(texts.githubWorkerSecrets)}</p>`);
       break;
     case "partial-worker-secrets":
-      body = `${heading}\n<p>${escapeHtml(texts.githubPartialWorkerSecrets)}</p>`;
+      body = titled(heading, `<p class="notice error">${escapeHtml(texts.githubPartialWorkerSecrets)}</p>`);
       break;
     case "reset-needed":
-      body = `${heading}\n<p>${escapeHtml(texts.githubResetNeeded)}</p>\n<p><a href="/setup">${escapeHtml(texts.startPageLink)}</a></p>`;
+      body = titled(
+        heading,
+        `<p class="notice error">${escapeHtml(texts.githubResetNeeded)}</p>\n<p><a href="/setup">${escapeHtml(texts.startPageLink)}</a></p>`,
+      );
       break;
     case "notice-only":
-      body = `${heading}\n${noticeHtml(language, notice)}\n${githubBackLink(language)}`;
+      body = titled(heading, `${noticeHtml(language, notice)}\n${githubBackLink(language)}`);
       break;
     case "created":
-      body = `${heading}\n${githubCreatedHtml(language, view.slug)}`;
+      body = titled(heading, githubCreatedHtml(language, view.slug));
       break;
     case "form":
       body =
-        `${heading}\n${intro}\n${noticeHtml(language, notice)}\n${savedAppHtml(language, view.savedAppId)}\n` +
-        githubFormHtml(language, csrfToken);
+        `${heading}\n` +
+        card(
+          `${intro}\n${noticeHtml(language, notice)}\n${savedAppHtml(language, view.savedAppId)}\n` +
+            githubFormHtml(language, csrfToken),
+        );
       break;
     default: {
       const unreachable: never = view;
@@ -513,14 +577,17 @@ export function renderGitHubReviewPage(
   const type = choice.type === "personal" ? texts.githubPersonal : texts.githubOrganization;
   return layout(
     language,
-    `<h1>${escapeHtml(texts.githubHeading)}</h1>\n<p>${escapeHtml(texts.githubReviewIntro)}</p>\n` +
-      `<p>${escapeHtml(texts.githubReviewAccountLabel)} <bdi>${escapeHtml(choice.account)}</bdi> (${escapeHtml(type)})</p>\n` +
-      `<p>${escapeHtml(texts.githubAppNameLabel)} <code>${escapeHtml(appName)}</code></p>\n` +
-      `<p>${escapeHtml(texts.githubPermissionsLabel)} ${escapeHtml(texts.githubPermissionsList)}</p>\n` +
-      `<p>${escapeHtml(texts.githubEventsLabel)} ${escapeHtml(texts.githubEventsList)}</p>\n` +
-      `<form method="post" action="${escapeHtml(formAction)}">\n` +
-      `<input type="hidden" name="manifest" value="${escapeHtml(manifest)}">\n` +
-      `<button type="submit">${escapeHtml(texts.githubToGitHubButton)}</button>\n</form>`,
+    `<h1>${escapeHtml(texts.githubHeading)}</h1>\n` +
+      card(
+        `<p>${escapeHtml(texts.githubReviewIntro)}</p>\n` +
+          `<p>${escapeHtml(texts.githubReviewAccountLabel)} <bdi>${escapeHtml(choice.account)}</bdi> (${escapeHtml(type)})</p>\n` +
+          `<p>${escapeHtml(texts.githubAppNameLabel)} <code>${escapeHtml(appName)}</code></p>\n` +
+          `<p>${escapeHtml(texts.githubPermissionsLabel)} ${escapeHtml(texts.githubPermissionsList)}</p>\n` +
+          `<p>${escapeHtml(texts.githubEventsLabel)} ${escapeHtml(texts.githubEventsList)}</p>\n` +
+          `<form method="post" action="${escapeHtml(formAction)}">\n` +
+          `<input type="hidden" name="manifest" value="${escapeHtml(manifest)}">\n` +
+          `<button type="submit" class="primary">${escapeHtml(texts.githubToGitHubButton)}</button>\n</form>`,
+      ),
   );
 }
 
@@ -529,10 +596,13 @@ export function renderGitHubFinishPage(language: Language, code: string, state: 
   const texts = TEXTS[language];
   return layout(
     language,
-    `<h1>${escapeHtml(texts.githubHeading)}</h1>\n<p>${escapeHtml(texts.githubFinishIntro)}</p>\n${noticeHtml(language, notice)}\n` +
-      `<form method="post" action="/setup/github/callback">\n` +
-      `<input type="hidden" name="code" value="${escapeHtml(code)}">\n` +
-      `<input type="hidden" name="state" value="${escapeHtml(state)}">\n` +
-      `<button type="submit">${escapeHtml(texts.githubFinishButton)}</button>\n</form>`,
+    `<h1>${escapeHtml(texts.githubHeading)}</h1>\n` +
+      card(
+        `<p>${escapeHtml(texts.githubFinishIntro)}</p>\n${noticeHtml(language, notice)}\n` +
+          `<form method="post" action="/setup/github/callback">\n` +
+          `<input type="hidden" name="code" value="${escapeHtml(code)}">\n` +
+          `<input type="hidden" name="state" value="${escapeHtml(state)}">\n` +
+          `<button type="submit" class="primary">${escapeHtml(texts.githubFinishButton)}</button>\n</form>`,
+      ),
   );
 }
