@@ -11,3 +11,5 @@ are quoted in full.
 | 2026-10-23 17:59 | 6 Implement | Dev | V8 switch done; 68/2950 tests; coverage 97.1% (1942/2001) = Istanbul (sonnet/medium · 78,862 tokens · 13 tool uses · 272 s) |
 | 2026-10-23 17:59 | 7 Code check | Orchestrator | format, typecheck, lint, coverage (97.1%), analyzer, scope, decision-check PASS; Sonar gate not run (no token) - CI |
 | 2026-10-23 18:02 | 8 Review round 1 | Reviewer | BLOCKING 1: lock still holds optional-peer @vitest/coverage-istanbul + Babel chain (35 entries) (opus/medium · 47,523 tokens · 14 tool uses · 190 s) |
+| 2026-10-23 18:07 | 6 Implement fix round 1 | Dev | pruned 35 optional-peer istanbul entries from lock; gates PASS (sonnet/medium · 4,196 tokens · 4 tool uses · 147 s · continued from 6 Implement) |
+| 2026-10-23 18:07 | 7 Code check (fix round 1) | Orchestrator | format, typecheck, lint, coverage 97.1%, analyzer, scope PASS |
