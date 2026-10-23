@@ -14,5 +14,5 @@ consecutive. Every documentation edit is in exactly one row.
 | 4 | G1 | `cssRules`, `colours`, WCAG ratio; the colour, focus, border, width and separation tests; the long-text and 100-chat render tests | `src/setup/pages.test.ts` | AC10, AC11, AC12, AC13 | 1 | Tester | [x] |
 | 5 | G2 | Markup of *Approach* in `layout` and the page renderers, texts and form controls untouched | `src/setup/pages.ts` | AC4, AC5, AC6, AC7, AC8, AC9 | 1, 2, 3 | Dev | [x] |
 | 6 | G2 | The new `STYLE` under the rules of *Approach* | `src/setup/pages.ts` | AC1, AC2, AC3, AC10, AC11, AC12, AC13 | 4, 5 | Dev | [x] |
-| 7 | G3 | Coverage pass: tests only for uncovered lines of the change | `src/setup/pages.test.ts` | AC1, AC4 | 5, 6 | Tester | [ ] |
+| 7 | G3 | Coverage pass: tests only for uncovered lines of the change | `src/setup/pages.test.ts` | AC1, AC4 | 5, 6 | Tester | [x] |
 | 8 | G4 | Area document: _Pages and response headers_ layout rules, the reworded page descriptions of the sweep, the link to decision 0034 | `docs/areas/setup-wizard.md` | AC14 | 5, 6 | Lead | [ ] |
