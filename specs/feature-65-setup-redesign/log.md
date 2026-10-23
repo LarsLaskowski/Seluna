@@ -16,3 +16,4 @@ are quoted in full.
 | 2026-10-23 18:53 | 6 Implement (G2) | squad-dev | pages.ts markup and STYLE done; 3595/3597 green; Dev disputes the rules-fieldset test (pages.test.ts:906, slice after last </fieldset> also holds the secondary sign-out button) (sonnet/medium · 112,142 tokens · 14 tool uses · 356 s) |
 | 2026-10-23 18:53 | 6 Decide (disputed test) | squad-lead | DECIDED: Tester narrows save-button assertion in pages.test.ts:906 to the settings section; Dev markup stays (opus/medium · 27,129 tokens · 4 tool uses · 21 s) |
 | 2026-10-23 18:56 | 6 Coverage (G3) | squad-tester | test at :906 narrowed per Lead decision; npm test 3597 green; coverage gate PASS (new 17/17, overall 97.1%) (sonnet/medium · 56,120 tokens · 5 tool uses · 143 s) |
+| 2026-10-23 18:59 | 6 Docs (G4) | squad-lead | area document setup-wizard.md written; decision 0034 stays Proposed; pre-existing mismatch noted (created page back link text) (opus/medium · usage pending) |
