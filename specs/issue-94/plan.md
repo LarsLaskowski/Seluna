@@ -208,3 +208,10 @@ The orchestrator creates these:
    `nodejs_inspector_module` flag for the test runner. 0010's consequences say to switch back to the profile's
    default once the pool gains V8 support. Measure a V8 run against the Istanbul run (line figures of the coverage
    gate, SonarQube new-code coverage, run time), and if it holds, switch with a new record that supersedes 0010."
+
+## Security notes
+
+Security (plan review, APPROVED), non-blocking:
+
+1. The maintainer claim in *Security considerations* is wrong: 0.23.0 has two maintainers (`wrangler-publisher`, `cf-npm-publish`), 1.4.7 has four (those two plus `cf-ci-write` and `dash_service_account`). It should say "same repository and publish workflow (provenance), maintainers extended by two Cloudflare accounts".
+2. The Dev adds `npm ls undici sharp --all` (only 7.30.1 and 0.35.5 may appear) and `npm audit` before and after the swap (no new advisories) to its step-6 checks.
