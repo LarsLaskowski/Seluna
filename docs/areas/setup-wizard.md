@@ -599,7 +599,9 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   organization. Choosing All repositories is recommended, so that new repositories are covered too." with the link
   "Install the app on GitHub", or "Install it on GitHub: in the settings of your account or organization, open
   Developer settings, then GitHub Apps, choose the app and select Install App. Choosing All repositories is
-  recommended, so that new repositories are covered too."; the link back "Back to the GitHub App step".
+  recommended, so that new repositories are covered too." The created page has no link back.
+- GitHub notice-only page (the answers below that carry a notice and nothing else): after the notice, the link "Back
+  to the GitHub App step".
 - _invalid account_: "Choose your personal account or an organization and enter its name: 1 to 39 letters, digits
   and hyphens, not starting or ending with a hyphen."
 - _invalid return_: "This page needs the code and state GitHub sends back after creating the app. Start again from
