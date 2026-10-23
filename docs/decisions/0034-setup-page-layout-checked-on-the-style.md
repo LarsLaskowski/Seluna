@@ -1,6 +1,6 @@
 # 0034: Setup page layout, checked on the style instead of in a browser
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-23
 - **Area:** Setup wizard
 - **Source:** Issue #65
