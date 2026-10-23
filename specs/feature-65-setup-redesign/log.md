@@ -20,4 +20,4 @@ are quoted in full.
 | 2026-10-23 19:01 | 7 Code check | Orchestrator | main unchanged; format:check, typecheck, lint, build, analyzer gate (0 findings), scope-check PASS; 3597 tests, coverage gate PASS (new 17/17, overall 97.1%); Sonar gate NOT CHECKED (no SONAR_TOKEN), left to step 11; Code Officer not needed |
 | 2026-10-23 19:04 | 8 Review round 1 | squad-reviewer | BLOCKING 1 (CHANGELOG entry missing, fix marked verbatim), NON-BLOCKING 0; everything else clean (opus/medium · 87,761 tokens · 24 tool uses · 143 s) |
 | 2026-10-23 19:04 | 8 Verbatim fix | Orchestrator | applied reviewer's verbatim CHANGELOG.md entry under Unreleased; git diff only that; format:check, scope-check, decision-check PASS; round clean |
-| 2026-10-23 19:05 | 9 PR approval | squad-lead | APPROVED; no open decision; follow-up issue for pre-existing area doc mismatch (created page back link) (opus/medium · usage pending) |
+| 2026-10-23 19:05 | 9 PR approval | squad-lead | APPROVED; no open decision; follow-up issue for pre-existing area doc mismatch (created page back link) (opus/medium · 27,752 tokens · 6 tool uses · 32 s) |
