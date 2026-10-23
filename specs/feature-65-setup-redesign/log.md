@@ -18,3 +18,4 @@ are quoted in full.
 | 2026-10-23 18:56 | 6 Coverage (G3) | squad-tester | test at :906 narrowed per Lead decision; npm test 3597 green; coverage gate PASS (new 17/17, overall 97.1%) (sonnet/medium · 56,120 tokens · 5 tool uses · 143 s) |
 | 2026-10-23 18:59 | 6 Docs (G4) | squad-lead | area document setup-wizard.md written; decision 0034 stays Proposed; pre-existing mismatch noted (created page back link text) (opus/medium · 107,372 tokens · 41 tool uses · 169 s) |
 | 2026-10-23 19:01 | 7 Code check | Orchestrator | main unchanged; format:check, typecheck, lint, build, analyzer gate (0 findings), scope-check PASS; 3597 tests, coverage gate PASS (new 17/17, overall 97.1%); Sonar gate NOT CHECKED (no SONAR_TOKEN), left to step 11; Code Officer not needed |
+| 2026-10-23 19:04 | 8 Review round 1 | squad-reviewer | BLOCKING 1 (CHANGELOG entry missing, fix marked verbatim), NON-BLOCKING 0; everything else clean (opus/medium · 87,761 tokens · 24 tool uses · 143 s) |
