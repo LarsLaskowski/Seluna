@@ -903,7 +903,9 @@ describe("renderStartPage setting groups", () => {
       );
       expect(rules?.content, "quiet hours").not.toContain('name="quiet_');
       expect(page, "rules label as a paragraph").not.toContain(`<p>${escapeHtml(texts.rulesLabel)}</p>`);
-      const afterGroups = page.slice(page.lastIndexOf("</fieldset>"));
+      const settings = sectionWith(page, `<h2>${escapeHtml(texts.settingsHeading)}</h2>`);
+      expect(settings.lastIndexOf("</fieldset>"), "the groups are in the settings section").toBeGreaterThanOrEqual(0);
+      const afterGroups = settings.slice(settings.lastIndexOf("</fieldset>"));
       expect(buttonClasses(afterGroups), "save button after the groups").toEqual(["primary"]);
     },
   );
