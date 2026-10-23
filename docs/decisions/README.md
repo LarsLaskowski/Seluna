@@ -85,5 +85,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0031](0031-update-workflow-for-copies.md) | Update workflow for copies | Accepted | 2026-10-22 |
 | [0032](0032-node-test-project-for-workflow-scripts.md) | Node test project for workflow scripts | Accepted | 2026-10-22 |
 | [0033](0033-v8-coverage.md) | V8 coverage under the Workers test plugin | Accepted | 2026-10-23 |
+| [0034](0034-setup-page-layout-checked-on-the-style.md) | Setup page layout, checked on the style instead of in a browser | Proposed | 2026-10-23 |
 
 <!-- project:end index -->

@@ -1,7 +1,7 @@
 # Spec: Visual redesign of the setup pages
 
 Source: Issue #65
-Status: Draft
+Status: Approved by Lead
 
 ## Problem
 
