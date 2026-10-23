@@ -255,6 +255,20 @@ do not change, and the hash still follows the constant (fact 2). No other guaran
 - `docs/decisions/0034-setup-page-layout-checked-on-the-style.md` (Proposed) — static verification of the look
   instead of a browser, snapshots for the unchanged texts, colours as custom properties; indexed.
 
+## Challenge notes
+
+Minor objections of the Devil's Advocate (plan challenge), verbatim:
+
+1. minor: Add the pair `--control`/`--bg` (or `--secondary`/`--bg`, at least 3:1, in both modes) to the AC10 contrast pairs and to its test. Why: the only secondary button, *Sign out*, sits in `<section class="actions">` on the page background, not in a card (*Approach*, start page). But the plan's 3:1 pairs only measure `--control` against `--card`. As written, the spec's requirement that button borders reach 3:1 "against their surroundings" is never tested for the one button that is not in a card.
+2. minor: Add these views to `ALL_PAGES`, so that AC1, AC2, AC4 and AC8 also cover them: the start page's status view with a notice (for example `form-expired`), the Telegram code view with a notice, and the GitHub form view with a notice. Why: these are real views. `formPage` passes a notice to every start, Telegram and GitHub render (`src/setup/handler.ts:118-150`), and the status view with a notice is answered at `handler.ts:251`, `:560` and `:570`. AC6 also places the notice in the start page's heading block.
+
+## Security notes
+
+Non-blocking findings of Security (plan review, APPROVED), verbatim:
+
+1. AC3's "STYLE loads nothing" test, as planned, misses some ways CSS can load a resource. The plan's guard is three plain substring checks (`url(`, `@import`, `@font-face`). The CSS tokenizer also accepts: any letter case (`URL(`, `@IMPORT`, `@Font-Face`); CSS escapes in the name (`u\72l(`, `\75rl(`, `@\69mport`); functions that fetch from a bare string with no `url(`: `image-set("…")`, `-webkit-image-set("…")`, `src("…")`, `image("…")`, `cross-fade(…)`, `element(#…)`; and `@namespace "…"`. The CSP blocks all of these at runtime, so this is not an exposure today, but a test with this name would claim more than it checks. Complete fix: match case-insensitively, and reject any `\` in `STYLE`, any `@` rule other than `@media`, and the function names `image-set(`, `-webkit-image-set(`, `src(`, `image(`, `cross-fade(`, `element(`.
+2. The hash only matches if the browser sees exactly the bytes that were hashed. `STYLE` is inserted raw into `<style>…</style>`, and the HTML parser changes some characters before the browser computes the CSP hash (CR and CRLF become LF, NUL is replaced). A `</style` sequence would also end the element early. Suggested test alongside AC1/AC3: `STYLE` is printable ASCII only (no CR, LF or NUL) and contains no `<`.
+
 ## Out of scope / follow-ups
 
 - Navigation between the pages (the issue that follows #65) and a reorder of the start page.
