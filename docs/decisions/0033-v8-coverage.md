@@ -1,6 +1,6 @@
 # 0033: V8 coverage under the Workers test plugin
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-23
 - **Area:** —
 - **Source:** Issue #95

@@ -13,3 +13,5 @@ are quoted in full.
 | 2026-10-23 18:02 | 8 Review round 1 | Reviewer | BLOCKING 1: lock still holds optional-peer @vitest/coverage-istanbul + Babel chain (35 entries) (opus/medium · 47,523 tokens · 14 tool uses · 190 s) |
 | 2026-10-23 18:07 | 6 Implement fix round 1 | Dev | pruned 35 optional-peer istanbul entries from lock; gates PASS (sonnet/medium · 4,196 tokens · 4 tool uses · 147 s · continued from 6 Implement) |
 | 2026-10-23 18:07 | 7 Code check (fix round 1) | Orchestrator | format, typecheck, lint, coverage 97.1%, analyzer, scope PASS |
+| 2026-10-23 18:07 | 8 Review round 2 (delta) | Reviewer | APPROVE; finding resolved (opus/medium · 2,331 tokens · 2 tool uses · 16 s · continued from 8 Review round 1) |
+| 2026-10-23 18:07 | 9 PR approval | Orchestrator | approved by checklist; record 0033 Accepted; decision-check PASS |
