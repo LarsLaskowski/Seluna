@@ -175,3 +175,9 @@ is enabled (fact 1). The coverage measure, its thresholds and its exclusions are
   `AGENTS.md` and `.github/copilot-instructions.md` should name `@cloudflare/vitest-plugin` and V8 coverage per
   0033, dropping the Istanbul deviation instead of restating it."
 - The measurement ran on Node 22 (the session's toolchain); Node 24 is checked by AC1 and AC4.
+
+## Security notes
+
+Security (plan review, APPROVED), non-blocking:
+
+1. When AC3 is checked (Dev, step 6, or Reviewer, step 8), also confirm for the new packages (`@vitest/coverage-v8`, `@bcoe/v8-coverage`, `ast-v8-to-istanbul` and its nested `@jridgewell/trace-mapping` and `js-tokens`) that each has a `resolved` URL on `https://registry.npmjs.org/` and an `integrity` hash, and that none adds `hasInstallScript: true`.
