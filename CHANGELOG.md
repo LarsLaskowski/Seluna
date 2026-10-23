@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-23
+
 ### Added
 
 - Unsent messages are retried every ten minutes; a message that is still unsent after its fifth attempt is marked `failed` and not retried again.
