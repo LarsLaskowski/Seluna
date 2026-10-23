@@ -108,9 +108,9 @@ All commands, with what each one checks, are listed in [`.squad/stack.md`](/.squ
   **eslint-plugin-sonarjs**; **Prettier**; **Vitest** with `@vitest/coverage-v8`.
 <!-- stack:end configuration -->
 <!-- project:begin configuration -->
-- **Cloudflare Workers** with **Wrangler**; tests run in `@cloudflare/vitest-pool-workers`, which has no V8
-  coverage, so coverage uses `@vitest/coverage-istanbul` (lcov) instead of `@vitest/coverage-v8` — see
-  [`.squad/stack.md`](/.squad/stack.md) and decision 0010.
+- **Cloudflare Workers** with **Wrangler**; tests run in `@cloudflare/vitest-plugin` (inside the Workers runtime),
+  with V8 coverage through `@vitest/coverage-v8` (lcov) — see [`.squad/stack.md`](/.squad/stack.md) and
+  decision 0033.
 - Commits follow Conventional Commits (`feat:`, `fix:`, …); everything in the repository is written in English.
 <!-- project:end configuration -->
 
