@@ -51,7 +51,7 @@ neighboring test file before inventing a new pattern.
   quadratic check that must stay linear, say — is the one exception to the real clock: measure two durations
   in the same test (the base input and a multiple of it) and assert their **ratio**, never an absolute
   duration; set the limit to at least three times the highest ratio measured, with the coverage
-  instrumentation of _Test with coverage_ included.
+  run of _Test with coverage_ included.
 
 ## Code coverage
 

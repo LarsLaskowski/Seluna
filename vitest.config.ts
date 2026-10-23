@@ -4,8 +4,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     coverage: {
-      // Istanbul instead of V8: see docs/decisions (Istanbul coverage).
-      provider: "istanbul",
+      // V8 through @cloudflare/vitest-plugin, which adds the inspector flags to the test worker: see docs/decisions (V8 coverage, 0033).
+      provider: "v8",
       include: ["src/**/*.ts"],
       exclude: ["**/*.test.ts", "**/*.d.ts"],
     },

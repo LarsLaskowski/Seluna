@@ -13,9 +13,8 @@ profile and owned by this repository: keep it true when the build changes.
   `parserOptions.projectService`) and **eslint-plugin-sonarjs** (the SonarQube JS/TS rules locally, so SonarQube
   issues surface before the push); **Prettier** as the formatter.
 - **Vitest** with `@cloudflare/vitest-plugin` (the successor of `@cloudflare/vitest-pool-workers`; the tests
-  execute inside the Workers runtime) as test runner. Coverage uses `@vitest/coverage-istanbul` instead of the
-  profile's `@vitest/coverage-v8` (decision 0010, made when the pool had no V8 coverage; the plugin's V8 support is
-  not evaluated yet).
+  execute inside the Workers runtime) as test runner. Coverage uses the profile's `@vitest/coverage-v8`
+  (decision 0033; the plugin enables V8 coverage inside the Workers runtime).
 - **Wrangler** bundles and deploys the Worker; `wrangler types` regenerates `worker-configuration.d.ts`.
 - The SessionStart hook `.claude/hooks/session-start.sh` runs `npm ci` in remote sessions.
 
@@ -45,7 +44,7 @@ All commands go through `package.json` scripts; a missing script is added, not w
 | *Test* | `npm test` (`vitest run`) |
 | *Single test* | `npx vitest run src/index.test.ts -t "<name>"` |
 | *Test (project)* | `npx vitest run src/<dir>/` (the tests of the changed code; a `patch` that changes only test code, `.squad/routing.md` *Gates of a patch* — it writes no coverage report, so a `patch` that changes production code runs *Test with coverage* instead) |
-| *Test with coverage* | `npm run coverage:lcov` (`vitest run --coverage --coverage.reporter=lcov` with Istanbul, overwrites `coverage/lcov.info`) |
+| *Test with coverage* | `npm run coverage:lcov` (`vitest run --coverage --coverage.reporter=lcov` with V8, overwrites `coverage/lcov.info`) |
 | *Coverage gate* | `python3 .squad/tools/coverage-check.py` |
 | *Analyzer gate* | `python3 .squad/tools/analyzer-check.py` |
 | *Sonar gate* | `python3 .squad/tools/sonar-check.py branch -- npx --yes @sonar/scan@5.0.1 -Dsonar.branch.name="$(git branch --show-current)"` (after *Test with coverage*, so the analysis carries coverage; needs `SONAR_TOKEN`, see *Sonar gate* below) |
@@ -95,7 +94,7 @@ Two places compute coverage and must agree (`.squad/routing.md`, *Code a unit te
 SonarQube Cloud reads `sonar.coverage.exclusions` in `sonar-project.properties`. Declaration files (`*.d.ts`)
 hold no executable lines and are excluded in both. A file no unit test can cover (a generated file, the
 process entry point) is added to both with a decision record — never to `sonar.exclusions`, which would drop it
-from the analysis too. Vitest's `coverage.include` (Istanbul) covers the same production files, so a file no test
+from the analysis too. Vitest's `coverage.include` (V8) covers the same production files, so a file no test
 imports still counts as uncovered instead of missing from the report.
 
 Duplication exclusions live in `sonar.cpd.exclusions` in `sonar-project.properties`, only for files that hold
