@@ -1,6 +1,6 @@
 # 0010: Istanbul coverage instead of V8
 
-- **Status:** Accepted
+- **Status:** Superseded by [0033](0033-v8-coverage.md)
 - **Date:** 2026-10-14
 - **Area:** —
 - **Source:** Issue #2
