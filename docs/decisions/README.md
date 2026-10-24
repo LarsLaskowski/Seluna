@@ -86,6 +86,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0032](0032-node-test-project-for-workflow-scripts.md) | Node test project for workflow scripts | Accepted | 2026-10-22 |
 | [0033](0033-v8-coverage.md) | V8 coverage under the Workers test plugin | Accepted | 2026-10-23 |
 | [0034](0034-setup-page-layout-checked-on-the-style.md) | Setup page layout and navigation, checked on the style instead of in a browser | Accepted | 2026-10-23 |
-| [0035](0035-root-url-redirects-to-setup.md) | The root URL redirects to the setup wizard | Proposed | 2026-10-24 |
+| [0035](0035-root-url-redirects-to-setup.md) | The root URL redirects to the setup wizard | Accepted | 2026-10-24 |
 
 <!-- project:end index -->

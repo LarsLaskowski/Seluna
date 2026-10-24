@@ -1,6 +1,6 @@
 # 0035: The root URL redirects to the setup wizard
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-24
 - **Area:** HTTP routes
 - **Source:** Issue #67
