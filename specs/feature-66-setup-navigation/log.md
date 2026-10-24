@@ -23,4 +23,4 @@ are quoted in full.
 | 2026-10-24 07:40 | 8 Verbatim fixes | squad-orchestrator | Applied the reviewer's two verbatim documentation fixes in setup-wizard.md (signed-out wording, Language name under Texts) |
 | 2026-10-24 07:40 | 8 Review round 2 (delta) | squad-reviewer | APPROVE; both doc fixes verified (opus/medium · 1,836 tokens · 17 tool uses · 109 s · continued) |
 | 2026-10-24 07:41 | 9 PR approval | squad-lead | APPROVED (decision 1 confirmed against the build; nothing open) (opus/medium · 31,218 tokens · 5 tool uses · 28 s) |
-| 2026-10-24 07:42 | 9 Changelog entry | squad-lead | Unreleased entry added to CHANGELOG.md (checklist item) (opus/medium · usage pending) |
+| 2026-10-24 07:42 | 9 Changelog entry | squad-lead | Unreleased entry added to CHANGELOG.md (checklist item) (opus/medium · 24,525 tokens · 11 tool uses · 34 s) |
