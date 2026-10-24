@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Setup wizard: the setup pages have a new look — a header with the language links, the parts of each page in separate cards, grouped settings, distinct buttons for sign-out and the reset, error and info notices, a dark mode that follows the system setting, a visible focus ring and a layout that fits a 360 px phone screen; texts, forms and the strict Content-Security-Policy are unchanged.
-- Setup wizard: the signed-in setup pages have a step navigation in the header (Start page, Telegram chat, GitHub App) with the current step marked, so every one of them leads back to the start page in one click; the sign-in and not-configured pages keep only the language links.
+- Setup wizard: the start page, the Telegram and GitHub App steps and the GitHub review and finish pages have a step navigation in the header (Start page, Telegram chat, GitHub App) with the current page marked, so every step page leads back to the start page in one click; the sign-in and not-configured pages keep only the language links.
 
 ## [0.5.0] - 2026-10-23
 
