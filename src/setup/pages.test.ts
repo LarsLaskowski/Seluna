@@ -759,13 +759,18 @@ describe("the step navigation", () => {
     },
   );
 
+  /** The page without its style element, whose CSS names `aria-current` and `.steps`. */
+  function markupOf(html: string): string {
+    return html.replace(`<style>${STYLE}</style>`, "");
+  }
+
   it.each(WITH_STEPS)(
     "the $page page in $language has exactly one aria-current, on a span inside the step navigation, items in order",
     ({ html, language, current }) => {
       const page = html();
 
       const navigation = stepNavigationOf(page);
-      expect(page.match(/aria-current/g), "aria-current attributes in the page").toHaveLength(1);
+      expect(markupOf(page).match(/aria-current/g), "aria-current attributes in the page").toHaveLength(1);
       expect(navigation.match(/<span aria-current="page">/g), "current spans in the navigation").toHaveLength(1);
       expect(
         Array.from(navigation.matchAll(/<(?:a|span)\b[^>]*>([^<]*)<\/(?:a|span)>/g), (match) => match[1]),
@@ -791,10 +796,10 @@ describe("the step navigation", () => {
   );
 
   it.each(WITHOUT_STEPS)("the $page page in $language has no step navigation and no aria-current", ({ html }) => {
-    const page = html();
+    const page = markupOf(html());
 
-    expect(page, "class steps anywhere in the page").not.toContain('class="steps"');
-    expect(page, "aria-current anywhere in the page").not.toContain("aria-current");
+    expect(page, "class steps anywhere in the markup").not.toContain('class="steps"');
+    expect(page, "aria-current anywhere in the markup").not.toContain("aria-current");
   });
 
   it.each(ALL_PAGES)(

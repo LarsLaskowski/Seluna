@@ -11,7 +11,7 @@ import { createChatProof } from "./chat-proof";
 import { verifyGitHubState } from "./github-state";
 import { handleSetup, isSetupPath } from "./handler";
 import type { SetupDeps } from "./handler";
-import { contentSecurityPolicy, escapeHtml } from "./pages";
+import { contentSecurityPolicy, escapeHtml, STYLE } from "./pages";
 import { createSessionToken, SESSION_COOKIE, SESSION_LIFETIME_MS } from "./session";
 import { RESET_PATH, SETTINGS_PATH } from "./settings-form";
 import { TEXTS } from "./texts";
@@ -204,6 +204,11 @@ describe("isSetupPath", () => {
   });
 });
 
+/** The page without its style element, whose CSS names `aria-current` and `.steps`. */
+function markupOf(html: string): string {
+  return html.replace(`<style>${STYLE}</style>`, "");
+}
+
 /** The step navigation of the GitHub pages in English: GitHub App is the current item, the others are links. */
 function expectGitHubStepNavigation(html: string): void {
   const texts = TEXTS.en;
@@ -213,13 +218,14 @@ function expectGitHubStepNavigation(html: string): void {
       `<a href="/setup/telegram">${escapeHtml(texts.telegramHeading)}</a> | ` +
       `<span aria-current="page">${escapeHtml(texts.githubHeading)}</span></nav>`,
   );
-  expect(html.match(/aria-current/g), "aria-current attributes").toHaveLength(1);
+  expect(markupOf(html).match(/aria-current/g), "aria-current attributes").toHaveLength(1);
 }
 
 /** Asserts that `html` carries no step navigation and no `aria-current` anywhere. */
 function expectNoStepNavigation(html: string): void {
-  expect(html, "class steps anywhere in the page").not.toContain('class="steps"');
-  expect(html, "aria-current anywhere in the page").not.toContain("aria-current");
+  const markup = markupOf(html);
+  expect(markup, "class steps anywhere in the markup").not.toContain('class="steps"');
+  expect(markup, "aria-current anywhere in the markup").not.toContain("aria-current");
 }
 
 describe("handleSetup without a session", () => {
