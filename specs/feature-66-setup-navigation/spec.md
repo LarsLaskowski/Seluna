@@ -1,7 +1,7 @@
 # Spec: Navigation between the setup pages
 
 Source: Issue #66
-Status: Draft
+Status: Approved by Lead
 
 ## Problem
 
@@ -35,8 +35,9 @@ header bar; its items are always, in this order: _Start page_, _Telegram chat_, 
   they look at the header bar, then _GitHub App_ is marked as the current page and _Start page_ and _Telegram chat_
   are links; on the review page they can go back to the start page without sending the manifest to GitHub.
 - S4: Given the owner is on the start page (the status page, with or without the reset section, or the notice-only
-  start page, also when it is the answer of _Sign out_, _Save settings_ or _Reset_ on `/setup/logout`,
-  `/setup/settings` or `/setup/reset`), when they look at the header bar, then _Start page_ is marked as the current
+  start page, also when the start page is answered on `/setup/logout`, `/setup/settings` or `/setup/reset`: _form
+  expired_ (403), _settings invalid_ (400), _reset not needed_ (409) or _unavailable_ (503); a successful sign-out,
+  save or reset answers a 303 redirect, not a page), when they look at the header bar, then _Start page_ is marked as the current
   page (not a link) and _Telegram chat_ and _GitHub App_ are links to `/setup/telegram` and `/setup/github`; the
   step links card in the main column stays as it is.
 - S5: Given a page in German, when the owner looks at the step navigation, then its items read _Startseite_,
@@ -49,8 +50,9 @@ header bar; its items are always, in this order: _Start page_, _Telegram chat_, 
   the _not configured_ page is shown (on any path under `/setup`), then its header bar holds the page title and the
   two language links only, as today: no step navigation.
 - S8: Given the owner uses a screen reader on a page with the step navigation, when they list the page's landmarks,
-  then they find two navigations with different names (the step navigation _Setup steps_ and the language links), and
-  the current item is announced as the current page.
+  then they find two navigations, each with its own name: the step navigation _Setup steps_ and the language links
+  _Language_ (_Einrichtungsschritte_ and _Sprache_ in German, the language name being the existing `languageLabel`
+  text), and the current item is announced as the current page.
 
 ## Errors and edge cases
 
@@ -61,12 +63,14 @@ header bar; its items are always, in this order: _Start page_, _Telegram chat_, 
   session answers the login page (status 200), as every path under `/setup` does without a session; after signing in
   the owner lands on `/setup`.
 - E2: Leaving the finish page through the step navigation before selecting _Finish_. Nothing is saved. The return
-  stays valid for one hour: the browser's back button or GitHub's return address shows the finish page again. No
-  warning is shown.
+  stays valid until one hour after _Next_ on the GitHub step, and only in the same session: a `GET` of the return
+  address (the browser's back button, or the address again) shows the finish page again, but _Finish_ after the hour,
+  after signing out or in another sign-in answers _state invalid_ (403). No warning is shown.
 - E3: Leaving the Telegram code page through the step navigation before entering the code. No chat is saved; the
   owner searches again and sends a new test message to save one. No warning is shown.
 - E4: A page answered on another path than its own (the code page with _wrong code_ on `/setup/telegram/verify`, the
-  start page on `/setup/logout`, `/setup/settings` or `/setup/reset`, the GitHub notice-only page on
+  start page answered on `/setup/logout`, `/setup/settings` or `/setup/reset` with _form expired_, _settings
+  invalid_, _reset not needed_ or _unavailable_, the GitHub notice-only page on
   `/setup/github/callback`). The current item is the one of the page shown, not of the URL path: _Telegram chat_ for
   every Telegram view, _GitHub App_ for every GitHub view, the review, finish and created pages, _Start page_ for the
   start page.
@@ -122,8 +126,9 @@ header bar; its items are always, in this order: _Start page_, _Telegram chat_, 
   current item, it sits in the step navigation and it is not a link; the navigation lists its three items in the
   order _Start page_, _Telegram chat_, _GitHub App_ (S1, S2, S3, S4, S8).
 - [ ] AC5: The step navigation is a navigation landmark named "Setup steps" in English and "Einrichtungsschritte" in
-  German, separate from the language links, whose header text and links stay exactly as today; the new texts exist in
-  both language tables in the same key order (S5, S8).
+  German, separate from the language navigation; the language navigation, on every page, is named by the existing
+  `languageLabel` text ("Language", "Sprache") and keeps its visible text and links exactly as today; the new texts
+  exist in both language tables in the same key order (S5, S8).
 - [ ] AC6: The login page (with and without a notice) and the _not configured_ page, in both languages, have no step
   navigation and no `aria-current` attribute, and their `href` values are exactly `/setup?lang=en` and
   `/setup?lang=de` (S7).
@@ -141,8 +146,9 @@ header bar; its items are always, in this order: _Start page_, _Telegram chat_, 
   modes; the navigation links get the focus outline; and every style rule of decision 0034 still holds (E6,
   non-functional requirements: style, accessibility).
 - [ ] AC11: Apart from the step navigation and AC7, the text and the form controls of every page and view stay those
-  of the snapshots taken before the change; the snapshot update in this change shows only the navigation's texts and
-  the removed link (E5, E9, non-functional requirements: compatibility).
+  of the snapshots taken before the change: with the step navigation left out of the compared text, the only snapshot
+  entries this change updates are the body texts of the _reset needed_ view in both languages, which lose "Open the
+  start page" (E5, E9, non-functional requirements: compatibility).
 - [ ] AC12: `docs/areas/setup-wizard.md` describes the step navigation (which pages show it, its items, its order, the
   current item and its marking, the pages without it), extends the _Language_ sentence on the links of every page
   instead of contradicting it, drops the start page link from the _reset needed_ view and its _Texts_ entry, and lists
@@ -166,8 +172,9 @@ header bar; its items are always, in this order: _Start page_, _Telegram chat_, 
   itself* shows the link to `/setup`, so the start page's own item is not a link; the same rule applies to the two
   steps. A link there would reload the page, and on a sub-page (review, finish, created, code page) it would lead to
   another view than the one marked current. `aria-current="page"` is valid on an element that is not a link.
-- Which labels? Answered: _Start page_ / _Startseite_ is new, because `startPageLink` ("Open the start page") is a
-  call to action that does not fit a navigation item and the start page's heading is "You are signed in"; the two
+- Which labels? Answered: _Start page_ / _Startseite_. The wording "Open the start page" of `startPageLink` is a
+  call to action that does not fit a navigation item and the start page's heading is "You are signed in"; the key
+  `startPageLink` itself is reused for the item with the new values (Challenge, note 2), so no key is left unused. The two
   steps reuse their page headings (`telegramHeading`, `githubHeading`), the names the start page's step links already
   use, so one page has one name everywhere. The issue writes _Telegram_; "Telegram chat" is that step's existing name.
   The navigation's accessible name _Setup steps_ / _Einrichtungsschritte_ is new, needed because a page then has two
@@ -196,14 +203,31 @@ header bar; its items are always, in this order: _Start page_, _Telegram chat_, 
   - _Language_: the sentence that every page links to exactly `/setup?lang=en` and `/setup?lang=de` is extended by
     the navigation's links on the pages that show it.
   - _GitHub App_, _The step page_: the _reset needed_ view without its link to the start page.
-  - _Texts_: the labels "Setup steps", "Start page" (and the reuse of "Telegram chat" and "GitHub App" as items); the
-    _reset needed_ entry without "followed by the link Open the start page".
+  - _Texts_: the labels "Setup steps", "Start page" (and the reuse of "Telegram chat" and "GitHub App" as items, and
+    of "Language" as the language navigation's name); the _reset needed_ entry without "followed by the link Open the
+    start page".
 
-## Challenge notes
+## Challenge
 
-Minor objections of the Devil's Advocate (spec challenge), appended verbatim; the Lead answers them in the plan.
+The four minor objections of the Devil's Advocate's spec challenge, verbatim, each with the Lead's answer (folded in
+from the former *Challenge notes*).
 
 1. **minor** – S8 asks for two navigations with different names, but the language `<nav>` has no accessible name today (`pages.ts:120`: `<nav>${languageLabel}: <a …>English</a> | <a …>Deutsch</a></nav>`, no `aria-label`/`aria-labelledby`). AC5 only names the new one and says the language links stay "exactly as today". The Lead should decide in the plan whether the language nav also gets a name (for example `aria-label` with the existing `languageLabel` text, which needs no new text) or stays unnamed. Then reword S8 to match: either "two navigations, each with its own name" or "the step navigation named Setup steps beside the unnamed language navigation".
+   - **Answer: accepted.** The language navigation gets `aria-label` with the existing `languageLabel` text
+     ("Language", "Sprache"; no new text), so the two landmarks are told apart by name. S8 now reads "two
+     navigations, each with its own name", and AC5 names both and says the language navigation's visible text and
+     links stay as today.
 2. **minor** – AC7 removes the only use of `startPageLink` (`pages.ts:543`), which would leave the key unused in both tables (`src/setup/texts.ts:111`, 225, 397). It is still asserted in `src/setup/texts.test.ts:222`/253, and the issue says "reuse `startPageLink` where it fits". The plan should say what happens to it: delete it from the type, both tables and `texts.test.ts`, or rename/reuse it for the new _Start page_ item with the new values "Start page"/"Startseite". Either way, no unused key may remain.
+   - **Answer: accepted, reuse.** `startPageLink` becomes the label of the _Start page_ item, with the values "Start
+     page" and "Startseite"; it moves next to the new key of the navigation's name in the type and both tables, and
+     `texts.test.ts` asserts the new value. The issue asks to reuse the key where it fits; its name still describes
+     the label of the link to the start page. The open question on labels says so.
 3. **minor** – S4 and E4 call the start page "the answer of _Sign out_ … on `/setup/logout`". But a successful sign-out answers 303 to `/setup` (`handler.ts:253`). The start page comes back on `/setup/logout` only on an expired form (403 _form expired_, `handler.ts:250-251`). Likewise `/setup/settings` answers a page only on 400/503 (`handler.ts:580`, 586; success is 303 at 588), and `/setup/reset` only on 409/503 (`handler.ts:601`, 607; success is 303 to `/setup/github` at 605). Reword S4/E4 to "the start page answered on `/setup/logout`, `/setup/settings` or `/setup/reset` (form expired, settings invalid, reset not needed, unavailable)", so the Tester renders those cases and does not look for a page after a redirect.
+   - **Answer: accepted.** Confirmed in `src/setup/handler.ts` (`signOut`, `saveSettings`, `resetSaved`: success is
+     a 303). S4 and E4 now name the four answers that render the start page on those paths (_form expired_ 403,
+     _settings invalid_ 400, _reset not needed_ 409, _unavailable_ 503) and say that a success redirects.
 4. **minor** – E2 says "The return stays valid for one hour". The state's hour runs from the _Next_ request on the GitHub step, not from leaving the finish page. Its MAC is also bound to the session token (`docs/areas/setup-wizard.md:341-349`; `src/setup/github-state.ts:4`, 24, 63), so after signing out or after a new sign-in, _Finish_ answers _state invalid_ (403). Reword E2 to "the return stays valid until one hour after _Next_ and only in the same session; GET on the return address shows the finish page again, but _Finish_ after that answers _state invalid_". Then neither the Tester nor the documentation promises more than the code keeps.
+   - **Answer: accepted.** E2 now says the return stays valid until one hour after _Next_ and only in the same
+     session, that a `GET` of the return address shows the finish page again, and that _Finish_ after the hour, after
+     signing out or in another sign-in answers _state invalid_ (403), as `docs/areas/setup-wizard.md` (_State_)
+     describes.
