@@ -429,8 +429,8 @@ KEY-----`, lines of 64 characters), `github_webhook_secret` the webhook secret a
   session: _Start page_ on every view of the start page, _Telegram chat_ on every view of the Telegram step page, and
   _GitHub App_ on every view of the GitHub App step page (the created page included) and on the review and finish
   pages — the finish page and the notice-only page of _invalid return_ carry it also when answered without a session.
-  The login page and the _not configured_ page have no step navigation and no `aria-current` attribute, so a visitor
-  without a session sees no link but the two language links.
+  The login page and the _not configured_ page have no step navigation and no `aria-current` attribute, so they link to
+  nothing but the two language links.
 - **Cards:** the parts of a page sit in cards (a bordered box whose background differs from the page's, cards
   separated by at least 0.75rem). The login page has its heading, intro and notice above one card with the form;
   the _not configured_ page its heading above one card with the paragraphs; the start page its heading, _start
@@ -548,7 +548,7 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   message."
 - Start page: "Set up your instance step by step:" and the links "Telegram chat" and "GitHub App".
 - Step navigation: the name "Setup steps" and the items "Start page", "Telegram chat" and "GitHub App" (the last two
-  are the headings of the two step pages).
+  are the headings of the two step pages); the language navigation is named "Language", the label it already shows.
 - Status: the heading "Status"; "Version:"; "Telegram chat:" with "None saved yet." or "Set by the Worker secret
   TELEGRAM_CHAT_ID."; "GitHub App:" with "None saved yet.", "Set by the Worker secrets GITHUB_APP_ID,
   GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET.", "Only some of the Worker secrets GITHUB_APP_ID,

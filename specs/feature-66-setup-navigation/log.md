@@ -19,3 +19,5 @@ are quoted in full.
 | 2026-10-24 07:35 | 6 Coverage (G4) | squad-tester | Snapshot updated (only 2 reset-needed entries changed); Coverage gate passes: 100% new lines, 97.1% overall (sonnet/medium · 59,933 tokens · 6 tool uses · 65 s) |
 | 2026-10-24 07:37 | 6 Docs (G5) | squad-lead | Area document setup-wizard.md updated; decision-check and plan-check pass (opus/medium · 49,373 tokens · 20 tool uses · 65 s) |
 | 2026-10-24 07:38 | 7 Code check | squad-orchestrator | format:check, lint, typecheck, build, tests (3869), analyzer gate, coverage gate (100% new, 97.1% overall), scope-check pass; Sonar gate not run: no SONAR_TOKEN in this session; Code Officer not needed (0 findings) |
+| 2026-10-24 07:40 | 8 Review round 1 | squad-reviewer | BLOCKING 2 (both verbatim doc fixes in setup-wizard.md), NON-BLOCKING 0 (opus/medium · 64,882 tokens · 15 tool uses · 78 s) |
+| 2026-10-24 07:40 | 8 Verbatim fixes | squad-orchestrator | Applied the reviewer's two verbatim documentation fixes in setup-wizard.md (signed-out wording, Language name under Texts) |
