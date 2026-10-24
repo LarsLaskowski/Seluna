@@ -22,7 +22,7 @@ npm run build          # wrangler deploy --dry-run --outdir dist
 npx wrangler dev       # run the Worker locally
 ```
 
-No configuration is needed to build; the local Worker answers `GET /health` and `POST /webhook`, and 404 for everything else.
+No configuration is needed to build; the local Worker answers `GET /health`, `POST /webhook`, the setup wizard under `/setup` and `GET /` with a redirect to it, and 404 for everything else.
 
 ### Running tests
 
