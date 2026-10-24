@@ -30,6 +30,10 @@ export type Notice =
 export interface SetupTexts {
   readonly pageTitle: string;
   readonly languageLabel: string;
+  /** The accessible name of the step navigation. */
+  readonly stepsLabel: string;
+  /** The label of the step navigation's start page item. */
+  readonly startPageLink: string;
   readonly loginHeading: string;
   readonly loginIntro: string;
   readonly secretLabel: string;
@@ -108,7 +112,6 @@ export interface SetupTexts {
   readonly resetHeading: string;
   readonly resetText: string;
   readonly resetButton: string;
-  readonly startPageLink: string;
   readonly settingsHeading: string;
   readonly notificationLanguageLabel: string;
   readonly timeZoneLabel: string;
@@ -127,6 +130,8 @@ export interface SetupTexts {
 const ENGLISH: SetupTexts = {
   pageTitle: "Seluna setup",
   languageLabel: "Language",
+  stepsLabel: "Setup steps",
+  startPageLink: "Start page",
   loginHeading: "Sign in",
   loginIntro: "Enter the SELUNA_SECRET of this instance to open the setup.",
   secretLabel: "SELUNA_SECRET",
@@ -222,7 +227,6 @@ const ENGLISH: SetupTexts = {
   resetText:
     "The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials and installation tokens, and you create the GitHub App again. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept.",
   resetButton: "Reset and create the GitHub App again",
-  startPageLink: "Open the start page",
   settingsHeading: "Settings",
   notificationLanguageLabel: "Language of the notifications",
   timeZoneLabel: "Time zone",
@@ -298,6 +302,8 @@ const ENGLISH: SetupTexts = {
 const GERMAN: SetupTexts = {
   pageTitle: "Seluna-Einrichtung",
   languageLabel: "Sprache",
+  stepsLabel: "Einrichtungsschritte",
+  startPageLink: "Startseite",
   loginHeading: "Anmelden",
   loginIntro: "Gib das SELUNA_SECRET dieser Instanz ein, um die Einrichtung zu öffnen.",
   secretLabel: "SELUNA_SECRET",
@@ -394,7 +400,6 @@ const GERMAN: SetupTexts = {
   resetText:
     "Die gespeicherten GitHub-Zugangsdaten sind mit dem aktuellen SELUNA_SECRET nicht lesbar: Es wurde geändert, oder die gespeicherten Werte sind beschädigt. Wenn du das frühere SELUNA_SECRET noch kennst, setze es stattdessen wieder. Andernfalls setze zurück: Seluna löscht die gespeicherten GitHub-Zugangsdaten und Installations-Tokens, und du erstellst die GitHub-App neu. Lösche die alte App danach auf GitHub: in den Einstellungen deines Kontos oder deiner Organisation unter Developer settings, dann GitHub Apps. Der Telegram-Chat und die Einstellungen bleiben erhalten.",
   resetButton: "Zurücksetzen und GitHub-App neu erstellen",
-  startPageLink: "Startseite öffnen",
   settingsHeading: "Einstellungen",
   notificationLanguageLabel: "Sprache der Benachrichtigungen",
   timeZoneLabel: "Zeitzone",

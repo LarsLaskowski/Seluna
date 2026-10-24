@@ -7,7 +7,7 @@ steps 4–6, in table order, its rows consecutive. Every documentation edit is i
 
 | # | Group | Task | Files | Criteria | Depends on | Owner | Done |
 | - | ----- | ---- | ----- | -------- | ---------- | ----- | ---- |
-| 1 | G1 | Skeleton: `SetupTexts.stepsLabel` after `languageLabel`, `startPageLink` moved after it with "Start page"/"Startseite", both tables in the same order (plan, *Signatures*); `typecheck` passes | `src/setup/texts.ts` | AC5 | — | Dev | [ ] |
+| 1 | G1 | Skeleton: `SetupTexts.stepsLabel` after `languageLabel`, `startPageLink` moved after it with "Start page"/"Startseite", both tables in the same order (plan, *Signatures*); `typecheck` passes | `src/setup/texts.ts` | AC5 | — | Dev | [x] |
 | 2 | G2 | Tests first in `pages.test.ts`: `current` field and extended `links` in `ALL_PAGES`, frame test rewritten, reset-needed test replaced, `bodyText` without the step navigation, the new navigation and style tests of *Tests per criterion*; they fail on the skeleton | `src/setup/pages.test.ts` | AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8, AC10, AC11 | 1 | Tester | [ ] |
 | 3 | G2 | Tests first in `texts.test.ts`: navigation texts, same key order, `startPageLink` value | `src/setup/texts.test.ts` | AC5 | 1 | Tester | [ ] |
 | 4 | G2 | Tests first in `handler.test.ts`: signed-out callback pages with the navigation, signed-out `GET /setup` and `/setup/telegram` without it | `src/setup/handler.test.ts` | AC9 | 1 | Tester | [ ] |
