@@ -57,7 +57,8 @@ export const STYLE =
   ".notice.info{background:var(--info-bg);color:var(--info-fg);border-color:var(--info-border);" +
   "border-inline-start-width:.375rem}" +
   "a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--focus);" +
-  "outline-offset:2px}";
+  "outline-offset:2px}" +
+  ".steps [aria-current=page]{font-weight:700}";
 
 const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   "X-Content-Type-Options": "nosniff",
@@ -110,19 +111,40 @@ function csrfInput(csrfToken: string): string {
   return `<input type="hidden" name="csrf" value="${escapeHtml(csrfToken)}">`;
 }
 
-function layout(language: Language, body: string): string {
+/** The items of the step navigation, in their order. */
+type NavigationItem = "start" | "telegram" | "github";
+
+/** The step navigation with `current` as marked text and the other items as links. */
+function stepNavigationHtml(language: Language, current: NavigationItem): string {
   const texts = TEXTS[language];
+  const items: readonly { readonly item: NavigationItem; readonly path: string; readonly label: string }[] = [
+    { item: "start", path: "/setup", label: texts.startPageLink },
+    { item: "telegram", path: "/setup/telegram", label: texts.telegramHeading },
+    { item: "github", path: "/setup/github", label: texts.githubHeading },
+  ];
+  const entries = items.map(({ item, path, label }) =>
+    item === current
+      ? `<span aria-current="page">${escapeHtml(label)}</span>`
+      : `<a href="${path}">${escapeHtml(label)}</a>`,
+  );
+  return `<nav class="steps" aria-label="${escapeHtml(texts.stepsLabel)}">${entries.join(" | ")}</nav>\n`;
+}
+
+/** A complete page: the header (brand, the step navigation when `current` is given, the language navigation) and `body` as the main column. */
+function layout(language: Language, body: string, current: NavigationItem | undefined): string {
+  const texts = TEXTS[language];
+  const steps = current === undefined ? "" : stepNavigationHtml(language, current);
   return (
     `<!DOCTYPE html>\n<html lang="${language}">\n<head>\n<meta charset="utf-8">\n` +
     `<meta name="viewport" content="width=device-width, initial-scale=1">\n` +
     `<title>${escapeHtml(texts.pageTitle)}</title>\n<style>${STYLE}</style>\n</head>\n<body>\n` +
-    `<header class="site">\n<p class="brand">${escapeHtml(texts.pageTitle)}</p>\n` +
-    `<nav>${escapeHtml(texts.languageLabel)}: <a href="/setup?lang=en">English</a> | <a href="/setup?lang=de">Deutsch</a></nav>\n</header>\n` +
+    `<header class="site">\n<p class="brand">${escapeHtml(texts.pageTitle)}</p>\n${steps}` +
+    `<nav aria-label="${escapeHtml(texts.languageLabel)}">${escapeHtml(texts.languageLabel)}: <a href="/setup?lang=en">English</a> | <a href="/setup?lang=de">Deutsch</a></nav>\n</header>\n` +
     `<main>\n${body}\n</main>\n</body>\n</html>\n`
   );
 }
 
-/** Each page links to exactly `/setup?lang=en` and `/setup?lang=de`, whatever path it is answered on. */
+/** Every page links to `/setup?lang=en` and `/setup?lang=de`, whatever path it is answered on; this page has no step navigation. */
 export function renderLoginPage(language: Language, csrfToken: string, notice?: Notice): string {
   const texts = TEXTS[language];
   return layout(
@@ -134,6 +156,7 @@ export function renderLoginPage(language: Language, csrfToken: string, notice?: 
           `<input id="secret" type="password" name="secret" autocomplete="current-password" required>\n` +
           `<button type="submit" class="primary">${escapeHtml(texts.loginButton)}</button>\n</form>`,
       ),
+    undefined,
   );
 }
 
@@ -318,7 +341,7 @@ export function renderStartPage(language: Language, csrfToken: string, view: Sta
   const head = `<h1>${escapeHtml(texts.startHeading)}</h1>\n<p>${escapeHtml(texts.startBody)}</p>\n${noticeHtml(language, notice)}`;
   switch (view.kind) {
     case "notice-only":
-      return layout(language, `${head}\n${stepLinksHtml(language)}\n${logoutFormHtml(language, csrfToken)}`);
+      return layout(language, `${head}\n${stepLinksHtml(language)}\n${logoutFormHtml(language, csrfToken)}`, "start");
     case "status": {
       const sections = [
         head,
@@ -328,7 +351,7 @@ export function renderStartPage(language: Language, csrfToken: string, view: Sta
         settingsFormHtml(language, csrfToken, view.status.settings),
         logoutFormHtml(language, csrfToken),
       ];
-      return layout(language, sections.join("\n"));
+      return layout(language, sections.join("\n"), "start");
     }
     default: {
       const unreachable: never = view;
@@ -337,11 +360,11 @@ export function renderStartPage(language: Language, csrfToken: string, view: Sta
   }
 }
 
-/** The page that explains how to set `SELUNA_SECRET`; links like the login page. */
+/** The page that explains how to set `SELUNA_SECRET`; like the login page, it has no step navigation. */
 export function renderNotConfiguredPage(language: Language): string {
   const texts = TEXTS[language];
   const paragraphs = texts.notConfiguredParagraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("\n");
-  return layout(language, `<h1>${escapeHtml(texts.notConfiguredHeading)}</h1>\n${card(paragraphs)}`);
+  return layout(language, `<h1>${escapeHtml(texts.notConfiguredHeading)}</h1>\n${card(paragraphs)}`, undefined);
 }
 
 async function securityHeaders(formTarget: FormTarget = "self"): Promise<Headers> {
@@ -440,7 +463,7 @@ function codeHtml(language: Language, csrfToken: string, chatId: number, proof: 
   );
 }
 
-/** The Telegram step page; links like the login page. A `problem` view shows the notice of its problem. */
+/** The Telegram step page; with the step navigation. A `problem` view shows the notice of its problem. */
 export function renderTelegramPage(
   language: Language,
   csrfToken: string,
@@ -485,7 +508,7 @@ export function renderTelegramPage(
       return unreachable;
     }
   }
-  return layout(language, body);
+  return layout(language, body, "telegram");
 }
 
 export type GitHubPageView =
@@ -524,7 +547,7 @@ function githubCreatedHtml(language: Language, slug: string | undefined): string
   return `<p class="notice info">${escapeHtml(texts.githubCreated)}</p>\n${install}`;
 }
 
-/** The GitHub App step page; links like the login page. */
+/** The GitHub App step page; with the step navigation. */
 export function renderGitHubPage(language: Language, csrfToken: string, view: GitHubPageView, notice?: Notice): string {
   const texts = TEXTS[language];
   const heading = `<h1>${escapeHtml(texts.githubHeading)}</h1>`;
@@ -538,10 +561,7 @@ export function renderGitHubPage(language: Language, csrfToken: string, view: Gi
       body = titled(heading, `<p class="notice error">${escapeHtml(texts.githubPartialWorkerSecrets)}</p>`);
       break;
     case "reset-needed":
-      body = titled(
-        heading,
-        `<p class="notice error">${escapeHtml(texts.githubResetNeeded)}</p>\n<p><a href="/setup">${escapeHtml(texts.startPageLink)}</a></p>`,
-      );
+      body = titled(heading, `<p class="notice error">${escapeHtml(texts.githubResetNeeded)}</p>`);
       break;
     case "notice-only":
       body = titled(heading, `${noticeHtml(language, notice)}\n${githubBackLink(language)}`);
@@ -562,10 +582,10 @@ export function renderGitHubPage(language: Language, csrfToken: string, view: Gi
       return unreachable;
     }
   }
-  return layout(language, body);
+  return layout(language, body, "github");
 }
 
-/** The review page whose form posts the manifest to GitHub; links like the login page. */
+/** The review page whose form posts the manifest to GitHub; with the step navigation. */
 export function renderGitHubReviewPage(
   language: Language,
   choice: AccountChoice,
@@ -588,10 +608,11 @@ export function renderGitHubReviewPage(
           `<input type="hidden" name="manifest" value="${escapeHtml(manifest)}">\n` +
           `<button type="submit" class="primary">${escapeHtml(texts.githubToGitHubButton)}</button>\n</form>`,
       ),
+    "github",
   );
 }
 
-/** The finish page whose form posts the return's `code` and `state` back; links like the login page. */
+/** The finish page whose form posts the return's `code` and `state` back; with the step navigation. */
 export function renderGitHubFinishPage(language: Language, code: string, state: string, notice?: Notice): string {
   const texts = TEXTS[language];
   return layout(
@@ -604,5 +625,6 @@ export function renderGitHubFinishPage(language: Language, code: string, state: 
           `<input type="hidden" name="state" value="${escapeHtml(state)}">\n` +
           `<button type="submit" class="primary">${escapeHtml(texts.githubFinishButton)}</button>\n</form>`,
       ),
+    "github",
   );
 }

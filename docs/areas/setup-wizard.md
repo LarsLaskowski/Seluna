@@ -311,8 +311,8 @@ encrypted ([Storage](storage.md)). The Worker secrets `GITHUB_APP_ID`, `GITHUB_A
 
 - `GET /setup/github` (signed in) answers **200** with one of: the _Worker secrets_ view, the _partial Worker
   secrets_ view, the _reset needed_ view (the stored `github_app_id` cannot be read with the current `SELUNA_SECRET`,
-  or the key check value is damaged; the heading and one card with the _reset needed_ text as an error notice and a
-  link to the start page, `/setup`, no form), or the form. The form view shows the heading and one card with the
+  or the key check value is damaged; the heading and one card with the _reset needed_ text as an error notice and
+  nothing else, no form; the start page is reached through the step navigation), or the form. The form view shows the heading and one card with the
   _intro_, a notice when one is given, the saved App ID (or _no saved app_ and, with an app, the _replace hint_) and
   the form: two radio inputs `account_type` (`personal`, `organization`), a text input
   `account`, the session-bound CSRF field and the _next_ button. A stored value that is not an App ID is shown as _no
@@ -415,10 +415,22 @@ KEY-----`, lines of 64 characters), `github_webhook_secret` the webhook secret a
   without any external resource (no script, font, style or image is loaded from anywhere), and with one inline
   `<style>` element.
 - **Frame:** the body of every page starts with a header bar (`<header>`) that holds the page title ("Seluna setup",
-  "Seluna-Einrichtung") as text, not as a heading, and the two language links ([Language](#language)); below it one
-  centred main column (`<main>`, limited by a maximum width only) holds the page's only `<h1>` and the rest of the
-  page. The descriptions of a page or view elsewhere in this area (what it shows, shows only, or in which order)
-  list the content of the main column.
+  "Seluna-Einrichtung") as text, not as a heading, then the step navigation on the pages that have it, then the
+  language navigation (a `<nav>` named _Language_, "Sprache", through `aria-label`, with the visible text
+  "Language:" and the two language links, [Language](#language)); below it one centred main column (`<main>`,
+  limited by a maximum width only) holds the page's only `<h1>` and the rest of the page. The descriptions of a page
+  or view elsewhere in this area (what it shows, shows only, or in which order) list the content of the main column.
+- **Step navigation:** a `<nav class="steps">` named _Setup steps_ ("Einrichtungsschritte") through `aria-label`,
+  separate from the language navigation. It lists three items in this order, separated by " | ": _Start page_
+  (`/setup`), _Telegram chat_ (`/setup/telegram`) and _GitHub App_ (`/setup/github`), labelled with the texts of
+  [Texts](#texts) in the page's language. The current item is plain text in a `<span aria-current="page">`, not a
+  link, and is the only element of the page with `aria-current`; the other two are links to exactly those addresses,
+  without query or fragment. The current item is fixed by the page that is rendered, not by the request path or the
+  session: _Start page_ on every view of the start page, _Telegram chat_ on every view of the Telegram step page, and
+  _GitHub App_ on every view of the GitHub App step page (the created page included) and on the review and finish
+  pages — the finish page and the notice-only page of _invalid return_ carry it also when answered without a session.
+  The login page and the _not configured_ page have no step navigation and no `aria-current` attribute, so they link to
+  nothing but the two language links.
 - **Cards:** the parts of a page sit in cards (a bordered box whose background differs from the page's, cards
   separated by at least 0.75rem). The login page has its heading, intro and notice above one card with the form;
   the _not configured_ page its heading above one card with the paragraphs; the start page its heading, _start
@@ -441,10 +453,11 @@ KEY-----`, lines of 64 characters), `github_webhook_secret` the webhook secret a
   time fields, checkboxes, radio buttons) follow too; a browser without the media query shows the light colours.
   Each mode declares its colours once, as `#rrggbb` custom properties on `:root` (the dark set inside the media
   query), and every rule uses them through `var(...)`. In each mode the WCAG 2.1 contrast ratio is at least 4.5:1
-  for text on the page and card backgrounds, links on both, the text of each button kind and of each notice kind on
-  its background, and at least 3:1 for the card border on the page, the control border on the card and the page,
+  for text on the page and card backgrounds, links on both, the current item of the step navigation (text colour) on
+  the header background, the text of each button kind and of each notice kind on its background, and at least 3:1 for the card border on the page, the control border on the card and the page,
   the primary and danger button backgrounds and the notice borders on the card (the notice borders on the page too),
-  and the focus ring on both.
+  and the focus ring on both. The current item of the step navigation is bold (`.steps [aria-current=page]`), in the
+  text colour and without underline, so it differs from the links in more than colour.
 - **Focus and borders:** links, buttons, inputs (checkboxes and radio buttons included) and selects get a 3px
   outline in the focus colour under `:focus-visible`; no rule removes the outline under plain `:focus`, so a browser
   without `:focus-visible` keeps its default. Cards, buttons, inputs, selects and notices have a border, so they stay
@@ -457,7 +470,8 @@ nowrap` or `pre`, no width above 20rem, no fixed height, and font sizes only in 
 - **Style limits:** the content of the `<style>` element is one constant, the same on every page and response; no
   page has another `<style>` element, a `style=` attribute, a `<link>`, `<img>`, `<iframe>` or `xlink:href`, and
   the only external addresses in `src`, `href` and `action` are the status section's app link, the created page's
-  install link and the review page's form action. The style loads nothing: no `url(`, no at-rule but `@media`, no
+  install link and the review page's form action; the internal addresses of the step navigation are fixed
+  (`/setup`, `/setup/telegram`, `/setup/github`). The style loads nothing: no `url(`, no at-rule but `@media`, no
   CSS escape (`\`), none of the functions `image-set(`, `-webkit-image-set(`, `image(`, `src(`, `cross-fade(` and
   `element(`; it names only system and generic font families, is printable ASCII without `<` (so the bytes the
   browser hashes are the bytes the policy names) and is at most 8,192 bytes as UTF-8.
@@ -487,7 +501,9 @@ nowrap` or `pre`, no width above 20rem, no fixed height, and font sizes only in 
   English.
 - A valid `lang` parameter also sets the cookie `seluna_lang` to it, with `Max-Age=31536000` (one year).
 - Every page links to exactly `/setup?lang=en` and `/setup?lang=de`, whatever path it is answered on (a page
-  answered on `/setup/logout` or `/setup/login` links to `/setup` too), and its `<html lang>` is its language.
+  answered on `/setup/logout` or `/setup/login` links to `/setup` too), and its `<html lang>` is its language. A page
+  with the step navigation ([Pages and response headers](#pages-and-response-headers)) also links to its items other
+  than the current one.
 - `Accept-Language` is read as RFC 9110 defines it: a comma-separated list of language ranges, each with an
   optional weight `;q=<0 to 1, at most three decimals>`. A range counts for German when its first subtag is `de`
   and for English when it is `en`, in any case (`de`, `de-DE`, `DE-at`). The language with the highest weight
@@ -531,6 +547,8 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
 - _code expired_: "The code has expired or the form is no longer valid. Search for chats again and send a new test
   message."
 - Start page: "Set up your instance step by step:" and the links "Telegram chat" and "GitHub App".
+- Step navigation: the name "Setup steps" and the items "Start page", "Telegram chat" and "GitHub App" (the last two
+  are the headings of the two step pages); the language navigation is named "Language", the label it already shows.
 - Status: the heading "Status"; "Version:"; "Telegram chat:" with "None saved yet." or "Set by the Worker secret
   TELEGRAM_CHAT_ID."; "GitHub App:" with "None saved yet.", "Set by the Worker secrets GITHUB_APP_ID,
   GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET.", "Only some of the Worker secrets GITHUB_APP_ID,
@@ -583,7 +601,7 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET are set. Set all three to configure the app
   by hand, or delete them to create the app here."; _reset needed_ "The saved GitHub credentials cannot be read with
   the current SELUNA_SECRET: it was changed, or the saved values are damaged. Set the earlier SELUNA_SECRET again, or
-  reset the saved credentials on the start page and create the app again.", followed by the link "Open the start page"; _Saved GitHub App, App ID:_ (followed by the id) and _No GitHub App is
+  reset the saved credentials on the start page and create the app again."; _Saved GitHub App, App ID:_ (followed by the id) and _No GitHub App is
   saved yet._; _replace hint_ "Creating a new app replaces the saved one. Delete the old app on GitHub afterwards: in
   the settings of your account or organization, under Developer settings, then GitHub Apps."; _My personal account_,
   _An organization_, the account label "Name of the account or organization, as in github.com/name" and the button

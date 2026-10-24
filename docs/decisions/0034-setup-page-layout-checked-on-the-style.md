@@ -1,9 +1,9 @@
-# 0034: Setup page layout, checked on the style instead of in a browser
+# 0034: Setup page layout and navigation, checked on the style instead of in a browser
 
 - **Status:** Accepted
 - **Date:** 2026-10-23
 - **Area:** Setup wizard
-- **Source:** Issue #65
+- **Source:** Issue #65, issue #66
 - **Supersedes:** —
 
 ## Context
@@ -14,6 +14,9 @@ its SHA-256 hash, no script, no external resource, no stylesheet route. The proj
 tests run inside the Workers runtime, which renders no page, and the squad cannot attach images to a pull request.
 Yet the issue's goals — readable at 360 px, dark mode, visible focus, visually separate sections — are about
 rendering, and the texts of both languages must not change while the markup around them does.
+
+Issue #66 then added a way back: from a step page the only links to the start page were the language links, which do
+not read as a way back, and no page showed where in the setup the owner is.
 
 ## Options considered
 
@@ -43,12 +46,26 @@ Where the colours live:
    readable by a test. Chosen.
 7. **Literal colours in each rule** — no single list to check, and the dark mode repeats every rule.
 
+How the owner moves between the pages (issue #66):
+
+8. **One step navigation in the header bar of every page of the start page, a step or a step's sub-page, with the
+   current item as text marked `aria-current="page"`** — the same place on every page, and the area document's
+   descriptions of each main column stay valid. The current item is not a link: a link to the page shown would reload
+   it, and on a sub-page (review, finish, created, code page) it would lead to another view than the one marked
+   current. Which pages show it follows the page, not the session, so GitHub's signed-out return shows it too; it
+   holds only fixed paths. Chosen.
+9. **The current item as a link with `aria-current="page"`** — the usual pattern for a menu, but the start page would
+   link to itself, against the issue's scope, and the sub-pages would mark a link to another view as current.
+10. **Back links in the main column of each view** — the pattern the step pages had; one link per view to maintain,
+    no marking of the current step, and nothing on the views that have none today.
+
 ## Decision
 
 The setup pages get a header, one main column, a card per part of a page, grouped settings and primary, secondary
 and danger buttons, styled by the one hashed `<style>` whose colours are custom properties per mode; the look is
 verified by unit tests on that style and on the rendered markup, and the texts and form controls by snapshots
-taken from the code before the change. The layout rules are in [`areas/setup-wizard.md`](../areas/setup-wizard.md#pages-and-response-headers).
+taken from the code before the change. Every page but the login and _not configured_ pages carries a step navigation
+in its header bar whose current item is marked text, not a link. The layout rules are in [`areas/setup-wizard.md`](../areas/setup-wizard.md#pages-and-response-headers).
 
 ## Consequences
 
@@ -59,3 +76,5 @@ taken from the code before the change. The layout rules are in [`areas/setup-wiz
 - A deliberate change of a page text or form field updates its snapshot in the same pull request, which makes it
   visible in the review.
 - Decision 0015's constraints are unchanged; the hash still follows the constant.
+- A new step (the delivery channel of a later issue) joins the step navigation; the step navigation is left out of
+  the snapshot text, so it is checked by its own tests.
