@@ -214,15 +214,18 @@ const INSTALL_LINK = "https://github.com/apps/octoapp/installations/new";
 
 describe("renderGitHubPage", () => {
   it.each(LANGUAGES.map((language) => ({ language })))(
-    "renderGitHubPage reset-needed view links to the start page in $language",
+    "renderGitHubPage reset-needed view shows the reset needed notice and no link in its card in $language",
     ({ language }) => {
       const texts = TEXTS[language];
 
       const page = renderGitHubPage(language, CSRF_TOKEN, { kind: "reset-needed" });
 
-      expect(page, "reset text followed by the start page link").toContain(
-        `<p class="notice error">${escapeHtml(texts.githubResetNeeded)}</p>\n<p><a href="/setup">${escapeHtml(texts.startPageLink)}</a></p>`,
+      const sections = sectionsOf(mainOf(page));
+      expect(sections, "number of cards").toHaveLength(1);
+      expect(sections[0]?.html.trim(), "content of the card").toBe(
+        `<p class="notice error">${escapeHtml(texts.githubResetNeeded)}</p>`,
       );
+      expect(page, "text of the removed link").not.toMatch(/Open the start page|Startseite öffnen/);
     },
   );
 
@@ -331,14 +334,66 @@ function sorted(texts: readonly string[]): string[] {
 const SLUG_LINK = "https://github.com/apps/seluna-demo";
 const ORGANIZATION: AccountChoice = { type: "organization", account: "octo-org" };
 
+/** The item of the step navigation a page marks as current. */
+type StepItem = "start" | "telegram" | "github";
+
+const STEP_PATHS: Readonly<Record<StepItem, string>> = {
+  start: "/setup",
+  telegram: TELEGRAM_LINK,
+  github: GITHUB_LINK,
+};
+const STEP_ORDER: readonly StepItem[] = ["start", "telegram", "github"];
+
+/** The label of a step navigation item in `language`. */
+function stepLabel(language: Language, item: StepItem): string {
+  const texts = TEXTS[language];
+  switch (item) {
+    case "start":
+      return texts.startPageLink;
+    case "telegram":
+      return texts.telegramHeading;
+    case "github":
+      return texts.githubHeading;
+  }
+}
+
+/** The step navigation a page with `current` as its current item has, as the plan's *Approach* fixes it. */
+function expectedStepNavigation(language: Language, current: StepItem): string {
+  const items = STEP_ORDER.map((item) => {
+    const label = escapeHtml(stepLabel(language, item));
+    return item === current
+      ? `<span aria-current="page">${label}</span>`
+      : `<a href="${STEP_PATHS[item]}">${label}</a>`;
+  });
+  return `<nav class="steps" aria-label="${escapeHtml(TEXTS[language].stepsLabel)}">${items.join(" | ")}</nav>`;
+}
+
+/** The step navigation element of `html`, or an empty text. */
+function stepNavigationOf(html: string): string {
+  return /<nav class="steps"[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "";
+}
+
+/** The navigation links of the page's current item: the other two items. */
+function navigationLinks(current: StepItem | undefined): readonly string[] {
+  return current === undefined ? [] : STEP_ORDER.filter((item) => item !== current).map((item) => STEP_PATHS[item]);
+}
+
 interface PageCase {
   readonly page: string;
   readonly language: Language;
-  /** The internal `href` values besides the two language links. */
+  /** The current item of the step navigation, undefined for the pages without the navigation. */
+  readonly current: StepItem | undefined;
+  /** The internal `href` values besides the two language links and the navigation links. */
   readonly links: readonly string[];
   /** The external addresses in `src`, `href` and `action`. */
   readonly external: readonly string[];
   readonly html: () => string;
+}
+
+/** The current item of the page named `page` in `ALL_PAGES`, by its name's first word. */
+function currentOf(page: string): StepItem | undefined {
+  const first = page.split(" ")[0];
+  return first === "start" || first === "telegram" || first === "github" ? first : undefined;
 }
 
 /** Every view of every setup page in each language. */
@@ -348,7 +403,7 @@ const ALL_PAGES: readonly PageCase[] = LANGUAGES.flatMap((language): readonly Pa
     links: readonly string[],
     external: readonly string[],
     html: () => string,
-  ): PageCase => ({ page, language, links, external, html });
+  ): PageCase => ({ page, language, current: currentOf(page), links, external, html });
   const start = (changes: Partial<StatusView>, notice?: Notice): (() => string) => {
     return () => startPage(language, changes, notice);
   };
@@ -417,7 +472,7 @@ const ALL_PAGES: readonly PageCase[] = LANGUAGES.flatMap((language): readonly Pa
     entry("telegram no chats", [TELEGRAM_LINK], [], telegram(NO_CHATS_VIEW)),
     entry("github worker-secrets", [], [], github({ kind: "worker-secrets" })),
     entry("github partial-worker-secrets", [], [], github({ kind: "partial-worker-secrets" })),
-    entry("github reset-needed", ["/setup"], [], github({ kind: "reset-needed" })),
+    entry("github reset-needed", [], [], github({ kind: "reset-needed" })),
     entry("github notice-only", [GITHUB_LINK], [], github({ kind: "notice-only" }, "github-state-invalid")),
     entry("github form", [], [], github({ kind: "form", savedAppId: undefined })),
     entry("github form with a saved app", [], [], github({ kind: "form", savedAppId: 12_345 })),
@@ -452,14 +507,15 @@ function plainText(html: string): string {
 }
 
 /**
- * The text between `<body>` and `</body>` without the brand paragraph (new markup) and without the content of the
- * time zone select (runtime-dependent).
+ * The text between `<body>` and `</body>` without the brand paragraph and the step navigation (new markup) and
+ * without the content of the time zone select (runtime-dependent).
  */
 function bodyText(html: string): string {
   const body = /<body>([\s\S]*)<\/body>/.exec(html)?.[1] ?? "";
   return plainText(
     body
       .replace(/<p class="brand">[\s\S]*?<\/p>/, "")
+      .replace(/<nav class="steps"[\s\S]*?<\/nav>/, "")
       .replace(/(<select id="time_zone"[^>]*>)[\s\S]*?(<\/select>)/, "$1$2"),
   );
 }
@@ -594,11 +650,13 @@ describe("the pages", () => {
 
   it.each(ALL_PAGES)(
     "the $page page in $language links to /setup?lang=en, /setup?lang=de and its own links only",
-    ({ html, links, external }) => {
+    ({ html, links, external, current }) => {
       const page = html();
 
       const hrefs = attributeValues(page, "href").filter((value) => !external.includes(value));
-      expect(sorted(hrefs), "href values").toEqual(sorted([...links, "/setup?lang=de", "/setup?lang=en"]));
+      expect(sorted(hrefs), "href values").toEqual(
+        sorted([...links, ...navigationLinks(current), "/setup?lang=de", "/setup?lang=en"]),
+      );
     },
   );
 
@@ -624,16 +682,17 @@ describe("the pages before this change", () => {
 
 describe("the page frame", () => {
   it.each(ALL_PAGES)(
-    "the $page page in $language starts with a header holding the page title and both language links",
-    ({ html, language }) => {
+    "the $page page in $language names the step navigation and the language navigation",
+    ({ html, language, current }) => {
       const texts = TEXTS[language];
       const page = html();
 
       const body = compact(/<body>([\s\S]*)<\/body>/.exec(page)?.[1] ?? "");
       const header =
         `<header class="site"><p class="brand">${escapeHtml(texts.pageTitle)}</p>` +
-        `<nav>${escapeHtml(texts.languageLabel)}: <a href="/setup?lang=en">English</a> | ` +
-        `<a href="/setup?lang=de">Deutsch</a></nav></header><main>`;
+        (current === undefined ? "" : expectedStepNavigation(language, current)) +
+        `<nav aria-label="${escapeHtml(texts.languageLabel)}">${escapeHtml(texts.languageLabel)}: ` +
+        `<a href="/setup?lang=en">English</a> | <a href="/setup?lang=de">Deutsch</a></nav></header><main>`;
       expect(body.startsWith(header), "the body starts with the header and the main element").toBe(true);
       expect(body.endsWith("</main>"), "the body ends with the main element").toBe(true);
     },
@@ -647,6 +706,107 @@ describe("the page frame", () => {
     expect(mainOf(page).match(/<h1[\s>]/g)?.length, "number of h1 elements in main").toBe(1);
     expect(page.slice(0, page.indexOf("<main")), "headings before main").not.toMatch(/<h[1-6][\s>]/);
   });
+});
+
+describe("the step navigation", () => {
+  const WITH_STEPS = ALL_PAGES.filter(({ current }) => current !== undefined);
+  const STEP_PAGES = ALL_PAGES.filter(({ current }) => current === "telegram" || current === "github");
+  const START_PAGES = ALL_PAGES.filter(({ current }) => current === "start");
+  const WITHOUT_STEPS = ALL_PAGES.filter(({ current }) => current === undefined);
+
+  it("the page list holds pages with and without the step navigation in both languages", () => {
+    expect(STEP_PAGES.length, "step pages").toBeGreaterThan(0);
+    expect(START_PAGES.length, "start pages").toBeGreaterThan(0);
+    expect(
+      WITHOUT_STEPS.map(({ page }) => page),
+      "pages without the navigation",
+    ).toEqual(["login", "login with a notice", "not-configured", "login", "login with a notice", "not-configured"]);
+  });
+
+  it.each(STEP_PAGES)(
+    "the $page page in $language has exactly one link to /setup, the Start page item of the step navigation",
+    ({ html, language }) => {
+      const page = html();
+
+      expect(
+        attributeValues(page, "href").filter((href) => href === "/setup"),
+        "links to /setup",
+      ).toHaveLength(1);
+      expect(
+        /<a href="\/setup">([^<]*)<\/a>/.exec(stepNavigationOf(page))?.[1],
+        "label of the link to /setup in the step navigation",
+      ).toBe(escapeHtml(TEXTS[language].startPageLink));
+    },
+  );
+
+  it.each(STEP_PAGES)(
+    "the $page page in $language shows the step navigation with its step as the current item",
+    ({ html, language, current }) => {
+      const page = html();
+
+      expect(current, "current item of a step page").toBeDefined();
+      expect(stepNavigationOf(page), "step navigation").toBe(expectedStepNavigation(language, current ?? "start"));
+    },
+  );
+
+  it.each(START_PAGES)(
+    "the $page page in $language shows the step navigation with the start page as the current item and no link to /setup",
+    ({ html, language }) => {
+      const page = html();
+
+      expect(stepNavigationOf(page), "step navigation").toBe(expectedStepNavigation(language, "start"));
+      expect(page, "link to /setup").not.toContain('href="/setup"');
+    },
+  );
+
+  it.each(WITH_STEPS)(
+    "the $page page in $language has exactly one aria-current, on a span inside the step navigation, items in order",
+    ({ html, language, current }) => {
+      const page = html();
+
+      const navigation = stepNavigationOf(page);
+      expect(page.match(/aria-current/g), "aria-current attributes in the page").toHaveLength(1);
+      expect(navigation.match(/<span aria-current="page">/g), "current spans in the navigation").toHaveLength(1);
+      expect(
+        Array.from(navigation.matchAll(/<(?:a|span)\b[^>]*>([^<]*)<\/(?:a|span)>/g), (match) => match[1]),
+        "item labels in order",
+      ).toEqual(STEP_ORDER.map((item) => escapeHtml(stepLabel(language, item))));
+      expect(navigation, "the current item as marked text, not a link").toContain(
+        `<span aria-current="page">${escapeHtml(stepLabel(language, current ?? "start"))}</span>`,
+      );
+    },
+  );
+
+  it.each(WITH_STEPS)(
+    "the step navigation of the $page page in $language links only to /setup, /setup/telegram and /setup/github",
+    ({ html }) => {
+      const hrefs = attributeValues(stepNavigationOf(html()), "href");
+
+      expect(hrefs, "step navigation hrefs").toHaveLength(2);
+      for (const href of hrefs) {
+        expect(["/setup", "/setup/telegram", "/setup/github"], `step navigation href ${href}`).toContain(href);
+        expect(href, "query or fragment").not.toMatch(/[?#]/);
+      }
+    },
+  );
+
+  it.each(WITHOUT_STEPS)("the $page page in $language has no step navigation and no aria-current", ({ html }) => {
+    const page = html();
+
+    expect(page, "class steps anywhere in the page").not.toContain('class="steps"');
+    expect(page, "aria-current anywhere in the page").not.toContain("aria-current");
+  });
+
+  it.each(ALL_PAGES)(
+    "the $page page in $language names the language navigation by the language label",
+    ({ html, language }) => {
+      const label = escapeHtml(TEXTS[language].languageLabel);
+
+      expect(html(), "language navigation").toContain(
+        `<nav aria-label="${label}">${label}: <a href="/setup?lang=en">English</a> | <a href="/setup?lang=de">Deutsch</a></nav>`,
+      );
+    },
+  );
 });
 
 describe("the buttons", () => {
@@ -1893,5 +2053,22 @@ describe("STYLE widths", () => {
       sizes.filter(({ value }) => !/^(?:\d+\.\d+|\d+|\.\d+)(?:rem|em|%)$/.test(value)),
       "font sizes in other units",
     ).toEqual([]);
+  });
+});
+
+describe("STYLE step navigation", () => {
+  it("STYLE shows the current item of the step navigation in bold in the text colour", () => {
+    const rules = rulesFor(".steps [aria-current=page]");
+
+    expect(rules.length, "rules for the current item").toBeGreaterThan(0);
+    expect(declaredValue(rules, "font-weight"), "font-weight").toBe("700");
+    expect([undefined, "var(--fg)"], "colour of the current item").toContain(declaredValue(rules, "color"));
+    expect([undefined, "none"], "text decoration of the current item").toContain(
+      declaredValue(rules, "text-decoration"),
+    );
+  });
+
+  it("STYLE gives the header the card background", () => {
+    expect(declaredValue(rulesFor("header.site"), "background"), "background of header.site").toBe("var(--card)");
   });
 });

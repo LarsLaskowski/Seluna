@@ -26,6 +26,40 @@ describe("TEXTS", () => {
     expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(24);
   });
 
+  it("texts keep the same keys in the same order in English and German", () => {
+    expect(Object.keys(TEXTS.de), "German keys").toEqual(Object.keys(TEXTS.en));
+  });
+
+  it("texts word the navigation as the area document does", () => {
+    expect(
+      {
+        languageLabel: TEXTS.en.languageLabel,
+        stepsLabel: TEXTS.en.stepsLabel,
+        startPageLink: TEXTS.en.startPageLink,
+      },
+      "English navigation texts",
+    ).toEqual({ languageLabel: "Language", stepsLabel: "Setup steps", startPageLink: "Start page" });
+    expect(
+      {
+        languageLabel: TEXTS.de.languageLabel,
+        stepsLabel: TEXTS.de.stepsLabel,
+        startPageLink: TEXTS.de.startPageLink,
+      },
+      "German navigation texts",
+    ).toEqual({ languageLabel: "Sprache", stepsLabel: "Einrichtungsschritte", startPageLink: "Startseite" });
+  });
+
+  it("texts name the step items by the page headings of the two steps", () => {
+    expect([TEXTS.en.telegramHeading, TEXTS.en.githubHeading], "English headings").toEqual([
+      "Telegram chat",
+      "GitHub App",
+    ]);
+    expect([TEXTS.de.telegramHeading, TEXTS.de.githubHeading], "German headings").toEqual([
+      "Telegram-Chat",
+      "GitHub-App",
+    ]);
+  });
+
   it("texts word the English notices as the area document does", () => {
     expect(TEXTS.en.notices, "English notices").toEqual({
       "wrong-secret": "That is not the SELUNA_SECRET of this instance.",
@@ -250,7 +284,7 @@ describe("TEXTS", () => {
       resetText:
         "The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials and installation tokens, and you create the GitHub App again. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept.",
       resetButton: "Reset and create the GitHub App again",
-      startPageLink: "Open the start page",
+      startPageLink: "Start page",
       settingsHeading: "Settings",
       notificationLanguageLabel: "Language of the notifications",
       timeZoneLabel: "Time zone",

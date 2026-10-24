@@ -204,6 +204,24 @@ describe("isSetupPath", () => {
   });
 });
 
+/** The step navigation of the GitHub pages in English: GitHub App is the current item, the others are links. */
+function expectGitHubStepNavigation(html: string): void {
+  const texts = TEXTS.en;
+  expect(html, "step navigation").toContain(
+    `<nav class="steps" aria-label="${escapeHtml(texts.stepsLabel)}">` +
+      `<a href="/setup">${escapeHtml(texts.startPageLink)}</a> | ` +
+      `<a href="/setup/telegram">${escapeHtml(texts.telegramHeading)}</a> | ` +
+      `<span aria-current="page">${escapeHtml(texts.githubHeading)}</span></nav>`,
+  );
+  expect(html.match(/aria-current/g), "aria-current attributes").toHaveLength(1);
+}
+
+/** Asserts that `html` carries no step navigation and no `aria-current` anywhere. */
+function expectNoStepNavigation(html: string): void {
+  expect(html, "class steps anywhere in the page").not.toContain('class="steps"');
+  expect(html, "aria-current anywhere in the page").not.toContain("aria-current");
+}
+
 describe("handleSetup without a session", () => {
   it.each([
     { method: "GET", path: "/setup" },
@@ -219,6 +237,18 @@ describe("handleSetup without a session", () => {
     expect(response.status, "status").toBe(200);
     expectLoginPage(await response.text());
   });
+
+  it.each([{ path: "/setup" }, { path: "/setup/telegram" }])(
+    "handleSetup answers GET $path without a session with the login page and no step navigation",
+    async ({ path }) => {
+      const response = await call(path);
+
+      expect(response.status, "status").toBe(200);
+      const html = await response.text();
+      expectLoginPage(html);
+      expectNoStepNavigation(html);
+    },
+  );
 
   it.each([
     {
@@ -2118,6 +2148,29 @@ describe("handleSetup GitHub return", () => {
     expect(response.status, "status").toBe(200);
     expect(response.headers.getSetCookie().length, "number of cookies").toBe(1);
     expect(setCookiesOf(response, "seluna_lang").length, "language cookies").toBe(1);
+  });
+
+  it("GET /setup/github/callback signed out shows the step navigation with GitHub App as the current item for a valid return", async () => {
+    const state = await githubState(PERSONAL_GITHUB);
+
+    const response = await call(
+      callbackPath([
+        ["code", FIXTURE_CODE],
+        ["state", state],
+      ]),
+    );
+
+    expect(response.status, "status").toBe(200);
+    expectGitHubStepNavigation(await response.text());
+  });
+
+  it("GET /setup/github/callback signed out shows the step navigation with GitHub App as the current item for an invalid return", async () => {
+    const response = await call(
+      callbackPath([["state", `v1.personal.octocat.1700003600000.${"A".repeat(22)}.${"B".repeat(43)}`]]),
+    );
+
+    expect(response.status, "status").toBe(400);
+    expectGitHubStepNavigation(await response.text());
   });
 
   const STATE = `v1.personal.octocat.1700003600000.${"A".repeat(22)}.${"B".repeat(43)}`;
