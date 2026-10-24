@@ -6,6 +6,7 @@ import { handleRequest } from "./router";
 import type { RequestLogEntry, RouteDeps } from "./router";
 import { CSRF_COOKIE, csrfTokenFor } from "./setup/csrf";
 import type { SetupDeps } from "./setup/handler";
+import { contentSecurityPolicy } from "./setup/pages";
 import { LOGIN_ATTEMPTS_META_KEY } from "./store/login-attempts";
 import { writeSecrets } from "./store/secrets";
 import { webhookSecretSource } from "./webhook-secret";
@@ -194,7 +195,12 @@ describe("handleRequest", () => {
   });
 
   it.each([
-    { method: "GET", path: "/" },
+    { method: "POST", path: "/" },
+    { method: "PUT", path: "/" },
+    { method: "DELETE", path: "/" },
+    { method: "OPTIONS", path: "/" },
+    { method: "GET", path: "/index.html" },
+    { method: "GET", path: "//" },
     { method: "GET", path: "/anything" },
     { method: "GET", path: "/setupx" },
     { method: "GET", path: "/SETUP" },
@@ -214,6 +220,140 @@ describe("handleRequest", () => {
     expect(response.status, "status").toBe(404);
     expect(await response.text(), "body").toBe("");
   });
+
+  it("handleRequest answers GET / with 302 to /setup, an empty body and no cookie", async () => {
+    const request = new Request(`${ORIGIN}/`);
+
+    const response = await handleRequest(request, makeDeps());
+
+    expect(response.status, "status").toBe(302);
+    expect(response.headers.get("location"), "location").toBe("/setup");
+    expect(response.headers.get("set-cookie"), "cookie").toBeNull();
+    expect(await response.text(), "body").toBe("");
+  });
+
+  it.each([
+    { path: "/?lang=de", url: `${ORIGIN}/?lang=de`, headers: new Headers() },
+    {
+      path: "/?next=%2F%2Fevil.example with Host evil.example",
+      url: `${ORIGIN}/?next=%2F%2Fevil.example`,
+      headers: new Headers({ host: "evil.example" }),
+    },
+    {
+      path: "/?next=//evil.example on the request URL host evil.example",
+      url: "https://evil.example/?next=//evil.example",
+      headers: new Headers(),
+    },
+  ])("handleRequest answers GET $path with Location /setup whatever the query and Host", async ({ url, headers }) => {
+    const request = new Request(url, { headers });
+
+    const response = await handleRequest(request, makeDeps());
+
+    expect(response.status, "status").toBe(302);
+    expect(response.headers.get("location"), "location").toBe("/setup");
+    expect(response.headers.get("set-cookie"), "cookie").toBeNull();
+    expect(await response.text(), "body").toBe("");
+  });
+
+  it("handleRequest answers HEAD / with 302 to /setup and no body", async () => {
+    const request = new Request(`${ORIGIN}/`, { method: "HEAD" });
+
+    const response = await handleRequest(request, makeDeps());
+
+    expect(response.status, "status").toBe(302);
+    expect(response.headers.get("location"), "location").toBe("/setup");
+    expect(response.headers.get("set-cookie"), "cookie").toBeNull();
+    expect(await response.text(), "body").toBe("");
+  });
+
+  it.each(["GET", "HEAD"])(
+    "handleRequest answers %s / with the security headers of the setup wizard",
+    async (method) => {
+      const request = new Request(`${ORIGIN}/`, { method });
+
+      const response = await handleRequest(request, makeDeps());
+
+      expect(response.status, "status").toBe(302);
+      expect(response.headers.get("content-security-policy"), "content security policy").toBe(
+        await contentSecurityPolicy(),
+      );
+      expect(response.headers.get("x-content-type-options"), "content type options").toBe("nosniff");
+      expect(response.headers.get("x-frame-options"), "frame options").toBe("DENY");
+      expect(response.headers.get("referrer-policy"), "referrer policy").toBe("no-referrer");
+      expect(response.headers.get("cache-control"), "cache control").toBe("no-store");
+    },
+  );
+
+  it("handleRequest logs GET /?lang=de once as method, path / and status 302", async () => {
+    const entries: RequestLogEntry[] = [];
+    const request = new Request(`${ORIGIN}/?lang=de`);
+
+    await handleRequest(request, makeDeps(entries));
+
+    expect(entries, "log entries").toStrictEqual([{ method: "GET", path: "/", status: 302 }]);
+  });
+
+  it("handleRequest answers POST / with a body over 1 MiB with 404 without reading it", async () => {
+    const request = new Request(`${ORIGIN}/`, {
+      method: "POST",
+      body: streamOf([new Uint8Array(HALF), new Uint8Array(HALF + 1)]),
+    });
+
+    const response = await handleRequest(request, makeDeps());
+
+    expect(response.status, "status").toBe(404);
+    expect(await response.text(), "body").toBe("");
+    expect(request.bodyUsed, "body read").toBe(false);
+  });
+
+  it("handleRequest answers POST / with a failing body stream with 404", async () => {
+    const request = new Request(`${ORIGIN}/`, { method: "POST", body: failingStream() });
+
+    const response = await handleRequest(request, makeDeps());
+
+    expect(response.status, "status").toBe(404);
+    expect(await response.text(), "body").toBe("");
+  });
+
+  it.each(["GET", "HEAD"])(
+    "handleRequest answers %s / without calling the webhook or setup dependencies",
+    async (method) => {
+      const secretSource = vi.fn<WebhookSecretSource["webhookSecret"]>(() => Promise.resolve(secret));
+      const processor = vi.fn<RouteDeps["webhook"]>(() =>
+        Promise.resolve({ status: 202, decision: "no-match", action: null, repository: null }),
+      );
+      const now = vi.fn<SetupDeps["now"]>(() => new Date(0));
+      const fetcher = vi.fn<SetupDeps["fetch"]>(() => Promise.reject(new Error("unexpected Telegram call")));
+      const githubFetch = vi.fn<SetupDeps["githubFetch"]>(() => Promise.reject(new Error("unexpected GitHub call")));
+      const throwingEnv = new Proxy(
+        {},
+        {
+          get(_target, property) {
+            throw new Error(`the root read env.${String(property)}`);
+          },
+        },
+      );
+      const setup: SetupDeps = {
+        env: throwingEnv,
+        db: env.DB,
+        now,
+        fetch: fetcher,
+        githubFetch,
+        version: "0.0.0-test",
+      };
+      const request = new Request(`${ORIGIN}/`, { method });
+
+      const response = await handleRequest(request, makeDeps([], { webhookSecret: secretSource }, setup, processor));
+
+      expect(response.status, "status").toBe(302);
+      expect(response.headers.get("location"), "location").toBe("/setup");
+      expect(secretSource, "webhook secret source calls").not.toHaveBeenCalled();
+      expect(processor, "webhook processor calls").not.toHaveBeenCalled();
+      expect(now, "now calls").not.toHaveBeenCalled();
+      expect(fetcher, "fetch calls").not.toHaveBeenCalled();
+      expect(githubFetch, "githubFetch calls").not.toHaveBeenCalled();
+    },
+  );
 
   it("handleRequest answers 413 for a webhook with Content-Length over MAX_BODY_BYTES", async () => {
     const request = webhook("x", { "content-length": String(MAX_BODY_BYTES + 1) });

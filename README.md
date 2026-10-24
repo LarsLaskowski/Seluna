@@ -61,7 +61,7 @@ Every webhook is checked against its signature before anything happens. A delive
 1. Create a bot for Telegram, the first supported messenger, with [@BotFather](https://t.me/BotFather) and keep its token.
 2. Choose a random `SELUNA_SECRET` of at least 32 characters. It is the password of the setup page.
 3. Select **Deploy to Cloudflare** above. The button creates an independent copy of this repository in your GitHub account (not a fork) and deploys it.
-4. Open `https://<your-worker>.workers.dev/setup`, sign in and let the wizard connect your Telegram chat and create the GitHub App.
+4. Open `https://<your-worker>.workers.dev/` (it leads to the setup page `/setup`), sign in and let the wizard connect your Telegram chat and create the GitHub App.
 
 The full walk-through is in the [setup guide](docs/setup.md). Every push to `main` of your copy deploys it.
 

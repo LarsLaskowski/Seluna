@@ -13,7 +13,8 @@ it and add their pages behind the login.
 
 - The wizard owns `/setup` and every path that starts with `/setup/`. Other paths are not part of it, also
   `/setupx`, `/SETUP` or `/setup%2F` ([HTTP routes](http-routes.md)). The path is matched after the URL is parsed,
-  so dot segments are already resolved: `/setup/../health` is `/health`.
+  so dot segments are already resolved: `/setup/../health` is `/health`. The root `/` is not part of the wizard
+  either; `GET /` and `HEAD /` redirect to `/setup` ([HTTP routes](http-routes.md)).
 - Every request under `/setup` is decided in this order:
   1. **No usable `SELUNA_SECRET`** (absent, not a string, or shorter than 32 characters as counted in
      [Storage](storage.md#encryption)): **503** with the _not configured_ page, for every method and path. No body

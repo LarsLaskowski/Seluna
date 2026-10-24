@@ -15,7 +15,7 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 
 | Component | Owns |
 | --------- | ---- |
-| Worker `fetch` handler | `POST /webhook`, `GET /health` (returns the version), `/setup` (the setup wizard) |
+| Worker `fetch` handler | `POST /webhook`, `GET /health` (returns the version), `/setup` (the setup wizard), `GET /` (redirects to `/setup`) |
 | Webhook processing | Deduplication by `X-GitHub-Delivery`, the rules, the draft lookup of a CI failure in a pull request ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)), the outbox rows and the first send attempt of each row ([`areas/notifications.md`](areas/notifications.md), [decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)) |
 | GitHub API client | Calls of the GitHub API as the app: the app JWT, the installation tokens per `installation.id` cached encrypted in `token_cache`, the pull request read for the draft lookup of the webhook processing and the installations list for the status page ([`areas/github-api.md`](areas/github-api.md), [decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)) |
 | Rules | Pure functions of the event name, the payload and the settings to zero or one notification; no I/O, no clock |
@@ -75,13 +75,15 @@ its test message ([decision 0016](decisions/0016-telegram-chat-in-the-setup-wiza
 | `POST /webhook` | GitHub App events (signature checked) |
 | `GET /health` | Returns the running version, fixed from `package.json` at build time |
 | `/setup` | Setup wizard, behind the setup login |
+| `GET /`, `HEAD /` | Redirects to `/setup` |
 
 Every other method and path answers 404 with an empty body. Under `/setup` the setup login decides first: without
 a valid session every request gets the login page, and without a usable `SELUNA_SECRET` the wizard refuses to start
 ([`areas/setup-wizard.md`](areas/setup-wizard.md), [decision 0015](decisions/0015-setup-login.md)). A route
 that reads a request body rejects one over 1 MiB with 413, and each request is logged as method, path and status
 only. The rules are in [`areas/http-routes.md`](areas/http-routes.md)
-([decision 0011](decisions/0011-public-http-surface.md)).
+([decision 0011](decisions/0011-public-http-surface.md), the root redirect:
+[decision 0035](decisions/0035-root-url-redirects-to-setup.md)).
 
 ## Cron triggers
 

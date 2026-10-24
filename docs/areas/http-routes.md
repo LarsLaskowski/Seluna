@@ -11,16 +11,17 @@ does the setup wizard under `/setup`.
 
 ### Routes
 
-| Method and path      | Status                              | Body                                                                                      |
-| -------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------- |
-| `GET /health`        | 200                                 | JSON `{"status":"ok","version":"<version>"}`, `Content-Type: application/json`            |
-| `POST /webhook`      | 202                                 | empty (valid signature, delivery recorded, [Notifications](notifications.md))             |
-| `POST /webhook`      | 200                                 | empty (valid signature, delivery id already recorded)                                     |
-| `POST /webhook`      | 400                                 | empty (valid signature, delivery that cannot be processed)                                |
-| `POST /webhook`      | 401                                 | empty (missing or wrong signature)                                                        |
-| `POST /webhook`      | 503                                 | empty (no webhook secret usable, or reading it failed; database failure while processing) |
-| `/setup`, `/setup/…` | see [Setup wizard](setup-wizard.md) | see [Setup wizard](setup-wizard.md)                                                       |
-| anything else        | 404                                 | empty                                                                                     |
+| Method and path      | Status                              | Body                                                                                                              |
+| -------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `GET /health`        | 200                                 | JSON `{"status":"ok","version":"<version>"}`, `Content-Type: application/json`                                    |
+| `POST /webhook`      | 202                                 | empty (valid signature, delivery recorded, [Notifications](notifications.md))                                     |
+| `POST /webhook`      | 200                                 | empty (valid signature, delivery id already recorded)                                                             |
+| `POST /webhook`      | 400                                 | empty (valid signature, delivery that cannot be processed)                                                        |
+| `POST /webhook`      | 401                                 | empty (missing or wrong signature)                                                                                |
+| `POST /webhook`      | 503                                 | empty (no webhook secret usable, or reading it failed; database failure while processing)                         |
+| `/setup`, `/setup/…` | see [Setup wizard](setup-wizard.md) | see [Setup wizard](setup-wizard.md)                                                                               |
+| `GET /`, `HEAD /`    | 302                                 | empty, `Location: /setup`, the security headers of the [Setup wizard](setup-wizard.md#pages-and-response-headers) |
+| anything else        | 404                                 | empty                                                                                                             |
 
 - A route matches on the exact method and the exact path; the query string is ignored. `HEAD /health`,
   `POST /health`, `GET /webhook`, `/health/` and `/HEALTH` are "anything else".
@@ -28,6 +29,10 @@ does the setup wizard under `/setup`.
   at build time and never read from a file or a setting at runtime.
 - `/setup` and every path that starts with `/setup/`, with any method, belong to the setup wizard, which answers
   them as [Setup wizard](setup-wizard.md) describes; `/setupx`, `/SETUP` and `/setup%2F` are "anything else".
+- `/` answers `GET` and `HEAD` only, with a redirect to the setup wizard; `POST /` and every other method on `/` are
+  "anything else". The `Location` is always exactly `/setup`: the query string is neither carried into it nor
+  logged, and no part of the request (path, query, `Host`) enters it. The redirect reads no body, no cookie, no
+  secret and no D1, and sets no cookie.
 
 ### Webhook signature
 
@@ -61,7 +66,7 @@ does the setup wizard under `/setup`.
   header does not bypass the limit. Reading stops as soon as the count exceeds the limit; the rest of the body is
   never read. An accepted body is briefly held twice while its chunks are combined, so reading one takes up to
   about 2 MiB of memory.
-- A route that reads no body (`GET /health`, every 404) never reads it, so its size does not matter there. Under
+- A route that reads no body (`GET /health`, `GET /` and `HEAD /`, every 404) never reads it, so its size does not matter there. Under
   `/setup` only the form submissions `POST /setup/login`, `POST /setup/logout`, `POST /setup/settings`,
   `POST /setup/reset`, `POST /setup/telegram` and `POST /setup/telegram/verify`, `POST /setup/github` and
   `POST /setup/github/callback` read a body, with this limit. The Telegram Bot API answers (also the 429 answer of `sendMessage`, read for its `retry_after`) and the GitHub conversion answer read by the setup wizard are limited the same
@@ -85,7 +90,7 @@ does the setup wizard under `/setup`.
 ## Limits and errors
 
 - A body that cannot be read to the end (the client aborts, the stream fails) answers **400** with an empty body.
-- Outside `/setup`, 404, 413, 400, 401 and 503 never carry a body, so no response reveals a reason, the
+- Outside `/setup`, 404, 413, 400, 401 and 503 never carry a body, nor does the 302 of `GET /` and `HEAD /`, so no response reveals a reason, the
   configuration or a secret. Under `/setup` 404, 413 and the 400 of an unreadable body carry no body either; the pages the wizard answers with (also the Telegram and GitHub steps' 400, 403, 409, 502 and 503) carry fixed texts only ([Setup wizard](setup-wizard.md#limits-and-errors)).
 
 ## Related decisions
@@ -97,6 +102,8 @@ does the setup wizard under `/setup`.
   accepted signature form, the check order and the secret source.
 - [`decisions/0017-github-app-manifest-flow.md`](../decisions/0017-github-app-manifest-flow.md) — the secret comes
   from the Worker secret when it is set, else from D1; what that costs per delivery.
+- [`decisions/0035-root-url-redirects-to-setup.md`](../decisions/0035-root-url-redirects-to-setup.md) — `GET /`
+  and `HEAD /` redirect to `/setup` with a fixed, temporary redirect instead of answering 404.
 
 ## Not here
 

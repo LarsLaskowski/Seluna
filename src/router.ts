@@ -1,6 +1,7 @@
 import { MAX_BODY_BYTES, readBodyWithLimit } from "./body";
-import { handleSetup, isSetupPath } from "./setup/handler";
+import { handleSetup, isSetupPath, SETUP_PATH } from "./setup/handler";
 import type { SetupDeps } from "./setup/handler";
+import { emptyResponse } from "./setup/pages";
 import { SIGNATURE_HEADER, verifySignature } from "./signature";
 import type { WebhookSecretSource } from "./webhook-secret";
 import type { SignedDelivery, WebhookDecision, WebhookOutcome } from "./webhook";
@@ -95,6 +96,10 @@ async function route(request: Request, pathname: string, deps: RouteDeps): Promi
   }
   if (isSetupPath(pathname)) {
     return { response: await handleSetup(request, pathname, deps.setup) };
+  }
+  if (pathname === "/" && (request.method === "GET" || request.method === "HEAD")) {
+    // A fixed Location, never built from the request; no body, cookie, secret or D1 is touched.
+    return { response: await emptyResponse(302, [], SETUP_PATH) };
   }
   return { response: new Response(null, { status: 404 }) };
 }
