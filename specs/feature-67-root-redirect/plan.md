@@ -151,3 +151,36 @@ as listed and links the record.
   `.github/copilot-instructions.md`) list the `fetch` handler's routes as `POST /webhook`, `GET /health`, `/setup`.
   Since #67, `GET /` and `HEAD /` redirect to `/setup`; add it to the summary. A product PR does not change
   instruction files, so it was left out of #67."
+
+## Challenge notes
+
+Devil's Advocate, plan challenge (0 major, 2 minor), verbatim:
+
+1. (minor) The line numbers in plan.md, *Problem / root cause*, are wrong. It says `route()` is at `src/router.ts`
+   lines 93–105, but at 2c68909 `route()` is at lines 89–100: the `isSetupPath` branch is at 96–98 and the final 404
+   at line 99. Instruction for the Dev: put the new branch between line 98 and line 99, after the `isSetupPath`
+   branch and before `return { response: new Response(null, { status: 404 }) }`. Treat the plan's line numbers as
+   stale. Why minor: the *Approach* already names the place by its branches, so nothing in the plan changes.
+
+2. (minor) The AC6 test does not cover the D1 and secret parts of E6. E6 and the *Cost* requirement say the root
+   reads no secret and nothing from D1. The AC6 spies only cover `webhookSecret.webhookSecret`, `webhook`,
+   `setup.now`, `setup.fetch` and `setup.githubFetch`. `makeDeps()` in `src/router.test.ts` lines 40–47 passes the
+   real `env.DB` and `env: {}`, so a build that read `SELUNA_SECRET` or D1 on `/` would still pass. Instruction for
+   the Tester: in the `GET`/`HEAD` "no dependencies called" case, pass `setup.env` as a `Proxy` over `{}` whose
+   `get` trap throws. `SetupDeps.env` is typed `object` (`src/setup/handler.ts` line 64), so this needs no cast.
+   Then assert the 302. The Reviewer checks by reading that the branch never touches `deps.setup.db`. Why minor: it
+   is a stronger test of a branch that is plainly stateless, not a change to the plan.
+
+## Security notes
+
+Security, plan review (APPROVED), non-blocking notes, verbatim:
+
+1. **`Host` header in the AC1 test:** the test passes `Host: evil.example`, but the router never reads that
+   header, so it barely exercises anything. A stronger hostile-input case is one where the request URL itself
+   carries a foreign host, e.g. `new Request("https://evil.example/?next=//evil.example")`, asserting
+   `Location === "/setup"`. That would pin that the redirect is never absolute or built from the request. Keeping
+   the `Host` case is harmless. If the Workers runtime drops or rejects `Host` in `new Request`, the Tester should
+   switch to the URL form rather than assert on a header that never arrived.
+2. **Exact `Location` match:** the AC3/AC1 assertions should compare `Location` with exactly `"/setup"`, so that a
+   later change to an absolute URL derived from `request.url` (which would reflect the `Host` header) fails the
+   test.
