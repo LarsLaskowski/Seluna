@@ -202,3 +202,9 @@ already request (each answers the login page without a session). No guarantee is
 ## Out of scope / follow-ups
 
 As in [spec.md](spec.md), *Out of scope*. No follow-up issue.
+
+## Security notes
+
+Non-blocking note of Security (plan review), appended verbatim:
+
+**Non-blocking (one note for the Tester):** the AC6 and AC9 tests that check the login and *not configured* pages have no step navigation should assert that no `class="steps"` and no `aria-current` appear anywhere in the response body, not only in the header. That way a later change to `layout()` cannot quietly put the navigation onto the pages a signed-out visitor sees.
