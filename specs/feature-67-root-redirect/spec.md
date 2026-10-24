@@ -113,3 +113,22 @@ every path outside `/health`, `/webhook` and `/setup` as 404, so the root is "an
   endpoints table and "Every other method and path answers 404"), `docs/CONTRIBUTING.md` (line "the local Worker
   answers `GET /health` and `POST /webhook`, and 404 for everything else"), `docs/setup.md` (opening the setup via
   the Worker URL) and the README's setup step that names `/setup`.
+
+## Challenge notes
+
+Devil's Advocate, spec challenge (0 major, 1 minor), verbatim:
+
+1. (minor) AC6 asks for a test where `GET /` carries a body over 1 MiB. That test cannot be written. In this Node,
+   `new Request("https://x/", { method: "GET", body: "a" })` throws `Request with GET/HEAD method cannot have body.`
+   The Fetch spec, which workerd (the Cloudflare Workers runtime) follows, forbids it as well. That is a strong
+   expectation, but I did not run it inside workerd itself. As written, the Tester would have to bend the test or
+   drop it.
+
+   Instruction for the Lead: rewrite AC6 so it checks that the root answer reads no body in a way that can be
+   tested. Either:
+   - send `POST /` with a body over 1 MiB (or a failing stream, like `failingStream()` in `src/router.test.ts:97`)
+     and expect a 404 with no 413 or 400; or
+   - keep only the second half: answering `/` calls none of the webhook secret source, the webhook processor or
+     the setup dependencies.
+
+   Change E5 to match.
