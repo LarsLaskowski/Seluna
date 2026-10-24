@@ -43,12 +43,12 @@ the expected markup of *Approach*.
 | AC1 | `the $page page in $language has exactly one link to /setup, the Start page item of the step navigation` (every entry with `current` telegram or github; label `TEXTS[language].startPageLink`) | `src/setup/pages.test.ts` |
 | AC2 | `the $page page in $language shows the step navigation with its step as the current item` (every entry with `current` telegram or github: the step `<nav>` equals the *Approach* markup for that item) | `src/setup/pages.test.ts` |
 | AC3 | `the $page page in $language shows the step navigation with the start page as the current item and no link to /setup` (every start entry: exact step `<nav>`, no `href="/setup"`) | `src/setup/pages.test.ts` |
-| AC4 | `the $page page in $language has exactly one aria-current, on a span inside the step navigation, items in order` | `src/setup/pages.test.ts` |
+| AC4 | `the $page page in $language has exactly one aria-current, on a span inside the step navigation, items in order` (the count runs over the page with the exact `<style>${STYLE}</style>` element removed, *Lead decisions* 1) | `src/setup/pages.test.ts` |
 | AC5 | `the $page page in $language names the step navigation and the language navigation` (rewrite of the frame test at 625–640 to the *Approach* header); `texts word the navigation as the area document does` (`stepsLabel`, `startPageLink` in English and German); `texts keep the same keys in the same order in English and German` (`Object.keys(TEXTS.de)` equals `Object.keys(TEXTS.en)`); the existing `startPageLink` expectation at 253 changes to "Start page" | `src/setup/pages.test.ts`, `src/setup/texts.test.ts` |
-| AC6 | `the $page page in $language has no step navigation and no aria-current` (entries with `current` undefined; the href test already pins the two language links) | `src/setup/pages.test.ts` |
+| AC6 | `the $page page in $language has no step navigation and no aria-current` (entries with `current` undefined; the href test already pins the two language links; no `class="steps"` and no bare `aria-current` in the page with the exact `<style>${STYLE}</style>` element removed, *Lead decisions* 1) | `src/setup/pages.test.ts` |
 | AC7 | `renderGitHubPage reset-needed view shows the reset needed notice and no link in its card in $language` (replaces the test at 216–227: the card's content is exactly the notice paragraph) | `src/setup/pages.test.ts` |
 | AC8 | the existing `links to /setup?lang=en, /setup?lang=de and its own links only` test with each entry's `links` extended by the navigation links of its `current` (`/setup` and `/setup/github` for telegram, `/setup` and `/setup/telegram` for github, `/setup/telegram` and `/setup/github` for start); `the step navigation of the $page page in $language links only to /setup, /setup/telegram and /setup/github` (no `?`, no `#`); the external-address test unchanged | `src/setup/pages.test.ts` |
-| AC9 | `GET /setup/github/callback signed out shows the step navigation with GitHub App as the current item` (valid return and invalid return); `handleSetup answers GET /setup and /setup/telegram without a session with the login page and no step navigation` | `src/setup/handler.test.ts` |
+| AC9 | `GET /setup/github/callback signed out shows the step navigation with GitHub App as the current item` (valid return and invalid return); `handleSetup answers GET /setup and /setup/telegram without a session with the login page and no step navigation` (both helpers, `expectGitHubStepNavigation` and `expectNoStepNavigation`, search the body with the exact `<style>${STYLE}</style>` element removed, *Lead decisions* 1) | `src/setup/handler.test.ts` |
 | AC10 | `STYLE shows the current item of the step navigation in bold in the text colour` (a rule for `.steps [aria-current=page]` with `font-weight:700`, no `color` other than `var(--fg)`, no `text-decoration` other than `none`); `STYLE gives the header the card background` (`header.site` background `var(--card)`, so the existing `--fg on --card` contrast test covers the item); the existing focus, width and style-limit tests unchanged | `src/setup/pages.test.ts` |
 | AC11 | the existing snapshot tests at 615–623, with `bodyText` also removing `<nav class="steps" …>…</nav>` (new markup, like the brand); after G3 the snapshot file is updated and its diff holds only the two _reset needed_ body-text entries | `src/setup/pages.test.ts`, `src/setup/__snapshots__/pages.test.ts.snap` |
 | AC12 | none: documentation; the Reviewer reads `docs/areas/setup-wizard.md` against the final code in step 8 | `docs/areas/setup-wizard.md` |
@@ -208,6 +208,24 @@ As in [spec.md](spec.md), *Out of scope*. No follow-up issue.
 Non-blocking note of Security (plan review), appended verbatim:
 
 **Non-blocking (one note for the Tester):** the AC6 and AC9 tests that check the login and *not configured* pages have no step navigation should assert that no `class="steps"` and no `aria-current` appear anywhere in the response body, not only in the header. That way a later change to `layout()` cannot quietly put the navigation onto the pages a signed-out visitor sees.
+
+## Lead decisions
+
+1. **`aria-current` in the style element (G3, decide).** The AC10 rule `.steps [aria-current=page]{font-weight:700}`
+   puts the word `aria-current` into the one `<style>` element every page carries, so the AC4, AC6 and AC9 tests
+   that count or search the bare word over the whole body fail on correct markup. Decided: production code and the
+   AC10 rule stay as planned; the Tester changes the tests. One test helper per test file,
+   `markupOf(html: string): string`, returns `html` with the exact string `` `<style>${STYLE}</style>` `` removed
+   (`STYLE` imported from `./pages.js`; `String.prototype.replace` with that string, not a regular expression). The
+   AC4 count (pages.test.ts ~768), the AC6 checks (~796–797), and `expectGitHubStepNavigation` /
+   `expectNoStepNavigation` (handler.test.ts ~216, ~221–222) run on `markupOf(page)` and keep searching the bare
+   word `aria-current` and `class="steps"`. The existing test that pins exactly one `<style` element holding exactly
+   `STYLE` (pages.test.ts ~615–616) guarantees that only the known rules are removed, so markup anywhere else in the
+   body — any attribute form, quoted, unquoted, any value — still fails the Security note's check.
+   Options rejected: counting `aria-current="page"` only (misses `aria-current=page`, single quotes and other values,
+   weakening the Security note's "no aria-current anywhere"); stripping any `<style>…</style>` by regular expression
+   (would also hide markup inside a second, unexpected style element); changing the rule to `.steps span` (changes
+   AC10 and its STYLE test and ties the bold marking to the element instead of the state the spec names).
 
 ## Challenge notes
 
