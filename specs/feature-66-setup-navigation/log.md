@@ -13,3 +13,4 @@ are quoted in full.
 | 2026-10-24 07:26 | 2b Plan challenge | squad-devils-advocate | OBJECTIONS 0 major, 2 minor; appended verbatim to plan.md as Challenge notes (opus/medium · 55,292 tokens · 15 tool uses · 82 s) |
 | 2026-10-24 07:27 | 4 Skeleton (G1) | squad-dev | texts.ts: stepsLabel, startPageLink moved/reworded; typecheck passes (sonnet/medium · 61,122 tokens · 10 tool uses · 21 s) |
 | 2026-10-24 07:30 | 5 Tests first (G2) | squad-tester | Tests in pages/texts/handler tests; 373 fail on skeleton as expected; deferred: AC6/AC9 no-nav guards, AC5 texts, AC10 header, page-list sanity (sonnet/medium · 118,738 tokens · 20 tool uses · 187 s) |
+| 2026-10-24 07:32 | 6 Implement (G3) | squad-dev | pages.ts implemented; 64 tests fail: Dev disputes tests that count/search bare 'aria-current' across the page incl. <style>; rest = G4 snapshots (sonnet/medium · usage pending) |
