@@ -208,3 +208,10 @@ As in [spec.md](spec.md), *Out of scope*. No follow-up issue.
 Non-blocking note of Security (plan review), appended verbatim:
 
 **Non-blocking (one note for the Tester):** the AC6 and AC9 tests that check the login and *not configured* pages have no step navigation should assert that no `class="steps"` and no `aria-current` appear anywhere in the response body, not only in the header. That way a later change to `layout()` cannot quietly put the navigation onto the pages a signed-out visitor sees.
+
+## Challenge notes
+
+Minor objections of the Devil's Advocate (plan challenge), appended verbatim:
+
+1. **minor**: Update the JSDoc above `renderLoginPage` in /home/user/Seluna/src/setup/pages.ts:125, which says "Each page links to exactly `/setup?lang=en` and `/setup?lang=de`". After this change it is untrue for every page with the step navigation. Reword it in G3 to match the extended *Language* sentence, or move it to `layout()`. The plan's *Affected projects* row for pages.ts does not list this comment, and it would survive the area-document sweep because that sweep covers only `docs/`. Why minor: it is a stale comment the Dev can fix with no plan change.
+2. **minor**: Add /home/user/Seluna/src/setup/texts.test.ts:253 (`startPageLink: "Open the start page"`) to the plan's *Expected failures after the skeleton (G1)*. G1 changes that value to "Start page", so this assertion fails too until the Tester updates it in G2. The plan currently lists only the reset-needed snapshot entries. Why minor: the Tester already changes that line in G2, so only the list of expected failures is incomplete.
