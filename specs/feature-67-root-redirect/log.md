@@ -20,3 +20,4 @@ are quoted in full.
 | 2026-10-24 08:15 | 8 Security diff review | Security | APPROVED on b69cb7b, no findings; both plan notes resolved (opus/medium · 29,976 tokens · 4 tool uses · 33 s) |
 | 2026-10-24 08:16 | 8 Review round 1 | Reviewer | APPROVE on b69cb7b, no findings (opus/medium · 57,590 tokens · 13 tool uses · 87 s) |
 | 2026-10-24 08:16 | 9 PR approval | Orchestrator | approved by checklist: review round 1 clean on b69cb7b (Reviewer + Security), gates pass, main unchanged, all planned docs in diff; 0035 set Accepted, decision-check PASS; no open decisions (follow-up issue decided by Lead in plan) |
+| 2026-10-24 08:17 | 10 Pull request | Orchestrator | follow-up issue #104 created (AGENTS.md route summary); working record posted to #67 (spec/plan as permalinks to 814aa39); work folder removed |
