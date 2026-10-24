@@ -1,7 +1,7 @@
 # Spec: Redirect the Worker root URL to /setup
 
 Source: Issue #67
-Status: Draft
+Status: Approved by Lead
 
 ## Problem
 
@@ -38,7 +38,9 @@ every path outside `/health`, `/webhook` and `/setup` as 404, so the root is "an
 - E4: Hostile input (a forged `Host` header, an absolute URL or `//evil.example` in the query, a crafted path)
   never changes the answer of `/`: `Location` is a fixed text, never built from the request, so the root can not
   be used as an open redirect.
-- E5: A request body sent with `GET /` or `HEAD /` is not read; its size does not matter (no 413).
+- E5: A request body sent to `/` is never read. `GET` and `HEAD` requests can not carry a body (the Fetch standard
+  forbids it, so a client can not build one); `POST /` with a body over 1 MiB, or with a body whose stream fails,
+  answers 404 with an empty body, never 413 or 400.
 - E6: Repeated requests to `/` answer the same each time: the root reads no cookie, no secret and nothing from
   D1, writes nothing, and its answer carries `Cache-Control: no-store`, so a browser does not keep the redirect
   once a later version answers `/` differently.
@@ -68,8 +70,9 @@ every path outside `/health`, `/webhook` and `/setup` as 404, so the root is "an
   existing route table other than `GET /` still answer 404 with an empty body (E2, E3).
 - [ ] AC5: A request to `/` writes exactly one log entry `{ method, path: "/", status }` with no further field, the
   query string not part of `path` (S4, E1).
-- [ ] AC6: Answering `GET /` with a body over 1 MiB reads no body and still answers 302; answering `/` calls none
-  of the webhook secret source, the webhook processor or the setup dependencies (E5, E6).
+- [ ] AC6: `POST /` with a streamed body over 1 MiB and `POST /` with a failing body stream each answer 404 with an
+  empty body (never 413 or 400); answering `GET /` and `HEAD /` calls none of the webhook secret source, the
+  webhook processor or the setup dependencies (`now`, `fetch`, `githubFetch`) (E5, E6).
 
 ## Out of scope
 
@@ -107,28 +110,20 @@ every path outside `/health`, `/webhook` and `/setup` as 404, so the root is "an
   methods on `/` as "anything else"; the request body section names `/` among the routes that read no body; the
   "Limits and errors" sentence on bodiless answers outside `/setup` includes the 302; the related decisions list
   the new record that supersedes 0011 in this point.
-- `docs/areas/setup-wizard.md`: unchanged in behavior; its scope may note that the root URL redirects to
-  `/setup` with a link to HTTP routes, if the plan finds an entry point described there.
+- `docs/areas/setup-wizard.md`: unchanged in behavior; its *Paths* section notes that the root URL `/` is not part
+  of the wizard but redirects to `/setup`, with a link to HTTP routes.
 - Outside the area documents, the plan's documentation sweep covers at least `docs/ARCHITECTURE.md` (the
   endpoints table and "Every other method and path answers 404"), `docs/CONTRIBUTING.md` (line "the local Worker
   answers `GET /health` and `POST /webhook`, and 404 for everything else"), `docs/setup.md` (opening the setup via
   the Worker URL) and the README's setup step that names `/setup`.
 
-## Challenge notes
+## Challenge
 
-Devil's Advocate, spec challenge (0 major, 1 minor), verbatim:
+Spec challenge (Devil's Advocate, 0 major, 1 minor):
 
-1. (minor) AC6 asks for a test where `GET /` carries a body over 1 MiB. That test cannot be written. In this Node,
-   `new Request("https://x/", { method: "GET", body: "a" })` throws `Request with GET/HEAD method cannot have body.`
-   The Fetch spec, which workerd (the Cloudflare Workers runtime) follows, forbids it as well. That is a strong
-   expectation, but I did not run it inside workerd itself. As written, the Tester would have to bend the test or
-   drop it.
-
-   Instruction for the Lead: rewrite AC6 so it checks that the root answer reads no body in a way that can be
-   tested. Either:
-   - send `POST /` with a body over 1 MiB (or a failing stream, like `failingStream()` in `src/router.test.ts:97`)
-     and expect a 404 with no 413 or 400; or
-   - keep only the second half: answering `/` calls none of the webhook secret source, the webhook processor or
-     the setup dependencies.
-
-   Change E5 to match.
+1. (minor) AC6 asked for a test where `GET /` carries a body over 1 MiB, which can not be built: the Fetch
+   standard forbids a body on `GET` and `HEAD`, and `new Request` throws. Accepted — both options taken: E5 now
+   says a `GET`/`HEAD` can not carry a body and that `POST /` with an oversize or failing body answers 404, never
+   413 or 400; AC6 now tests exactly that (`POST /` with a streamed body over 1 MiB and with `failingStream()`)
+   plus the half that was testable already, that `GET /` and `HEAD /` call none of the webhook secret source,
+   the webhook processor or the setup dependencies.
