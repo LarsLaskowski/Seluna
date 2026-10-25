@@ -1553,8 +1553,8 @@ describe("long and many texts", () => {
     });
 
     const cards = sectionsOf(mainOf(page));
-    expect(cards.length, "number of cards").toBe(1);
-    expect(cards[0]?.html, "name in full in the card").toContain(`<bdi>${escapeHtml(name)}</bdi>`);
+    expect(cards.length, "number of cards: token card and chat card").toBe(2);
+    expect(cards[1]?.html, "name in full in the chat card").toContain(`<bdi>${escapeHtml(name)}</bdi>`);
   });
 
   it("renderTelegramPage lists 100 chats", () => {
@@ -1572,9 +1572,9 @@ describe("long and many texts", () => {
     });
 
     const cards = sectionsOf(mainOf(page));
-    expect(cards.length, "number of cards").toBe(1);
-    expect(cards[0]?.html.match(/<input type="radio"/g)?.length, "radio buttons in the card").toBe(100);
-    expect(cards[0]?.html.match(/<bdi>Chat \d+<\/bdi>/g)?.length, "names in the card").toBe(100);
+    expect(cards.length, "number of cards: token card and chat card").toBe(2);
+    expect(cards[1]?.html.match(/<input type="radio"/g)?.length, "radio buttons in the chat card").toBe(100);
+    expect(cards[1]?.html.match(/<bdi>Chat \d+<\/bdi>/g)?.length, "names in the chat card").toBe(100);
   });
 
   it("the status card holds 100 installations and the more installations text", () => {

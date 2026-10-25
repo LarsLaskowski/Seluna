@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_BODY_BYTES } from "../body";
 import { LOGIN_ATTEMPTS_META_KEY, LOGIN_LOCK_MS } from "../store/login-attempts";
 import { readSecret, writeSecret, writeSecrets } from "../store/secrets";
@@ -3976,5 +3976,254 @@ describe("handleSetup settings and reset forms: protection", () => {
     expect(response.status, "status").toBe(413);
     expect(await response.text(), "body").toBe("");
     expect(await secretsCount(), "number of secrets rows").toBe(1);
+  });
+});
+
+describe("handleSetup token secrecy", () => {
+  const MALFORMED_TOKEN = "555555555:bad/value";
+
+  interface SecrecyCase {
+    readonly case: string;
+    /** Every token text that must be absent from the answer and the log entries. */
+    readonly secrets: readonly string[];
+    readonly run: () => Promise<Response>;
+  }
+
+  const SECRECY_CASES: readonly SecrecyCase[] = [
+    {
+      case: "a token is saved (303)",
+      secrets: [NEW_TOKEN],
+      run: () => saveToken([NEW_TOKEN], savedTokenDeps(telegramDouble())),
+    },
+    {
+      case: "a saved token is replaced (303)",
+      secrets: [NEW_TOKEN, SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        return saveToken([NEW_TOKEN], savedTokenDeps(telegramDouble()));
+      },
+    },
+    {
+      case: "a malformed token is submitted (400)",
+      secrets: [MALFORMED_TOKEN, SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        return saveToken([MALFORMED_TOKEN], savedTokenDeps(telegramDouble()));
+      },
+    },
+    {
+      case: "the token is submitted twice (400)",
+      secrets: [NEW_TOKEN, SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        return saveToken([NEW_TOKEN, SAVED_TOKEN], savedTokenDeps(telegramDouble()));
+      },
+    },
+    {
+      case: "Telegram rejects the token (502)",
+      secrets: [NEW_TOKEN, SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        const telegram = telegramDouble({ getMe: jsonAnswer(401, FIXTURES.unauthorized) });
+        return saveToken([NEW_TOKEN], savedTokenDeps(telegram));
+      },
+    },
+    {
+      case: "Telegram is unavailable on saving (502)",
+      secrets: [NEW_TOKEN, SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        return saveToken([NEW_TOKEN], savedTokenDeps(telegramDouble({ getMe: REJECTED })));
+      },
+    },
+    {
+      case: "the Worker secret holds the token and a token is submitted (409)",
+      secrets: [NEW_TOKEN, BOT_TOKEN, SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        return saveToken([NEW_TOKEN], telegramDeps(telegramDouble()));
+      },
+    },
+    {
+      case: "the Worker secret holds the token and a removal is submitted (409)",
+      secrets: [BOT_TOKEN, SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        return removeToken(telegramDeps(telegramDouble()));
+      },
+    },
+    {
+      case: "the saved token cannot be read and a token is submitted (409)",
+      secrets: [NEW_TOKEN, SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN, OTHER_SECRET);
+        return saveToken([NEW_TOKEN], savedTokenDeps(telegramDouble()));
+      },
+    },
+    {
+      case: "the GitHub credentials cannot be read and a token is submitted (409)",
+      secrets: [NEW_TOKEN],
+      run: async () => {
+        await saveGitHubCredentials(OTHER_SECRET);
+        return saveToken([NEW_TOKEN], savedTokenDeps(telegramDouble()));
+      },
+    },
+    {
+      case: "the saved token is removed (303)",
+      secrets: [SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        return removeToken(savedTokenDeps(telegramDouble()));
+      },
+    },
+    {
+      case: "the CSRF token is bad (403)",
+      secrets: [NEW_TOKEN, SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        const fields: FormFields = [
+          ["csrf", "not-a-valid-token"],
+          ["token", NEW_TOKEN],
+        ];
+        return postSignedIn(TOKEN_PATH, fields, savedTokenDeps(telegramDouble()));
+      },
+    },
+    {
+      case: "the body is oversized (413)",
+      secrets: [NEW_TOKEN, SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        return call(
+          TOKEN_PATH,
+          {
+            method: "POST",
+            cookies: await signedInCookies(),
+            body: `token=${NEW_TOKEN}&${"a".repeat(MAX_BODY_BYTES + 1)}`,
+          },
+          savedTokenDeps(telegramDouble()),
+        );
+      },
+    },
+    {
+      case: "D1 fails on saving (503)",
+      secrets: [NEW_TOKEN],
+      run: () => saveToken([NEW_TOKEN], savedTokenDeps(telegramDouble(), { db: migrationTestDb() })),
+    },
+    {
+      case: "D1 fails on removing (503)",
+      secrets: [SAVED_TOKEN],
+      run: () => removeToken(savedTokenDeps(telegramDouble(), { db: migrationTestDb() })),
+    },
+    {
+      case: "the step page shows a saved token",
+      secrets: [SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        return stepPage(savedTokenDeps(telegramDouble()));
+      },
+    },
+    {
+      case: "the step page shows a saved token that Telegram rejects",
+      secrets: [SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        return stepPage(savedTokenDeps(telegramDouble({ getUpdates: jsonAnswer(401, FIXTURES.unauthorized) })));
+      },
+    },
+    {
+      case: "the step page shows a saved token while TELEGRAM_CHAT_ID is set",
+      secrets: [SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        return stepPage(savedTokenDeps(telegramDouble(), { env: TOKEN_CHAT_ENV }));
+      },
+    },
+    {
+      case: "the step page shows a damaged saved token",
+      secrets: [SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        await damageBotTokenRow();
+        return stepPage(savedTokenDeps(telegramDouble()));
+      },
+    },
+    {
+      case: "the step page shows the Worker secret",
+      secrets: [BOT_TOKEN, SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        return stepPage(telegramDeps(telegramDouble()));
+      },
+    },
+    {
+      case: "the step page shows a malformed Worker secret",
+      secrets: ["1:a/../setWebhook"],
+      run: () =>
+        stepPage(
+          telegramDeps(telegramDouble(), { env: { SELUNA_SECRET: SECRET, TELEGRAM_BOT_TOKEN: "1:a/../setWebhook" } }),
+        ),
+    },
+    {
+      case: "the status page shows a saved token",
+      secrets: [SAVED_TOKEN],
+      run: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        return stepPage(savedTokenDeps(telegramDouble()), "/setup");
+      },
+    },
+    {
+      case: "the status page shows the Worker secret",
+      secrets: [BOT_TOKEN],
+      run: () => stepPage(telegramDeps(telegramDouble()), "/setup"),
+    },
+  ];
+
+  /** The token as written, percent-encoded and as the HTML of a page would write it. */
+  function spellings(secret: string): string[] {
+    return [secret, encodeURIComponent(secret), escapeHtml(secret), secret.split(":").join("%3A")];
+  }
+
+  it.each(SECRECY_CASES)(
+    "handleSetup returns the token in no body, header or log entry when $case",
+    async ({ secrets, run }) => {
+      const logged: unknown[] = [];
+      const spies = (["log", "info", "warn", "error", "debug"] as const).map((method) =>
+        vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
+          logged.push(args);
+        }),
+      );
+
+      let response: Response;
+      try {
+        response = await run();
+      } finally {
+        for (const spy of spies) {
+          spy.mockRestore();
+        }
+      }
+
+      const body = await response.text();
+      const headers = JSON.stringify([...response.headers]);
+      const logs = JSON.stringify(logged);
+      for (const secret of secrets) {
+        for (const spelling of spellings(secret)) {
+          expect(body, `body holds ${spelling}`).not.toContain(spelling);
+          expect(headers, `headers hold ${spelling}`).not.toContain(spelling);
+          expect(logs, `log entries hold ${spelling}`).not.toContain(spelling);
+        }
+      }
+      expect(body.length + headers.length, "an answer was produced").toBeGreaterThan(0);
+    },
+  );
+
+  it("handleSetup stores a saved token in no table in plain text", async () => {
+    const response = await saveToken([NEW_TOKEN], savedTokenDeps(telegramDouble()));
+
+    expect(response.status, "status").toBe(303);
+    const rows = await databaseText();
+    for (const spelling of spellings(NEW_TOKEN)) {
+      expect(rows, `rows hold ${spelling}`).not.toContain(spelling);
+    }
+    expect(await savedBotToken(), "readable token").toBe(NEW_TOKEN);
   });
 });

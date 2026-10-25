@@ -874,3 +874,86 @@ describe("resetCredentials", () => {
     expect(await storedKeyCheck(), "key check row").toBeUndefined();
   });
 });
+
+describe("telegram_bot_token", () => {
+  const TOKEN_A = "123456789:AAH-throwaway_token0123456789abcdefghij";
+  const TOKEN_B = "987654321:BBH-other_throwaway_token0123456789abcd";
+
+  /** Every row of every table, as one text. */
+  async function databaseText(): Promise<string> {
+    const tables = await allRows(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'",
+    );
+    const dumps = await Promise.all(
+      tables.map(async (table) => JSON.stringify(await allRows(`SELECT * FROM "${String(table.name)}"`))),
+    );
+    return dumps.join("\n");
+  }
+
+  it("writeSecret and readSecret round-trip telegram_bot_token and store it in no table in plain text", async () => {
+    const key = await keyFor(SECRET_A);
+
+    const written = await writeSecret(env.DB, key, "telegram_bot_token", TOKEN_A);
+
+    expect(written, "write result").toEqual({ kind: "ok" });
+    expect(await readSecret(env.DB, key, "telegram_bot_token"), "read result").toEqual({ kind: "ok", value: TOKEN_A });
+    const rows = await databaseText();
+    expect(rows, "plain text in the rows").not.toContain(TOKEN_A);
+    expect(rows, "the secret part in the rows").not.toContain("AAH-throwaway");
+    expect(rows, "base64 in the rows").not.toContain(btoa(TOKEN_A));
+    expect(await storedKeyCheck(), "key check row").toMatch(KEY_CHECK_FORM);
+  });
+
+  it("writeSecret of telegram_bot_token keeps the GitHub credentials and reads each under its own name", async () => {
+    const key = await keyFor(SECRET_A);
+    await seedAll(SECRET_A, CREDENTIALS);
+
+    await writeSecret(env.DB, key, "telegram_bot_token", TOKEN_A);
+
+    expect(await readSecret(env.DB, key, "telegram_bot_token"), "token").toEqual({ kind: "ok", value: TOKEN_A });
+    expect(await readSecret(env.DB, key, "github_app_id"), "App ID").toEqual({ kind: "ok", value: "12345" });
+    expect(await secretRows(), "number of secrets rows").toHaveLength(4);
+  });
+
+  it("writeSecret of telegram_bot_token from two calls at once leaves one whole value", async () => {
+    const key = await keyFor(SECRET_A);
+
+    const results = await Promise.all([
+      writeSecret(env.DB, key, "telegram_bot_token", TOKEN_A),
+      writeSecret(env.DB, key, "telegram_bot_token", TOKEN_B),
+    ]);
+
+    expect(results, "write results").toEqual([{ kind: "ok" }, { kind: "ok" }]);
+    expect(await secretRows(), "number of secrets rows").toHaveLength(1);
+    const read = await readSecret(env.DB, key, "telegram_bot_token");
+    const stored = read.kind === "ok" ? read.value : "the stored row does not decrypt";
+    expect([TOKEN_A, TOKEN_B], "one of the two tokens, whole").toContain(stored);
+    expect(await checkKey(env.DB, key), "key check result").toBe("match");
+  });
+
+  it("resetCredentials deletes a saved telegram_bot_token together with the GitHub credentials", async () => {
+    await seedAll(SECRET_B, OLD_CREDENTIALS);
+    await seed(SECRET_B, "telegram_bot_token", TOKEN_A);
+    await seedTokenCache();
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('telegram_chat_id', '5001001')").run();
+
+    const result = await resetCredentials(env.DB, await keyFor(SECRET_A));
+
+    expect(result, "result").toBe("reset");
+    expect(await secretRows(), "secrets rows").toEqual([]);
+    expect(await storedKeyCheck(), "key check row").toBeUndefined();
+    expect(await allRows("SELECT key, value FROM settings"), "settings rows").toEqual([
+      { key: "telegram_chat_id", value: "5001001" },
+    ]);
+  });
+
+  it("resetCredentials deletes a saved telegram_bot_token that is the only credential and cannot be read", async () => {
+    await seed(SECRET_B, "telegram_bot_token", TOKEN_A);
+
+    expect(await needsReset(env.DB, await keyFor(SECRET_A)), "reset is needed").toBe(true);
+    const result = await resetCredentials(env.DB, await keyFor(SECRET_A));
+
+    expect(result, "result").toBe("reset");
+    expect(await secretRows(), "secrets rows").toEqual([]);
+  });
+});
