@@ -20,7 +20,7 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 | GitHub API client | Calls of the GitHub API as the app: the app JWT, the installation tokens per `installation.id` cached encrypted in `token_cache`, the pull request read for the draft lookup of the webhook processing and the installations list for the status page ([`areas/github-api.md`](areas/github-api.md), [decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)) |
 | Rules | Pure functions of the event name, the payload and the settings to zero or one notification; no I/O, no clock |
 | Outbox | The D1 `outbox` table holding each message as rendered Telegram HTML, and delivery to the Telegram Bot API, with one retry after a 429 and the cron's retry |
-| Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram chat, the setup login, the status page with the settings, the app's installations and the reset after a changed `SELUNA_SECRET` ([decision 0018](decisions/0018-settings-and-status-page.md)) |
+| Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram bot token ([decision 0036](decisions/0036-telegram-bot-token-in-the-setup-wizard.md)) and chat, the setup login, the status page with the settings, the app's installations and the reset after a changed `SELUNA_SECRET` ([decision 0018](decisions/0018-settings-and-status-page.md)) |
 | Cron (`scheduled` handler) | Every 10 minutes: clean up D1 and retry the outbox up to the fifth attempt. Daily: check for a new Seluna release and send a notice ([`areas/scheduled-jobs.md`](areas/scheduled-jobs.md), [decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md), [decision 0030](decisions/0030-release-notice-without-credentials.md)) |
 | D1 (`src/store/`) | `settings`, `secrets` (AES-256-GCM), `deliveries`, `outbox`, `token_cache` (AES-256-GCM), `meta`; the only code that reads or writes D1 |
 
@@ -63,9 +63,10 @@ flowchart LR
 
 Guarantees along the way (also in [`.squad/project.md`](../.squad/project.md), *Guarantees*): an invalid signature
 has no effect, a delivery is processed once (within the 7 days its `deliveries` row is kept), a matched event is stored before it is sent, and Telegram never calls
-the Worker: it has no webhook and no route, the Worker calls only `getUpdates` and `sendMessage`, and the input it
-takes from Telegram is the `getUpdates` answer of the setup wizard's signed-in Telegram step and the status of each
-`sendMessage` answer (for a 429 also its `retry_after`), both read bounded and narrowed; a chat is stored only after the owner typed back the code of
+the Worker: it has no webhook and no route, the Worker calls only `getMe`, `getUpdates` and `sendMessage`, and the
+input it takes from Telegram is the status and `ok` of the `getMe` answer and the `getUpdates` answer of the setup
+wizard's signed-in Telegram step and the status of each `sendMessage` answer (for a 429 also its `retry_after`), all
+read bounded and narrowed ([decision 0036](decisions/0036-telegram-bot-token-in-the-setup-wizard.md)); a chat is stored only after the owner typed back the code of
 its test message ([decision 0016](decisions/0016-telegram-chat-in-the-setup-wizard.md)).
 
 ## Endpoints
@@ -100,7 +101,7 @@ Each job catches its own failures and logs only a fixed result; the rules are in
 | Table | Holds |
 | ----- | ----- |
 | `settings` | Instance settings (for example the chat id, the notification options) |
-| `secrets` | GitHub App credentials, AES-256-GCM ciphertext |
+| `secrets` | GitHub App credentials and the Telegram bot token entered in the setup wizard, AES-256-GCM ciphertext |
 | `deliveries` | Processed `X-GitHub-Delivery` ids, for deduplication |
 | `outbox` | Notifications waiting for, or past, delivery |
 | `token_cache` | Short-lived GitHub installation tokens, AES-256-GCM ciphertext |
@@ -116,8 +117,9 @@ credential. Columns, formats and the key check are in [`areas/storage.md`](areas
 
 Settings are stored in D1 (`settings`), written by the setup wizard and read on every use, so a change takes effect
 without a deployment ([decision 0018](decisions/0018-settings-and-status-page.md)); the values outside D1 are Worker
-secrets — `SELUNA_SECRET` (the password of the setup login and the source of the encryption and signing keys) and `TELEGRAM_BOT_TOKEN`, both asked for by the
-deploy form, the optional `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_WEBHOOK_SECRET` (a GitHub App set by hand; each
+secrets — `SELUNA_SECRET` (the password of the setup login and the source of the encryption and signing keys), the only
+one the deploy form asks for, the optional `TELEGRAM_BOT_TOKEN` (takes precedence over the bot token the setup wizard
+stores encrypted in D1, [decision 0036](decisions/0036-telegram-bot-token-in-the-setup-wizard.md)), the optional `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_WEBHOOK_SECRET` (a GitHub App set by hand; each
 takes precedence over the credential of the same name that the setup wizard stores in D1,
 [decision 0017](decisions/0017-github-app-manifest-flow.md)) and the optional `TELEGRAM_CHAT_ID` (takes precedence over the chat the setup wizard stores,
 [decision 0016](decisions/0016-telegram-chat-in-the-setup-wizard.md)) — plus the D1 binding `DB` and the cron triggers in `wrangler.jsonc`
@@ -131,7 +133,9 @@ The webhook is authenticated by its HMAC signature, the setup wizard by the setu
 Telegram chat list it reads in the setup wizard is bounded, narrowed and shown only to the signed-in owner, who
 saves a chat only by typing back the code its test message carried
 ([decision 0016](decisions/0016-telegram-chat-in-the-setup-wizard.md)). The GitHub App has the minimum permissions the rules need, and its
-credentials are encrypted in D1 ([decision 0007](decisions/0007-github-app-credentials-encrypted-in-d1.md)). The setup
+credentials are encrypted in D1 ([decision 0007](decisions/0007-github-app-credentials-encrypted-in-d1.md)), as is a
+bot token entered in the setup wizard, which is saved only after Telegram's `getMe` accepted it
+([decision 0036](decisions/0036-telegram-bot-token-in-the-setup-wizard.md)). The setup
 wizard creates that app through GitHub's manifest flow: the `state` that travels through GitHub is bound to the
 owner's session and to the account the owner chose, the app GitHub returns must belong to that account before
 anything is stored, the answer of the conversion (one of the Worker's two unauthenticated GitHub calls) is read bounded and
@@ -152,7 +156,7 @@ The concrete areas are listed in [`.squad/project.md`](../.squad/project.md) (*S
 
 Wrangler bundles the Worker (`npm run build` is `wrangler deploy --dry-run --outdir dist`). A user deploys it to
 their own Cloudflare account with the Deploy to Cloudflare button, which copies the repository into the user's
-GitHub account, provisions the D1 database and asks for the Worker secrets; from then on every push to `main` of
+GitHub account, provisions the D1 database and asks for the Worker secret `SELUNA_SECRET`; from then on every push to `main` of
 that copy starts a Workers Build whose deploy command, `npm run deploy`, applies the D1 migrations and then deploys
 (the setup guide has the user check that command, which the button does not always set)
 ([decision 0013](decisions/0013-deploy-to-cloudflare-and-workers-builds.md), [decision 0020](decisions/0020-deploy-command-checked-in-the-setup-guide.md), rules in

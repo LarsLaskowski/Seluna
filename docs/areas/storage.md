@@ -25,7 +25,7 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
 | ------------- | ----------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `settings`    | `key`             | TEXT    | Primary key: the name of a setting                                                                                                                             |
 |               | `value`           | TEXT    | The setting's value as text                                                                                                                                    |
-| `secrets`     | `key`             | TEXT    | Primary key: `github_app_id`, `github_private_key` or `github_webhook_secret`                                                                                  |
+| `secrets`     | `key`             | TEXT    | Primary key: `github_app_id`, `github_private_key`, `github_webhook_secret` or `telegram_bot_token`                                                            |
 |               | `iv`              | TEXT    | Base64 of the 12-byte IV; the table rejects any value that is not 16 characters long                                                                           |
 |               | `ciphertext`      | TEXT    | Base64 of the AES-256-GCM ciphertext with its 16-byte tag                                                                                                      |
 | `deliveries`  | `id`              | TEXT    | Primary key: the `X-GitHub-Delivery` value                                                                                                                     |
@@ -66,11 +66,16 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
 - The `settings` key `telegram_chat_id` holds the decimal text of the Telegram chat id (negative for a group). Only
   the setup wizard writes it, and only after the owner typed back the code of a successful test message
   ([Setup wizard](setup-wizard.md#telegram-chat)); a stored value that is not a chat id counts as no chat.
-- The three `secrets` rows are written together, in one transaction, by the setup wizard's GitHub App step
+- The three `secrets` rows of the GitHub App are written together, in one transaction, by the setup wizard's GitHub App step
   ([Setup wizard](setup-wizard.md#github-app)): `github_app_id` holds the decimal App ID, `github_private_key` the
   private key as a PKCS#8 PEM and `github_webhook_secret` the webhook secret as GitHub generated it. The Worker
   secrets `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_WEBHOOK_SECRET` take precedence over the stored value
   of the same credential.
+- The `secrets` row `telegram_bot_token` holds the Telegram bot token as the owner entered it. It is written on its own
+  by the setup wizard's Telegram step, only after the token matched the bot token form and Telegram accepted it, and
+  replaces an earlier value; _Remove token_ deletes it ([Setup wizard](setup-wizard.md#the-bot-token)). The Worker
+  secret `TELEGRAM_BOT_TOKEN` takes precedence over it whenever it is set. A stored value that decrypts but is not of
+  the bot token form is treated as damaged and never used.
 - `token_cache` holds at most one row per installation id: the installation token of the GitHub API client and its
   expiry ([GitHub API](github-api.md#installation-tokens)). A new token for an installation replaces its row (an
   upsert on `installation_id`, without the key check guard of the credential writes: a token can always be requested
@@ -106,8 +111,8 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
 
 ### Encryption
 
-- Nothing secret is kept in D1 in plain text: the GitHub App credentials (`secrets`) and the installation tokens
-  (`token_cache`) are stored only encrypted.
+- Nothing secret is kept in D1 in plain text: the GitHub App credentials and the Telegram bot token (`secrets`) and
+  the installation tokens (`token_cache`) are stored only encrypted.
 - Everything else is plain text on purpose, so a reader of the database sees it: `settings` (including the
   Telegram chat id), `deliveries`, `meta` apart from the key check value, and the `outbox` rows, whose `text` and
   `button_url` name repositories, pull request titles and branches, also of private repositories. None of these
@@ -145,7 +150,13 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
 - `meta` row `key_check` holds `<iv>.<ciphertext>`, both base64: the text `seluna/key-check/v1` encrypted as
   above with the additional data `meta/key_check`.
 - The first credential written stores the key check value in the same transaction as the credential. Later
-  writes leave it unchanged.
+  writes leave it unchanged. The bot token is a credential like the GitHub App's: it is written, read and reset
+  under the same key check value, and whichever credential is written first stores it.
+- Deleting one credential (`deleteSecret`, today only the Telegram step's _Remove token_) deletes the row and, in the
+  same batch, the `key_check` row when no `secrets` row is left, whatever its value. So the key check value exists
+  exactly while a credential does: removing the last credential leaves no key check behind that a later
+  `SELUNA_SECRET` change would report as **secret changed**. A write that checked the deleted value finds it gone,
+  is not applied and is tried once more from the check, which then writes a new key check value with the credential.
 - Before a credential is read or written, the key check value is decrypted with the current key:
 
 | Key check value                          | Read of a stored credential | Write of a credential        |
@@ -191,11 +202,14 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   which is why the shared guard stands only on the first two. Every credential write draws a new IV, so a write
   between the read and the delete, also one that keeps the key check value, changes the fingerprint: the first two
   deletes remove nothing, the rows stay, and the third finds `secrets` not empty and removes nothing. The reset
-  answers _reset_ whether or not the guarded batch deleted rows. It keeps the settings, the other `meta` rows (the
+  answers _reset_ whether or not the guarded batch deleted rows. Because it deletes every `secrets` row, a saved
+  Telegram bot token goes with the GitHub App credentials; a bot token row that alone does not decrypt makes the
+  reset needed too, although the Telegram step can also replace or remove it. It keeps the settings, the other `meta` rows (the
   Telegram chat is a setting) and `login_attempts`.
   The reset always creates new GitHub App credentials and never stores old ones again: D1's Time Travel keeps
   earlier states of the database, including the deleted rows, for a while after the reset (Cloudflare documents
-  up to 30 days).
+  up to 30 days). The same holds for a removed or replaced bot token; a token that may have leaked is revoked at
+  @BotFather.
 
 ## Limits and errors
 
@@ -212,6 +226,8 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   credentials written in one batch by the manifest flow, and the Worker secrets that take precedence.
 - [`decisions/0026-github-app-authentication-and-installation-tokens.md`](../decisions/0026-github-app-authentication-and-installation-tokens.md)
   — one cached token per installation, written without the key check guard, deleted by IV after a 401.
+- [`decisions/0036-telegram-bot-token-in-the-setup-wizard.md`](../decisions/0036-telegram-bot-token-in-the-setup-wizard.md)
+  — the Telegram bot token as an encrypted credential in `secrets`, under the same key check and reset.
 - [`decisions/0014-d1-schema-and-data-access.md`](../decisions/0014-d1-schema-and-data-access.md) — one schema
   migration for all tables, data access only through `src/store/`, times in milliseconds, text columns for
   encrypted values, migrations frozen once on `main`.

@@ -25,11 +25,13 @@ files or endpoints.
   (_migrations missing_ when `sqlite_master` lacks a schema table, `src/store/schema.ts`, decision 0021, else
   _unavailable_) and never the error; pages have no script or external
   resource and a strict Content-Security-Policy (`src/setup/pages.ts`) (decision 0015).
-- **Encrypted credentials:** the GitHub App ID, private key and webhook secret live in the D1 table `secrets` as
-  AES-256-GCM ciphertext (random 96-bit nonce per value; code in `src/crypto.ts` and `src/store/secrets.ts`, the three
+- **Encrypted credentials:** the GitHub App ID, private key and webhook secret and the Telegram bot token entered in
+  the setup wizard (`telegram_bot_token`, written alone through `writeSecret` and deleted through `deleteSecret`) live
+  in the D1 table `secrets` as AES-256-GCM ciphertext (random 96-bit nonce per value; code in `src/crypto.ts` and `src/store/secrets.ts`, the three
   credentials of the manifest flow together through `writeSecrets`); the key comes from the Worker secret `SELUNA_SECRET`. The D1 table `token_cache` holds installation tokens encrypted the same way, each ciphertext is bound to its row (additional data), expired rows are deleted by the cleanup cron (`src/cleanup.ts`), and a key check value in `meta` reports a changed `SELUNA_SECRET`. The
-  Telegram bot token is the Worker secret `TELEGRAM_BOT_TOKEN`. Worker secrets are set through the deploy form or
-  Wrangler and never committed (`.gitignore` ignores `.dev.vars*` and `.env*`, the files Wrangler loads local secrets
+  Telegram bot token is the optional Worker secret `TELEGRAM_BOT_TOKEN`, which takes precedence over the saved token
+  (`resolveBotToken` in `src/bot-token.ts`; a malformed Worker secret does not fall back). Worker secrets are set
+  through the deploy form (which asks only for `SELUNA_SECRET`) or Wrangler and never committed (`.gitignore` ignores `.dev.vars*` and `.env*`, the files Wrangler loads local secrets
   from, except `.dev.vars.example` and `.env.example`, which hold names and descriptions only). Nothing secret is
   logged, returned in a response or kept in plain text in D1 (decision 0007).
   The reset (`resetCredentials` in `src/store/secrets.ts`) deletes `secrets`, `token_cache` and the key check value
@@ -66,10 +68,11 @@ files or endpoints.
   owner, repository name and number allow-listed before they enter a URL; only `https://api.github.com`, no redirects
   followed, 10-second timeout, answers read bounded (1 MiB) and narrowed; no token, key or JWT in a log, page, result
   or plain D1 (decision 0026).
-- **Outbound-only Telegram:** the Worker calls only the Telegram Bot API methods `getUpdates` (in the setup wizard's
-  Telegram step, `src/setup/telegram-step.ts`) and `sendMessage` (`src/telegram.ts`); it never sets or deletes a
-  webhook and exposes no Telegram route; the input it takes from Telegram is the `getUpdates` answer of the signed-in
-  step and the status of each `sendMessage` answer and, for a 429, its `parameters.retry_after`, all read bounded
+- **Outbound-only Telegram:** the Worker calls only the Telegram Bot API methods `getMe` (at most once per submitted token form whose token matches the bot token form, in
+  the setup wizard's Telegram step, `src/setup/telegram-step.ts`), `getUpdates` (in the same step) and `sendMessage`
+  (`src/telegram.ts`); delivery reads the token from the Worker secret or from D1 (`src/delivery.ts`); it never sets
+  or deletes a webhook and exposes no Telegram route; the input it takes from Telegram is the status and `ok` of the
+  `getMe` answer and the `getUpdates` answer of the signed-in step and the status of each `sendMessage` answer and, for a 429, its `parameters.retry_after`, all read bounded
   (1 MiB) and narrowed in `src/telegram.ts` (a notification is sent from `src/delivery.ts`); a
   chat is stored only after the owner typed back the code of its test message (`src/setup/chat-proof.ts`); the bot
   token appears only in the request URL, which Seluna never logs.
@@ -150,9 +153,9 @@ otherwise):
   sequence or a function of the request, and records every request with its `Authorization` header. The check-run
   answers of the later API clients get their fixtures beside these.
 - **Telegram Bot API double** — `test/telegram.ts`: a `vi.fn<TelegramFetch>()` passed as the injected `TelegramFetch`
-  (not a stub on `globalThis.fetch`) that records every request and answers `getUpdates` and `sendMessage` from
+  (not a stub on `globalThis.fetch`) that records every request and answers `getMe`, `getUpdates` and `sendMessage` from
   fixtures, a status and body (for `sendMessage` also a sequence, one answer per request, the last repeated), or a rejection (a rate limit, a server error; the 429 answer is the reference-built `send-message-too-many-requests.json`); it fails the test on any other method.
-  Its `getUpdates` answers come from `test/fixtures/telegram/`, which are written from the Bot API reference, not
+  Its `getMe` and `getUpdates` answers come from `test/fixtures/telegram/`, which are written from the Bot API reference, not
   captured (see the `README.md` there); no real bot is ever called. Squad sessions have no egress to
   `api.telegram.org` (the session proxy refuses it), so a real answer cannot be fetched during a run: the
   fixtures stay reference-built until they are replaced by captured answers, and a plan that reads a new Bot API

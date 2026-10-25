@@ -1,7 +1,10 @@
 import { decrypt, encrypt } from "../crypto";
 
+/** The GitHub App credentials kept in the `secrets` table, written together by `writeSecrets`. */
+export type GitHubSecretName = "github_app_id" | "github_private_key" | "github_webhook_secret";
+
 /** The credentials kept in the `secrets` table. */
-export type SecretName = "github_app_id" | "github_private_key" | "github_webhook_secret";
+export type SecretName = GitHubSecretName | "telegram_bot_token";
 
 /** Outcome of reading one credential. */
 export type SecretReadResult =
@@ -30,6 +33,8 @@ const SELECT_SECRET = "SELECT iv, ciphertext FROM secrets WHERE key = ?1";
 const INSERT_KEY_CHECK =
   "INSERT INTO meta (key, value) SELECT ?1, ?2 WHERE NOT EXISTS (SELECT 1 FROM secrets) " +
   "ON CONFLICT (key) DO NOTHING";
+const DELETE_SECRET = "DELETE FROM secrets WHERE key = ?1";
+const DELETE_UNUSED_KEY_CHECK = "DELETE FROM meta WHERE key = ?1 AND NOT EXISTS (SELECT 1 FROM secrets)";
 const UPSERT_SECRET =
   "INSERT INTO secrets (key, iv, ciphertext) SELECT ?1, ?2, ?3 " +
   "WHERE EXISTS (SELECT 1 FROM meta WHERE key = ?4 AND value = ?5) " +
@@ -214,13 +219,21 @@ export function writeSecret(
 export function writeSecrets(
   db: D1Database,
   key: CryptoKey,
-  values: Readonly<Record<SecretName, string>>,
+  values: Readonly<Record<GitHubSecretName, string>>,
 ): Promise<SecretWriteResult> {
   return writeEntries(db, key, [
     ["github_app_id", values.github_app_id],
     ["github_private_key", values.github_private_key],
     ["github_webhook_secret", values.github_webhook_secret],
   ]);
+}
+
+/**
+ * Deletes the row of one credential; also when no such row exists. The key check value is deleted with the last
+ * credential. D1 errors are not caught.
+ */
+export async function deleteSecret(db: D1Database, name: SecretName): Promise<void> {
+  await db.batch([db.prepare(DELETE_SECRET).bind(name), db.prepare(DELETE_UNUSED_KEY_CHECK).bind(KEY_CHECK_META_KEY)]);
 }
 
 const SELECT_KEY_CHECK_PINNED = "SELECT value, quote(value) AS pinned FROM meta WHERE key = ?1";

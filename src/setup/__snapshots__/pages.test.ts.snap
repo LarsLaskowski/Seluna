@@ -68,29 +68,37 @@ exports[`the pages before this change > the body text of the 'start notice-only'
 
 exports[`the pages before this change > the body text of the 'start notice-only' page in 'en' is unchanged 1`] = `"Language: English | Deutsch You are signed in Set up your instance step by step: The setup is unavailable right now. Please try again in a moment. Telegram chat GitHub App Sign out"`;
 
-exports[`the pages before this change > the body text of the 'start status with Worker secrets and …' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Du bist angemeldet Richte deine Instanz Schritt für Schritt ein: Status Version: 1.2.3-test Telegram-Chat: -1001234567890 GitHub-App: Gesetzt durch die Worker-Secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY und GITHUB_WEBHOOK_SECRET. Installationen: Kann gerade nicht von GitHub geladen werden. Letzte Zustellung von GitHub: 2026-10-17 12:34 (UTC) Telegram-Chat GitHub-App Einstellungen Sprache der Benachrichtigungen English Deutsch Zeitzone Ruhezeiten: Benachrichtigungen kommen ohne Ton Beginn Ende Benachrichtige mich über Neuer Pull Request Pull Request bereit zum Review Review angefordert CI auf dem Standard-Branch fehlgeschlagen CI in einem Pull Request fehlgeschlagen Dependabot-Warnung Code-Scanning-Warnung Secret-Scanning-Warnung Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist Einstellungen speichern Abmelden"`;
+exports[`the pages before this change > the body text of the 'start status with Worker secrets and …' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Du bist angemeldet Richte deine Instanz Schritt für Schritt ein: Status Version: 1.2.3-test Telegram-Bot-Token: Gesetzt durch das Worker-Secret TELEGRAM_BOT_TOKEN. Telegram-Chat: -1001234567890 GitHub-App: Gesetzt durch die Worker-Secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY und GITHUB_WEBHOOK_SECRET. Installationen: Kann gerade nicht von GitHub geladen werden. Letzte Zustellung von GitHub: 2026-10-17 12:34 (UTC) Telegram-Chat GitHub-App Einstellungen Sprache der Benachrichtigungen English Deutsch Zeitzone Ruhezeiten: Benachrichtigungen kommen ohne Ton Beginn Ende Benachrichtige mich über Neuer Pull Request Pull Request bereit zum Review Review angefordert CI auf dem Standard-Branch fehlgeschlagen CI in einem Pull Request fehlgeschlagen Dependabot-Warnung Code-Scanning-Warnung Secret-Scanning-Warnung Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist Einstellungen speichern Abmelden"`;
 
-exports[`the pages before this change > the body text of the 'start status with Worker secrets and …' page in 'en' is unchanged 1`] = `"Language: English | Deutsch You are signed in Set up your instance step by step: Status Version: 1.2.3-test Telegram chat: -1001234567890 GitHub App: Set by the Worker secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET. Installations: Cannot be loaded from GitHub right now. Last delivery from GitHub: 2026-10-17 12:34 (UTC) Telegram chat GitHub App Settings Language of the notifications English Deutsch Time zone Quiet hours: notifications arrive without sound Start End Notify me about New pull request Pull request ready for review Review requested CI failed on the default branch CI failed in a pull request Dependabot alert Code scanning alert Secret scanning alert Tell me when a new Seluna release is available Save settings Sign out"`;
+exports[`the pages before this change > the body text of the 'start status with Worker secrets and …' page in 'en' is unchanged 1`] = `"Language: English | Deutsch You are signed in Set up your instance step by step: Status Version: 1.2.3-test Telegram bot token: Set by the Worker secret TELEGRAM_BOT_TOKEN. Telegram chat: -1001234567890 GitHub App: Set by the Worker secrets GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET. Installations: Cannot be loaded from GitHub right now. Last delivery from GitHub: 2026-10-17 12:34 (UTC) Telegram chat GitHub App Settings Language of the notifications English Deutsch Time zone Quiet hours: notifications arrive without sound Start End Notify me about New pull request Pull request ready for review Review requested CI failed on the default branch CI failed in a pull request Dependabot alert Code scanning alert Secret scanning alert Tell me when a new Seluna release is available Save settings Sign out"`;
 
-exports[`the pages before this change > the body text of the 'start status with a notice' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Du bist angemeldet Richte deine Instanz Schritt für Schritt ein: Das Formular ist abgelaufen. Bitte sende es erneut ab. Status Version: 1.2.3-test Telegram-Chat: -1001234567890 GitHub-App: App-ID 12345 Letzte Zustellung von GitHub: 2026-10-17 12:34 (UTC) Telegram-Chat GitHub-App Einstellungen Sprache der Benachrichtigungen English Deutsch Zeitzone Ruhezeiten: Benachrichtigungen kommen ohne Ton Beginn Ende Benachrichtige mich über Neuer Pull Request Pull Request bereit zum Review Review angefordert CI auf dem Standard-Branch fehlgeschlagen CI in einem Pull Request fehlgeschlagen Dependabot-Warnung Code-Scanning-Warnung Secret-Scanning-Warnung Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist Einstellungen speichern Abmelden"`;
+exports[`the pages before this change > the body text of the 'start status with a notice' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Du bist angemeldet Richte deine Instanz Schritt für Schritt ein: Das Formular ist abgelaufen. Bitte sende es erneut ab. Status Version: 1.2.3-test Telegram-Bot-Token: Gesetzt durch das Worker-Secret TELEGRAM_BOT_TOKEN. Telegram-Chat: -1001234567890 GitHub-App: App-ID 12345 Letzte Zustellung von GitHub: 2026-10-17 12:34 (UTC) Telegram-Chat GitHub-App Einstellungen Sprache der Benachrichtigungen English Deutsch Zeitzone Ruhezeiten: Benachrichtigungen kommen ohne Ton Beginn Ende Benachrichtige mich über Neuer Pull Request Pull Request bereit zum Review Review angefordert CI auf dem Standard-Branch fehlgeschlagen CI in einem Pull Request fehlgeschlagen Dependabot-Warnung Code-Scanning-Warnung Secret-Scanning-Warnung Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist Einstellungen speichern Abmelden"`;
 
-exports[`the pages before this change > the body text of the 'start status with a notice' page in 'en' is unchanged 1`] = `"Language: English | Deutsch You are signed in Set up your instance step by step: The form has expired. Please submit it again. Status Version: 1.2.3-test Telegram chat: -1001234567890 GitHub App: App ID 12345 Last delivery from GitHub: 2026-10-17 12:34 (UTC) Telegram chat GitHub App Settings Language of the notifications English Deutsch Time zone Quiet hours: notifications arrive without sound Start End Notify me about New pull request Pull request ready for review Review requested CI failed on the default branch CI failed in a pull request Dependabot alert Code scanning alert Secret scanning alert Tell me when a new Seluna release is available Save settings Sign out"`;
+exports[`the pages before this change > the body text of the 'start status with a notice' page in 'en' is unchanged 1`] = `"Language: English | Deutsch You are signed in Set up your instance step by step: The form has expired. Please submit it again. Status Version: 1.2.3-test Telegram bot token: Set by the Worker secret TELEGRAM_BOT_TOKEN. Telegram chat: -1001234567890 GitHub App: App ID 12345 Last delivery from GitHub: 2026-10-17 12:34 (UTC) Telegram chat GitHub App Settings Language of the notifications English Deutsch Time zone Quiet hours: notifications arrive without sound Start End Notify me about New pull request Pull request ready for review Review requested CI failed on the default branch CI failed in a pull request Dependabot alert Code scanning alert Secret scanning alert Tell me when a new Seluna release is available Save settings Sign out"`;
 
-exports[`the pages before this change > the body text of the 'start status with a saved app, instal…' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Du bist angemeldet Richte deine Instanz Schritt für Schritt ein: Status Version: 1.2.3-test Telegram-Chat: -1001234567890 GitHub-App: seluna-demo (App-ID 12345) Installationen: octocat (persönliches Konto), ausgewählte Repositories Letzte Zustellung von GitHub: 2026-10-17 12:34 (UTC) Die gespeicherten Zugangsdaten sind nicht lesbar Die gespeicherten GitHub-Zugangsdaten sind mit dem aktuellen SELUNA_SECRET nicht lesbar: Es wurde geändert, oder die gespeicherten Werte sind beschädigt. Wenn du das frühere SELUNA_SECRET noch kennst, setze es stattdessen wieder. Andernfalls setze zurück: Seluna löscht die gespeicherten GitHub-Zugangsdaten und Installations-Tokens, und du erstellst die GitHub-App neu. Lösche die alte App danach auf GitHub: in den Einstellungen deines Kontos oder deiner Organisation unter Developer settings, dann GitHub Apps. Der Telegram-Chat und die Einstellungen bleiben erhalten. Zurücksetzen und GitHub-App neu erstellen Telegram-Chat GitHub-App Einstellungen Sprache der Benachrichtigungen English Deutsch Zeitzone Ruhezeiten: Benachrichtigungen kommen ohne Ton Beginn Ende Benachrichtige mich über Neuer Pull Request Pull Request bereit zum Review Review angefordert CI auf dem Standard-Branch fehlgeschlagen CI in einem Pull Request fehlgeschlagen Dependabot-Warnung Code-Scanning-Warnung Secret-Scanning-Warnung Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist Einstellungen speichern Abmelden"`;
+exports[`the pages before this change > the body text of the 'start status with a saved app, instal…' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Du bist angemeldet Richte deine Instanz Schritt für Schritt ein: Status Version: 1.2.3-test Telegram-Bot-Token: Gesetzt durch das Worker-Secret TELEGRAM_BOT_TOKEN. Telegram-Chat: -1001234567890 GitHub-App: seluna-demo (App-ID 12345) Installationen: octocat (persönliches Konto), ausgewählte Repositories Letzte Zustellung von GitHub: 2026-10-17 12:34 (UTC) Die gespeicherten Zugangsdaten sind nicht lesbar Die gespeicherten Zugangsdaten sind mit dem aktuellen SELUNA_SECRET nicht lesbar: Es wurde geändert, oder ein gespeicherter Wert ist beschädigt. Wenn du das frühere SELUNA_SECRET noch kennst, setze es stattdessen wieder. Andernfalls setze zurück: Seluna löscht die gespeicherten GitHub-Zugangsdaten, die Installations-Tokens und den gespeicherten Telegram-Bot-Token; du erstellst danach die GitHub-App neu und gibst den Bot-Token im Schritt Telegram-Chat erneut ein. Lösche die alte App danach auf GitHub: in den Einstellungen deines Kontos oder deiner Organisation unter Developer settings, dann GitHub Apps. Der Telegram-Chat und die Einstellungen bleiben erhalten. Zurücksetzen und GitHub-App neu erstellen Telegram-Chat GitHub-App Einstellungen Sprache der Benachrichtigungen English Deutsch Zeitzone Ruhezeiten: Benachrichtigungen kommen ohne Ton Beginn Ende Benachrichtige mich über Neuer Pull Request Pull Request bereit zum Review Review angefordert CI auf dem Standard-Branch fehlgeschlagen CI in einem Pull Request fehlgeschlagen Dependabot-Warnung Code-Scanning-Warnung Secret-Scanning-Warnung Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist Einstellungen speichern Abmelden"`;
 
-exports[`the pages before this change > the body text of the 'start status with a saved app, instal…' page in 'en' is unchanged 1`] = `"Language: English | Deutsch You are signed in Set up your instance step by step: Status Version: 1.2.3-test Telegram chat: -1001234567890 GitHub App: seluna-demo (App ID 12345) Installations: octocat (personal account), selected repositories Last delivery from GitHub: 2026-10-17 12:34 (UTC) The saved credentials cannot be read The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials and installation tokens, and you create the GitHub App again. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept. Reset and create the GitHub App again Telegram chat GitHub App Settings Language of the notifications English Deutsch Time zone Quiet hours: notifications arrive without sound Start End Notify me about New pull request Pull request ready for review Review requested CI failed on the default branch CI failed in a pull request Dependabot alert Code scanning alert Secret scanning alert Tell me when a new Seluna release is available Save settings Sign out"`;
+exports[`the pages before this change > the body text of the 'start status with a saved app, instal…' page in 'en' is unchanged 1`] = `"Language: English | Deutsch You are signed in Set up your instance step by step: Status Version: 1.2.3-test Telegram bot token: Set by the Worker secret TELEGRAM_BOT_TOKEN. Telegram chat: -1001234567890 GitHub App: seluna-demo (App ID 12345) Installations: octocat (personal account), selected repositories Last delivery from GitHub: 2026-10-17 12:34 (UTC) The saved credentials cannot be read The saved credentials cannot be read with the current SELUNA_SECRET: it was changed, or a saved value is damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials, the installation tokens and the saved Telegram bot token; you then create the GitHub App again and enter the bot token again in the Telegram chat step. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept. Reset and create the GitHub App again Telegram chat GitHub App Settings Language of the notifications English Deutsch Time zone Quiet hours: notifications arrive without sound Start End Notify me about New pull request Pull request ready for review Review requested CI failed on the default branch CI failed in a pull request Dependabot alert Code scanning alert Secret scanning alert Tell me when a new Seluna release is available Save settings Sign out"`;
 
-exports[`the pages before this change > the body text of the 'start status without an app' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Du bist angemeldet Richte deine Instanz Schritt für Schritt ein: Status Version: 1.2.3-test Telegram-Chat: Noch nichts gespeichert. GitHub-App: Noch nichts gespeichert. Letzte Zustellung von GitHub: Noch nichts empfangen. Telegram-Chat GitHub-App Einstellungen Sprache der Benachrichtigungen English Deutsch Zeitzone Ruhezeiten: Benachrichtigungen kommen ohne Ton Beginn Ende Benachrichtige mich über Neuer Pull Request Pull Request bereit zum Review Review angefordert CI auf dem Standard-Branch fehlgeschlagen CI in einem Pull Request fehlgeschlagen Dependabot-Warnung Code-Scanning-Warnung Secret-Scanning-Warnung Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist Einstellungen speichern Abmelden"`;
+exports[`the pages before this change > the body text of the 'start status without an app' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Du bist angemeldet Richte deine Instanz Schritt für Schritt ein: Status Version: 1.2.3-test Telegram-Bot-Token: Gesetzt durch das Worker-Secret TELEGRAM_BOT_TOKEN. Telegram-Chat: Noch nichts gespeichert. GitHub-App: Noch nichts gespeichert. Letzte Zustellung von GitHub: Noch nichts empfangen. Telegram-Chat GitHub-App Einstellungen Sprache der Benachrichtigungen English Deutsch Zeitzone Ruhezeiten: Benachrichtigungen kommen ohne Ton Beginn Ende Benachrichtige mich über Neuer Pull Request Pull Request bereit zum Review Review angefordert CI auf dem Standard-Branch fehlgeschlagen CI in einem Pull Request fehlgeschlagen Dependabot-Warnung Code-Scanning-Warnung Secret-Scanning-Warnung Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist Einstellungen speichern Abmelden"`;
 
-exports[`the pages before this change > the body text of the 'start status without an app' page in 'en' is unchanged 1`] = `"Language: English | Deutsch You are signed in Set up your instance step by step: Status Version: 1.2.3-test Telegram chat: None saved yet. GitHub App: None saved yet. Last delivery from GitHub: None received yet. Telegram chat GitHub App Settings Language of the notifications English Deutsch Time zone Quiet hours: notifications arrive without sound Start End Notify me about New pull request Pull request ready for review Review requested CI failed on the default branch CI failed in a pull request Dependabot alert Code scanning alert Secret scanning alert Tell me when a new Seluna release is available Save settings Sign out"`;
+exports[`the pages before this change > the body text of the 'start status without an app' page in 'en' is unchanged 1`] = `"Language: English | Deutsch You are signed in Set up your instance step by step: Status Version: 1.2.3-test Telegram bot token: Set by the Worker secret TELEGRAM_BOT_TOKEN. Telegram chat: None saved yet. GitHub App: None saved yet. Last delivery from GitHub: None received yet. Telegram chat GitHub App Settings Language of the notifications English Deutsch Time zone Quiet hours: notifications arrive without sound Start End Notify me about New pull request Pull request ready for review Review requested CI failed on the default branch CI failed in a pull request Dependabot alert Code scanning alert Secret scanning alert Tell me when a new Seluna release is available Save settings Sign out"`;
 
-exports[`the pages before this change > the body text of the 'telegram chat id secret' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Der Chat wird durch das Worker-Secret TELEGRAM_CHAT_ID festgelegt, das Vorrang vor einem hier gewählten Chat hat. Um den Chat hier zu wählen, lösche dieses Secret."`;
+exports[`the pages before this change > the body text of the 'telegram chat conflict' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Der Bot-Token wird durch das Worker-Secret TELEGRAM_BOT_TOKEN festgelegt, das Vorrang vor einem hier gespeicherten Token hat. Um den Token hier einzugeben, lösche dieses Secret. Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Telegram gibt die Chats des Bots nicht an Seluna weiter, weil ein anderes Programm seine Updates empfängt (ein Webhook oder ein Programm, das den Bot abfragt). Seluna braucht einen eigenen Bot: Erstelle mit /newbot bei @BotFather einen, oder entferne den Webhook dieses Bots. Gespeicherter Chat: -1001234567890 Nach Chats suchen"`;
 
-exports[`the pages before this change > the body text of the 'telegram chat id secret' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat The chat is set by the Worker secret TELEGRAM_CHAT_ID, which takes precedence over a chat chosen here. To choose the chat here, delete that secret."`;
+exports[`the pages before this change > the body text of the 'telegram chat conflict' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token The bot token is set by the Worker secret TELEGRAM_BOT_TOKEN, which takes precedence over a token saved here. To enter the token here, delete that secret. Chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. Telegram does not hand the bot&#39;s chats to Seluna because another program receives its updates (a webhook, or a program that polls the bot). Seluna needs a bot of its own: create one with /newbot at @BotFather, or remove the webhook from this bot. Saved chat: -1001234567890 Search for chats"`;
 
-exports[`the pages before this change > the body text of the 'telegram chats' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Es ist noch kein Chat gespeichert. Nach Chats suchen Chats, die dein Bot kürzlich gesehen hat. Jeder, der deinem Bot schreibt, erscheint hier. Wähle deshalb nur deinen eigenen Chat: Seluna sendet eine Testnachricht mit einem Code dorthin, und der Chat wird gespeichert, sobald du diesen Code eingibst. Anna Beispiel @anna_example (Privatchat) Seluna Testgroup (Gruppe) Testnachricht senden"`;
+exports[`the pages before this change > the body text of the 'telegram chat id secret' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Der Bot-Token wird durch das Worker-Secret TELEGRAM_BOT_TOKEN festgelegt, das Vorrang vor einem hier gespeicherten Token hat. Um den Token hier einzugeben, lösche dieses Secret. Chat Der Chat wird durch das Worker-Secret TELEGRAM_CHAT_ID festgelegt, das Vorrang vor einem hier gewählten Chat hat. Um den Chat hier zu wählen, lösche dieses Secret."`;
 
-exports[`the pages before this change > the body text of the 'telegram chats' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. No chat is saved yet. Search for chats Chats your bot has seen recently. Anyone who messages your bot appears here, so choose only your own chat: Seluna sends a test message with a code to it, and the chat is saved once you enter that code. Anna Beispiel @anna_example (Private chat) Seluna Testgroup (Group) Send test message"`;
+exports[`the pages before this change > the body text of the 'telegram chat id secret' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token The bot token is set by the Worker secret TELEGRAM_BOT_TOKEN, which takes precedence over a token saved here. To enter the token here, delete that secret. Chat The chat is set by the Worker secret TELEGRAM_CHAT_ID, which takes precedence over a chat chosen here. To choose the chat here, delete that secret."`;
+
+exports[`the pages before this change > the body text of the 'telegram chat unavailable' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Der Bot-Token wird durch das Worker-Secret TELEGRAM_BOT_TOKEN festgelegt, das Vorrang vor einem hier gespeicherten Token hat. Um den Token hier einzugeben, lösche dieses Secret. Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Telegram war nicht erreichbar oder hat eine Antwort gegeben, die Seluna nicht lesen kann. Bitte versuche es gleich noch einmal. Es ist noch kein Chat gespeichert. Nach Chats suchen"`;
+
+exports[`the pages before this change > the body text of the 'telegram chat unavailable' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token The bot token is set by the Worker secret TELEGRAM_BOT_TOKEN, which takes precedence over a token saved here. To enter the token here, delete that secret. Chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. Telegram could not be reached or gave an answer Seluna cannot read. Please try again in a moment. No chat is saved yet. Search for chats"`;
+
+exports[`the pages before this change > the body text of the 'telegram chats' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Der Bot-Token wird durch das Worker-Secret TELEGRAM_BOT_TOKEN festgelegt, das Vorrang vor einem hier gespeicherten Token hat. Um den Token hier einzugeben, lösche dieses Secret. Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Es ist noch kein Chat gespeichert. Nach Chats suchen Chats, die dein Bot kürzlich gesehen hat. Jeder, der deinem Bot schreibt, erscheint hier. Wähle deshalb nur deinen eigenen Chat: Seluna sendet eine Testnachricht mit einem Code dorthin, und der Chat wird gespeichert, sobald du diesen Code eingibst. Anna Beispiel @anna_example (Privatchat) Seluna Testgroup (Gruppe) Testnachricht senden"`;
+
+exports[`the pages before this change > the body text of the 'telegram chats' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token The bot token is set by the Worker secret TELEGRAM_BOT_TOKEN, which takes precedence over a token saved here. To enter the token here, delete that secret. Chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. No chat is saved yet. Search for chats Chats your bot has seen recently. Anyone who messages your bot appears here, so choose only your own chat: Seluna sends a test message with a code to it, and the chat is saved once you enter that code. Anna Beispiel @anna_example (Private chat) Seluna Testgroup (Group) Send test message"`;
 
 exports[`the pages before this change > the body text of the 'telegram code with a notice' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Der Code passt nicht zur Testnachricht. Prüfe den Code in deinem Chat und gib ihn erneut ein. Testnachricht gesendet an Chat: 5001001 Gib den sechsstelligen Code aus dieser Nachricht ein, um den Chat zu speichern. Ist keine Nachricht angekommen, ist der Chat nicht deiner: Suche erneut und wähle einen anderen. Code Chat speichern Nach Chats suchen"`;
 
@@ -100,21 +108,53 @@ exports[`the pages before this change > the body text of the 'telegram code' pag
 
 exports[`the pages before this change > the body text of the 'telegram code' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Test message sent to chat: 5001001 Enter the six-digit code from that message to save the chat. If no message arrived, the chat is not yours: search again and choose another. Code Save chat Search for chats"`;
 
-exports[`the pages before this change > the body text of the 'telegram no chats' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Gespeicherter Chat: -1001234567890 Nach Chats suchen Kein Chat gefunden. Sende deinem Bot /start oder füge ihn einer Gruppe hinzu und suche dann erneut. Telegram hält Nachrichten an den Bot 24 Stunden vor, und Seluna sieht nur die neuesten 100: Wenn dein Bot viele Nachrichten erhält, sende kurz vor der Suche erneut /start."`;
+exports[`the pages before this change > the body text of the 'telegram no chats' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Der Bot-Token wird durch das Worker-Secret TELEGRAM_BOT_TOKEN festgelegt, das Vorrang vor einem hier gespeicherten Token hat. Um den Token hier einzugeben, lösche dieses Secret. Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Gespeicherter Chat: -1001234567890 Nach Chats suchen Kein Chat gefunden. Sende deinem Bot /start oder füge ihn einer Gruppe hinzu und suche dann erneut. Telegram hält Nachrichten an den Bot 24 Stunden vor, und Seluna sieht nur die neuesten 100: Wenn dein Bot viele Nachrichten erhält, sende kurz vor der Suche erneut /start."`;
 
-exports[`the pages before this change > the body text of the 'telegram no chats' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. Saved chat: -1001234567890 Search for chats No chat found. Send /start to your bot or add it to a group, then search again. Telegram keeps messages to the bot for 24 hours, and Seluna sees only the newest 100: if your bot receives many messages, send /start again just before you search."`;
+exports[`the pages before this change > the body text of the 'telegram no chats' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token The bot token is set by the Worker secret TELEGRAM_BOT_TOKEN, which takes precedence over a token saved here. To enter the token here, delete that secret. Chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. Saved chat: -1001234567890 Search for chats No chat found. Send /start to your bot or add it to a group, then search again. Telegram keeps messages to the bot for 24 hours, and Seluna sees only the newest 100: if your bot receives many messages, send /start again just before you search."`;
 
 exports[`the pages before this change > the body text of the 'telegram notice-only' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Die Testnachricht konnte nicht gesendet werden, daher wurde der Chat nicht gespeichert. Prüfe, ob der Bot noch im Chat ist und nicht blockiert wurde, und suche dann erneut. Nach Chats suchen"`;
 
 exports[`the pages before this change > the body text of the 'telegram notice-only' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. The test message could not be sent, so the chat was not saved. Check that the bot is still in the chat and not blocked, then search again. Search for chats"`;
 
-exports[`the pages before this change > the body text of the 'telegram problem with a saved chat' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Das Worker-Secret TELEGRAM_BOT_TOKEN ist nicht gesetzt. Sende in Telegram /newbot an @BotFather und kopiere den zurückgegebenen Token. Öffne im Cloudflare-Dashboard diesen Worker, dann Settings, dann Variables and Secrets, und füge ein Secret namens TELEGRAM_BOT_TOKEN mit diesem Token hinzu. Oder führe aus: npx wrangler secret put TELEGRAM_BOT_TOKEN Gespeicherter Chat: -1001234567890 Nach Chats suchen"`;
+exports[`the pages before this change > the body text of the 'telegram token damaged' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Der gespeicherte Bot-Token ist beschädigt und lässt sich nicht lesen. Gib den Token erneut ein, oder entferne ihn. Bot-Token Token speichern Token entfernen Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Es ist noch kein Chat gespeichert."`;
 
-exports[`the pages before this change > the body text of the 'telegram problem with a saved chat' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. The Worker secret TELEGRAM_BOT_TOKEN is not set. In Telegram, send /newbot to @BotFather and copy the token it returns. In the Cloudflare dashboard open this Worker, then Settings, then Variables and Secrets, and add a secret named TELEGRAM_BOT_TOKEN with that token. Or run: npx wrangler secret put TELEGRAM_BOT_TOKEN Saved chat: -1001234567890 Search for chats"`;
+exports[`the pages before this change > the body text of the 'telegram token damaged' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token The saved bot token is damaged and cannot be read. Enter the token again, or remove it. Bot token Save token Remove token Chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. No chat is saved yet."`;
 
-exports[`the pages before this change > the body text of the 'telegram problem without a saved chat' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Das Worker-Secret TELEGRAM_BOT_TOKEN ist nicht gesetzt. Sende in Telegram /newbot an @BotFather und kopiere den zurückgegebenen Token. Öffne im Cloudflare-Dashboard diesen Worker, dann Settings, dann Variables and Secrets, und füge ein Secret namens TELEGRAM_BOT_TOKEN mit diesem Token hinzu. Oder führe aus: npx wrangler secret put TELEGRAM_BOT_TOKEN Es ist noch kein Chat gespeichert. Nach Chats suchen"`;
+exports[`the pages before this change > the body text of the 'telegram token entry with a notice' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Das ist kein Bot-Token. Ein Token von @BotFather besteht aus Ziffern, einem Doppelpunkt und dann Buchstaben, Ziffern, - und _, ohne Leerzeichen. Kopiere ihn erneut von @BotFather. Es wurde nichts gespeichert. Bot-Token Token speichern"`;
 
-exports[`the pages before this change > the body text of the 'telegram problem without a saved chat' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. The Worker secret TELEGRAM_BOT_TOKEN is not set. In Telegram, send /newbot to @BotFather and copy the token it returns. In the Cloudflare dashboard open this Worker, then Settings, then Variables and Secrets, and add a secret named TELEGRAM_BOT_TOKEN with that token. Or run: npx wrangler secret put TELEGRAM_BOT_TOKEN No chat is saved yet. Search for chats"`;
+exports[`the pages before this change > the body text of the 'telegram token entry with a notice' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token That is not a bot token. A token from @BotFather is digits, a colon, then letters, digits, - and _, without spaces. Copy it again from @BotFather. Nothing was saved. Bot token Save token"`;
+
+exports[`the pages before this change > the body text of the 'telegram token from a malformed Worke…' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Das Worker-Secret TELEGRAM_BOT_TOKEN ist kein Bot-Token. Ein Token von @BotFather besteht aus Ziffern, einem Doppelpunkt und dann Buchstaben, Ziffern, - und _, ohne Leerzeichen. Kopiere ihn erneut von @BotFather und ersetze das Secret im Cloudflare-Dashboard unter Settings, dann Variables and Secrets. Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Es ist noch kein Chat gespeichert."`;
+
+exports[`the pages before this change > the body text of the 'telegram token from a malformed Worke…' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token The Worker secret TELEGRAM_BOT_TOKEN is not a bot token. A token from @BotFather is digits, a colon, then letters, digits, - and _, without spaces. Copy it again from @BotFather and replace the secret in the Cloudflare dashboard under Settings, then Variables and Secrets. Chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. No chat is saved yet."`;
+
+exports[`the pages before this change > the body text of the 'telegram token from the Worker secret…' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Telegram akzeptiert das Worker-Secret TELEGRAM_BOT_TOKEN nicht: Es ist falsch geschrieben oder wurde widerrufen. Sende /mybots an @BotFather, kopiere den aktuellen Token deines Bots und ersetze das Secret im Cloudflare-Dashboard unter Settings, dann Variables and Secrets. Der Bot-Token wird durch das Worker-Secret TELEGRAM_BOT_TOKEN festgelegt, das Vorrang vor einem hier gespeicherten Token hat. Um den Token hier einzugeben, lösche dieses Secret. Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Es ist noch kein Chat gespeichert."`;
+
+exports[`the pages before this change > the body text of the 'telegram token from the Worker secret…' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token Telegram does not accept the Worker secret TELEGRAM_BOT_TOKEN: it is mistyped or was revoked. Send /mybots to @BotFather, copy your bot&#39;s current token and replace the secret in the Cloudflare dashboard under Settings, then Variables and Secrets. The bot token is set by the Worker secret TELEGRAM_BOT_TOKEN, which takes precedence over a token saved here. To enter the token here, delete that secret. Chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. No chat is saved yet."`;
+
+exports[`the pages before this change > the body text of the 'telegram token missing with a saved c…' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Seluna sendet seine Benachrichtigungen über deinen eigenen Telegram-Bot. Sende in Telegram /newbot an @BotFather und gib den zurückgegebenen Token hier ein. Seluna prüft den Token bei Telegram und speichert ihn verschlüsselt; er wird nicht wieder angezeigt. Bot-Token Token speichern Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Gespeicherter Chat: -1001234567890"`;
+
+exports[`the pages before this change > the body text of the 'telegram token missing with a saved c…' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token Seluna sends its notifications through your own Telegram bot. In Telegram, send /newbot to @BotFather and enter the token it returns here. Seluna checks the token with Telegram and saves it encrypted; it is not shown again. Bot token Save token Chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. Saved chat: -1001234567890"`;
+
+exports[`the pages before this change > the body text of the 'telegram token missing without a save…' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Seluna sendet seine Benachrichtigungen über deinen eigenen Telegram-Bot. Sende in Telegram /newbot an @BotFather und gib den zurückgegebenen Token hier ein. Seluna prüft den Token bei Telegram und speichert ihn verschlüsselt; er wird nicht wieder angezeigt. Bot-Token Token speichern Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Es ist noch kein Chat gespeichert."`;
+
+exports[`the pages before this change > the body text of the 'telegram token missing without a save…' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token Seluna sends its notifications through your own Telegram bot. In Telegram, send /newbot to @BotFather and enter the token it returns here. Seluna checks the token with Telegram and saves it encrypted; it is not shown again. Bot token Save token Chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. No chat is saved yet."`;
+
+exports[`the pages before this change > the body text of the 'telegram token saved and rejected' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Telegram akzeptiert den gespeicherten Bot-Token nicht: Er wurde widerrufen oder der Bot wurde gelöscht. Sende /mybots an @BotFather, kopiere den aktuellen Token deines Bots und gib ihn hier ein. Ein Bot-Token ist gespeichert. Er wird nicht wieder angezeigt. Token ändern Bot-Token Token speichern Token entfernen Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Es ist noch kein Chat gespeichert."`;
+
+exports[`the pages before this change > the body text of the 'telegram token saved and rejected' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token Telegram does not accept the saved bot token: it was revoked or the bot was deleted. Send /mybots to @BotFather, copy your bot&#39;s current token and enter it here. A bot token is saved. It is not shown again. Change token Bot token Save token Remove token Chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. No chat is saved yet."`;
+
+exports[`the pages before this change > the body text of the 'telegram token saved with chats' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Ein Bot-Token ist gespeichert. Er wird nicht wieder angezeigt. Token ändern Bot-Token Token speichern Token entfernen Chat Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats. Gespeicherter Chat: 5001001 Nach Chats suchen Chats, die dein Bot kürzlich gesehen hat. Jeder, der deinem Bot schreibt, erscheint hier. Wähle deshalb nur deinen eigenen Chat: Seluna sendet eine Testnachricht mit einem Code dorthin, und der Chat wird gespeichert, sobald du diesen Code eingibst. Anna Beispiel @anna_example (Privatchat) Seluna Testgroup (Gruppe) Testnachricht senden"`;
+
+exports[`the pages before this change > the body text of the 'telegram token saved with chats' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token A bot token is saved. It is not shown again. Change token Bot token Save token Remove token Chat Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats. Saved chat: 5001001 Search for chats Chats your bot has seen recently. Anyone who messages your bot appears here, so choose only your own chat: Seluna sends a test message with a code to it, and the chat is saved once you enter that code. Anna Beispiel @anna_example (Private chat) Seluna Testgroup (Group) Send test message"`;
+
+exports[`the pages before this change > the body text of the 'telegram token saved with the chat id…' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Ein Bot-Token ist gespeichert. Er wird nicht wieder angezeigt. Token ändern Bot-Token Token speichern Token entfernen Chat Der Chat wird durch das Worker-Secret TELEGRAM_CHAT_ID festgelegt, das Vorrang vor einem hier gewählten Chat hat. Um den Chat hier zu wählen, lösche dieses Secret."`;
+
+exports[`the pages before this change > the body text of the 'telegram token saved with the chat id…' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token A bot token is saved. It is not shown again. Change token Bot token Save token Remove token Chat The chat is set by the Worker secret TELEGRAM_CHAT_ID, which takes precedence over a chat chosen here. To choose the chat here, delete that secret."`;
+
+exports[`the pages before this change > the body text of the 'telegram token unreadable with a noti…' page in 'de' is unchanged 1`] = `"Sprache: English | Deutsch Telegram-Chat Bot-Token Der Token wurde nicht gespeichert, weil sich die gespeicherten Zugangsdaten mit dem aktuellen SELUNA_SECRET nicht lesen lassen. Setze das frühere SELUNA_SECRET wieder, oder setze die gespeicherten Zugangsdaten zuerst auf der Startseite zurück."`;
+
+exports[`the pages before this change > the body text of the 'telegram token unreadable with a noti…' page in 'en' is unchanged 1`] = `"Language: English | Deutsch Telegram chat Bot token The token was not saved because the saved credentials cannot be read with the current SELUNA_SECRET. Set the earlier SELUNA_SECRET again, or reset the saved credentials on the start page first."`;
 
 exports[`the pages before this change > the forms of the 'github created without a slug' page in 'de' are unchanged 1`] = `""`;
 
@@ -648,9 +688,17 @@ input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
 button type=submit"
 `;
 
+exports[`the pages before this change > the forms of the 'telegram chat conflict' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram chat conflict' page in 'en' are unchanged 1`] = `""`;
+
 exports[`the pages before this change > the forms of the 'telegram chat id secret' page in 'de' are unchanged 1`] = `""`;
 
 exports[`the pages before this change > the forms of the 'telegram chat id secret' page in 'en' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram chat unavailable' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram chat unavailable' page in 'en' are unchanged 1`] = `""`;
 
 exports[`the pages before this change > the forms of the 'telegram chats' page in 'de' are unchanged 1`] = `
 "form method=post action=/setup/telegram
@@ -716,10 +764,174 @@ exports[`the pages before this change > the forms of the 'telegram notice-only' 
 
 exports[`the pages before this change > the forms of the 'telegram notice-only' page in 'en' are unchanged 1`] = `""`;
 
-exports[`the pages before this change > the forms of the 'telegram problem with a saved chat' page in 'de' are unchanged 1`] = `""`;
+exports[`the pages before this change > the forms of the 'telegram token damaged' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/telegram/token
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=token
+input type=password name=token id=token required= maxlength=221 autocomplete=off
+button type=submit
 
-exports[`the pages before this change > the forms of the 'telegram problem with a saved chat' page in 'en' are unchanged 1`] = `""`;
+form method=post action=/setup/telegram/token/remove
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
 
-exports[`the pages before this change > the forms of the 'telegram problem without a saved chat' page in 'de' are unchanged 1`] = `""`;
+exports[`the pages before this change > the forms of the 'telegram token damaged' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/telegram/token
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=token
+input type=password name=token id=token required= maxlength=221 autocomplete=off
+button type=submit
 
-exports[`the pages before this change > the forms of the 'telegram problem without a saved chat' page in 'en' are unchanged 1`] = `""`;
+form method=post action=/setup/telegram/token/remove
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram token entry with a notice' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/telegram/token
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=token
+input type=password name=token id=token required= maxlength=221 autocomplete=off
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram token entry with a notice' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/telegram/token
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=token
+input type=password name=token id=token required= maxlength=221 autocomplete=off
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram token from a malformed Worke…' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram token from a malformed Worke…' page in 'en' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram token from the Worker secret…' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram token from the Worker secret…' page in 'en' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram token missing with a saved c…' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/telegram/token
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=token
+input type=password name=token id=token required= maxlength=221 autocomplete=off
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram token missing with a saved c…' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/telegram/token
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=token
+input type=password name=token id=token required= maxlength=221 autocomplete=off
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram token missing without a save…' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/telegram/token
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=token
+input type=password name=token id=token required= maxlength=221 autocomplete=off
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram token missing without a save…' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/telegram/token
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=token
+input type=password name=token id=token required= maxlength=221 autocomplete=off
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram token saved and rejected' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/telegram/token
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=token
+input type=password name=token id=token required= maxlength=221 autocomplete=off
+button type=submit
+
+form method=post action=/setup/telegram/token/remove
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram token saved and rejected' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/telegram/token
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=token
+input type=password name=token id=token required= maxlength=221 autocomplete=off
+button type=submit
+
+form method=post action=/setup/telegram/token/remove
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram token saved with chats' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/telegram/token
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=token
+input type=password name=token id=token required= maxlength=221 autocomplete=off
+button type=submit
+
+form method=post action=/setup/telegram/token/remove
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit
+
+form method=post action=/setup/telegram
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label
+input type=radio name=chat value=5001001 required=
+label
+input type=radio name=chat value=-4001001 required=
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram token saved with chats' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/telegram/token
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=token
+input type=password name=token id=token required= maxlength=221 autocomplete=off
+button type=submit
+
+form method=post action=/setup/telegram/token/remove
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit
+
+form method=post action=/setup/telegram
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label
+input type=radio name=chat value=5001001 required=
+label
+input type=radio name=chat value=-4001001 required=
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram token saved with the chat id…' page in 'de' are unchanged 1`] = `
+"form method=post action=/setup/telegram/token
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=token
+input type=password name=token id=token required= maxlength=221 autocomplete=off
+button type=submit
+
+form method=post action=/setup/telegram/token/remove
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram token saved with the chat id…' page in 'en' are unchanged 1`] = `
+"form method=post action=/setup/telegram/token
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+label for=token
+input type=password name=token id=token required= maxlength=221 autocomplete=off
+button type=submit
+
+form method=post action=/setup/telegram/token/remove
+input type=hidden name=csrf value=TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+button type=submit"
+`;
+
+exports[`the pages before this change > the forms of the 'telegram token unreadable with a noti…' page in 'de' are unchanged 1`] = `""`;
+
+exports[`the pages before this change > the forms of the 'telegram token unreadable with a noti…' page in 'en' are unchanged 1`] = `""`;

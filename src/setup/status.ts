@@ -1,3 +1,4 @@
+import { resolveBotToken } from "../bot-token";
 import { parseAppId, resolveAppCredentials } from "../github/app-credentials";
 import type { GitHubFetch } from "../github/conversion";
 import { listInstallations } from "../github/installations";
@@ -11,6 +12,8 @@ import { isChatIdSecretSet, parseChatId } from "../telegram";
 
 export type ChatStatus =
   { readonly kind: "secret" } | { readonly kind: "saved"; readonly chatId: number } | { readonly kind: "none" };
+
+export type BotTokenStatus = "worker-secret" | "saved" | "none" | "unreadable";
 
 export type AppStatus =
   | { readonly kind: "worker-secrets" }
@@ -33,12 +36,33 @@ export interface StatusGitHub {
 
 export interface StatusView {
   readonly version: string;
+  readonly botToken: BotTokenStatus;
   readonly chat: ChatStatus;
   readonly app: AppStatus;
   readonly lastDelivery: Date | undefined;
   readonly resetNeeded: boolean;
   readonly settings: NotificationSettings;
   readonly installations: InstallationsView;
+}
+
+/** Where the bot token comes from, read from the environment and D1; calls no Telegram API. D1 errors are not caught. */
+async function botTokenStatus(env: object, db: D1Database): Promise<BotTokenStatus> {
+  const resolved = await resolveBotToken(env, db);
+  switch (resolved.kind) {
+    case "usable":
+      return resolved.source === "worker-secret" ? "worker-secret" : "saved";
+    case "malformed":
+      return "worker-secret";
+    case "missing":
+      return "none";
+    case "unreadable":
+    case "damaged":
+      return "unreadable";
+    default: {
+      const unreachable: never = resolved;
+      return unreachable;
+    }
+  }
 }
 
 async function chatStatus(env: object, db: D1Database): Promise<ChatStatus> {
@@ -120,10 +144,12 @@ export async function statusView(
   github: StatusGitHub,
 ): Promise<StatusView> {
   const settings = await readNotificationSettings(db);
+  const botToken = await botTokenStatus(env, db);
   const chat = await chatStatus(env, db);
   const app = await appStatus(env, db, storageKey);
   return {
     version,
+    botToken,
     chat,
     app,
     lastDelivery: await readLastDelivery(db),

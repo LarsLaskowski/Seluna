@@ -51,6 +51,14 @@ async function seedAppId(secret: string, value: string): Promise<void> {
   expect(result, "seeding github_app_id").toEqual({ kind: "ok" });
 }
 
+const BOT_TOKEN = "123456789:AAH-throwaway_token0123456789abcdefghij";
+const OTHER_BOT_TOKEN = "987654321:BBH-other_throwaway_token0123456789abcd";
+
+async function saveBotToken(secret: string, value: string): Promise<void> {
+  const result = await writeSecret(env.DB, await keyFor(secret), "telegram_bot_token", value);
+  expect(result, "seeding telegram_bot_token").toEqual({ kind: "ok" });
+}
+
 const GITHUB: StatusGitHub = {
   fetcher: () => Promise.reject(new Error("no GitHub request expected")),
   now: () => new Date(0),
@@ -78,6 +86,7 @@ async function saveApp(appId: string, privateKey: string): Promise<void> {
 
 describe("statusView", () => {
   const EMPTY: Omit<StatusView, "version"> = {
+    botToken: "none",
     chat: { kind: "none" },
     app: { kind: "none" },
     lastDelivery: undefined,
@@ -180,6 +189,76 @@ describe("statusView", () => {
     });
 
     expect(view, "status view").toEqual({ ...EMPTY, version: VERSION, ...expected });
+    expect(github.requests, "GitHub requests").toEqual([]);
+  });
+
+  it.each<{ botToken: StatusView["botToken"]; case: string; workerEnv: object; prepare: () => Promise<void> }>([
+    { botToken: "none", case: "nothing is set or saved", workerEnv: {}, prepare: () => Promise.resolve() },
+    {
+      botToken: "worker-secret",
+      case: "TELEGRAM_BOT_TOKEN is a usable token",
+      workerEnv: { TELEGRAM_BOT_TOKEN: BOT_TOKEN },
+      prepare: () => Promise.resolve(),
+    },
+    {
+      botToken: "worker-secret",
+      case: "TELEGRAM_BOT_TOKEN is malformed",
+      workerEnv: { TELEGRAM_BOT_TOKEN: "1:a/../setWebhook" },
+      prepare: () => Promise.resolve(),
+    },
+    {
+      botToken: "worker-secret",
+      case: "TELEGRAM_BOT_TOKEN is set beside a saved token",
+      workerEnv: { TELEGRAM_BOT_TOKEN: BOT_TOKEN },
+      prepare: () => saveBotToken(SECRET, OTHER_BOT_TOKEN),
+    },
+    {
+      botToken: "worker-secret",
+      case: "TELEGRAM_BOT_TOKEN is set beside a token saved under another SELUNA_SECRET",
+      workerEnv: { TELEGRAM_BOT_TOKEN: BOT_TOKEN },
+      prepare: () => saveBotToken(OTHER_SECRET, OTHER_BOT_TOKEN),
+    },
+    {
+      botToken: "saved",
+      case: "a token is saved",
+      workerEnv: {},
+      prepare: () => saveBotToken(SECRET, OTHER_BOT_TOKEN),
+    },
+    {
+      botToken: "unreadable",
+      case: "a token is saved under another SELUNA_SECRET",
+      workerEnv: {},
+      prepare: () => saveBotToken(OTHER_SECRET, OTHER_BOT_TOKEN),
+    },
+    {
+      botToken: "unreadable",
+      case: "only the token row is damaged under a matching key check",
+      workerEnv: {},
+      prepare: async () => {
+        await saveBotToken(SECRET, OTHER_BOT_TOKEN);
+        await env.DB.prepare(
+          "UPDATE secrets SET ciphertext = (CASE WHEN substr(ciphertext, 1, 1) = 'A' THEN 'B' ELSE 'A' END) || substr(ciphertext, 2) WHERE key = 'telegram_bot_token'",
+        ).run();
+      },
+    },
+    {
+      botToken: "unreadable",
+      case: "the saved value is not of the bot token form",
+      workerEnv: {},
+      prepare: () => saveBotToken(SECRET, "1:a/../setWebhook"),
+    },
+  ])("statusView reports the bot token as $botToken when $case", async ({ botToken, prepare, workerEnv }) => {
+    await prepare();
+    const github = githubApiDouble({});
+
+    const view = await statusView({ SELUNA_SECRET: SECRET, ...workerEnv }, env.DB, await keyFor(SECRET), VERSION, {
+      fetcher: github.fetch,
+      now: () => NOW,
+    });
+
+    expect(view.botToken, "bot token status").toBe(botToken);
+    expect(JSON.stringify(view), "status view as text").not.toContain(OTHER_BOT_TOKEN);
+    expect(JSON.stringify(view), "status view as text").not.toContain(BOT_TOKEN);
     expect(github.requests, "GitHub requests").toEqual([]);
   });
 

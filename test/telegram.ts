@@ -1,6 +1,7 @@
 import { expect, onTestFinished, vi } from "vitest";
 import type { Mock } from "vitest";
 import type { TelegramFetch } from "../src/telegram";
+import getMeFixture from "./fixtures/telegram/get-me.json";
 import getUpdatesConflict from "./fixtures/telegram/get-updates-conflict.json";
 import getUpdatesUnauthorized from "./fixtures/telegram/get-updates-unauthorized.json";
 import getUpdatesFixture from "./fixtures/telegram/get-updates.json";
@@ -13,13 +14,14 @@ import sendMessageFixture from "./fixtures/telegram/send-message.json";
  */
 
 /** The only Bot API methods Seluna may call. */
-const ALLOWED_METHODS: readonly string[] = ["getUpdates", "sendMessage"];
+const ALLOWED_METHODS: readonly string[] = ["getMe", "getUpdates", "sendMessage"];
 const BOT_URL_PATH = /^\/bot([^/]*)\/([^/]*)$/;
 
 /** The answers of the fixtures, as parsed JSON. */
 export const FIXTURES: Readonly<
-  Record<"getUpdates" | "unauthorized" | "conflict" | "sendMessage" | "tooManyRequests", unknown>
+  Record<"getMe" | "getUpdates" | "unauthorized" | "conflict" | "sendMessage" | "tooManyRequests", unknown>
 > = {
+  getMe: getMeFixture,
   getUpdates: getUpdatesFixture,
   unauthorized: getUpdatesUnauthorized,
   conflict: getUpdatesConflict,
@@ -65,6 +67,7 @@ export interface TelegramDouble {
 }
 
 export interface TelegramAnswers {
+  readonly getMe?: TelegramAnswer;
   readonly getUpdates?: TelegramAnswer;
   /** One answer for every `sendMessage`, or a sequence: the n-th request gets the n-th answer, the last is repeated. */
   readonly sendMessage?: TelegramAnswer | readonly TelegramAnswer[];
@@ -108,13 +111,15 @@ function parseJson(text: string): unknown {
 }
 
 /**
- * A `fetch` that stands in for `https://api.telegram.org`: it records every request and answers `getUpdates` and
- * `sendMessage` as given (by default with the fixtures, status 200; `sendMessage` may be a sequence of answers). A request to another origin or Bot API
+ * A `fetch` that stands in for `https://api.telegram.org`: it records every request and answers
+ * `getMe`, `getUpdates` and `sendMessage` as given (by default with the fixtures, status 200; `sendMessage` may be a
+ * sequence of answers). The answer does not depend on the token in the URL. A request to another origin or Bot API
  * method is answered with a rejection and fails the test that created the double when the test ends.
  */
 export function telegramDouble(answers: TelegramAnswers = {}): TelegramDouble {
   const requests: RecordedRequest[] = [];
   const unexpected: string[] = [];
+  const getMeAnswer = answers.getMe ?? jsonAnswer(200, FIXTURES.getMe);
   const getUpdatesAnswer = answers.getUpdates ?? jsonAnswer(200, FIXTURES.getUpdates);
   const sendMessageAnswers = ((): readonly TelegramAnswer[] => {
     const given = answers.sendMessage ?? jsonAnswer(200, FIXTURES.sendMessage);
@@ -149,11 +154,14 @@ export function telegramDouble(answers: TelegramAnswers = {}): TelegramDouble {
       }
       return respond(answer);
     }
-    return respond(getUpdatesAnswer);
+    return respond(method === "getMe" ? getMeAnswer : getUpdatesAnswer);
   });
 
   onTestFinished(() => {
-    expect(unexpected, "requests to something other than getUpdates and sendMessage on api.telegram.org").toEqual([]);
+    expect(
+      unexpected,
+      "requests to something other than getMe, getUpdates and sendMessage on api.telegram.org",
+    ).toEqual([]);
   });
 
   return {

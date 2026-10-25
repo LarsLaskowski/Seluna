@@ -22,6 +22,7 @@ import type { InstallationsView, StatusView } from "./status";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 import type { TelegramChat } from "../telegram";
+import type { ChatPart, TokenState } from "./telegram-step";
 
 const LANGUAGES: readonly Language[] = ["en", "de"];
 const NOTICES: readonly Notice[] = [
@@ -33,6 +34,13 @@ const NOTICES: readonly Notice[] = [
   "telegram-token-missing",
   "telegram-token-malformed",
   "telegram-token-rejected",
+  "telegram-token-invalid",
+  "telegram-token-not-accepted",
+  "telegram-token-unverified",
+  "telegram-saved-token-rejected",
+  "telegram-token-unreadable",
+  "telegram-token-damaged",
+  "telegram-token-not-saved",
   "telegram-conflict",
   "telegram-unavailable",
   "telegram-send-failed",
@@ -58,8 +66,17 @@ const CHATS: readonly TelegramChat[] = [
   { id: 5_001_001, kind: "private", name: "Anna Beispiel", username: "anna_example" },
   { id: -4_001_001, kind: "group", name: "Seluna Testgroup", username: undefined },
 ];
-const CHATS_VIEW: TelegramPageView = { kind: "chats", chats: CHATS, savedChatId: undefined };
-const NO_CHATS_VIEW: TelegramPageView = { kind: "chats", chats: [], savedChatId: -1_001_234_567_890 };
+const WORKER_SECRET_TOKEN: TokenState = { kind: "worker-secret", rejected: false };
+const CHATS_VIEW: TelegramPageView = {
+  kind: "step",
+  token: WORKER_SECRET_TOKEN,
+  chat: { kind: "chats", chats: CHATS, savedChatId: undefined },
+};
+const NO_CHATS_VIEW: TelegramPageView = {
+  kind: "step",
+  token: WORKER_SECRET_TOKEN,
+  chat: { kind: "chats", chats: [], savedChatId: -1_001_234_567_890 },
+};
 const CODE_VIEW: TelegramPageView = {
   kind: "code",
   chatId: 5_001_001,
@@ -156,7 +173,11 @@ describe("renderTelegramPage", () => {
       username: undefined,
     }));
 
-    const page = renderTelegramPage("en", CSRF_TOKEN, { kind: "chats", chats, savedChatId: undefined });
+    const page = renderTelegramPage("en", CSRF_TOKEN, {
+      kind: "step",
+      token: WORKER_SECRET_TOKEN,
+      chat: { kind: "chats", chats, savedChatId: undefined },
+    });
 
     expect(page, "unescaped markup from a name").not.toMatch(/<img\b|<b>/);
     expect(
@@ -171,7 +192,11 @@ describe("renderTelegramPage", () => {
       { id: 5_002_002, kind: "private", name: "Mallory @anna_example", username: undefined },
     ];
 
-    const page = renderTelegramPage("en", CSRF_TOKEN, { kind: "chats", chats, savedChatId: undefined });
+    const page = renderTelegramPage("en", CSRF_TOKEN, {
+      kind: "step",
+      token: WORKER_SECRET_TOKEN,
+      chat: { kind: "chats", chats, savedChatId: undefined },
+    });
 
     const nameIndex = page.indexOf("<bdi>Anna Beispiel</bdi>");
     const usernameIndex = page.indexOf('<bdi class="username">@anna_example</bdi>');
@@ -193,6 +218,321 @@ describe("renderTelegramPage", () => {
       expect(page, "form").not.toContain("<form");
     },
   );
+});
+
+const TOKEN_FORM_ACTION = "/setup/telegram/token";
+const REMOVE_FORM_ACTION = "/setup/telegram/token/remove";
+
+function telegramStep(language: Language, token: TokenState, chat: ChatPart, notice?: Notice): string {
+  return renderTelegramPage(language, CSRF_TOKEN, { kind: "step", token, chat }, notice);
+}
+
+/** The inside of the cards of the main column of `page`, in order. */
+function cardsOf(page: string): string[] {
+  return sectionsOf(mainOf(page)).map((section) => section.html);
+}
+
+/** The `action` of each form in `html`, in order. */
+function formActions(html: string): string[] {
+  return Array.from(html.matchAll(/<form\b([^>]*)>/g), (form) => attributesOf(form[1] ?? "").get("action") ?? "");
+}
+
+const HIDDEN_CHAT: ChatPart = { kind: "hidden", savedChatId: undefined };
+const TOKEN_STATES: readonly { readonly name: string; readonly token: TokenState }[] = [
+  { name: "missing", token: { kind: "missing" } },
+  { name: "entry", token: { kind: "entry" } },
+  { name: "saved", token: { kind: "saved", rejected: false } },
+  { name: "saved and rejected", token: { kind: "saved", rejected: true } },
+  { name: "damaged", token: { kind: "damaged" } },
+  { name: "unreadable", token: { kind: "unreadable" } },
+  { name: "worker-secret", token: { kind: "worker-secret", rejected: false } },
+  { name: "worker-secret and rejected", token: { kind: "worker-secret", rejected: true } },
+  { name: "worker-secret-malformed", token: { kind: "worker-secret-malformed" } },
+];
+
+describe("renderTelegramPage token card", () => {
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderTelegramPage renders the token card with a masked token field for a missing token in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+
+      const page = telegramStep(language, { kind: "missing" }, HIDDEN_CHAT);
+
+      const [tokenCard = "", chatCard = "", ...rest] = cardsOf(page);
+      expect(rest, "further cards").toEqual([]);
+      expect(page, "heading").toContain(`<h1>${escapeHtml(texts.telegramHeading)}</h1>`);
+      expect(tokenCard, "token card heading").toContain(`<h2>${escapeHtml(texts.telegramTokenHeading)}</h2>`);
+      expect(tokenCard, "token intro").toContain(`<p>${escapeHtml(texts.telegramTokenIntro)}</p>`);
+      expect(formActions(tokenCard), "forms of the token card").toEqual([TOKEN_FORM_ACTION]);
+      expect(tokenCard, "form method").toMatch(/<form\b(?=[^>]*method="post")[^>]*>/);
+      expect(tokenCard, "CSRF field").toMatch(hiddenInput("csrf", CSRF_TOKEN));
+      expect(tokenCard, "label").toContain(`<label for="token">${escapeHtml(texts.telegramTokenLabel)}</label>`);
+      const input = attributesOf(
+        inputTag(tokenCard, "token")
+          .replace(/^<input/, "")
+          .replace(/>$/, ""),
+      );
+      expect(Object.fromEntries(input), "attributes of the token input").toEqual({
+        id: "token",
+        type: "password",
+        name: "token",
+        autocomplete: "off",
+        spellcheck: "false",
+        maxlength: "221",
+        required: "",
+      });
+      expect(tokenCard, "button").toMatch(
+        new RegExp(
+          `<button type="submit" class="primary">${escapeRegExp(escapeHtml(texts.telegramTokenSaveButton))}</button>`,
+        ),
+      );
+      expect(tokenCard, "disclosure").not.toContain("<details");
+      expect(tokenCard, "remove form").not.toContain(REMOVE_FORM_ACTION);
+      expect(chatCard, "chat card heading").toContain(`<h2>${escapeHtml(texts.telegramChatHeading)}</h2>`);
+      expect(chatCard, "chat intro").toContain(`<p>${escapeHtml(texts.telegramIntro)}</p>`);
+      expect(chatCard, "no saved chat").toContain(`<p>${escapeHtml(texts.telegramNoSavedChat)}</p>`);
+      expect(chatCard, "forms of the chat card").not.toContain("<form");
+      expect(chatCard, "search link").not.toContain("<a ");
+    },
+  );
+
+  // The first five states carry a token form.
+  it.each(TOKEN_STATES.slice(0, 5))(
+    "renderTelegramPage never renders a value attribute on the token input: $name",
+    ({ token }) => {
+      const page = telegramStep("en", token, HIDDEN_CHAT);
+
+      const input = inputTag(page, "token");
+      expect(input, "token input").not.toBe("");
+      expect(input, "value attribute").not.toMatch(/\svalue\s*=/);
+    },
+  );
+
+  it("renderTelegramPage shows the notice and the token form without intro and chat card for the entry state", () => {
+    const texts = TEXTS.en;
+
+    const page = telegramStep("en", { kind: "entry" }, { kind: "omitted" }, "telegram-token-invalid");
+
+    const cards = cardsOf(page);
+    expect(cards, "number of cards").toHaveLength(1);
+    expect(cards[0], "notice").toContain(
+      `<p class="notice error" role="alert">${escapeHtml(texts.notices["telegram-token-invalid"])}</p>`,
+    );
+    expect(cards[0], "token heading").toContain(`<h2>${escapeHtml(texts.telegramTokenHeading)}</h2>`);
+    expect(formActions(cards[0] ?? ""), "forms").toEqual([TOKEN_FORM_ACTION]);
+    expect(page, "token intro").not.toContain(escapeHtml(texts.telegramTokenIntro));
+    expect(page, "chat heading").not.toContain(escapeHtml(texts.telegramChatHeading));
+  });
+
+  it("renderTelegramPage puts the notice parameter into the token card in place of the derived notice", () => {
+    const texts = TEXTS.en;
+
+    const page = telegramStep("en", { kind: "unreadable" }, { kind: "omitted" }, "telegram-token-not-saved");
+
+    const cards = cardsOf(page);
+    expect(cards, "number of cards").toHaveLength(1);
+    expect(cards[0], "given notice").toContain(escapeHtml(texts.notices["telegram-token-not-saved"]));
+    expect(page, "derived notice").not.toContain(escapeHtml(texts.notices["telegram-token-unreadable"]));
+    expect(page, "forms").not.toContain("<form");
+  });
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderTelegramPage shows a saved token with Change token in a closed disclosure and Remove token in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+
+      const page = telegramStep(language, { kind: "saved", rejected: false }, HIDDEN_CHAT);
+
+      const tokenCard = cardsOf(page)[0] ?? "";
+      expect(tokenCard, "saved text").toContain(`<p>${escapeHtml(texts.telegramTokenSaved)}</p>`);
+      expect(tokenCard, "closed disclosure").toMatch(/<details>/);
+      expect(tokenCard, "open disclosure").not.toMatch(/<details\b[^>]*\bopen\b/);
+      expect(tokenCard, "summary").toContain(`<summary>${escapeHtml(texts.telegramTokenChange)}</summary>`);
+      expect(tokenCard, "token intro").not.toContain(escapeHtml(texts.telegramTokenIntro));
+      expect(tokenCard, "rejected notice").not.toContain(escapeHtml(texts.notices["telegram-saved-token-rejected"]));
+      const detailsStart = tokenCard.indexOf("<details");
+      const detailsEnd = tokenCard.indexOf("</details>");
+      expect(formActions(tokenCard.slice(detailsStart, detailsEnd)), "forms in the disclosure").toEqual([
+        TOKEN_FORM_ACTION,
+      ]);
+      expect(tokenCard.slice(detailsStart, detailsEnd), "summary is the first element of the disclosure").toMatch(
+        /^<details>\s*<summary>/,
+      );
+      expect(formActions(tokenCard.slice(detailsEnd)), "forms after the disclosure").toEqual([REMOVE_FORM_ACTION]);
+      expect(tokenCard.slice(detailsEnd), "remove button").toMatch(
+        new RegExp(
+          `<button type="submit" class="secondary">${escapeRegExp(escapeHtml(texts.telegramTokenRemoveButton))}</button>`,
+        ),
+      );
+      expect(tokenCard.slice(detailsEnd), "CSRF field of the remove form").toMatch(hiddenInput("csrf", CSRF_TOKEN));
+    },
+  );
+
+  it("renderTelegramPage opens the disclosure and shows the rejected notice first for a rejected saved token", () => {
+    const texts = TEXTS.en;
+
+    const page = telegramStep("en", { kind: "saved", rejected: true }, HIDDEN_CHAT);
+
+    const tokenCard = cardsOf(page)[0] ?? "";
+    const notice = escapeHtml(texts.notices["telegram-saved-token-rejected"]);
+    expect(tokenCard, "rejected notice").toContain(`<p class="notice error" role="alert">${notice}</p>`);
+    expect(tokenCard, "open disclosure").toMatch(/<details\b[^>]*\bopen\b/);
+    expect(tokenCard.indexOf(notice), "notice comes before the saved text").toBeLessThan(
+      tokenCard.indexOf(escapeHtml(texts.telegramTokenSaved)),
+    );
+    expect(formActions(tokenCard), "forms").toEqual([TOKEN_FORM_ACTION, REMOVE_FORM_ACTION]);
+  });
+
+  it("renderTelegramPage shows the damaged notice with the token form and Remove token and no disclosure", () => {
+    const texts = TEXTS.en;
+
+    const page = telegramStep("en", { kind: "damaged" }, HIDDEN_CHAT);
+
+    const tokenCard = cardsOf(page)[0] ?? "";
+    expect(tokenCard, "damaged notice").toContain(
+      `<p class="notice error" role="alert">${escapeHtml(texts.notices["telegram-token-damaged"])}</p>`,
+    );
+    expect(formActions(tokenCard), "forms").toEqual([TOKEN_FORM_ACTION, REMOVE_FORM_ACTION]);
+    expect(tokenCard, "disclosure").not.toContain("<details");
+    expect(tokenCard, "saved text").not.toContain(escapeHtml(texts.telegramTokenSaved));
+  });
+
+  it("renderTelegramPage shows only the unreadable notice for an unreadable token", () => {
+    const texts = TEXTS.en;
+
+    const page = telegramStep("en", { kind: "unreadable" }, { kind: "omitted" });
+
+    const cards = cardsOf(page);
+    expect(cards, "number of cards").toHaveLength(1);
+    expect(cards[0], "unreadable notice").toContain(
+      `<p class="notice error" role="alert">${escapeHtml(texts.notices["telegram-token-unreadable"])}</p>`,
+    );
+    expect(page, "forms").not.toContain("<form");
+    expect(page, "token intro").not.toContain(escapeHtml(texts.telegramTokenIntro));
+  });
+
+  it("renderTelegramPage shows the Worker secret note without forms and no rejected notice", () => {
+    const texts = TEXTS.en;
+
+    const page = telegramStep("en", { kind: "worker-secret", rejected: false }, HIDDEN_CHAT);
+
+    const tokenCard = cardsOf(page)[0] ?? "";
+    expect(tokenCard, "note").toContain(`<p class="notice info">${escapeHtml(texts.telegramTokenWorkerSecret)}</p>`);
+    expect(tokenCard, "forms").not.toContain("<form");
+    expect(tokenCard, "rejected notice").not.toContain(escapeHtml(texts.notices["telegram-token-rejected"]));
+  });
+
+  it("renderTelegramPage shows the rejected notice before the Worker secret note for a rejected Worker secret", () => {
+    const texts = TEXTS.en;
+
+    const page = telegramStep("en", { kind: "worker-secret", rejected: true }, HIDDEN_CHAT);
+
+    const tokenCard = cardsOf(page)[0] ?? "";
+    const notice = escapeHtml(texts.notices["telegram-token-rejected"]);
+    const note = escapeHtml(texts.telegramTokenWorkerSecret);
+    expect(tokenCard, "rejected notice").toContain(`<p class="notice error" role="alert">${notice}</p>`);
+    expect(tokenCard, "note").toContain(`<p class="notice info">${note}</p>`);
+    expect(tokenCard.indexOf(notice), "notice comes before the note").toBeLessThan(tokenCard.indexOf(note));
+    expect(tokenCard, "forms").not.toContain("<form");
+  });
+
+  it("renderTelegramPage shows only the malformed notice for a malformed Worker secret", () => {
+    const texts = TEXTS.en;
+
+    const page = telegramStep("en", { kind: "worker-secret-malformed" }, HIDDEN_CHAT);
+
+    const tokenCard = cardsOf(page)[0] ?? "";
+    expect(tokenCard, "malformed notice").toContain(
+      `<p class="notice error" role="alert">${escapeHtml(texts.notices["telegram-token-malformed"])}</p>`,
+    );
+    expect(tokenCard, "forms").not.toContain("<form");
+    expect(tokenCard, "note").not.toContain(escapeHtml(texts.telegramTokenWorkerSecret));
+  });
+});
+
+describe("renderTelegramPage chat card", () => {
+  it("renderTelegramPage shows only the chat id note in the chat card for the chat-id-secret part", () => {
+    const texts = TEXTS.en;
+
+    const page = telegramStep("en", { kind: "saved", rejected: false }, { kind: "chat-id-secret" });
+
+    const [tokenCard = "", chatCard = ""] = cardsOf(page);
+    expect(tokenCard, "token card").toContain(escapeHtml(texts.telegramTokenSaved));
+    expect(chatCard, "chat heading").toContain(`<h2>${escapeHtml(texts.telegramChatHeading)}</h2>`);
+    expect(chatCard, "chat id note").toContain(`<p class="notice info">${escapeHtml(texts.telegramChatIdSecret)}</p>`);
+    expect(chatCard, "intro").not.toContain(escapeHtml(texts.telegramIntro));
+    expect(chatCard, "forms").not.toContain("<form");
+    expect(chatCard, "links").not.toContain("<a ");
+  });
+
+  it("renderTelegramPage shows the intro and the saved chat and no search link for the hidden part", () => {
+    const texts = TEXTS.en;
+
+    const page = telegramStep("en", { kind: "missing" }, { kind: "hidden", savedChatId: -1_001_234_567_890 });
+
+    const chatCard = cardsOf(page)[1] ?? "";
+    expect(chatCard, "intro").toContain(`<p>${escapeHtml(texts.telegramIntro)}</p>`);
+    expect(chatCard, "saved chat").toContain(
+      `<p>${escapeHtml(texts.telegramSavedChat)} <code>-1001234567890</code></p>`,
+    );
+    expect(chatCard, "search link").not.toContain(escapeHtml(texts.telegramSearchLink));
+    expect(chatCard, "forms").not.toContain("<form");
+  });
+
+  it.each([
+    { problem: "conflict", notice: "telegram-conflict" },
+    { problem: "unavailable", notice: "telegram-unavailable" },
+  ] as const)(
+    "renderTelegramPage shows the $notice notice, the saved chat and the search link for the $problem problem",
+    ({ problem, notice }) => {
+      const texts = TEXTS.en;
+
+      const page = telegramStep(
+        "en",
+        { kind: "worker-secret", rejected: false },
+        { kind: "problem", problem, savedChatId: 5_001_001 },
+      );
+
+      const chatCard = cardsOf(page)[1] ?? "";
+      expect(chatCard, "intro").toContain(`<p>${escapeHtml(texts.telegramIntro)}</p>`);
+      expect(chatCard, "notice").toContain(
+        `<p class="notice error" role="alert">${escapeHtml(texts.notices[notice])}</p>`,
+      );
+      expect(chatCard, "saved chat").toContain(`<code>5001001</code>`);
+      expect(chatCard, "search link").toContain(
+        `<a href="/setup/telegram">${escapeHtml(texts.telegramSearchLink)}</a>`,
+      );
+      expect(chatCard, "forms").not.toContain("<form");
+    },
+  );
+
+  it("renderTelegramPage shows the saved chat, the search link and the chat form in the chat card for the chats part", () => {
+    const texts = TEXTS.en;
+
+    const page = telegramStep(
+      "en",
+      { kind: "saved", rejected: false },
+      { kind: "chats", chats: CHATS, savedChatId: 5_001_001 },
+    );
+
+    const chatCard = cardsOf(page)[1] ?? "";
+    expect(chatCard, "saved chat").toContain(`<code>5001001</code>`);
+    expect(chatCard, "search link").toContain(`<a href="/setup/telegram">${escapeHtml(texts.telegramSearchLink)}</a>`);
+    expect(formActions(chatCard), "forms").toEqual(["/setup/telegram"]);
+    expect(chatCard, "chats intro").toContain(escapeHtml(texts.telegramChatsIntro));
+    expect(cardsOf(page)[0], "chat form in the token card").not.toContain('name="chat"');
+  });
+
+  it("renderTelegramPage shows the token card before the chat card", () => {
+    const texts = TEXTS.en;
+
+    const page = telegramStep("en", { kind: "missing" }, HIDDEN_CHAT);
+
+    expect(page.indexOf(`<h2>${escapeHtml(texts.telegramTokenHeading)}</h2>`), "token card first").toBeLessThan(
+      page.indexOf(`<h2>${escapeHtml(texts.telegramChatHeading)}</h2>`),
+    );
+    expect(page.indexOf("<h1>"), "h1 first").toBeLessThan(page.indexOf("<h2>"));
+  });
 });
 
 describe("renderStartPage GitHub step", () => {
@@ -305,6 +645,7 @@ const DELIVERY_AT_UTC = new Date(Date.UTC(2026, 9, 17, 12, 34));
 function statusViewWith(changes: Partial<StatusView> = {}): StatusView {
   return {
     version: "1.2.3-test",
+    botToken: "worker-secret",
     chat: { kind: "saved", chatId: -1_001_234_567_890 },
     app: { kind: "saved", appId: 12_345, slug: "seluna-demo" },
     lastDelivery: DELIVERY_AT_UTC,
@@ -452,21 +793,110 @@ const ALL_PAGES: readonly PageCase[] = LANGUAGES.flatMap((language): readonly Pa
     entry("start notice-only", stepLinks, [], () =>
       renderStartPage(language, CSRF_TOKEN, { kind: "notice-only" }, "unavailable"),
     ),
-    entry("telegram chat id secret", [], [], telegram({ kind: "chat-id-secret" })),
+    entry(
+      "telegram chat id secret",
+      [],
+      [],
+      telegram({ kind: "step", token: WORKER_SECRET_TOKEN, chat: { kind: "chat-id-secret" } }),
+    ),
     entry("telegram notice-only", [TELEGRAM_LINK], [], telegram({ kind: "notice-only" }, "telegram-send-failed")),
     entry("telegram code", [TELEGRAM_LINK], [], telegram(CODE_VIEW)),
     entry("telegram code with a notice", [TELEGRAM_LINK], [], telegram(CODE_VIEW, "telegram-wrong-code")),
     entry(
-      "telegram problem without a saved chat",
-      [TELEGRAM_LINK],
+      "telegram token missing without a saved chat",
       [],
-      telegram({ kind: "problem", problem: "token-missing", savedChatId: undefined }),
+      [],
+      telegram({ kind: "step", token: { kind: "missing" }, chat: { kind: "hidden", savedChatId: undefined } }),
     ),
     entry(
-      "telegram problem with a saved chat",
+      "telegram token missing with a saved chat",
+      [],
+      [],
+      telegram({ kind: "step", token: { kind: "missing" }, chat: { kind: "hidden", savedChatId: -1_001_234_567_890 } }),
+    ),
+    entry(
+      "telegram token entry with a notice",
+      [],
+      [],
+      telegram({ kind: "step", token: { kind: "entry" }, chat: { kind: "omitted" } }, "telegram-token-invalid"),
+    ),
+    entry(
+      "telegram token saved with chats",
       [TELEGRAM_LINK],
       [],
-      telegram({ kind: "problem", problem: "token-missing", savedChatId: -1_001_234_567_890 }),
+      telegram({
+        kind: "step",
+        token: { kind: "saved", rejected: false },
+        chat: { kind: "chats", chats: CHATS, savedChatId: 5_001_001 },
+      }),
+    ),
+    entry(
+      "telegram token saved and rejected",
+      [],
+      [],
+      telegram({
+        kind: "step",
+        token: { kind: "saved", rejected: true },
+        chat: { kind: "hidden", savedChatId: undefined },
+      }),
+    ),
+    entry(
+      "telegram token saved with the chat id secret",
+      [],
+      [],
+      telegram({ kind: "step", token: { kind: "saved", rejected: false }, chat: { kind: "chat-id-secret" } }),
+    ),
+    entry(
+      "telegram token damaged",
+      [],
+      [],
+      telegram({ kind: "step", token: { kind: "damaged" }, chat: { kind: "hidden", savedChatId: undefined } }),
+    ),
+    entry(
+      "telegram token unreadable with a notice",
+      [],
+      [],
+      telegram({ kind: "step", token: { kind: "unreadable" }, chat: { kind: "omitted" } }, "telegram-token-not-saved"),
+    ),
+    entry(
+      "telegram token from the Worker secret and rejected",
+      [],
+      [],
+      telegram({
+        kind: "step",
+        token: { kind: "worker-secret", rejected: true },
+        chat: { kind: "hidden", savedChatId: undefined },
+      }),
+    ),
+    entry(
+      "telegram token from a malformed Worker secret",
+      [],
+      [],
+      telegram({
+        kind: "step",
+        token: { kind: "worker-secret-malformed" },
+        chat: { kind: "hidden", savedChatId: undefined },
+      }),
+    ),
+    entry(
+      "telegram chat conflict",
+      [TELEGRAM_LINK],
+      [],
+      telegram({
+        kind: "step",
+        token: WORKER_SECRET_TOKEN,
+        chat: { kind: "problem", problem: "conflict", savedChatId: -1_001_234_567_890 },
+      }),
+    ),
+    entry(
+      "telegram chat unavailable",
+      [TELEGRAM_LINK],
+      [],
+      telegram({
+        kind: "step",
+        token: WORKER_SECRET_TOKEN,
+        chat: { kind: "problem", problem: "unavailable", savedChatId: undefined },
+      }),
     ),
     entry("telegram chats", [TELEGRAM_LINK], [], telegram(CHATS_VIEW)),
     entry("telegram no chats", [TELEGRAM_LINK], [], telegram(NO_CHATS_VIEW)),
@@ -826,6 +1256,7 @@ describe("the buttons", () => {
   function expectedKind(action: string): string {
     switch (action) {
       case "/setup/logout":
+      case "/setup/telegram/token/remove":
         return "secondary";
       case "/setup/reset":
         return "danger";
@@ -835,7 +1266,7 @@ describe("the buttons", () => {
   }
 
   it.each(ALL_PAGES)(
-    "every button of the $page page in $language has its kind: sign-out secondary, reset danger, every other primary",
+    "every button of the $page page in $language has its kind: sign-out and remove token secondary, reset danger, every other primary",
     ({ html }) => {
       const page = html();
 
@@ -881,12 +1312,24 @@ describe("the notice kinds", () => {
     ({ language }) => {
       const texts = TEXTS[language];
 
-      const chatIdSecret = renderTelegramPage(language, CSRF_TOKEN, { kind: "chat-id-secret" });
+      const chatIdSecret = renderTelegramPage(language, CSRF_TOKEN, {
+        kind: "step",
+        token: WORKER_SECRET_TOKEN,
+        chat: { kind: "chat-id-secret" },
+      });
+      const workerToken = renderTelegramPage(language, CSRF_TOKEN, {
+        kind: "step",
+        token: WORKER_SECRET_TOKEN,
+        chat: { kind: "hidden", savedChatId: undefined },
+      });
       const workerSecrets = renderGitHubPage(language, CSRF_TOKEN, { kind: "worker-secrets" });
       const created = renderGitHubPage(language, CSRF_TOKEN, { kind: "created", slug: "octoapp" });
 
       expect(chatIdSecret, "chat id secret").toContain(
         `<p class="notice info">${escapeHtml(texts.telegramChatIdSecret)}</p>`,
+      );
+      expect(workerToken, "bot token Worker secret").toContain(
+        `<p class="notice info">${escapeHtml(texts.telegramTokenWorkerSecret)}</p>`,
       );
       expect(workerSecrets, "Worker secrets").toContain(
         `<p class="notice info">${escapeHtml(texts.githubWorkerSecrets)}</p>`,
@@ -1104,14 +1547,14 @@ describe("long and many texts", () => {
     expect(name.length, "length of the name").toBe(128);
 
     const page = renderTelegramPage("en", CSRF_TOKEN, {
-      kind: "chats",
-      chats: [{ id: 7, kind: "group", name, username: undefined }],
-      savedChatId: undefined,
+      kind: "step",
+      token: WORKER_SECRET_TOKEN,
+      chat: { kind: "chats", chats: [{ id: 7, kind: "group", name, username: undefined }], savedChatId: undefined },
     });
 
     const cards = sectionsOf(mainOf(page));
-    expect(cards.length, "number of cards").toBe(1);
-    expect(cards[0]?.html, "name in full in the card").toContain(`<bdi>${escapeHtml(name)}</bdi>`);
+    expect(cards.length, "number of cards: token card and chat card").toBe(2);
+    expect(cards[1]?.html, "name in full in the chat card").toContain(`<bdi>${escapeHtml(name)}</bdi>`);
   });
 
   it("renderTelegramPage lists 100 chats", () => {
@@ -1122,12 +1565,16 @@ describe("long and many texts", () => {
       username: undefined,
     }));
 
-    const page = renderTelegramPage("en", CSRF_TOKEN, { kind: "chats", chats, savedChatId: undefined });
+    const page = renderTelegramPage("en", CSRF_TOKEN, {
+      kind: "step",
+      token: WORKER_SECRET_TOKEN,
+      chat: { kind: "chats", chats, savedChatId: undefined },
+    });
 
     const cards = sectionsOf(mainOf(page));
-    expect(cards.length, "number of cards").toBe(1);
-    expect(cards[0]?.html.match(/<input type="radio"/g)?.length, "radio buttons in the card").toBe(100);
-    expect(cards[0]?.html.match(/<bdi>Chat \d+<\/bdi>/g)?.length, "names in the card").toBe(100);
+    expect(cards.length, "number of cards: token card and chat card").toBe(2);
+    expect(cards[1]?.html.match(/<input type="radio"/g)?.length, "radio buttons in the chat card").toBe(100);
+    expect(cards[1]?.html.match(/<bdi>Chat \d+<\/bdi>/g)?.length, "names in the chat card").toBe(100);
   });
 
   it("the status card holds 100 installations and the more installations text", () => {
@@ -1153,6 +1600,9 @@ describe("renderStartPage status", () => {
 
       expect(page, "status heading").toContain(escapeHtml(texts.statusHeading));
       expect(page, "version line").toMatch(new RegExp(`${escapeHtml(texts.versionLabel)}[\\s\\S]{0,40}1\\.2\\.3-test`));
+      expect(page, "bot token line").toContain(
+        `<p>${escapeHtml(texts.botTokenLabel)} ${escapeHtml(texts.botTokenSecret)}</p>`,
+      );
       expect(page, "chat line").toMatch(
         new RegExp(`${escapeHtml(texts.telegramChatLabel)}[\\s\\S]{0,40}-1001234567890`),
       );
@@ -1164,6 +1614,7 @@ describe("renderStartPage status", () => {
       const order = [
         texts.statusHeading,
         texts.versionLabel,
+        texts.botTokenLabel,
         texts.telegramChatLabel,
         texts.githubAppLabel,
         texts.lastDeliveryLabel,
@@ -1207,6 +1658,31 @@ describe("renderStartPage status", () => {
     expect(english, "English text").toContain(escapeHtml(TEXTS.en[key]));
     expect(german, "German text").toContain(escapeHtml(TEXTS.de[key]));
   });
+
+  it.each(
+    LANGUAGES.flatMap(
+      (language) =>
+        [
+          { language, botToken: "worker-secret", key: "botTokenSecret" },
+          { language, botToken: "saved", key: "botTokenSaved" },
+          { language, botToken: "none", key: "noneSavedYet" },
+          { language, botToken: "unreadable", key: "cannotBeRead" },
+        ] as const,
+    ),
+  )(
+    "renderStartPage shows the Telegram bot token line before the Telegram chat line for $botToken in $language",
+    ({ language, botToken, key }) => {
+      const texts = TEXTS[language];
+
+      const page = startPage(language, { botToken });
+
+      const line = `<p>${escapeHtml(texts.botTokenLabel)} ${escapeHtml(texts[key])}</p>`;
+      expect(page, "bot token line directly before the chat line").toMatch(
+        new RegExp(`${escapeRegExp(line)}\\s*<p>${escapeRegExp(escapeHtml(texts.telegramChatLabel))}`),
+      );
+      expect(page.split(escapeHtml(texts.botTokenLabel)).length - 1, "bot token lines").toBe(1);
+    },
+  );
 
   it("renderStartPage shows an app without a slug by its App ID alone", () => {
     const page = startPage("en", { app: { kind: "saved", appId: 12_345, slug: undefined } });

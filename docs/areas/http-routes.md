@@ -68,8 +68,9 @@ does the setup wizard under `/setup`.
   about 2 MiB of memory.
 - A route that reads no body (`GET /health`, `GET /` and `HEAD /`, every 404) never reads it, so its size does not matter there. Under
   `/setup` only the form submissions `POST /setup/login`, `POST /setup/logout`, `POST /setup/settings`,
-  `POST /setup/reset`, `POST /setup/telegram` and `POST /setup/telegram/verify`, `POST /setup/github` and
-  `POST /setup/github/callback` read a body, with this limit. The Telegram Bot API answers (also the 429 answer of `sendMessage`, read for its `retry_after`) and the GitHub conversion answer read by the setup wizard are limited the same
+  `POST /setup/reset`, `POST /setup/telegram`, `POST /setup/telegram/verify`, `POST /setup/telegram/token`,
+  `POST /setup/telegram/token/remove`, `POST /setup/github` and
+  `POST /setup/github/callback` read a body, with this limit. The Telegram Bot API answers (`getMe`, `getUpdates`, `sendMessage`, also the 429 answer of `sendMessage`, read for its `retry_after`) and the GitHub conversion answer read by the setup wizard are limited the same
   way, through the same reader ([Setup wizard](setup-wizard.md#telegram-chat), [GitHub
   App](setup-wizard.md#github-app)), and so are the GitHub API answers of the app's calls ([GitHub API](github-api.md#requests)) and the answer of the
   release check ([Scheduled jobs](scheduled-jobs.md#release-check)).

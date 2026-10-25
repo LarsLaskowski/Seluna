@@ -32,7 +32,12 @@ export function botTokenFromEnv(env: object): BotToken {
     return { kind: "missing" };
   }
   // The token is placed in a URL path, which the URL parser reinterprets in many forms: only this allow-list passes.
-  return BOT_TOKEN_FORM.test(value) ? { kind: "usable", token: value } : { kind: "malformed" };
+  return isBotToken(value) ? { kind: "usable", token: value } : { kind: "malformed" };
+}
+
+/** Whether `value` is of the bot token form: digits, a colon, then letters, digits, `-` and `_` (the allow-list). */
+export function isBotToken(value: string): boolean {
+  return BOT_TOKEN_FORM.test(value);
 }
 
 /** Whether the Worker secret `TELEGRAM_CHAT_ID` is a non-empty string. */
@@ -176,6 +181,23 @@ export async function findChats(token: string, fetcher: TelegramFetch): Promise<
   }
   const chats = answer.ok ? parseChats(answer.body) : undefined;
   return chats === undefined ? { kind: "unavailable" } : { kind: "found", chats };
+}
+
+export type BotTokenCheck = "accepted" | "rejected" | "unavailable";
+
+/**
+ * Calls `getMe` once with `token` (of the bot token form): 401 and 404 are `rejected`, a 2xx answer with `ok: true` is
+ * `accepted`, everything else is `unavailable`. Only `ok` of the answer is read. Never throws.
+ */
+export async function verifyBotToken(token: string, fetcher: TelegramFetch): Promise<BotTokenCheck> {
+  const answer = await callBotApi(token, "getMe", {}, fetcher);
+  if (answer.kind === "failed") {
+    return "unavailable";
+  }
+  if (answer.status === 401 || answer.status === 404) {
+    return "rejected";
+  }
+  return answer.ok && isRecord(answer.body) && answer.body.ok === true ? "accepted" : "unavailable";
 }
 
 type BotApiAnswer =

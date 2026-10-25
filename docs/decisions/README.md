@@ -89,5 +89,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0033](0033-v8-coverage.md) | V8 coverage under the Workers test plugin | Accepted | 2026-10-23 |
 | [0034](0034-setup-page-layout-checked-on-the-style.md) | Setup page layout and navigation, checked on the style instead of in a browser | Accepted | 2026-10-23 |
 | [0035](0035-root-url-redirects-to-setup.md) | The root URL redirects to the setup wizard | Accepted | 2026-10-24 |
+| [0036](0036-telegram-bot-token-in-the-setup-wizard.md) | Telegram bot token entered in the setup wizard and checked with getMe | Accepted | 2026-10-25 |
 
 <!-- project:end index -->

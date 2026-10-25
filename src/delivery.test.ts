@@ -3,19 +3,29 @@ import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { deliverMessages, wait } from "./delivery";
 import type { DeliveryDeps, DeliveryLogEntry, DeliverySettings, PendingMessage } from "./delivery";
 import type { Language } from "./setup/language";
+import { writeSecret } from "./store/secrets";
 import { TELEGRAM_CHAT_ID_SETTING, writeSetting } from "./store/settings";
 import { applyMigrations } from "../test/d1";
+import { keyFor, withFirstCharacterChanged } from "../test/keys";
 import { FIXTURES, jsonAnswer, REJECTED, telegramDouble } from "../test/telegram";
 import type { TelegramAnswer, TelegramAnswers } from "../test/telegram";
 
 const TOKEN = "123456789:AAH-throwaway_token0123456789abcdefghij";
 const CHAT = 5_001_001;
 const BUTTON_URL = "https://github.com/o/r/pull/7";
+const OTHER_TOKEN = "987654321:BBH-other_throwaway_token0123456789abcd";
+const SELUNA_SECRET = "throwaway-setup-secret-0123456789abcdef";
+const SAVED_TOKEN_ENV = { SELUNA_SECRET, TELEGRAM_CHAT_ID: String(CHAT) };
 const READY_ENV = { TELEGRAM_BOT_TOKEN: TOKEN, TELEGRAM_CHAT_ID: String(CHAT) };
 
 beforeEach(async () => {
   await applyMigrations(env.DB);
-  await env.DB.batch([env.DB.prepare("DELETE FROM outbox"), env.DB.prepare("DELETE FROM settings")]);
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM outbox"),
+    env.DB.prepare("DELETE FROM settings"),
+    env.DB.prepare("DELETE FROM secrets"),
+    env.DB.prepare("DELETE FROM meta WHERE key = 'key_check'"),
+  ]);
 });
 
 async function insertRow(
@@ -435,5 +445,119 @@ describe("deliverMessages and the fifth attempt", () => {
       { outbox: exhausted.id, status: "failed" },
       { outbox: next.id, result: "sent" },
     ]);
+  });
+});
+
+async function saveToken(value: string, secret: string = SELUNA_SECRET): Promise<void> {
+  const result = await writeSecret(env.DB, await keyFor(secret), "telegram_bot_token", value);
+  expect(result, "seeding the saved token").toEqual({ kind: "ok" });
+}
+
+describe("deliverMessages with a saved bot token", () => {
+  it("deliverMessages sends with the saved token when TELEGRAM_BOT_TOKEN is not set", async () => {
+    await saveToken(OTHER_TOKEN);
+    const message = await insertRow();
+    const { deps, log, telegram } = harness({}, SAVED_TOKEN_ENV);
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(
+      telegram.requests.map((request) => request.token),
+      "tokens in the URLs",
+    ).toEqual([OTHER_TOKEN]);
+    expect(await stateOf(message), "row").toEqual({ status: "sent", attempts: 1 });
+    expect(log, "log entries").toEqual([{ outbox: message.id, result: "sent" }]);
+  });
+
+  it("deliverMessages sends every row of a batch with the saved token", async () => {
+    await saveToken(OTHER_TOKEN);
+    const first = await insertRow("first");
+    const second = await insertRow("second");
+    const { deps, telegram } = harness({}, SAVED_TOKEN_ENV);
+
+    await deliverMessages([first, second], settingsIn("en"), deps);
+
+    expect(
+      telegram.requests.map((request) => request.token),
+      "tokens in the URLs",
+    ).toEqual([OTHER_TOKEN, OTHER_TOKEN]);
+  });
+
+  it("deliverMessages calls no Telegram, keeps the row pending with attempts 0 and logs no-token when SELUNA_SECRET is set and no token is saved", async () => {
+    const message = await insertRow();
+    const { deps, log, telegram } = harness({}, SAVED_TOKEN_ENV);
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(telegram.requests.length, "number of requests").toBe(0);
+    expect(await stateOf(message), "row").toEqual({ status: "pending", attempts: 0 });
+    expect(log, "log entries").toEqual([{ outbox: message.id, result: "no-token" }]);
+  });
+
+  it("deliverMessages logs store-failed and calls no Telegram when the saved token cannot be read from D1", async () => {
+    await saveToken(OTHER_TOKEN);
+    const message = await insertRow();
+    const { deps, log, telegram } = harness({}, SAVED_TOKEN_ENV, dbFailingFor(env.DB, /secrets/));
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(telegram.requests.length, "number of requests").toBe(0);
+    expect(await stateOf(message), "row").toEqual({ status: "pending", attempts: 0 });
+    expect(log, "log entries").toEqual([{ outbox: message.id, result: "store-failed" }]);
+  });
+
+  it("deliverMessages uses TELEGRAM_BOT_TOKEN over a saved token", async () => {
+    await saveToken(OTHER_TOKEN);
+    const message = await insertRow();
+    const { deps, telegram } = harness({}, { ...SAVED_TOKEN_ENV, TELEGRAM_BOT_TOKEN: TOKEN });
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(
+      telegram.requests.map((request) => request.token),
+      "tokens in the URLs",
+    ).toEqual([TOKEN]);
+    expect(await stateOf(message), "row").toEqual({ status: "sent", attempts: 1 });
+  });
+
+  it("deliverMessages logs no-token for a malformed TELEGRAM_BOT_TOKEN without falling back to a saved token", async () => {
+    await saveToken(OTHER_TOKEN);
+    const message = await insertRow();
+    const { deps, log, telegram } = harness({}, { ...SAVED_TOKEN_ENV, TELEGRAM_BOT_TOKEN: "1:a/../setWebhook" });
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(telegram.requests.length, "number of requests").toBe(0);
+    expect(await stateOf(message), "row").toEqual({ status: "pending", attempts: 0 });
+    expect(log, "log entries").toEqual([{ outbox: message.id, result: "no-token" }]);
+  });
+
+  it.each<{ case: string; arrange: () => Promise<void> }>([
+    {
+      case: "was saved under another SELUNA_SECRET",
+      arrange: () => saveToken(OTHER_TOKEN, "another-throwaway-secret-fedcba9876543210"),
+    },
+    {
+      case: "has a damaged row",
+      arrange: async () => {
+        await saveToken(OTHER_TOKEN);
+        const row = await env.DB.prepare("SELECT ciphertext FROM secrets WHERE key = 'telegram_bot_token'").first();
+        const ciphertext = typeof row?.ciphertext === "string" ? row.ciphertext : "";
+        await env.DB.prepare("UPDATE secrets SET ciphertext = ?1 WHERE key = 'telegram_bot_token'")
+          .bind(withFirstCharacterChanged(ciphertext))
+          .run();
+      },
+    },
+    { case: "holds a value outside the bot token form", arrange: () => saveToken("1:a/../setWebhook") },
+  ])("deliverMessages logs no-token when the saved token $case", async ({ arrange }) => {
+    await arrange();
+    const message = await insertRow();
+    const { deps, log, telegram } = harness({}, SAVED_TOKEN_ENV);
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(telegram.requests.length, "number of requests").toBe(0);
+    expect(await stateOf(message), "row").toEqual({ status: "pending", attempts: 0 });
+    expect(log, "log entries").toEqual([{ outbox: message.id, result: "no-token" }]);
   });
 });
