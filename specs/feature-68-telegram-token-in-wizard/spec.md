@@ -55,6 +55,13 @@ Texts are quoted in English; each has a German counterpart in the German page la
   asks for `SELUNA_SECRET` only; `.dev.vars.example`, the README and the setup guide describe entering the bot token
   in the Telegram chat step and name `TELEGRAM_BOT_TOKEN` as an optional Worker secret with precedence. An existing
   instance whose `TELEGRAM_BOT_TOKEN` is set keeps working unchanged after the update.
+- S10: Given the Worker secret `TELEGRAM_CHAT_ID` is a non-empty string, when the owner opens the Telegram step, then
+  the token part of the step is shown exactly as without it (the form of S1, the saved state of S2 with *Change token*
+  and *Remove token*, the note of S6, and the notices of E9, E10, E11 and E12), and only the chat part — the chat
+  search, the chat list, the confirm form and the code form — is replaced by today's *chat id secret* note. The token
+  and remove forms are not refused because `TELEGRAM_CHAT_ID` is set; saving a token makes exactly one Bot API request,
+  the verification, and no chat search follows, so a page load in this state calls Telegram zero times. The confirm
+  and verify forms keep answering 409 as today.
 
 ## Errors and edge cases
 
@@ -88,12 +95,22 @@ Texts are quoted in English; each has a German counterpart in the German page la
   does not accept the saved bot token: it was revoked or the bot was deleted. Send /mybots to @BotFather, copy your
   bot's current token and enter it here." with the token form and *Remove token*; a test message and a notification
   fail as `token-rejected`, as today for the Worker secret.
-- E11: The saved token cannot be read (`SELUNA_SECRET` changed, or the stored value is damaged): the step shows "The
-  saved bot token cannot be read with the current SELUNA_SECRET: it was changed, or the saved value is damaged. Set the
-  earlier SELUNA_SECRET again, or reset the saved credentials on the start page and enter the token again.", no form,
-  no *Remove token* and no chat search, and calls no Telegram; a token or remove form answers 409 with that view and
-  changes nothing. The status line says "Cannot be read with the current SELUNA_SECRET.", the start page offers the
-  reset, and notifications log `no-token`.
+- E11: The saved token cannot be read because the key check value reports a changed `SELUNA_SECRET` or is damaged:
+  the step shows "The saved bot token cannot be read with the current SELUNA_SECRET: it was changed, or the saved
+  values are damaged. Set the earlier SELUNA_SECRET again, or reset the saved credentials on the start page and enter
+  the token again.", no form, no *Remove token* and no chat search, and calls no Telegram; a token or remove form
+  answers 409 with that view and changes nothing. The status line says "Cannot be read with the current
+  SELUNA_SECRET.", the start page offers the reset, and notifications log `no-token`.
+- E17: The key check value matches but the saved token's own row does not decrypt (the row alone is damaged): the step
+  shows "The saved bot token is damaged and cannot be read. Enter the token again, or remove it." with the token form
+  and *Remove token*, and no chat search. A token Telegram accepts replaces the damaged row and *Remove token* deletes
+  it; either way the GitHub credentials stay. Until then the status line says "Cannot be read with the current
+  SELUNA_SECRET.", the start page offers the reset as today (a stored credential that does not decrypt), and
+  notifications log `no-token`.
+- E18: Only the saved token is unreadable while the GitHub App comes from the Worker secrets or is readable: the
+  reset section's text does not claim that the GitHub credentials cannot be read; its opening sentence speaks of the
+  saved credentials as a whole: "The saved credentials cannot be read with the current SELUNA_SECRET: it was changed,
+  or a saved value is damaged."
 - E12: No token is saved, but the saved GitHub credentials cannot be read with the current `SELUNA_SECRET` (so no new
   credential can be written until the reset): a submitted token is not saved; the answer is 409 with "The token was
   not saved because the saved credentials cannot be read with the current SELUNA_SECRET. Set the earlier
@@ -158,11 +175,14 @@ Texts are quoted in English; each has a German counterpart in the German page la
 - [ ] AC8: *Remove token* deletes the saved token and redirects to the step, which shows the token form; the saved chat
   and settings stay; pending outbox rows are not attempted while no token is available; a removal with no saved token
   answers the same (S5, E15).
-- [ ] AC9: The reset deletes the saved token together with the GitHub credentials, and the reset text names the saved
-  Telegram bot token among what it deletes (S8).
+- [ ] AC9: The reset deletes the saved token together with the GitHub credentials, the reset text names the saved
+  Telegram bot token among what it deletes, and its opening sentence is the E18 sentence, naming no GitHub credentials
+  as unreadable (S8, E18).
 - [ ] AC10: A saved token that cannot be read shows the E11 notice without form, *Remove token* or Telegram call, a
   token or remove form then answers 409 changing nothing, and delivery logs `no-token`; with unreadable GitHub
-  credentials and no saved token a submitted token answers 409 with the E12 notice and is not saved (E11, E12).
+  credentials and no saved token a submitted token answers 409 with the E12 notice and is not saved; with a matching key
+  check and only the token row damaged, the step shows the E17 notice with the token form and *Remove token*, an
+  accepted token replaces the row and *Remove token* deletes it, the GitHub credentials unchanged (E11, E12, E17).
 - [ ] AC11: D1 failures answer 503 with *unavailable* on the step page (no Telegram call) and on saving or removing,
   and in delivery log `store-failed` with the row unchanged; a missing or unreadable token in delivery logs `no-token`
   (E13, E16).
@@ -178,6 +198,11 @@ Texts are quoted in English; each has a German counterpart in the German page la
 - [ ] AC15: `cloudflare.bindings` in `package.json` lists only `SELUNA_SECRET`; `.dev.vars.example`, `README.md` and
   `docs/setup.md` describe the token in the Telegram chat step and `TELEGRAM_BOT_TOKEN` as optional with precedence
   (S9).
+- [ ] AC16: With `TELEGRAM_CHAT_ID` set, `GET /setup/telegram` shows the token part for each token state (form, saved
+  with *Change token* and *Remove token*, the S6 note, the E9, E10, E11, E12 and E17 notices) and the *chat id secret*
+  note in place of the chat part; the token and remove forms work as without it (no 409 because of
+  `TELEGRAM_CHAT_ID`); a save makes exactly one Bot API request and a page load none; the confirm and verify forms
+  still answer 409 (S10).
 
 ## Out of scope
 
@@ -229,3 +254,35 @@ Texts are quoted in English; each has a German counterpart in the German page la
 - `docs/areas/notifications.md`: *Sending a row* — the bot token is the Worker secret when set, otherwise the saved
   token; `no-token` and `store-failed` when it is missing, unreadable or cannot be read from D1.
 - `docs/areas/http-routes.md`: the list of setup routes that read a request body gains the new form route(s).
+
+Besides the area documents, the issue's criteria name these, each updated by the same change:
+
+- A new decision record (`docs/decisions/`) that supersedes decisions 0013 (the token as a Worker secret, asked for by
+  the deploy form) and 0016 (the token's source in the Telegram step) in this point, both being released; its row in
+  the index of `docs/decisions/README.md`.
+- `.squad/project.md`: *Encrypted credentials* (the bot token in `secrets`, encrypted like the GitHub credentials;
+  `TELEGRAM_BOT_TOKEN` as an optional Worker secret with precedence) and *Outbound-only Telegram* (the token form's
+  verification request among the Bot API calls).
+- `docs/setup.md`: *Before you deploy*, *Deploy* (the deploy form asks only for `SELUNA_SECRET`), *Next steps* (enter
+  the token in the Telegram chat step) and *Status and settings* (the reset also deletes the saved token).
+- `docs/ARCHITECTURE.md`: the Worker secrets paragraph that names `TELEGRAM_BOT_TOKEN` as asked for by the deploy
+  form.
+
+## Challenge
+
+Spec challenge by the Devil's Advocate, one round.
+
+- 1 (major) — the step's behavior with `TELEGRAM_CHAT_ID` set was undefined, and since the deploy form no longer asks
+  for the token, such an owner would have no way to supply one. Accepted: S10 and AC16 added. The token part of the
+  step stays fully available with `TELEGRAM_CHAT_ID` set; only the chat part is replaced by today's note; the token
+  and remove forms are not refused because of that secret; a save makes exactly one Bot API request (the
+  verification) and no chat search follows, so a page load in that state calls Telegram zero times; the confirm and
+  verify forms keep their 409. The page now reads D1 in this state (the saved token's state), which today it does not.
+- 2 (minor) — a damaged token row left only the full reset, which also deletes working GitHub credentials, and the
+  reset text named the GitHub credentials as unreadable. Accepted: E11 now covers only a changed or damaged key check
+  value; the new E17 covers a token row that alone fails to decrypt under a matching key check, with the token form
+  and *Remove token* offered so the owner repairs it without a reset (a write succeeds under a matching key check;
+  the reset stays offered meanwhile, as for any undecryptable credential). E18 and AC9 make the reset text's opening
+  sentence speak of the saved credentials as a whole, not of the GitHub credentials. AC10 covers E17.
+- 3 (minor) — the documents the issue's criteria name were missing. Accepted: the superseding decision record,
+  `.squad/project.md`, `docs/setup.md` and `docs/ARCHITECTURE.md` are listed under *Area documents*.
