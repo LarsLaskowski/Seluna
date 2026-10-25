@@ -21,4 +21,4 @@ are quoted in full.
 | 2026-10-25 12:37 | 7 Code check (Sonar) | Orchestrator | Sonar gate NOT CHECKED: SONAR_TOKEN not set; PR is read in step 11 |
 | 2026-10-25 12:38 | 8 Review round 1 | squad-security | APPROVED (diff); no blocking findings; non-blocking: autofill observation and getMe live check (tasks row 25) (opus/medium · 60,852 tokens · 12 tool uses · 89 s) |
 | 2026-10-25 12:40 | 8 Review round 1 | squad-reviewer | APPROVE; 0 blocking, 2 non-blocking (project.md getMe wording; 502 saved-token-rejected confirm page has no token field) (opus/medium · 146,089 tokens · 28 tool uses · 210 s) |
-| 2026-10-25 12:43 | 8 Fix round 1 | squad-dev | Both non-blocking findings fixed (project.md wording; saved-token-rejected confirm page shows token form); gates pass (sonnet/medium · usage pending) |
+| 2026-10-25 12:43 | 8 Fix round 1 | squad-dev | Both non-blocking findings fixed (project.md wording; saved-token-rejected confirm page shows token form); gates pass (sonnet/medium · 4,721 tokens · 5 tool uses · 145 s · continued) |
