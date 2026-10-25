@@ -75,7 +75,7 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0019](0019-language-tables-excluded-from-duplication.md) | Language tables of the setup wizard excluded from duplication detection | Accepted | 2026-10-17 |
 | [0020](0020-deploy-command-checked-in-the-setup-guide.md) | Deploy command checked in the setup guide | Accepted | 2026-10-17 |
 | [0021](0021-missing-tables-notice-on-the-setup-login.md) | Missing-tables notice on the setup login | Accepted | 2026-10-17 |
-| [0022](0022-squad-working-records-off-main.md) | Squad working records stay off main, and product PRs never change the squad | Accepted | 2026-10-17 |
+| [0022](0022-squad-working-records-off-main.md) | Squad working records stay off main, and product PRs never change the squad | Superseded by [0037](0037-squad-working-records-off-main.md) | 2026-10-17 |
 | [0023](0023-webhook-processing-and-delivery-through-the-outbox.md) | Webhook processing, message format and delivery through the outbox | Accepted | 2026-10-17 |
 | [0024](0024-pull-request-rules.md) | Pull request rules | Accepted | 2026-10-18 |
 | [0025](0025-quiet-hours-decided-at-sending.md) | Quiet hours decided at sending | Accepted | 2026-10-18 |
@@ -90,5 +90,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0034](0034-setup-page-layout-checked-on-the-style.md) | Setup page layout and navigation, checked on the style instead of in a browser | Accepted | 2026-10-23 |
 | [0035](0035-root-url-redirects-to-setup.md) | The root URL redirects to the setup wizard | Accepted | 2026-10-24 |
 | [0036](0036-telegram-bot-token-in-the-setup-wizard.md) | Telegram bot token entered in the setup wizard and checked with getMe | Accepted | 2026-10-25 |
+| [0037](0037-squad-working-records-off-main.md) | Squad working records stay off main, and product PRs never change the squad | Accepted | 2026-10-25 |
 
 <!-- project:end index -->
