@@ -17,3 +17,5 @@ are quoted in full.
 | 2026-10-25 12:22 | 6 Implement (G3) | squad-dev | Rows 12-16 done; 4402 pass, 16 fail (14 stale snapshots, 2 card-count tests to adapt); analyzer and coverage gates pass (sonnet/medium · 207,776 tokens · 35 tool uses · 636 s) |
 | 2026-10-25 12:29 | 6 Coverage pass and snapshots (G3 row 17) | squad-tester | Deferred tests written, snapshots updated, 4452 tests pass; coverage 89.8% new / 96.4% overall; mutation checks bite (sonnet/medium · 150,848 tokens · 27 tool uses · 373 s) |
 | 2026-10-25 12:34 | 6 Docs (G4) | squad-lead | RESULT: DONE; rows 18-24 done, row 25 (Product Manager live check) open; 0036 stays Proposed (opus/medium · 182,351 tokens · 42 tool uses · 318 s) |
+| 2026-10-25 12:36 | 7 Code check | Orchestrator | format, typecheck, lint, build, 4452 tests, coverage 89.8%/96.4%, analyzer 0 findings, scope-check pass; Sonar gate: see next row |
+| 2026-10-25 12:37 | 7 Code check (Sonar) | Orchestrator | Sonar gate NOT CHECKED: SONAR_TOKEN not set; PR is read in step 11 |
