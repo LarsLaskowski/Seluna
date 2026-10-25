@@ -1,7 +1,7 @@
 # Spec: Enter the Telegram bot token in the setup wizard
 
 Source: Issue #68
-Status: Draft
+Status: Approved by Lead
 
 ## Problem
 
@@ -86,8 +86,8 @@ Texts are quoted in English; each has a German counterpart in the German page la
   session): 403 with the notice-only page and *form expired*; nothing is saved or deleted and Telegram is not called.
 - E7: A body above 1 MiB answers 413, an unreadable body 400, both with an empty body; nothing is saved or deleted.
 - E8: A token form or *Remove token* form submitted while the Worker secret `TELEGRAM_BOT_TOKEN` is set (a page
-  opened before the secret was added): 409 with the view of S6; nothing is saved or deleted and Telegram is not
-  called.
+  opened before the secret was added): 409 with the note of S6, without the chat part; nothing is saved or deleted
+  and Telegram is not called.
 - E9: The Worker secret `TELEGRAM_BOT_TOKEN` is set but not of the bot token form: it still takes precedence, without
   falling back to a saved token. The step shows today's *token malformed* notice naming the Worker secret and no form;
   notifications log `no-token`.
