@@ -2476,6 +2476,9 @@ describe("handleSetup Telegram confirm form with the saved token", () => {
       const html = await response.text();
       expect(html, "saved token notice").toContain(noticeText("telegram-saved-token-rejected"));
       expect(html, "Worker secret notice").not.toContain(noticeText("telegram-token-rejected"));
+      expect(html, "open disclosure").toMatch(/<details\b[^>]*\bopen\b/);
+      expect(html, "token form").toContain('action="/setup/telegram/token"');
+      expect(html, "remove form").toContain('action="/setup/telegram/token/remove"');
       expect(html, "saved token").not.toContain(SAVED_TOKEN);
       expect(await settingsRowCount(), "number of settings rows").toBe(0);
     },
