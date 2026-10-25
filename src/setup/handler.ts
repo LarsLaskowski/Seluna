@@ -355,13 +355,9 @@ async function confirmTelegram(context: Context, session: string): Promise<Respo
     case "token-malformed":
       return telegramPage(context, session, 503, NOTICE_ONLY, "telegram-token-malformed");
     case "token-rejected":
-      return telegramPage(
-        context,
-        session,
-        502,
-        NOTICE_ONLY,
-        result.source === "saved" ? "telegram-saved-token-rejected" : "telegram-token-rejected",
-      );
+      return result.source === "saved"
+        ? tokenOnlyPage(context, session, 502, { kind: "saved", rejected: true })
+        : telegramPage(context, session, 502, NOTICE_ONLY, "telegram-token-rejected");
     case "send-failed":
       return telegramPage(context, session, 502, NOTICE_ONLY, "telegram-send-failed");
     default: {
