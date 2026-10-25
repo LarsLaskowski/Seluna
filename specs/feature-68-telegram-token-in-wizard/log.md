@@ -20,3 +20,4 @@ are quoted in full.
 | 2026-10-25 12:36 | 7 Code check | Orchestrator | format, typecheck, lint, build, 4452 tests, coverage 89.8%/96.4%, analyzer 0 findings, scope-check pass; Sonar gate: see next row |
 | 2026-10-25 12:37 | 7 Code check (Sonar) | Orchestrator | Sonar gate NOT CHECKED: SONAR_TOKEN not set; PR is read in step 11 |
 | 2026-10-25 12:38 | 8 Review round 1 | squad-security | APPROVED (diff); no blocking findings; non-blocking: autofill observation and getMe live check (tasks row 25) (opus/medium · 60,852 tokens · 12 tool uses · 89 s) |
+| 2026-10-25 12:40 | 8 Review round 1 | squad-reviewer | APPROVE; 0 blocking, 2 non-blocking (project.md getMe wording; 502 saved-token-rejected confirm page has no token field) (opus/medium · 146,089 tokens · 28 tool uses · 210 s) |
