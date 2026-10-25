@@ -68,7 +68,7 @@ files or endpoints.
   owner, repository name and number allow-listed before they enter a URL; only `https://api.github.com`, no redirects
   followed, 10-second timeout, answers read bounded (1 MiB) and narrowed; no token, key or JWT in a log, page, result
   or plain D1 (decision 0026).
-- **Outbound-only Telegram:** the Worker calls only the Telegram Bot API methods `getMe` (once per submitted token form whose token matches the bot token form, in
+- **Outbound-only Telegram:** the Worker calls only the Telegram Bot API methods `getMe` (at most once per submitted token form whose token matches the bot token form, in
   the setup wizard's Telegram step, `src/setup/telegram-step.ts`), `getUpdates` (in the same step) and `sendMessage`
   (`src/telegram.ts`); delivery reads the token from the Worker secret or from D1 (`src/delivery.ts`); it never sets
   or deletes a webhook and exposes no Telegram route; the input it takes from Telegram is the status and `ok` of the

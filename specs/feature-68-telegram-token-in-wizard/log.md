@@ -25,3 +25,5 @@ are quoted in full.
 | 2026-10-25 12:46 | 8 Docs delta | squad-lead | RESULT: DONE; setup-wizard.md Confirming a chat and getMe wording updated (opus/medium · 4,593 tokens · 4 tool uses · 33 s · continued) |
 | 2026-10-25 12:46 | 8 Code check after fix round | Orchestrator | format, typecheck, lint, build, 4452 tests, coverage 96.4% overall, analyzer 0 findings, scope-check pass; head c0ef1ca |
 | 2026-10-25 12:47 | 8 Delta review | squad-security | APPROVED (delta); no new findings (opus/medium · 3,974 tokens · 3 tool uses · 19 s · continued) |
+| 2026-10-25 12:47 | 8 Delta review | squad-reviewer | BLOCKING 1: project.md getMe wording must say at most once (opus/medium · 4,713 tokens · 3 tool uses · 28 s · continued) |
+| 2026-10-25 12:47 | 8 Verbatim fix | Orchestrator | project.md: getMe 'at most once' applied verbatim from the reviewer's blocking finding |
