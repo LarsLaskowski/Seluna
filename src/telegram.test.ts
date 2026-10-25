@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   botTokenFromEnv,
   findChats,
+  isBotToken,
   isChatIdSecretSet,
   MAX_CHAT_NAME_CHARACTERS,
   MAX_TELEGRAM_RESPONSE_BYTES,
@@ -10,6 +11,7 @@ import {
   parseRetryAfter,
   sendMessage,
   sendNotification,
+  verifyBotToken,
 } from "./telegram";
 import type { TelegramChat } from "./telegram";
 import {
@@ -396,6 +398,113 @@ describe("parseChats", () => {
     const chats = parseChats(updatesAnswer([]));
 
     expect(chats, "result").toEqual([]);
+  });
+});
+
+describe("isBotToken", () => {
+  it.each([
+    { name: "a typical token", value: TOKEN },
+    { name: "the shortest token", value: "1:a" },
+    { name: "an id of 20 digits and a secret of 200 characters", value: `${"9".repeat(20)}:${"a".repeat(200)}` },
+    { name: "every allowed character", value: "0123456789:AZaz09-_" },
+  ])("isBotToken accepts exactly the bot token form: $name", ({ value }) => {
+    const result = isBotToken(value);
+
+    expect(result, "result").toBe(true);
+  });
+
+  it.each([
+    { name: "the empty text", value: "" },
+    { name: "a slash that starts another method", value: "1:a/../setWebhook" },
+    { name: "a backslash", value: "1:a\\..\\setWebhook" },
+    { name: "a question mark", value: "1:a?x=y" },
+    { name: "a number sign", value: "1:a#x" },
+    { name: "a percent sign", value: "1:a%2F" },
+    { name: "a dot", value: "1:a.b" },
+    { name: "a plus sign", value: "1:a+b" },
+    { name: "a leading space", value: ` ${TOKEN}` },
+    { name: "a trailing space", value: `${TOKEN} ` },
+    { name: "a trailing line feed", value: `${TOKEN}\n` },
+    { name: "a tab inside", value: "1:a\tb" },
+    { name: "a non-ASCII digit in the id", value: "\u0663:abc" },
+    { name: "a non-ASCII letter in the secret", value: "1:\u00e4bc" },
+    { name: "no colon", value: "123456789" },
+    { name: "an empty id", value: ":abc" },
+    { name: "an empty secret", value: "123:" },
+    { name: "a second colon", value: "1:a:b" },
+    { name: "21 digits in the id", value: `${"9".repeat(21)}:abc` },
+    { name: "201 characters in the secret", value: `1:${"a".repeat(201)}` },
+  ])("isBotToken rejects every other text: $name", ({ value }) => {
+    const result = isBotToken(value);
+
+    expect(result, "result").toBe(false);
+  });
+});
+
+describe("verifyBotToken", () => {
+  it("verifyBotToken reports accepted for a getMe answer with ok true and posts JSON to getMe", async () => {
+    const telegram = telegramDouble();
+
+    const result = await verifyBotToken(TOKEN, telegram.fetch);
+
+    expect(result, "result").toBe("accepted");
+    expect(telegram.requests.length, "number of requests").toBe(1);
+    const [request] = telegram.requests;
+    expect(request?.method, "Bot API method").toBe("getMe");
+    expect(request?.token, "token in the URL").toBe(TOKEN);
+    expect(request?.origin, "origin").toBe("https://api.telegram.org");
+    expect(request?.httpMethod, "HTTP method").toBe("POST");
+    expect(request?.contentType, "Content-Type").toBe("application/json");
+    expect(request?.body, "JSON body").toEqual({});
+    expect(request?.signal.aborted, "abort signal not yet aborted").toBe(false);
+  });
+
+  it("verifyBotToken reads only ok of the answer: a 200 answer of ok true without a result is accepted", async () => {
+    const telegram = telegramDouble({ getMe: jsonAnswer(200, { ok: true }) });
+
+    const result = await verifyBotToken(TOKEN, telegram.fetch);
+
+    expect(result, "result").toBe("accepted");
+  });
+
+  it.each<{ case: string; result: string; answer: TelegramAnswer }>([
+    { case: "a 401 answer", result: "rejected", answer: jsonAnswer(401, FIXTURES.unauthorized) },
+    { case: "a 404 answer", result: "rejected", answer: jsonAnswer(404, FIXTURES.unauthorized) },
+    { case: "a 401 answer that is not JSON", result: "rejected", answer: { kind: "raw", status: 401, body: "x" } },
+    { case: "a 400 answer", result: "unavailable", answer: jsonAnswer(400, FIXTURES.unauthorized) },
+    { case: "a 403 answer", result: "unavailable", answer: jsonAnswer(403, FIXTURES.unauthorized) },
+    { case: "a 409 answer", result: "unavailable", answer: jsonAnswer(409, FIXTURES.conflict) },
+    {
+      case: "a 429 answer",
+      result: "unavailable",
+      answer: jsonAnswer(429, { ok: false, error_code: 429, parameters: { retry_after: 3 } }),
+    },
+    { case: "a 500 answer", result: "unavailable", answer: jsonAnswer(500, { ok: false, error_code: 500 }) },
+    { case: "a 502 answer", result: "unavailable", answer: { kind: "raw", status: 502, body: "<html>Bad</html>" } },
+    { case: "a rejected fetch", result: "unavailable", answer: REJECTED },
+    {
+      case: "a body over 1 MiB",
+      result: "unavailable",
+      answer: { kind: "raw", status: 200, body: `{"ok":true}${" ".repeat(MAX_TELEGRAM_RESPONSE_BYTES)}` },
+    },
+    { case: "a body that is not JSON", result: "unavailable", answer: { kind: "raw", status: 200, body: "OK" } },
+    {
+      case: "a body that is not UTF-8",
+      result: "unavailable",
+      answer: { kind: "raw", status: 200, body: new Uint8Array([0x7b, 0xff, 0x7d]) },
+    },
+    { case: "an empty body", result: "unavailable", answer: { kind: "raw", status: 200, body: null } },
+    { case: "a 200 answer with ok false", result: "unavailable", answer: jsonAnswer(200, { ok: false }) },
+    { case: "a 200 answer without ok", result: "unavailable", answer: jsonAnswer(200, { result: {} }) },
+    { case: "a 200 answer with ok as a text", result: "unavailable", answer: jsonAnswer(200, { ok: "true" }) },
+    { case: "a 200 answer that is a list", result: "unavailable", answer: jsonAnswer(200, [{ ok: true }]) },
+  ])("verifyBotToken reports $result for $case", async ({ result: expected, answer }) => {
+    const telegram = telegramDouble({ getMe: answer });
+
+    const result = await verifyBotToken(TOKEN, telegram.fetch);
+
+    expect(result, "result").toBe(expected);
+    expect(telegram.methods(), "only getMe is called").toEqual(["getMe"]);
   });
 });
 

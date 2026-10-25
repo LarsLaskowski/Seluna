@@ -4,6 +4,7 @@ import { MAX_BODY_BYTES } from "../body";
 import { LOGIN_ATTEMPTS_META_KEY, LOGIN_LOCK_MS } from "../store/login-attempts";
 import { readSecret, writeSecret, writeSecrets } from "../store/secrets";
 import { readNotificationSettings, writeNotificationSettings } from "../store/settings";
+import { MAX_TELEGRAM_RESPONSE_BYTES } from "../telegram";
 import { DEFAULT_SETTINGS } from "../settings";
 import type { NotificationSettings } from "../settings";
 import { CSRF_COOKIE, csrfTokenFor, sessionCsrfTokenFor } from "./csrf";
@@ -1105,6 +1106,8 @@ describe("handleSetup Telegram step without a session", () => {
     { method: "GET", path: STEP_PATH },
     { method: "POST", path: STEP_PATH },
     { method: "POST", path: VERIFY_PATH },
+    { method: "POST", path: "/setup/telegram/token" },
+    { method: "POST", path: "/setup/telegram/token/remove" },
   ])(
     "handleSetup answers $method $path without a session with the login page and calls no Telegram API",
     async ({ method, path }) => {
@@ -1132,15 +1135,30 @@ describe("handleSetup Telegram step without a session", () => {
 });
 
 describe("handleSetup Telegram step page problems", () => {
-  it("handleSetup shows the token-missing notice and calls no Telegram API", async () => {
+  it("handleSetup shows the token form and calls no Telegram API when no bot token is available", async () => {
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('telegram_chat_id', '-1001234567890')").run();
     const telegram = telegramDouble();
 
     const response = await stepPage(telegramDeps(telegram, { env: { SELUNA_SECRET: SECRET } }));
 
     expect(response.status, "status").toBe(200);
     const html = await response.text();
-    expect(html, "notice").toContain(noticeText("telegram-token-missing"));
+    expect(html, "token heading").toContain(`<h2>${escapeHtml(TEXTS.en.telegramTokenHeading)}</h2>`);
+    expect(html, "token intro").toContain(escapeHtml(TEXTS.en.telegramTokenIntro));
+    expect(html, "token form").toMatch(/<form\b(?=[^>]*method="post")(?=[^>]*action="\/setup\/telegram\/token")[^>]*>/);
+    expect(hiddenValue(html, "csrf"), "session-bound CSRF token").toBe(await validCsrf());
+    const tokenInput = /<input\b(?=[^>]*name="token")[^>]*>/.exec(html)?.[0] ?? "";
+    expect(tokenInput, "masked field").toContain('type="password"');
+    expect(tokenInput, "autocomplete").toContain('autocomplete="off"');
+    expect(tokenInput, "value attribute").not.toMatch(/\svalue=/);
+    expect(html, "save button").toContain(escapeHtml(TEXTS.en.telegramTokenSaveButton));
+    expect(html, "saved chat line stays").toMatch(
+      new RegExp(`${escapeRegExp(escapeHtml(TEXTS.en.telegramSavedChat))}[^0-9-]{0,40}-1001234567890`),
+    );
     expect(radioValues(html), "radio inputs").toEqual([]);
+    expect(html, "chat form").not.toContain('action="/setup/telegram"');
+    expect(html, "search link").not.toContain(escapeHtml(TEXTS.en.telegramSearchLink));
+    expect(html, "remove form").not.toContain("/setup/telegram/token/remove");
     expect(telegram.requests, "Telegram requests").toEqual([]);
   });
 
@@ -1826,6 +1844,830 @@ function expectFinishPage(html: string, code: string, state: string): void {
   expect(html, "csrf field").not.toContain('name="csrf"');
 }
 
+const TOKEN_PATH = "/setup/telegram/token";
+const REMOVE_PATH = "/setup/telegram/token/remove";
+const NEW_TOKEN = "555555555:CCH-new_throwaway_token0123456789abcdefg";
+const SAVED_TOKEN = "777777777:DDH-saved_throwaway_token0123456789abcde";
+const TOKEN_ONLY_ENV = { SELUNA_SECRET: SECRET };
+const TOKEN_CHAT_ENV = { SELUNA_SECRET: SECRET, TELEGRAM_CHAT_ID: CHAT_SECRET_VALUE };
+const WORKER_TOKEN_ENV = { SELUNA_SECRET: SECRET, TELEGRAM_BOT_TOKEN: BOT_TOKEN };
+
+/** Dependencies without the Worker secret `TELEGRAM_BOT_TOKEN`: the token comes from the setup. */
+function savedTokenDeps(telegram: TelegramDouble, overrides: Partial<SetupDeps> = {}): SetupDeps {
+  return depsAt(NOW.getTime(), { env: TOKEN_ONLY_ENV, fetch: telegram.fetch, ...overrides });
+}
+
+async function saveBotToken(value: string, secret: string = SECRET): Promise<void> {
+  const result = await writeSecret(env.DB, await keyFor(secret), "telegram_bot_token", value);
+  expect(result, "seeding the saved bot token").toEqual({ kind: "ok" });
+}
+
+/** The saved bot token, or `undefined` when none is saved or it cannot be read. */
+async function savedBotToken(): Promise<string | undefined> {
+  const result = await readSecret(env.DB, await keyFor(SECRET), "telegram_bot_token");
+  return result.kind === "ok" ? result.value : undefined;
+}
+
+/** Replaces the ciphertext of the saved bot token row by an altered one, leaving the key check value in place. */
+async function damageBotTokenRow(): Promise<void> {
+  const row = await env.DB.prepare("SELECT ciphertext FROM secrets WHERE key = 'telegram_bot_token'").first();
+  const ciphertext = typeof row?.ciphertext === "string" ? row.ciphertext : "";
+  await env.DB.prepare("UPDATE secrets SET ciphertext = ?1 WHERE key = 'telegram_bot_token'")
+    .bind(withFirstCharacterChanged(ciphertext))
+    .run();
+}
+
+async function saveGitHubCredentials(secret: string = SECRET): Promise<void> {
+  const result = await writeSecrets(env.DB, await keyFor(secret), {
+    github_app_id: "12345",
+    github_private_key: "private-key-text",
+    github_webhook_secret: "webhook-secret-text",
+  });
+  expect(result, "seeding the GitHub credentials").toEqual({ kind: "ok" });
+}
+
+async function gitHubAppId(): Promise<unknown> {
+  return readSecret(env.DB, await keyFor(SECRET), "github_app_id");
+}
+
+/** Every row of every table, as one text: for a scan for a value that must not be stored in plain text. */
+async function databaseText(): Promise<string> {
+  const tables = await env.DB.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'",
+  ).all();
+  const names = tables.results.map((table) => String(table.name));
+  const dumps = await Promise.all(
+    names.map(async (name) => JSON.stringify((await env.DB.prepare(`SELECT * FROM "${name}"`).all()).results)),
+  );
+  return dumps.join("\n");
+}
+
+async function storedKeyCheckRow(): Promise<unknown> {
+  const row = await env.DB.prepare("SELECT value FROM meta WHERE key = 'key_check'").first();
+  return row?.value;
+}
+
+/** The fields of a token form: a valid session-bound token and one `token` field per entry of `tokens`. */
+async function tokenFields(tokens: readonly string[]): Promise<FormFields> {
+  return [["csrf", await validCsrf()], ...tokens.map((token): [string, string] => ["token", token])];
+}
+
+async function saveToken(tokens: readonly string[], deps: SetupDeps): Promise<Response> {
+  return postSignedIn(TOKEN_PATH, await tokenFields(tokens), deps);
+}
+
+async function removeToken(deps: SetupDeps): Promise<Response> {
+  return postSignedIn(REMOVE_PATH, [["csrf", await validCsrf()]], deps);
+}
+
+/** A token form whose body is `csrf=…` followed by `rest` as written (for encodings `URLSearchParams` would not produce). */
+async function rawTokenForm(rest: string, deps: SetupDeps): Promise<Response> {
+  return call(
+    TOKEN_PATH,
+    {
+      method: "POST",
+      cookies: await signedInCookies(),
+      body: `csrf=${encodeURIComponent(await validCsrf())}${rest}`,
+    },
+    deps,
+  );
+}
+
+const TOKEN_FORMS: readonly { readonly form: string; readonly path: string }[] = [
+  { form: "the token form", path: TOKEN_PATH },
+  { form: "the remove form", path: REMOVE_PATH },
+];
+
+async function postToForm(path: string, deps: SetupDeps): Promise<Response> {
+  return path === TOKEN_PATH ? saveToken([NEW_TOKEN], deps) : removeToken(deps);
+}
+
+describe("handleSetup Telegram step with a saved bot token", () => {
+  it("handleSetup shows the saved token with Change and Remove and searches chats with it", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    const telegram = telegramDouble();
+
+    const response = await stepPage(savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "saved text").toContain(`<p>${escapeHtml(TEXTS.en.telegramTokenSaved)}</p>`);
+    expect(html, "Change token").toContain(`<summary>${escapeHtml(TEXTS.en.telegramTokenChange)}</summary>`);
+    expect(html, "closed disclosure").not.toMatch(/<details\b[^>]*\bopen\b/);
+    expect(html, "token form").toContain('action="/setup/telegram/token"');
+    expect(html, "remove form").toContain('action="/setup/telegram/token/remove"');
+    expect(html, "Remove token").toContain(escapeHtml(TEXTS.en.telegramTokenRemoveButton));
+    expect(html, "worker secret note").not.toContain(escapeHtml(TEXTS.en.telegramTokenWorkerSecret));
+    expect(html, "saved token").not.toContain(SAVED_TOKEN);
+    expect(radioValues(html), "chat ids of the radio inputs").toEqual(FIXTURE_RADIO_VALUES);
+    expect(telegram.methods(), "Bot API methods called").toEqual(["getUpdates"]);
+    expect(telegram.requests[0]?.token, "token in the URL").toBe(SAVED_TOKEN);
+  });
+
+  it("handleSetup uses TELEGRAM_BOT_TOKEN over a saved token for the chat search", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    const telegram = telegramDouble();
+
+    const response = await stepPage(telegramDeps(telegram));
+
+    expect(response.status, "status").toBe(200);
+    expect(
+      telegram.requests.map((request) => request.token),
+      "tokens in the URLs",
+    ).toEqual([BOT_TOKEN]);
+  });
+
+  it("handleSetup shows the Worker secret note and no token form when TELEGRAM_BOT_TOKEN is set", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    const telegram = telegramDouble();
+
+    const response = await stepPage(telegramDeps(telegram));
+
+    const html = await response.text();
+    expect(html, "note").toContain(`<p class="notice info">${escapeHtml(TEXTS.en.telegramTokenWorkerSecret)}</p>`);
+    expect(html, "token form").not.toContain('action="/setup/telegram/token"');
+    expect(html, "remove form").not.toContain('action="/setup/telegram/token/remove"');
+    expect(html, "Change token").not.toContain(escapeHtml(TEXTS.en.telegramTokenChange));
+    expect(html, "chats are searched").toContain(escapeHtml(TEXTS.en.telegramChatsIntro));
+    expect(await savedBotToken(), "saved token stays").toBe(SAVED_TOKEN);
+  });
+
+  it("handleSetup shows the saved-token-rejected notice with the open token form and Remove when getUpdates answers 401", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    const telegram = telegramDouble({ getUpdates: jsonAnswer(401, FIXTURES.unauthorized) });
+
+    const response = await stepPage(savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "notice").toContain(noticeText("telegram-saved-token-rejected"));
+    expect(html, "Worker secret notice").not.toContain(noticeText("telegram-token-rejected"));
+    expect(html, "open disclosure").toMatch(/<details\b[^>]*\bopen\b/);
+    expect(html, "token form").toContain('action="/setup/telegram/token"');
+    expect(html, "remove form").toContain('action="/setup/telegram/token/remove"');
+    expect(radioValues(html), "radio inputs").toEqual([]);
+    expect(html, "saved token").not.toContain(SAVED_TOKEN);
+    expect(html, "Telegram description").not.toContain("Unauthorized");
+  });
+
+  it("handleSetup shows the unreadable notice without form or Telegram request for a token saved under another SELUNA_SECRET", async () => {
+    await saveBotToken(SAVED_TOKEN, OTHER_SECRET);
+    const telegram = telegramDouble();
+
+    const response = await stepPage(savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "notice").toContain(noticeText("telegram-token-unreadable"));
+    expect(html, "forms").not.toContain("<form");
+    expect(radioValues(html), "radio inputs").toEqual([]);
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+  });
+
+  it("handleSetup shows the damaged notice with the token form and Remove and no chat search", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    await damageBotTokenRow();
+    const telegram = telegramDouble();
+
+    const response = await stepPage(savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "notice").toContain(noticeText("telegram-token-damaged"));
+    expect(html, "token form").toContain('action="/setup/telegram/token"');
+    expect(html, "remove form").toContain('action="/setup/telegram/token/remove"');
+    expect(radioValues(html), "radio inputs").toEqual([]);
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+  });
+
+  it("handleSetup shows the damaged notice for a saved value outside the bot token form", async () => {
+    await saveBotToken("1:a/../setWebhook");
+    const telegram = telegramDouble();
+
+    const response = await stepPage(savedTokenDeps(telegram));
+
+    const html = await response.text();
+    expect(html, "notice").toContain(noticeText("telegram-token-damaged"));
+    expect(html, "saved value").not.toContain("setWebhook");
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+  });
+
+  it("handleSetup keeps a saved token stored and unused while TELEGRAM_BOT_TOKEN is malformed", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    const telegram = telegramDouble();
+
+    const response = await stepPage(
+      telegramDeps(telegram, { env: { SELUNA_SECRET: SECRET, TELEGRAM_BOT_TOKEN: "1:a/../setWebhook" } }),
+    );
+
+    const html = await response.text();
+    expect(html, "malformed notice").toContain(noticeText("telegram-token-malformed"));
+    expect(html, "token form").not.toContain('action="/setup/telegram/token"');
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+    expect(await savedBotToken(), "saved token stays").toBe(SAVED_TOKEN);
+  });
+});
+
+describe("handleSetup Telegram token form", () => {
+  it("handleSetup saves a token Telegram accepts and redirects to the Telegram step", async () => {
+    const telegram = telegramDouble();
+
+    const response = await saveToken([NEW_TOKEN], savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(303);
+    expect(response.headers.get("Location"), "Location").toBe(STEP_PATH);
+    expect(telegram.methods(), "Bot API methods called").toEqual(["getMe"]);
+    expect(telegram.requests[0]?.token, "token in the URL").toBe(NEW_TOKEN);
+    expect(await savedBotToken(), "saved token").toBe(NEW_TOKEN);
+    expect(await databaseText(), "database rows").not.toContain(NEW_TOKEN);
+  });
+
+  it("handleSetup shows the saved state after a token was saved", async () => {
+    const telegram = telegramDouble();
+    const deps = savedTokenDeps(telegram);
+    await saveToken([NEW_TOKEN], deps);
+
+    const response = await stepPage(deps);
+
+    const html = await response.text();
+    expect(html, "saved text").toContain(escapeHtml(TEXTS.en.telegramTokenSaved));
+    expect(telegram.methods(), "Bot API methods called").toEqual(["getMe", "getUpdates"]);
+    expect(telegram.requests[1]?.token, "token of the chat search").toBe(NEW_TOKEN);
+  });
+
+  it("handleSetup saves a token of a bot with a webhook and then shows the conflict notice", async () => {
+    const telegram = telegramDouble({ getUpdates: jsonAnswer(409, FIXTURES.conflict) });
+    const deps = savedTokenDeps(telegram);
+
+    const saved = await saveToken([NEW_TOKEN], deps);
+    const page = await stepPage(deps);
+
+    expect(saved.status, "status of the save").toBe(303);
+    expect(await savedBotToken(), "saved token").toBe(NEW_TOKEN);
+    const html = await page.text();
+    expect(html, "conflict notice").toContain(noticeText("telegram-conflict"));
+    expect(html, "saved text").toContain(escapeHtml(TEXTS.en.telegramTokenSaved));
+  });
+
+  it("handleSetup replaces the saved token with an accepted one and keeps the saved chat", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('telegram_chat_id', '5001001')").run();
+    const telegram = telegramDouble();
+
+    const response = await saveToken([NEW_TOKEN], savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(303);
+    expect(await savedBotToken(), "saved token").toBe(NEW_TOKEN);
+    expect(await savedChat(), "saved chat").toBe("5001001");
+    expect(
+      telegram.requests.map((request) => request.token),
+      "tokens in the URLs",
+    ).toEqual([NEW_TOKEN]);
+  });
+
+  it.each<{ case: string; fields: readonly string[]; answer: TelegramAnswer; status: number }>([
+    { case: "malformed", fields: ["1:a/../setWebhook"], answer: jsonAnswer(200, FIXTURES.getMe), status: 400 },
+    { case: "rejected with 401", fields: [NEW_TOKEN], answer: jsonAnswer(401, FIXTURES.unauthorized), status: 502 },
+    { case: "unavailable", fields: [NEW_TOKEN], answer: jsonAnswer(500, { ok: false }), status: 502 },
+  ])(
+    "handleSetup keeps the saved token and the saved chat when the new token is $case",
+    async ({ fields, answer, status }) => {
+      await saveBotToken(SAVED_TOKEN);
+      await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('telegram_chat_id', '5001001')").run();
+      const telegram = telegramDouble({ getMe: answer });
+      const before = await databaseText();
+
+      const response = await saveToken(fields, savedTokenDeps(telegram));
+
+      expect(response.status, "status").toBe(status);
+      expect(await savedBotToken(), "saved token").toBe(SAVED_TOKEN);
+      expect(await savedChat(), "saved chat").toBe("5001001");
+      expect(await databaseText(), "database rows").toBe(before);
+    },
+  );
+
+  it.each<{ case: string; rest: string; needle: string }>([
+    { case: "empty", rest: "&token=", needle: "no-needle-for-the-empty-token" },
+    { case: "with a leading space", rest: `&token=%20${encodeURIComponent(NEW_TOKEN)}`, needle: "CCH-new_throwaway" },
+    {
+      case: "with a trailing line feed",
+      rest: `&token=${encodeURIComponent(NEW_TOKEN)}%0A`,
+      needle: "CCH-new_throwaway",
+    },
+    { case: "with a plus that decodes to a space", rest: "&token=555555555%3Aabc+defgh", needle: "defgh" },
+    { case: "with a percent-encoded slash", rest: "&token=555555555%3Aabc%2F..%2FsetWebhook", needle: "setWebhook" },
+    { case: "with a question mark", rest: "&token=555555555%3Aabc%3Fx%3Dquerymark", needle: "querymark" },
+    { case: "with a number sign", rest: "&token=555555555%3Aabc%23fragmentmark", needle: "fragmentmark" },
+    { case: "with a percent sign", rest: "&token=555555555%3Aabc%25percentmark", needle: "percentmark" },
+    { case: "with a dot", rest: "&token=555555555%3Aabc.dotmark", needle: "dotmark" },
+    { case: "with a backslash", rest: "&token=555555555%3Aabc%5Cbackslashmark", needle: "backslashmark" },
+    { case: "with an Arabic-Indic digit", rest: "&token=%D9%A3%3Aarabicmark", needle: "arabicmark" },
+    { case: "with 21 digits before the colon", rest: `&token=${"7".repeat(21)}%3Aabc`, needle: "7".repeat(21) },
+    { case: "with 201 characters after the colon", rest: `&token=7%3A${"b".repeat(201)}`, needle: "b".repeat(201) },
+    { case: "missing", rest: "", needle: "no-needle-for-a-missing-token" },
+    {
+      case: "repeated",
+      rest: `&token=${encodeURIComponent(NEW_TOKEN)}&token=${encodeURIComponent(NEW_TOKEN)}`,
+      needle: "CCH-new_throwaway",
+    },
+  ])(
+    "handleSetup answers 400, saves nothing and calls no Telegram API for the token $case",
+    async ({ rest, needle }) => {
+      const telegram = telegramDouble();
+
+      const response = await rawTokenForm(rest, savedTokenDeps(telegram));
+
+      expect(response.status, "status").toBe(400);
+      const html = await response.text();
+      expect(html, "not a bot token notice").toContain(noticeText("telegram-token-invalid"));
+      expect(html, "token form again").toContain('action="/setup/telegram/token"');
+      expect(html, "submitted value").not.toContain(needle);
+      expect(/<input\b(?=[^>]*name="token")[^>]*>/.exec(html)?.[0] ?? "", "token input").not.toMatch(/\svalue=/);
+      expect(telegram.requests, "Telegram requests").toEqual([]);
+      expect(await secretsCount(), "number of secrets rows").toBe(0);
+    },
+  );
+
+  it.each([{ status: 401 }, { status: 404 }])(
+    "handleSetup answers 502 and saves nothing when getMe answers $status",
+    async ({ status }) => {
+      const telegram = telegramDouble({ getMe: jsonAnswer(status, FIXTURES.unauthorized) });
+
+      const response = await saveToken([NEW_TOKEN], savedTokenDeps(telegram));
+
+      expect(response.status, "status").toBe(502);
+      const html = await response.text();
+      expect(html, "not accepted notice").toContain(noticeText("telegram-token-not-accepted"));
+      expect(html, "token form again").toContain('action="/setup/telegram/token"');
+      expect(html, "submitted token").not.toContain(NEW_TOKEN);
+      expect(html, "Telegram description").not.toContain("Unauthorized");
+      expect(await secretsCount(), "number of secrets rows").toBe(0);
+      expect(telegram.methods(), "Bot API methods called").toEqual(["getMe"]);
+    },
+  );
+
+  it.each<{ case: string; answer: TelegramAnswer }>([
+    { case: "rejects", answer: REJECTED },
+    {
+      case: "answers 429",
+      answer: jsonAnswer(429, { ok: false, error_code: 429, parameters: { retry_after: 3 } }),
+    },
+    {
+      case: "answers 500",
+      answer: jsonAnswer(500, { ok: false, error_code: 500, description: "Internal Server Error" }),
+    },
+    {
+      case: "answers with a body above 1 MiB",
+      answer: { kind: "raw", status: 200, body: `{"ok":true}${" ".repeat(MAX_TELEGRAM_RESPONSE_BYTES)}` },
+    },
+    { case: "answers with a body that is not JSON", answer: { kind: "raw", status: 200, body: "<html>" } },
+    { case: "answers 200 with ok false", answer: jsonAnswer(200, { ok: false }) },
+  ])("handleSetup answers 502 and saves nothing when getMe $case", async ({ answer }) => {
+    const telegram = telegramDouble({ getMe: answer });
+
+    const response = await saveToken([NEW_TOKEN], savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(502);
+    const html = await response.text();
+    expect(html, "unverified notice").toContain(noticeText("telegram-token-unverified"));
+    expect(html, "token form again").toContain('action="/setup/telegram/token"');
+    expect(html, "runtime error text").not.toContain("Network connection lost");
+    expect(html, "Telegram description").not.toContain("Internal Server Error");
+    expect(await secretsCount(), "number of secrets rows").toBe(0);
+  });
+
+  it("handleSetup answers a token form in German in the language of the page", async () => {
+    const telegram = telegramDouble();
+
+    const response = await postSignedIn(
+      `${TOKEN_PATH}?lang=de`,
+      await tokenFields(["1:a/../x"]),
+      savedTokenDeps(telegram),
+    );
+
+    expect(response.status, "status").toBe(400);
+    expect(await response.text(), "German notice").toContain(noticeText("telegram-token-invalid", "de"));
+  });
+
+  it("handleSetup answers 409 with the token-not-saved notice when the GitHub credentials cannot be read and no token is saved", async () => {
+    await saveGitHubCredentials(OTHER_SECRET);
+    const telegram = telegramDouble();
+    const before = await databaseText();
+
+    const response = await saveToken([NEW_TOKEN], savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(409);
+    const html = await response.text();
+    expect(html, "not saved notice").toContain(noticeText("telegram-token-not-saved"));
+    expect(html, "chat search").not.toContain(escapeHtml(TEXTS.en.telegramChatsIntro));
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+    expect(await databaseText(), "database rows").toBe(before);
+  });
+
+  it("handleSetup replaces a damaged token row and keeps the GitHub credentials", async () => {
+    await saveGitHubCredentials();
+    await saveBotToken(SAVED_TOKEN);
+    await damageBotTokenRow();
+    const telegram = telegramDouble();
+
+    const response = await saveToken([NEW_TOKEN], savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(303);
+    expect(await savedBotToken(), "saved token").toBe(NEW_TOKEN);
+    expect(await gitHubAppId(), "App ID").toEqual({ kind: "ok", value: "12345" });
+  });
+
+  it.each(TOKEN_FORMS)(
+    "handleSetup answers 409 to $form while TELEGRAM_BOT_TOKEN is set and keeps the saved token",
+    async ({ path }) => {
+      await saveBotToken(SAVED_TOKEN);
+      const telegram = telegramDouble();
+      const before = await databaseText();
+
+      const response = await postToForm(path, telegramDeps(telegram));
+
+      expect(response.status, "status").toBe(409);
+      const html = await response.text();
+      expect(html, "Worker secret note").toContain(escapeHtml(TEXTS.en.telegramTokenWorkerSecret));
+      expect(html, "forms").not.toContain("<form");
+      expect(html, "chat part").not.toContain(`<h2>${escapeHtml(TEXTS.en.telegramChatHeading)}</h2>`);
+      expect(telegram.requests, "Telegram requests").toEqual([]);
+      expect(await databaseText(), "database rows").toBe(before);
+      expect(await savedBotToken(), "saved token").toBe(SAVED_TOKEN);
+    },
+  );
+
+  it.each(TOKEN_FORMS)("handleSetup answers 409 to $form when the saved token cannot be read", async ({ path }) => {
+    await saveBotToken(SAVED_TOKEN, OTHER_SECRET);
+    const telegram = telegramDouble();
+    const before = await databaseText();
+
+    const response = await postToForm(path, savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(409);
+    const html = await response.text();
+    expect(html, "unreadable notice").toContain(noticeText("telegram-token-unreadable"));
+    expect(html, "forms").not.toContain("<form");
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+    expect(await databaseText(), "database rows").toBe(before);
+  });
+
+  it.each(TOKEN_FORMS)(
+    "handleSetup answers 503 unavailable without a Telegram request when D1 fails on $form",
+    async ({ path }) => {
+      const telegram = telegramDouble();
+
+      const response = await postToForm(path, savedTokenDeps(telegram, { db: migrationTestDb() }));
+
+      expect(response.status, "status").toBe(503);
+      const html = await response.text();
+      expectNoticeOnlyPage(html, "unavailable");
+      expectNoErrorText(html);
+      expect(telegram.requests, "Telegram requests").toEqual([]);
+    },
+  );
+
+  it.each(TOKEN_FORMS.flatMap((form) => CSRF_FAILURES.map((failure) => ({ ...form, failure }))))(
+    "handleSetup answers 403 form expired to $form with a bad CSRF token and changes nothing: $failure.name",
+    async ({ path, failure }) => {
+      await saveBotToken(SAVED_TOKEN);
+      const before = await databaseText();
+      const telegram = telegramDouble();
+      const csrf = (await failure.tokens()).map((token): [string, string] => ["csrf", token]);
+
+      const response = await postSignedIn(path, [...csrf, ["token", NEW_TOKEN]], savedTokenDeps(telegram));
+
+      expect(response.status, "status").toBe(403);
+      expectNoticeOnlyPage(await response.text(), "form-expired");
+      expect(telegram.requests, "Telegram requests").toEqual([]);
+      expect(await databaseText(), "database rows").toBe(before);
+    },
+  );
+
+  it.each(TOKEN_FORMS)("handleSetup answers 413 to an oversized $form and changes nothing", async ({ path }) => {
+    await saveBotToken(SAVED_TOKEN);
+    const before = await databaseText();
+    const telegram = telegramDouble();
+
+    const response = await call(
+      path,
+      {
+        method: "POST",
+        cookies: await signedInCookies(),
+        body: `token=${NEW_TOKEN}&${"a".repeat(MAX_BODY_BYTES + 1)}`,
+      },
+      savedTokenDeps(telegram),
+    );
+
+    expect(response.status, "status").toBe(413);
+    expect(await response.text(), "body").toBe("");
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+    expect(await databaseText(), "database rows").toBe(before);
+  });
+
+  it.each(TOKEN_FORMS)("handleSetup answers 400 to an unreadable $form body and changes nothing", async ({ path }) => {
+    await saveBotToken(SAVED_TOKEN);
+    const before = await databaseText();
+    const telegram = telegramDouble();
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.error(new Error("connection lost"));
+      },
+    });
+
+    const response = await call(
+      path,
+      { method: "POST", cookies: await signedInCookies(), body },
+      savedTokenDeps(telegram),
+    );
+
+    expect(response.status, "status").toBe(400);
+    expect(await response.text(), "body").toBe("");
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+    expect(await databaseText(), "database rows").toBe(before);
+  });
+});
+
+describe("handleSetup Telegram remove form", () => {
+  it("handleSetup removes the saved token, keeps the saved chat and shows the token form again", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('telegram_chat_id', '5001001')").run();
+    const telegram = telegramDouble();
+    const deps = savedTokenDeps(telegram);
+
+    const response = await removeToken(deps);
+    const page = await stepPage(deps);
+
+    expect(response.status, "status").toBe(303);
+    expect(response.headers.get("Location"), "Location").toBe(STEP_PATH);
+    expect(await savedBotToken(), "saved token").toBeUndefined();
+    expect(await secretsCount(), "number of secrets rows").toBe(0);
+    expect(await storedKeyCheckRow(), "key check value after the last credential").toBeUndefined();
+    expect(await savedChat(), "saved chat").toBe("5001001");
+    const html = await page.text();
+    expect(html, "token form").toContain('action="/setup/telegram/token"');
+    expect(html, "token intro").toContain(escapeHtml(TEXTS.en.telegramTokenIntro));
+    expect(html, "saved chat line").toContain("5001001");
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+  });
+
+  it("handleSetup answers a removal without a saved token like a removal", async () => {
+    const telegram = telegramDouble();
+
+    const response = await removeToken(savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(303);
+    expect(response.headers.get("Location"), "Location").toBe(STEP_PATH);
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+  });
+
+  it("handleSetup keeps the GitHub credentials when the saved token is removed", async () => {
+    await saveGitHubCredentials();
+    await saveBotToken(SAVED_TOKEN);
+    const telegram = telegramDouble();
+
+    const response = await removeToken(savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(303);
+    expect(await savedBotToken(), "saved token").toBeUndefined();
+    expect(await gitHubAppId(), "App ID").toEqual({ kind: "ok", value: "12345" });
+    expect(await storedKeyCheckRow(), "key check value while credentials remain").toBeDefined();
+  });
+
+  it("handleSetup deletes a damaged token row and keeps the GitHub credentials", async () => {
+    await saveGitHubCredentials();
+    await saveBotToken(SAVED_TOKEN);
+    await damageBotTokenRow();
+    const telegram = telegramDouble();
+
+    const response = await removeToken(savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(303);
+    expect(await gitHubAppId(), "App ID").toEqual({ kind: "ok", value: "12345" });
+    const rows = await env.DB.prepare("SELECT key FROM secrets ORDER BY key").all();
+    expect(
+      rows.results.map((row) => row.key),
+      "remaining secrets keys",
+    ).toEqual(["github_app_id", "github_private_key", "github_webhook_secret"]);
+  });
+});
+
+describe("handleSetup Telegram confirm form with the saved token", () => {
+  it("handleSetup sends the test message with the saved token", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    const telegram = telegramDouble();
+
+    const response = await confirm([String(PRIVATE_CHAT)], savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(200);
+    expect(telegram.methods(), "Bot API methods called").toEqual(["sendMessage"]);
+    expect(telegram.requests[0]?.token, "token in the URL").toBe(SAVED_TOKEN);
+  });
+
+  it.each([{ status: 401 }, { status: 404 }])(
+    "handleSetup answers 502 with the saved-token-rejected notice when sendMessage answers $status for the saved token",
+    async ({ status }) => {
+      await saveBotToken(SAVED_TOKEN);
+      const telegram = telegramDouble({ sendMessage: jsonAnswer(status, FIXTURES.unauthorized) });
+
+      const response = await confirm([String(PRIVATE_CHAT)], savedTokenDeps(telegram));
+
+      expect(response.status, "status").toBe(502);
+      const html = await response.text();
+      expect(html, "saved token notice").toContain(noticeText("telegram-saved-token-rejected"));
+      expect(html, "Worker secret notice").not.toContain(noticeText("telegram-token-rejected"));
+      expect(html, "saved token").not.toContain(SAVED_TOKEN);
+      expect(await settingsRowCount(), "number of settings rows").toBe(0);
+    },
+  );
+
+  it.each<{ case: string; arrange: () => Promise<void> }>([
+    { case: "unreadable", arrange: () => saveBotToken(SAVED_TOKEN, OTHER_SECRET) },
+    {
+      case: "damaged",
+      arrange: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        await damageBotTokenRow();
+      },
+    },
+    { case: "outside the bot token form", arrange: () => saveBotToken("1:a/../setWebhook") },
+  ])("handleSetup answers 503 with the token-missing notice when the saved token is $case", async ({ arrange }) => {
+    await arrange();
+    const telegram = telegramDouble();
+
+    const response = await confirm([String(PRIVATE_CHAT)], savedTokenDeps(telegram));
+
+    expect(response.status, "status").toBe(503);
+    expectNoticeOnlyPage(await response.text(), "telegram-token-missing");
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+  });
+
+  it("handleSetup answers the confirm form with 503 unavailable and no Telegram request when D1 fails", async () => {
+    const telegram = telegramDouble();
+
+    const response = await confirm([String(PRIVATE_CHAT)], savedTokenDeps(telegram, { db: migrationTestDb() }));
+
+    expect(response.status, "status").toBe(503);
+    const html = await response.text();
+    expectNoticeOnlyPage(html, "unavailable");
+    expectNoErrorText(html);
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+  });
+});
+
+describe("handleSetup Telegram step with TELEGRAM_CHAT_ID set", () => {
+  it("handleSetup shows the token form and the chat id note when TELEGRAM_CHAT_ID is set and no token is available", async () => {
+    const telegram = telegramDouble();
+
+    const response = await stepPage(savedTokenDeps(telegram, { env: TOKEN_CHAT_ENV }));
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "token form").toContain('action="/setup/telegram/token"');
+    expect(html, "token intro").toContain(escapeHtml(TEXTS.en.telegramTokenIntro));
+    expect(html, "chat id note").toContain(escapeHtml(TEXTS.en.telegramChatIdSecret));
+    expect(html, "chats intro").not.toContain(escapeHtml(TEXTS.en.telegramChatsIntro));
+    expect(html, "value of the secret").not.toContain(CHAT_SECRET_VALUE);
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+  });
+
+  it("handleSetup saves a token while TELEGRAM_CHAT_ID is set with exactly one getMe and no getUpdates", async () => {
+    const telegram = telegramDouble();
+    const deps = savedTokenDeps(telegram, { env: TOKEN_CHAT_ENV });
+
+    const response = await saveToken([NEW_TOKEN], deps);
+
+    expect(response.status, "status").toBe(303);
+    expect(telegram.methods(), "Bot API methods called").toEqual(["getMe"]);
+    expect(await savedBotToken(), "saved token").toBe(NEW_TOKEN);
+  });
+
+  it("handleSetup removes the saved token while TELEGRAM_CHAT_ID is set", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    const telegram = telegramDouble();
+
+    const response = await removeToken(savedTokenDeps(telegram, { env: TOKEN_CHAT_ENV }));
+
+    expect(response.status, "status").toBe(303);
+    expect(await savedBotToken(), "saved token").toBeUndefined();
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+  });
+
+  it("handleSetup shows a saved token with the chat id note and calls no Telegram API when TELEGRAM_CHAT_ID is set", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    const telegram = telegramDouble();
+
+    const response = await stepPage(savedTokenDeps(telegram, { env: TOKEN_CHAT_ENV }));
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "saved text").toContain(escapeHtml(TEXTS.en.telegramTokenSaved));
+    expect(html, "Change token").toContain(escapeHtml(TEXTS.en.telegramTokenChange));
+    expect(html, "remove form").toContain('action="/setup/telegram/token/remove"');
+    expect(html, "chat id note").toContain(escapeHtml(TEXTS.en.telegramChatIdSecret));
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+  });
+
+  it.each<{ case: string; env: object; arrange: () => Promise<void>; expected: string }>([
+    {
+      case: "the Worker secret",
+      env: { ...TOKEN_CHAT_ENV, TELEGRAM_BOT_TOKEN: BOT_TOKEN },
+      arrange: () => Promise.resolve(),
+      expected: escapeHtml(TEXTS.en.telegramTokenWorkerSecret),
+    },
+    {
+      case: "a malformed Worker secret",
+      env: { ...TOKEN_CHAT_ENV, TELEGRAM_BOT_TOKEN: "1:a/../setWebhook" },
+      arrange: () => Promise.resolve(),
+      expected: noticeText("telegram-token-malformed"),
+    },
+    {
+      case: "an unreadable saved token",
+      env: TOKEN_CHAT_ENV,
+      arrange: () => saveBotToken(SAVED_TOKEN, OTHER_SECRET),
+      expected: noticeText("telegram-token-unreadable"),
+    },
+    {
+      case: "a damaged saved token",
+      env: TOKEN_CHAT_ENV,
+      arrange: async () => {
+        await saveBotToken(SAVED_TOKEN);
+        await damageBotTokenRow();
+      },
+      expected: noticeText("telegram-token-damaged"),
+    },
+  ])(
+    "handleSetup shows the token part for $case beside the chat id note and calls no Telegram API",
+    async ({ env: environment, arrange, expected }) => {
+      await arrange();
+      const telegram = telegramDouble();
+
+      const response = await stepPage(savedTokenDeps(telegram, { env: environment }));
+
+      expect(response.status, "status").toBe(200);
+      const html = await response.text();
+      expect(html, "token part").toContain(expected);
+      expect(html, "chat id note").toContain(escapeHtml(TEXTS.en.telegramChatIdSecret));
+      expect(telegram.requests, "Telegram requests").toEqual([]);
+    },
+  );
+
+  it("handleSetup answers 409 with the token-not-saved notice for a token form while TELEGRAM_CHAT_ID is set and the credentials cannot be read", async () => {
+    await saveGitHubCredentials(OTHER_SECRET);
+    const telegram = telegramDouble();
+
+    const response = await saveToken([NEW_TOKEN], savedTokenDeps(telegram, { env: TOKEN_CHAT_ENV }));
+
+    expect(response.status, "status").toBe(409);
+    expect(await response.text(), "not saved notice").toContain(noticeText("telegram-token-not-saved"));
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+    expect(await savedBotToken(), "saved token").toBeUndefined();
+  });
+});
+
+describe("handleSetup status page with the bot token", () => {
+  it.each<{
+    case: string;
+    environment: object;
+    arrange: () => Promise<void>;
+    key: "botTokenSecret" | "botTokenSaved" | "noneSavedYet" | "cannotBeRead";
+  }>([
+    {
+      case: "the Worker secret",
+      environment: WORKER_TOKEN_ENV,
+      arrange: () => Promise.resolve(),
+      key: "botTokenSecret",
+    },
+    {
+      case: "a saved token",
+      environment: TOKEN_ONLY_ENV,
+      arrange: () => saveBotToken(SAVED_TOKEN),
+      key: "botTokenSaved",
+    },
+    { case: "no token", environment: TOKEN_ONLY_ENV, arrange: () => Promise.resolve(), key: "noneSavedYet" },
+    {
+      case: "an unreadable token",
+      environment: TOKEN_ONLY_ENV,
+      arrange: () => saveBotToken(SAVED_TOKEN, OTHER_SECRET),
+      key: "cannotBeRead",
+    },
+  ])(
+    "GET /setup shows the Telegram bot token line for $case without a Telegram request",
+    async ({ environment, arrange, key }) => {
+      await arrange();
+      const telegram = telegramDouble();
+
+      const response = await stepPage(savedTokenDeps(telegram, { env: environment }), "/setup");
+
+      expect(response.status, "status").toBe(200);
+      const html = await response.text();
+      expect(html, "bot token line").toContain(
+        `<p>${escapeHtml(TEXTS.en.botTokenLabel)} ${escapeHtml(TEXTS.en[key])}</p>`,
+      );
+      expect(telegram.requests, "Telegram requests").toEqual([]);
+    },
+  );
+});
 describe("handleSetup GitHub step page", () => {
   it("GET /setup/github answers 200 with the account form and a session-bound CSRF field", async () => {
     const response = await stepPage(githubDeps(githubDouble()), GITHUB_PATH);

@@ -23,7 +23,7 @@ describe("TEXTS", () => {
     expect(TEXTS.en.notConfiguredParagraphs.length, "English not-configured paragraphs").toBeGreaterThan(0);
     expect(TEXTS.de.notConfiguredParagraphs.length, "German not-configured paragraphs").toBeGreaterThan(0);
     expect(Object.keys(TEXTS.de.notices), "German notice keys").toEqual(Object.keys(TEXTS.en.notices));
-    expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(24);
+    expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(31);
   });
 
   it("texts keep the same keys in the same order in English and German", () => {
@@ -70,11 +70,25 @@ describe("TEXTS", () => {
       "migrations-missing":
         "The database of this instance is missing its tables: the database migrations have not run. In the Cloudflare dashboard open Workers & Pages, this Worker, Settings and Build, set the Deploy command to npm run deploy and retry the latest build, as the setup guide describes.",
       "telegram-token-missing":
-        "The Worker secret TELEGRAM_BOT_TOKEN is not set. In Telegram, send /newbot to @BotFather and copy the token it returns. In the Cloudflare dashboard open this Worker, then Settings, then Variables and Secrets, and add a secret named TELEGRAM_BOT_TOKEN with that token. Or run: npx wrangler secret put TELEGRAM_BOT_TOKEN",
+        "No usable bot token is available. Open the Telegram chat step and check the bot token there.",
       "telegram-token-malformed":
         "The Worker secret TELEGRAM_BOT_TOKEN is not a bot token. A token from @BotFather is digits, a colon, then letters, digits, - and _, without spaces. Copy it again from @BotFather and replace the secret in the Cloudflare dashboard under Settings, then Variables and Secrets.",
       "telegram-token-rejected":
         "Telegram does not accept the Worker secret TELEGRAM_BOT_TOKEN: it is mistyped or was revoked. Send /mybots to @BotFather, copy your bot's current token and replace the secret in the Cloudflare dashboard under Settings, then Variables and Secrets.",
+      "telegram-token-invalid":
+        "That is not a bot token. A token from @BotFather is digits, a colon, then letters, digits, - and _, without spaces. Copy it again from @BotFather. Nothing was saved.",
+      "telegram-token-not-accepted":
+        "Telegram does not accept this token: it is mistyped or was revoked. Send /mybots to @BotFather, copy your bot's current token and enter it again. Nothing was saved.",
+      "telegram-token-unverified":
+        "Telegram could not be reached or gave an answer Seluna cannot read, so the token was not saved. Please try again in a moment.",
+      "telegram-saved-token-rejected":
+        "Telegram does not accept the saved bot token: it was revoked or the bot was deleted. Send /mybots to @BotFather, copy your bot's current token and enter it here.",
+      "telegram-token-unreadable":
+        "The saved bot token cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. Set the earlier SELUNA_SECRET again, or reset the saved credentials on the start page and enter the token again.",
+      "telegram-token-damaged":
+        "The saved bot token is damaged and cannot be read. Enter the token again, or remove it.",
+      "telegram-token-not-saved":
+        "The token was not saved because the saved credentials cannot be read with the current SELUNA_SECRET. Set the earlier SELUNA_SECRET again, or reset the saved credentials on the start page first.",
       "telegram-conflict":
         "Telegram does not hand the bot's chats to Seluna because another program receives its updates (a webhook, or a program that polls the bot). Seluna needs a bot of its own: create one with /newbot at @BotFather, or remove the webhook from this bot.",
       "telegram-unavailable":
@@ -115,6 +129,15 @@ describe("TEXTS", () => {
       {
         startBody: en.startBody,
         telegramHeading: en.telegramHeading,
+        telegramTokenHeading: en.telegramTokenHeading,
+        telegramChatHeading: en.telegramChatHeading,
+        telegramTokenIntro: en.telegramTokenIntro,
+        telegramTokenLabel: en.telegramTokenLabel,
+        telegramTokenSaveButton: en.telegramTokenSaveButton,
+        telegramTokenSaved: en.telegramTokenSaved,
+        telegramTokenChange: en.telegramTokenChange,
+        telegramTokenRemoveButton: en.telegramTokenRemoveButton,
+        telegramTokenWorkerSecret: en.telegramTokenWorkerSecret,
         telegramIntro: en.telegramIntro,
         telegramSearchLink: en.telegramSearchLink,
         telegramChatIdSecret: en.telegramChatIdSecret,
@@ -135,6 +158,17 @@ describe("TEXTS", () => {
     ).toEqual({
       startBody: "Set up your instance step by step:",
       telegramHeading: "Telegram chat",
+      telegramTokenHeading: "Bot token",
+      telegramChatHeading: "Chat",
+      telegramTokenIntro:
+        "Seluna sends its notifications through your own Telegram bot. In Telegram, send /newbot to @BotFather and enter the token it returns here. Seluna checks the token with Telegram and saves it encrypted; it is not shown again.",
+      telegramTokenLabel: "Bot token",
+      telegramTokenSaveButton: "Save token",
+      telegramTokenSaved: "A bot token is saved. It is not shown again.",
+      telegramTokenChange: "Change token",
+      telegramTokenRemoveButton: "Remove token",
+      telegramTokenWorkerSecret:
+        "The bot token is set by the Worker secret TELEGRAM_BOT_TOKEN, which takes precedence over a token saved here. To enter the token here, delete that secret.",
       telegramIntro:
         "Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats.",
       telegramSearchLink: "Search for chats",
@@ -240,6 +274,9 @@ describe("TEXTS", () => {
       {
         statusHeading: en.statusHeading,
         versionLabel: en.versionLabel,
+        botTokenLabel: en.botTokenLabel,
+        botTokenSecret: en.botTokenSecret,
+        botTokenSaved: en.botTokenSaved,
         telegramChatLabel: en.telegramChatLabel,
         noneSavedYet: en.noneSavedYet,
         chatSecret: en.chatSecret,
@@ -269,6 +306,9 @@ describe("TEXTS", () => {
     ).toEqual({
       statusHeading: "Status",
       versionLabel: "Version:",
+      botTokenLabel: "Telegram bot token:",
+      botTokenSecret: "Set by the Worker secret TELEGRAM_BOT_TOKEN.",
+      botTokenSaved: "Saved in the setup.",
       telegramChatLabel: "Telegram chat:",
       noneSavedYet: "None saved yet.",
       chatSecret: "Set by the Worker secret TELEGRAM_CHAT_ID.",
@@ -282,7 +322,7 @@ describe("TEXTS", () => {
       noneReceivedYet: "None received yet.",
       resetHeading: "The saved credentials cannot be read",
       resetText:
-        "The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials and installation tokens, and you create the GitHub App again. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept.",
+        "The saved credentials cannot be read with the current SELUNA_SECRET: it was changed, or a saved value is damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials, the installation tokens and the saved Telegram bot token; you then create the GitHub App again and enter the bot token again in the Telegram chat step. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept.",
       resetButton: "Reset and create the GitHub App again",
       startPageLink: "Start page",
       settingsHeading: "Settings",

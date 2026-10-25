@@ -13,3 +13,4 @@ are quoted in full.
 | 2026-10-25 11:52 | 3 Plan security review | squad-security | APPROVED; 3 non-blocking findings (key check left behind after last removal, getMe live check not tracked, autofill on password field) (opus/medium · 97,331 tokens · 23 tool uses · 201 s) |
 | 2026-10-25 11:52 | 2b Plan challenge | squad-devils-advocate | OBJECTIONS 0 major, 4 minor (appended as Challenge notes) (opus/medium · 115,295 tokens · 27 tool uses · 206 s) |
 | 2026-10-25 11:57 | 4 Skeleton (G1) | squad-dev | Skeleton and mechanical test-literal adaptation done; typecheck passes, analyzer gate 0 findings (sonnet/medium · 154,662 tokens · 35 tool uses · 265 s) |
+| 2026-10-25 12:11 | 5 Tests first (G2) | squad-tester | Tests written for rows 3-11; compile, 802 fail on the skeleton as expected; deferred: AC13 secrecy, AC7/AC10 delivery, AC2/AC9/AC14 store (sonnet/medium · 322,492 tokens · 66 tool uses · 832 s) |

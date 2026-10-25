@@ -3,6 +3,7 @@ import { assert, beforeEach, describe, expect, it } from "vitest";
 import { encrypt } from "../crypto";
 import {
   checkKey,
+  deleteSecret,
   KEY_CHECK_META_KEY,
   KEY_CHECK_PLAINTEXT,
   needsReset,
@@ -471,6 +472,107 @@ async function seedAll(secret: string, values: Readonly<Record<(typeof NAMES)[nu
     await seed(secret, name, values[name]);
   }
 }
+
+describe("deleteSecret", () => {
+  it("deleteSecret deletes only the named row", async () => {
+    await seed(SECRET_A, "github_app_id", "12345");
+    await seed(SECRET_A, "telegram_bot_token", "123456789:AAH-throwaway");
+    const appIdBefore = await rawSecret("github_app_id");
+
+    await deleteSecret(env.DB, "telegram_bot_token");
+
+    expect(
+      (await secretRows()).map((row) => row.key),
+      "remaining secrets keys",
+    ).toEqual(["github_app_id"]);
+    expect(await rawSecret("github_app_id"), "the other row as stored").toEqual(appIdBefore);
+    expect(await readSecret(env.DB, await keyFor(SECRET_A), "github_app_id"), "read of the other row").toEqual({
+      kind: "ok",
+      value: "12345",
+    });
+    expect(await readSecret(env.DB, await keyFor(SECRET_A), "telegram_bot_token"), "read of the deleted row").toEqual({
+      kind: "missing",
+    });
+  });
+
+  it("deleteSecret deletes the key check value with the last credential and keeps it while others remain", async () => {
+    await seed(SECRET_A, "github_app_id", "12345");
+    await seed(SECRET_A, "telegram_bot_token", "123456789:AAH-throwaway");
+    const keyCheck = await storedKeyCheck();
+
+    await deleteSecret(env.DB, "github_app_id");
+
+    expect(await storedKeyCheck(), "key check value while the token remains").toBe(keyCheck);
+
+    await deleteSecret(env.DB, "telegram_bot_token");
+
+    expect(await secretRows(), "secrets rows").toEqual([]);
+    expect(await storedKeyCheck(), "key check value after the last credential").toBeUndefined();
+  });
+
+  it("deleteSecret leaves other meta rows, the installation tokens and the settings in place", async () => {
+    await seed(SECRET_A, "telegram_bot_token", "123456789:AAH-throwaway");
+    await seedTokenCache();
+    const tokensBefore = await tokenCacheRows();
+    await env.DB.prepare("INSERT INTO meta (key, value) VALUES ('last_delivery', '1792240440000')").run();
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('telegram_chat_id', '5001001')").run();
+
+    await deleteSecret(env.DB, "telegram_bot_token");
+
+    expect(await metaRows(), "meta rows").toEqual([{ key: "last_delivery", value: "1792240440000" }]);
+    expect(await tokenCacheRows(), "token_cache rows").toEqual(tokensBefore);
+    expect(await allRows("SELECT key, value FROM settings"), "settings rows").toEqual([
+      { key: "telegram_chat_id", value: "5001001" },
+    ]);
+  });
+
+  it("deleteSecret does nothing when no such row exists and credentials remain", async () => {
+    await seed(SECRET_A, "github_app_id", "12345");
+    const secretsBefore = await secretRows();
+    const metaBefore = await metaRows();
+
+    await deleteSecret(env.DB, "telegram_bot_token");
+
+    expect(await secretRows(), "secrets rows").toEqual(secretsBefore);
+    expect(await metaRows(), "meta rows").toEqual(metaBefore);
+  });
+
+  it("deleteSecret resolves on an empty database", async () => {
+    await deleteSecret(env.DB, "telegram_bot_token");
+
+    expect(await secretRows(), "secrets rows").toEqual([]);
+    expect(await metaRows(), "meta rows").toEqual([]);
+  });
+
+  it("deleteSecret lets a D1 error reach the caller", async () => {
+    const failing: D1Database = {
+      prepare: () => {
+        throw new Error("The database failed");
+      },
+      batch: () => Promise.reject(new Error("The database failed")),
+      exec: () => Promise.reject(new Error("The database failed")),
+      dump: () => Promise.reject(new Error("The database failed")),
+      withSession: (constraintOrBookmark) => env.DB.withSession(constraintOrBookmark),
+    };
+
+    const result = deleteSecret(failing, "telegram_bot_token");
+
+    await expect(result, "the promise").rejects.toThrow("The database failed");
+  });
+
+  it("deleteSecret allows a new first write afterwards, which stores a new key check value", async () => {
+    await seed(SECRET_A, "telegram_bot_token", "123456789:AAH-throwaway");
+    await deleteSecret(env.DB, "telegram_bot_token");
+
+    const result = await writeSecret(env.DB, await keyFor(SECRET_B), "telegram_bot_token", "987654321:BBH-other");
+
+    expect(result, "write under another SELUNA_SECRET").toEqual({ kind: "ok" });
+    expect(await readSecret(env.DB, await keyFor(SECRET_B), "telegram_bot_token"), "read").toEqual({
+      kind: "ok",
+      value: "987654321:BBH-other",
+    });
+  });
+});
 
 describe("writeSecrets", () => {
   it("writeSecrets stores the three credentials and the key check value on the first write", async () => {
