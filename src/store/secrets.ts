@@ -1,7 +1,10 @@
 import { decrypt, encrypt } from "../crypto";
 
+/** The GitHub App credentials kept in the `secrets` table, written together by `writeSecrets`. */
+export type GitHubSecretName = "github_app_id" | "github_private_key" | "github_webhook_secret";
+
 /** The credentials kept in the `secrets` table. */
-export type SecretName = "github_app_id" | "github_private_key" | "github_webhook_secret";
+export type SecretName = GitHubSecretName | "telegram_bot_token";
 
 /** Outcome of reading one credential. */
 export type SecretReadResult =
@@ -214,7 +217,7 @@ export function writeSecret(
 export function writeSecrets(
   db: D1Database,
   key: CryptoKey,
-  values: Readonly<Record<SecretName, string>>,
+  values: Readonly<Record<GitHubSecretName, string>>,
 ): Promise<SecretWriteResult> {
   return writeEntries(db, key, [
     ["github_app_id", values.github_app_id],
@@ -222,6 +225,16 @@ export function writeSecrets(
     ["github_webhook_secret", values.github_webhook_secret],
   ]);
 }
+
+/**
+ * Deletes the row of one credential; also when no such row exists. The key check value is deleted with the last
+ * credential. D1 errors are not caught.
+ */
+/* eslint-disable @typescript-eslint/no-unused-vars -- skeleton: the implementation uses the parameters */
+export function deleteSecret(db: D1Database, name: SecretName): Promise<void> {
+  return Promise.reject(new Error("Not implemented"));
+}
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 const SELECT_KEY_CHECK_PINNED = "SELECT value, quote(value) AS pinned FROM meta WHERE key = ?1";
 const SELECT_ALL_SECRETS = "SELECT key, iv, ciphertext FROM secrets";

@@ -52,7 +52,7 @@ A Worker secret that is set but malformed:
 
 A saved token whose own row does not decrypt while the key check matches:
 
-9. **Repairable in the step: the token form and *Remove token* stay offered** — a write succeeds under a matching key
+9. **Repairable in the step: the token form and _Remove token_ stay offered** — a write succeeds under a matching key
    check, so the GitHub credentials survive. Chosen.
 10. **Only the reset** — it would delete working GitHub credentials to replace one damaged row.
 

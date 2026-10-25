@@ -1,6 +1,5 @@
 import type { AccountChoice } from "../github/manifest";
 import type { Language } from "./language";
-import type { TelegramChat } from "../telegram";
 import type { GitHubStepView } from "./github-step";
 import { RULE_IDS, timeZones } from "../settings";
 import type { NotificationSettings } from "../settings";
@@ -8,7 +7,7 @@ import { RESET_PATH, SETTINGS_PATH } from "./settings-form";
 import { formatDeliveryTime } from "./status";
 import type { AppStatus, ChatStatus, InstallationsView, StatusView } from "./status";
 import type { Installation, InstallationAccount } from "../github/installations";
-import type { TelegramProblem, TelegramStepView } from "./telegram-step";
+import type { TelegramStepView } from "./telegram-step";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 
@@ -409,46 +408,8 @@ export type TelegramPageView =
   | { readonly kind: "notice-only" }
   | { readonly kind: "code"; readonly chatId: number; readonly proof: string };
 
-const PROBLEM_NOTICES: Readonly<Record<TelegramProblem, Notice>> = {
-  "token-missing": "telegram-token-missing",
-  "token-malformed": "telegram-token-malformed",
-  "token-rejected": "telegram-token-rejected",
-  conflict: "telegram-conflict",
-  unavailable: "telegram-unavailable",
-};
-
 function searchLink(language: Language): string {
   return `<p><a href="/setup/telegram">${escapeHtml(TEXTS[language].telegramSearchLink)}</a></p>`;
-}
-
-function savedChatHtml(language: Language, savedChatId: number | undefined): string {
-  const texts = TEXTS[language];
-  return savedChatId === undefined
-    ? `<p>${escapeHtml(texts.telegramNoSavedChat)}</p>`
-    : `<p>${escapeHtml(texts.telegramSavedChat)} <code>${String(savedChatId)}</code></p>`;
-}
-
-/** One radio input per chat; every name is escaped and isolated in its own `bdi`, the username in another one after it. */
-function chatOptionHtml(language: Language, chat: TelegramChat): string {
-  const texts = TEXTS[language];
-  const username = chat.username === undefined ? "" : ` <bdi class="username">@${escapeHtml(chat.username)}</bdi>`;
-  const kind = chat.kind === "private" ? texts.telegramPrivateChat : texts.telegramGroup;
-  return (
-    `<label><input type="radio" name="chat" value="${String(chat.id)}" required> ` +
-    `<bdi>${escapeHtml(chat.name)}</bdi>${username} (${escapeHtml(kind)})</label>`
-  );
-}
-
-function chatsHtml(language: Language, csrfToken: string, chats: readonly TelegramChat[]): string {
-  const texts = TEXTS[language];
-  if (chats.length === 0) {
-    return `<p>${escapeHtml(texts.telegramNoChats)}</p>`;
-  }
-  return (
-    `<p>${escapeHtml(texts.telegramChatsIntro)}</p>\n<form method="post" action="/setup/telegram">\n${csrfInput(csrfToken)}\n` +
-    `${chats.map((chat) => chatOptionHtml(language, chat)).join("\n")}\n` +
-    `<button type="submit" class="primary">${escapeHtml(texts.telegramConfirmButton)}</button>\n</form>`
-  );
 }
 
 function codeHtml(language: Language, csrfToken: string, chatId: number, proof: string): string {
@@ -475,9 +436,8 @@ export function renderTelegramPage(
   const intro = `<p>${escapeHtml(texts.telegramIntro)}</p>`;
   let body: string;
   switch (view.kind) {
-    case "chat-id-secret":
-      body = titled(heading, `<p class="notice info">${escapeHtml(texts.telegramChatIdSecret)}</p>`);
-      break;
+    case "step":
+      throw new Error("Not implemented");
     case "notice-only":
       body = titled(heading, `${intro}\n${noticeHtml(language, notice)}\n${searchLink(language)}`);
       break;
@@ -486,22 +446,6 @@ export function renderTelegramPage(
         heading,
         `${noticeHtml(language, notice)}\n${codeHtml(language, csrfToken, view.chatId, view.proof)}\n${searchLink(language)}`,
       );
-      break;
-    case "problem":
-      body =
-        `${heading}\n` +
-        card(
-          `${intro}\n${noticeHtml(language, notice ?? PROBLEM_NOTICES[view.problem])}\n` +
-            `${savedChatHtml(language, view.savedChatId)}\n${searchLink(language)}`,
-        );
-      break;
-    case "chats":
-      body =
-        `${heading}\n` +
-        card(
-          `${intro}\n${noticeHtml(language, notice)}\n${savedChatHtml(language, view.savedChatId)}\n` +
-            `${searchLink(language)}\n${chatsHtml(language, csrfToken, view.chats)}`,
-        );
       break;
     default: {
       const unreachable: never = view;

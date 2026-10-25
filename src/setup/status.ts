@@ -12,6 +12,8 @@ import { isChatIdSecretSet, parseChatId } from "../telegram";
 export type ChatStatus =
   { readonly kind: "secret" } | { readonly kind: "saved"; readonly chatId: number } | { readonly kind: "none" };
 
+export type BotTokenStatus = "worker-secret" | "saved" | "none" | "unreadable";
+
 export type AppStatus =
   | { readonly kind: "worker-secrets" }
   | { readonly kind: "partial-worker-secrets" }
@@ -33,6 +35,7 @@ export interface StatusGitHub {
 
 export interface StatusView {
   readonly version: string;
+  readonly botToken: BotTokenStatus;
   readonly chat: ChatStatus;
   readonly app: AppStatus;
   readonly lastDelivery: Date | undefined;
@@ -40,6 +43,13 @@ export interface StatusView {
   readonly settings: NotificationSettings;
   readonly installations: InstallationsView;
 }
+
+/** Where the bot token comes from, read from the environment and D1; calls no Telegram API. D1 errors are not caught. */
+/* eslint-disable @typescript-eslint/no-unused-vars -- skeleton: the implementation uses the parameters */
+function botTokenStatus(env: object, db: D1Database): Promise<BotTokenStatus> {
+  return Promise.reject(new Error("Not implemented"));
+}
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 async function chatStatus(env: object, db: D1Database): Promise<ChatStatus> {
   if (isChatIdSecretSet(env)) {
@@ -120,10 +130,12 @@ export async function statusView(
   github: StatusGitHub,
 ): Promise<StatusView> {
   const settings = await readNotificationSettings(db);
+  const botToken = await botTokenStatus(env, db);
   const chat = await chatStatus(env, db);
   const app = await appStatus(env, db, storageKey);
   return {
     version,
+    botToken,
     chat,
     app,
     lastDelivery: await readLastDelivery(db),

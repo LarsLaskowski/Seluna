@@ -22,6 +22,7 @@ import type { InstallationsView, StatusView } from "./status";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 import type { TelegramChat } from "../telegram";
+import type { TokenState } from "./telegram-step";
 
 const LANGUAGES: readonly Language[] = ["en", "de"];
 const NOTICES: readonly Notice[] = [
@@ -58,8 +59,17 @@ const CHATS: readonly TelegramChat[] = [
   { id: 5_001_001, kind: "private", name: "Anna Beispiel", username: "anna_example" },
   { id: -4_001_001, kind: "group", name: "Seluna Testgroup", username: undefined },
 ];
-const CHATS_VIEW: TelegramPageView = { kind: "chats", chats: CHATS, savedChatId: undefined };
-const NO_CHATS_VIEW: TelegramPageView = { kind: "chats", chats: [], savedChatId: -1_001_234_567_890 };
+const WORKER_SECRET_TOKEN: TokenState = { kind: "worker-secret", rejected: false };
+const CHATS_VIEW: TelegramPageView = {
+  kind: "step",
+  token: WORKER_SECRET_TOKEN,
+  chat: { kind: "chats", chats: CHATS, savedChatId: undefined },
+};
+const NO_CHATS_VIEW: TelegramPageView = {
+  kind: "step",
+  token: WORKER_SECRET_TOKEN,
+  chat: { kind: "chats", chats: [], savedChatId: -1_001_234_567_890 },
+};
 const CODE_VIEW: TelegramPageView = {
   kind: "code",
   chatId: 5_001_001,
@@ -156,7 +166,11 @@ describe("renderTelegramPage", () => {
       username: undefined,
     }));
 
-    const page = renderTelegramPage("en", CSRF_TOKEN, { kind: "chats", chats, savedChatId: undefined });
+    const page = renderTelegramPage("en", CSRF_TOKEN, {
+      kind: "step",
+      token: WORKER_SECRET_TOKEN,
+      chat: { kind: "chats", chats, savedChatId: undefined },
+    });
 
     expect(page, "unescaped markup from a name").not.toMatch(/<img\b|<b>/);
     expect(
@@ -171,7 +185,11 @@ describe("renderTelegramPage", () => {
       { id: 5_002_002, kind: "private", name: "Mallory @anna_example", username: undefined },
     ];
 
-    const page = renderTelegramPage("en", CSRF_TOKEN, { kind: "chats", chats, savedChatId: undefined });
+    const page = renderTelegramPage("en", CSRF_TOKEN, {
+      kind: "step",
+      token: WORKER_SECRET_TOKEN,
+      chat: { kind: "chats", chats, savedChatId: undefined },
+    });
 
     const nameIndex = page.indexOf("<bdi>Anna Beispiel</bdi>");
     const usernameIndex = page.indexOf('<bdi class="username">@anna_example</bdi>');
@@ -305,6 +323,7 @@ const DELIVERY_AT_UTC = new Date(Date.UTC(2026, 9, 17, 12, 34));
 function statusViewWith(changes: Partial<StatusView> = {}): StatusView {
   return {
     version: "1.2.3-test",
+    botToken: "worker-secret",
     chat: { kind: "saved", chatId: -1_001_234_567_890 },
     app: { kind: "saved", appId: 12_345, slug: "seluna-demo" },
     lastDelivery: DELIVERY_AT_UTC,
@@ -452,7 +471,12 @@ const ALL_PAGES: readonly PageCase[] = LANGUAGES.flatMap((language): readonly Pa
     entry("start notice-only", stepLinks, [], () =>
       renderStartPage(language, CSRF_TOKEN, { kind: "notice-only" }, "unavailable"),
     ),
-    entry("telegram chat id secret", [], [], telegram({ kind: "chat-id-secret" })),
+    entry(
+      "telegram chat id secret",
+      [],
+      [],
+      telegram({ kind: "step", token: WORKER_SECRET_TOKEN, chat: { kind: "chat-id-secret" } }),
+    ),
     entry("telegram notice-only", [TELEGRAM_LINK], [], telegram({ kind: "notice-only" }, "telegram-send-failed")),
     entry("telegram code", [TELEGRAM_LINK], [], telegram(CODE_VIEW)),
     entry("telegram code with a notice", [TELEGRAM_LINK], [], telegram(CODE_VIEW, "telegram-wrong-code")),
@@ -460,13 +484,13 @@ const ALL_PAGES: readonly PageCase[] = LANGUAGES.flatMap((language): readonly Pa
       "telegram problem without a saved chat",
       [TELEGRAM_LINK],
       [],
-      telegram({ kind: "problem", problem: "token-missing", savedChatId: undefined }),
+      telegram({ kind: "step", token: { kind: "missing" }, chat: { kind: "hidden", savedChatId: undefined } }),
     ),
     entry(
       "telegram problem with a saved chat",
       [TELEGRAM_LINK],
       [],
-      telegram({ kind: "problem", problem: "token-missing", savedChatId: -1_001_234_567_890 }),
+      telegram({ kind: "step", token: { kind: "missing" }, chat: { kind: "hidden", savedChatId: -1_001_234_567_890 } }),
     ),
     entry("telegram chats", [TELEGRAM_LINK], [], telegram(CHATS_VIEW)),
     entry("telegram no chats", [TELEGRAM_LINK], [], telegram(NO_CHATS_VIEW)),
@@ -881,7 +905,11 @@ describe("the notice kinds", () => {
     ({ language }) => {
       const texts = TEXTS[language];
 
-      const chatIdSecret = renderTelegramPage(language, CSRF_TOKEN, { kind: "chat-id-secret" });
+      const chatIdSecret = renderTelegramPage(language, CSRF_TOKEN, {
+        kind: "step",
+        token: WORKER_SECRET_TOKEN,
+        chat: { kind: "chat-id-secret" },
+      });
       const workerSecrets = renderGitHubPage(language, CSRF_TOKEN, { kind: "worker-secrets" });
       const created = renderGitHubPage(language, CSRF_TOKEN, { kind: "created", slug: "octoapp" });
 
@@ -1104,9 +1132,9 @@ describe("long and many texts", () => {
     expect(name.length, "length of the name").toBe(128);
 
     const page = renderTelegramPage("en", CSRF_TOKEN, {
-      kind: "chats",
-      chats: [{ id: 7, kind: "group", name, username: undefined }],
-      savedChatId: undefined,
+      kind: "step",
+      token: WORKER_SECRET_TOKEN,
+      chat: { kind: "chats", chats: [{ id: 7, kind: "group", name, username: undefined }], savedChatId: undefined },
     });
 
     const cards = sectionsOf(mainOf(page));
@@ -1122,7 +1150,11 @@ describe("long and many texts", () => {
       username: undefined,
     }));
 
-    const page = renderTelegramPage("en", CSRF_TOKEN, { kind: "chats", chats, savedChatId: undefined });
+    const page = renderTelegramPage("en", CSRF_TOKEN, {
+      kind: "step",
+      token: WORKER_SECRET_TOKEN,
+      chat: { kind: "chats", chats, savedChatId: undefined },
+    });
 
     const cards = sectionsOf(mainOf(page));
     expect(cards.length, "number of cards").toBe(1);

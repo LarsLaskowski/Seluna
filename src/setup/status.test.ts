@@ -78,6 +78,7 @@ async function saveApp(appId: string, privateKey: string): Promise<void> {
 
 describe("statusView", () => {
   const EMPTY: Omit<StatusView, "version"> = {
+    botToken: "none",
     chat: { kind: "none" },
     app: { kind: "none" },
     lastDelivery: undefined,

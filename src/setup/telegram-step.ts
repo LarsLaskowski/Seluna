@@ -1,57 +1,52 @@
-import { readSetting, TELEGRAM_CHAT_ID_SETTING, writeSetting } from "../store/settings";
-import { botTokenFromEnv, findChats, isChatIdSecretSet, parseChatId, sendMessage } from "../telegram";
+import type { BotTokenSource } from "../bot-token";
+import { TELEGRAM_CHAT_ID_SETTING, writeSetting } from "../store/settings";
+import { isChatIdSecretSet } from "../telegram";
 import type { TelegramChat, TelegramFetch } from "../telegram";
-import { checkChatProof, createChatProof, newChatCode } from "./chat-proof";
+import { checkChatProof } from "./chat-proof";
 import type { Language } from "./language";
-import { TEXTS } from "./texts";
 
 export const TELEGRAM_STEP_PATH = "/setup/telegram";
 export const CHAT_FIELD = "chat";
 
-export type TelegramProblem = "token-missing" | "token-malformed" | "token-rejected" | "conflict" | "unavailable";
+export const TELEGRAM_TOKEN_PATH = "/setup/telegram/token";
+export const TELEGRAM_TOKEN_REMOVE_PATH = "/setup/telegram/token/remove";
+export const TOKEN_FIELD = "token";
 
-export type TelegramStepView =
+/** What the token card of the step shows. `rejected`: Telegram no longer accepts the token in use. */
+export type TokenState =
+  | { readonly kind: "worker-secret"; readonly rejected: boolean }
+  | { readonly kind: "worker-secret-malformed" }
+  | { readonly kind: "missing" }
+  | { readonly kind: "entry" }
+  | { readonly kind: "saved"; readonly rejected: boolean }
+  | { readonly kind: "unreadable" }
+  | { readonly kind: "damaged" };
+
+export type TelegramProblem = "conflict" | "unavailable";
+
+/** What the chat card of the step shows. */
+export type ChatPart =
   | { readonly kind: "chat-id-secret" }
+  | { readonly kind: "omitted" }
+  | { readonly kind: "hidden"; readonly savedChatId: number | undefined }
   | { readonly kind: "problem"; readonly problem: TelegramProblem; readonly savedChatId: number | undefined }
   | { readonly kind: "chats"; readonly chats: readonly TelegramChat[]; readonly savedChatId: number | undefined };
 
-/** What the step page shows; calls `getUpdates` at most once. D1 errors are not caught. */
-export async function telegramStepView(env: object, db: D1Database, fetcher: TelegramFetch): Promise<TelegramStepView> {
-  if (isChatIdSecretSet(env)) {
-    return { kind: "chat-id-secret" };
-  }
-  const stored = await readSetting(db, TELEGRAM_CHAT_ID_SETTING);
-  // A stored value that is not a chat id is shown as no saved chat.
-  const savedChatId = stored === undefined ? undefined : parseChatId(stored);
-  const token = botTokenFromEnv(env);
-  switch (token.kind) {
-    case "missing":
-      return { kind: "problem", problem: "token-missing", savedChatId };
-    case "malformed":
-      return { kind: "problem", problem: "token-malformed", savedChatId };
-    case "usable":
-      break;
-    default: {
-      const unreachable: never = token;
-      return unreachable;
-    }
-  }
-  const found = await findChats(token.token, fetcher);
-  switch (found.kind) {
-    case "found":
-      return { kind: "chats", chats: found.chats, savedChatId };
-    case "token-rejected":
-      return { kind: "problem", problem: "token-rejected", savedChatId };
-    case "conflict":
-      return { kind: "problem", problem: "conflict", savedChatId };
-    case "unavailable":
-      return { kind: "problem", problem: "unavailable", savedChatId };
-    default: {
-      const unreachable: never = found;
-      return unreachable;
-    }
-  }
+export interface TelegramStepView {
+  readonly kind: "step";
+  readonly token: TokenState;
+  readonly chat: ChatPart;
 }
+
+/**
+ * What the step page shows: the token state from `resolveBotToken` and the chat part; calls `getUpdates` at most once
+ * and only with a usable token while `TELEGRAM_CHAT_ID` is not set. D1 errors are not caught.
+ */
+/* eslint-disable @typescript-eslint/no-unused-vars -- skeleton: the implementation uses the parameters */
+export function telegramStepView(env: object, db: D1Database, fetcher: TelegramFetch): Promise<TelegramStepView> {
+  return Promise.reject(new Error("Not implemented"));
+}
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 export const TELEGRAM_VERIFY_PATH = "/setup/telegram/verify";
 export const PROOF_FIELD = "proof";
@@ -63,12 +58,17 @@ export type ConfirmChatResult =
   | { readonly kind: "invalid-chat" }
   | { readonly kind: "token-missing" }
   | { readonly kind: "token-malformed" }
-  | { readonly kind: "token-rejected" }
+  | { readonly kind: "token-rejected"; readonly source: BotTokenSource }
   | { readonly kind: "send-failed" };
 
-/** Sends a test message with a new code to the one chat in `chatFields` and returns the proof for it; stores nothing. */
-export async function confirmTelegramChat(
+/**
+ * Sends a test message with a new code to the one chat in `chatFields` and returns the proof for it; stores nothing.
+ * The token comes from `resolveBotToken`. D1 errors are not caught.
+ */
+/* eslint-disable @typescript-eslint/no-unused-vars -- skeleton: the implementation uses the parameters */
+export function confirmTelegramChat(
   env: object,
+  db: D1Database,
   fetcher: TelegramFetch,
   proofKey: CryptoKey,
   session: string,
@@ -76,36 +76,43 @@ export async function confirmTelegramChat(
   language: Language,
   now: Date,
 ): Promise<ConfirmChatResult> {
-  if (isChatIdSecretSet(env)) {
-    return { kind: "chat-id-secret" };
-  }
-  const [field] = chatFields;
-  const chatId = chatFields.length === 1 && field !== undefined ? parseChatId(field) : undefined;
-  if (chatId === undefined) {
-    return { kind: "invalid-chat" };
-  }
-  const token = botTokenFromEnv(env);
-  if (token.kind === "missing") {
-    return { kind: "token-missing" };
-  }
-  if (token.kind === "malformed") {
-    return { kind: "token-malformed" };
-  }
-  const code = newChatCode();
-  const sent = await sendMessage(token.token, chatId, `${TEXTS[language].telegramTestMessage} ${code}`, fetcher);
-  switch (sent) {
-    case "sent":
-      return { kind: "code-sent", chatId, proof: await createChatProof(proofKey, session, chatId, code, now) };
-    case "token-rejected":
-      return { kind: "token-rejected" };
-    case "failed":
-      return { kind: "send-failed" };
-    default: {
-      const unreachable: never = sent;
-      return unreachable;
-    }
-  }
+  return Promise.reject(new Error("Not implemented"));
 }
+/* eslint-enable @typescript-eslint/no-unused-vars */
+
+export type SaveTokenResult =
+  | { readonly kind: "saved" }
+  | { readonly kind: "worker-secret" }
+  | { readonly kind: "invalid" }
+  | { readonly kind: "unreadable" }
+  | { readonly kind: "not-writable" }
+  | { readonly kind: "rejected" }
+  | { readonly kind: "unavailable" };
+
+/**
+ * Checks the one token of the token form against the allow-list, asks Telegram once (`getMe`) and saves the token
+ * encrypted when Telegram accepts it. D1 errors are not caught.
+ */
+/* eslint-disable @typescript-eslint/no-unused-vars -- skeleton: the implementation uses the parameters */
+export function saveBotToken(
+  env: object,
+  db: D1Database,
+  fetcher: TelegramFetch,
+  tokenFields: readonly string[],
+): Promise<SaveTokenResult> {
+  return Promise.reject(new Error("Not implemented"));
+}
+/* eslint-enable @typescript-eslint/no-unused-vars */
+
+export type RemoveTokenResult =
+  { readonly kind: "removed" } | { readonly kind: "worker-secret" } | { readonly kind: "unreadable" };
+
+/** Deletes the saved bot token (also when none is saved); calls no Telegram API. D1 errors are not caught. */
+/* eslint-disable @typescript-eslint/no-unused-vars -- skeleton: the implementation uses the parameters */
+export function removeBotToken(env: object, db: D1Database): Promise<RemoveTokenResult> {
+  return Promise.reject(new Error("Not implemented"));
+}
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 export type VerifyChatResult =
   | { readonly kind: "saved" }

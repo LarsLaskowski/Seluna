@@ -265,6 +265,12 @@ function telegramPage(
 }
 
 const NOTICE_ONLY: TelegramPageView = { kind: "notice-only" };
+// Placeholder of the skeleton: the token part of a 409 for a confirm or verify form comes with the implementation.
+const CHAT_ID_SECRET_VIEW: TelegramPageView = {
+  kind: "step",
+  token: { kind: "worker-secret", rejected: false },
+  chat: { kind: "chat-id-secret" },
+};
 
 async function showTelegramStep(context: Context, session: string): Promise<Response> {
   const { env, db, fetch } = context.deps;
@@ -295,9 +301,10 @@ async function confirmTelegram(context: Context, session: string): Promise<Respo
   if (form instanceof Response) {
     return form;
   }
-  const { env, fetch, now } = context.deps;
+  const { env, db, fetch, now } = context.deps;
   const result = await confirmTelegramChat(
     env,
+    db,
     fetch,
     context.telegramKey,
     session,
@@ -309,7 +316,7 @@ async function confirmTelegram(context: Context, session: string): Promise<Respo
     case "code-sent":
       return telegramPage(context, session, 200, { kind: "code", chatId: result.chatId, proof: result.proof });
     case "chat-id-secret":
-      return telegramPage(context, session, 409, { kind: "chat-id-secret" });
+      return telegramPage(context, session, 409, CHAT_ID_SECRET_VIEW);
     case "invalid-chat":
       return telegramPage(context, session, 400, NOTICE_ONLY, "telegram-invalid-chat");
     case "token-missing":
@@ -352,7 +359,7 @@ async function verifyTelegram(context: Context, session: string): Promise<Respon
     case "saved":
       return plain(context, 303, [], TELEGRAM_STEP_PATH);
     case "chat-id-secret":
-      return telegramPage(context, session, 409, { kind: "chat-id-secret" });
+      return telegramPage(context, session, 409, CHAT_ID_SECRET_VIEW);
     case "code-expired":
       return telegramPage(context, session, 400, NOTICE_ONLY, "telegram-code-expired");
     case "wrong-code":

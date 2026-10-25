@@ -35,6 +35,13 @@ export function botTokenFromEnv(env: object): BotToken {
   return BOT_TOKEN_FORM.test(value) ? { kind: "usable", token: value } : { kind: "malformed" };
 }
 
+/** Whether `value` is of the bot token form: digits, a colon, then letters, digits, `-` and `_` (the allow-list). */
+/* eslint-disable @typescript-eslint/no-unused-vars -- skeleton: the implementation uses the parameters */
+export function isBotToken(value: string): boolean {
+  throw new Error("Not implemented");
+}
+/* eslint-enable @typescript-eslint/no-unused-vars */
+
 /** Whether the Worker secret `TELEGRAM_CHAT_ID` is a non-empty string. */
 export function isChatIdSecretSet(env: object): boolean {
   const value: unknown = CHAT_ID_SECRET_NAME in env ? env[CHAT_ID_SECRET_NAME] : undefined;
@@ -177,6 +184,18 @@ export async function findChats(token: string, fetcher: TelegramFetch): Promise<
   const chats = answer.ok ? parseChats(answer.body) : undefined;
   return chats === undefined ? { kind: "unavailable" } : { kind: "found", chats };
 }
+
+export type BotTokenCheck = "accepted" | "rejected" | "unavailable";
+
+/**
+ * Calls `getMe` once with `token` (of the bot token form): 401 and 404 are `rejected`, a 2xx answer with `ok: true` is
+ * `accepted`, everything else is `unavailable`. Only `ok` of the answer is read. Never throws.
+ */
+/* eslint-disable @typescript-eslint/no-unused-vars -- skeleton: the implementation uses the parameters */
+export function verifyBotToken(token: string, fetcher: TelegramFetch): Promise<BotTokenCheck> {
+  return Promise.reject(new Error("Not implemented"));
+}
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 type BotApiAnswer =
   | { readonly kind: "answered"; readonly status: number; readonly ok: boolean; readonly body: unknown }

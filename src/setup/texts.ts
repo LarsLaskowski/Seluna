@@ -10,6 +10,13 @@ export type Notice =
   | "telegram-token-missing"
   | "telegram-token-malformed"
   | "telegram-token-rejected"
+  | "telegram-token-invalid"
+  | "telegram-token-not-accepted"
+  | "telegram-token-unverified"
+  | "telegram-saved-token-rejected"
+  | "telegram-token-unreadable"
+  | "telegram-token-damaged"
+  | "telegram-token-not-saved"
   | "telegram-conflict"
   | "telegram-unavailable"
   | "telegram-send-failed"
@@ -42,6 +49,15 @@ export interface SetupTexts {
   readonly startBody: string;
   readonly logoutButton: string;
   readonly telegramHeading: string;
+  readonly telegramTokenHeading: string;
+  readonly telegramChatHeading: string;
+  readonly telegramTokenIntro: string;
+  readonly telegramTokenLabel: string;
+  readonly telegramTokenSaveButton: string;
+  readonly telegramTokenSaved: string;
+  readonly telegramTokenChange: string;
+  readonly telegramTokenRemoveButton: string;
+  readonly telegramTokenWorkerSecret: string;
   readonly telegramIntro: string;
   readonly telegramSearchLink: string;
   readonly telegramChatIdSecret: string;
@@ -86,6 +102,9 @@ export interface SetupTexts {
   readonly githubBackLink: string;
   readonly statusHeading: string;
   readonly versionLabel: string;
+  readonly botTokenLabel: string;
+  readonly botTokenSecret: string;
+  readonly botTokenSaved: string;
   readonly telegramChatLabel: string;
   readonly noneSavedYet: string;
   readonly chatSecret: string;
@@ -140,6 +159,17 @@ const ENGLISH: SetupTexts = {
   startBody: "Set up your instance step by step:",
   logoutButton: "Sign out",
   telegramHeading: "Telegram chat",
+  telegramTokenHeading: "Bot token",
+  telegramChatHeading: "Chat",
+  telegramTokenIntro:
+    "Seluna sends its notifications through your own Telegram bot. In Telegram, send /newbot to @BotFather and enter the token it returns here. Seluna checks the token with Telegram and saves it encrypted; it is not shown again.",
+  telegramTokenLabel: "Bot token",
+  telegramTokenSaveButton: "Save token",
+  telegramTokenSaved: "A bot token is saved. It is not shown again.",
+  telegramTokenChange: "Change token",
+  telegramTokenRemoveButton: "Remove token",
+  telegramTokenWorkerSecret:
+    "The bot token is set by the Worker secret TELEGRAM_BOT_TOKEN, which takes precedence over a token saved here. To enter the token here, delete that secret.",
   telegramIntro:
     "Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the bot to a group. Then search for chats.",
   telegramSearchLink: "Search for chats",
@@ -199,6 +229,9 @@ const ENGLISH: SetupTexts = {
   githubBackLink: "Back to the GitHub App step",
   statusHeading: "Status",
   versionLabel: "Version:",
+  botTokenLabel: "Telegram bot token:",
+  botTokenSecret: "Set by the Worker secret TELEGRAM_BOT_TOKEN.",
+  botTokenSaved: "Saved in the setup.",
   telegramChatLabel: "Telegram chat:",
   noneSavedYet: "None saved yet.",
   chatSecret: "Set by the Worker secret TELEGRAM_CHAT_ID.",
@@ -225,7 +258,7 @@ const ENGLISH: SetupTexts = {
   keyUnusable: "The app's private key cannot be used.",
   resetHeading: "The saved credentials cannot be read",
   resetText:
-    "The saved GitHub credentials cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials and installation tokens, and you create the GitHub App again. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept.",
+    "The saved credentials cannot be read with the current SELUNA_SECRET: it was changed, or a saved value is damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials, the installation tokens and the saved Telegram bot token; you then create the GitHub App again and enter the bot token again in the Telegram chat step. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept.",
   resetButton: "Reset and create the GitHub App again",
   settingsHeading: "Settings",
   notificationLanguageLabel: "Language of the notifications",
@@ -262,11 +295,24 @@ const ENGLISH: SetupTexts = {
     "migrations-missing":
       "The database of this instance is missing its tables: the database migrations have not run. In the Cloudflare dashboard open Workers & Pages, this Worker, Settings and Build, set the Deploy command to npm run deploy and retry the latest build, as the setup guide describes.",
     "telegram-token-missing":
-      "The Worker secret TELEGRAM_BOT_TOKEN is not set. In Telegram, send /newbot to @BotFather and copy the token it returns. In the Cloudflare dashboard open this Worker, then Settings, then Variables and Secrets, and add a secret named TELEGRAM_BOT_TOKEN with that token. Or run: npx wrangler secret put TELEGRAM_BOT_TOKEN",
+      "No usable bot token is available. Open the Telegram chat step and check the bot token there.",
     "telegram-token-malformed":
       "The Worker secret TELEGRAM_BOT_TOKEN is not a bot token. A token from @BotFather is digits, a colon, then letters, digits, - and _, without spaces. Copy it again from @BotFather and replace the secret in the Cloudflare dashboard under Settings, then Variables and Secrets.",
     "telegram-token-rejected":
       "Telegram does not accept the Worker secret TELEGRAM_BOT_TOKEN: it is mistyped or was revoked. Send /mybots to @BotFather, copy your bot's current token and replace the secret in the Cloudflare dashboard under Settings, then Variables and Secrets.",
+    "telegram-token-invalid":
+      "That is not a bot token. A token from @BotFather is digits, a colon, then letters, digits, - and _, without spaces. Copy it again from @BotFather. Nothing was saved.",
+    "telegram-token-not-accepted":
+      "Telegram does not accept this token: it is mistyped or was revoked. Send /mybots to @BotFather, copy your bot's current token and enter it again. Nothing was saved.",
+    "telegram-token-unverified":
+      "Telegram could not be reached or gave an answer Seluna cannot read, so the token was not saved. Please try again in a moment.",
+    "telegram-saved-token-rejected":
+      "Telegram does not accept the saved bot token: it was revoked or the bot was deleted. Send /mybots to @BotFather, copy your bot's current token and enter it here.",
+    "telegram-token-unreadable":
+      "The saved bot token cannot be read with the current SELUNA_SECRET: it was changed, or the saved values are damaged. Set the earlier SELUNA_SECRET again, or reset the saved credentials on the start page and enter the token again.",
+    "telegram-token-damaged": "The saved bot token is damaged and cannot be read. Enter the token again, or remove it.",
+    "telegram-token-not-saved":
+      "The token was not saved because the saved credentials cannot be read with the current SELUNA_SECRET. Set the earlier SELUNA_SECRET again, or reset the saved credentials on the start page first.",
     "telegram-conflict":
       "Telegram does not hand the bot's chats to Seluna because another program receives its updates (a webhook, or a program that polls the bot). Seluna needs a bot of its own: create one with /newbot at @BotFather, or remove the webhook from this bot.",
     "telegram-unavailable":
@@ -312,6 +358,17 @@ const GERMAN: SetupTexts = {
   startBody: "Richte deine Instanz Schritt für Schritt ein:",
   logoutButton: "Abmelden",
   telegramHeading: "Telegram-Chat",
+  telegramTokenHeading: "Bot-Token",
+  telegramChatHeading: "Chat",
+  telegramTokenIntro:
+    "Seluna sendet seine Benachrichtigungen über deinen eigenen Telegram-Bot. Sende in Telegram /newbot an @BotFather und gib den zurückgegebenen Token hier ein. Seluna prüft den Token bei Telegram und speichert ihn verschlüsselt; er wird nicht wieder angezeigt.",
+  telegramTokenLabel: "Bot-Token",
+  telegramTokenSaveButton: "Token speichern",
+  telegramTokenSaved: "Ein Bot-Token ist gespeichert. Er wird nicht wieder angezeigt.",
+  telegramTokenChange: "Token ändern",
+  telegramTokenRemoveButton: "Token entfernen",
+  telegramTokenWorkerSecret:
+    "Der Bot-Token wird durch das Worker-Secret TELEGRAM_BOT_TOKEN festgelegt, das Vorrang vor einem hier gespeicherten Token hat. Um den Token hier einzugeben, lösche dieses Secret.",
   telegramIntro:
     "Seluna sendet seine Benachrichtigungen an einen Telegram-Chat. Öffne deinen Bot in Telegram und sende /start, oder füge den Bot einer Gruppe hinzu. Suche danach nach Chats.",
   telegramSearchLink: "Nach Chats suchen",
@@ -372,6 +429,9 @@ const GERMAN: SetupTexts = {
   githubBackLink: "Zurück zum Schritt GitHub-App",
   statusHeading: "Status",
   versionLabel: "Version:",
+  botTokenLabel: "Telegram-Bot-Token:",
+  botTokenSecret: "Gesetzt durch das Worker-Secret TELEGRAM_BOT_TOKEN.",
+  botTokenSaved: "In der Einrichtung gespeichert.",
   telegramChatLabel: "Telegram-Chat:",
   noneSavedYet: "Noch nichts gespeichert.",
   chatSecret: "Gesetzt durch das Worker-Secret TELEGRAM_CHAT_ID.",
@@ -398,7 +458,7 @@ const GERMAN: SetupTexts = {
   keyUnusable: "Der private Schlüssel der App ist nicht verwendbar.",
   resetHeading: "Die gespeicherten Zugangsdaten sind nicht lesbar",
   resetText:
-    "Die gespeicherten GitHub-Zugangsdaten sind mit dem aktuellen SELUNA_SECRET nicht lesbar: Es wurde geändert, oder die gespeicherten Werte sind beschädigt. Wenn du das frühere SELUNA_SECRET noch kennst, setze es stattdessen wieder. Andernfalls setze zurück: Seluna löscht die gespeicherten GitHub-Zugangsdaten und Installations-Tokens, und du erstellst die GitHub-App neu. Lösche die alte App danach auf GitHub: in den Einstellungen deines Kontos oder deiner Organisation unter Developer settings, dann GitHub Apps. Der Telegram-Chat und die Einstellungen bleiben erhalten.",
+    "Die gespeicherten Zugangsdaten sind mit dem aktuellen SELUNA_SECRET nicht lesbar: Es wurde geändert, oder ein gespeicherter Wert ist beschädigt. Wenn du das frühere SELUNA_SECRET noch kennst, setze es stattdessen wieder. Andernfalls setze zurück: Seluna löscht die gespeicherten GitHub-Zugangsdaten, die Installations-Tokens und den gespeicherten Telegram-Bot-Token; du erstellst danach die GitHub-App neu und gibst den Bot-Token im Schritt Telegram-Chat erneut ein. Lösche die alte App danach auf GitHub: in den Einstellungen deines Kontos oder deiner Organisation unter Developer settings, dann GitHub Apps. Der Telegram-Chat und die Einstellungen bleiben erhalten.",
   resetButton: "Zurücksetzen und GitHub-App neu erstellen",
   settingsHeading: "Einstellungen",
   notificationLanguageLabel: "Sprache der Benachrichtigungen",
@@ -435,11 +495,25 @@ const GERMAN: SetupTexts = {
     "migrations-missing":
       "Der Datenbank dieser Instanz fehlen ihre Tabellen: Die Datenbank-Migrationen wurden nicht ausgeführt. Öffne im Cloudflare-Dashboard Workers & Pages, diesen Worker, Settings und Build, setze den Deploy command auf npm run deploy und wiederhole den letzten Build, wie es die Einrichtungsanleitung beschreibt.",
     "telegram-token-missing":
-      "Das Worker-Secret TELEGRAM_BOT_TOKEN ist nicht gesetzt. Sende in Telegram /newbot an @BotFather und kopiere den zurückgegebenen Token. Öffne im Cloudflare-Dashboard diesen Worker, dann Settings, dann Variables and Secrets, und füge ein Secret namens TELEGRAM_BOT_TOKEN mit diesem Token hinzu. Oder führe aus: npx wrangler secret put TELEGRAM_BOT_TOKEN",
+      "Es ist kein verwendbarer Bot-Token verfügbar. Öffne den Schritt Telegram-Chat und prüfe dort den Bot-Token.",
     "telegram-token-malformed":
       "Das Worker-Secret TELEGRAM_BOT_TOKEN ist kein Bot-Token. Ein Token von @BotFather besteht aus Ziffern, einem Doppelpunkt und dann Buchstaben, Ziffern, - und _, ohne Leerzeichen. Kopiere ihn erneut von @BotFather und ersetze das Secret im Cloudflare-Dashboard unter Settings, dann Variables and Secrets.",
     "telegram-token-rejected":
       "Telegram akzeptiert das Worker-Secret TELEGRAM_BOT_TOKEN nicht: Es ist falsch geschrieben oder wurde widerrufen. Sende /mybots an @BotFather, kopiere den aktuellen Token deines Bots und ersetze das Secret im Cloudflare-Dashboard unter Settings, dann Variables and Secrets.",
+    "telegram-token-invalid":
+      "Das ist kein Bot-Token. Ein Token von @BotFather besteht aus Ziffern, einem Doppelpunkt und dann Buchstaben, Ziffern, - und _, ohne Leerzeichen. Kopiere ihn erneut von @BotFather. Es wurde nichts gespeichert.",
+    "telegram-token-not-accepted":
+      "Telegram akzeptiert diesen Token nicht: Er ist falsch geschrieben oder wurde widerrufen. Sende /mybots an @BotFather, kopiere den aktuellen Token deines Bots und gib ihn erneut ein. Es wurde nichts gespeichert.",
+    "telegram-token-unverified":
+      "Telegram war nicht erreichbar oder hat eine Antwort gegeben, die Seluna nicht lesen kann, daher wurde der Token nicht gespeichert. Bitte versuche es gleich noch einmal.",
+    "telegram-saved-token-rejected":
+      "Telegram akzeptiert den gespeicherten Bot-Token nicht: Er wurde widerrufen oder der Bot wurde gelöscht. Sende /mybots an @BotFather, kopiere den aktuellen Token deines Bots und gib ihn hier ein.",
+    "telegram-token-unreadable":
+      "Der gespeicherte Bot-Token lässt sich mit dem aktuellen SELUNA_SECRET nicht lesen: Es wurde geändert, oder die gespeicherten Werte sind beschädigt. Setze das frühere SELUNA_SECRET wieder, oder setze die gespeicherten Zugangsdaten auf der Startseite zurück und gib den Token erneut ein.",
+    "telegram-token-damaged":
+      "Der gespeicherte Bot-Token ist beschädigt und lässt sich nicht lesen. Gib den Token erneut ein, oder entferne ihn.",
+    "telegram-token-not-saved":
+      "Der Token wurde nicht gespeichert, weil sich die gespeicherten Zugangsdaten mit dem aktuellen SELUNA_SECRET nicht lesen lassen. Setze das frühere SELUNA_SECRET wieder, oder setze die gespeicherten Zugangsdaten zuerst auf der Startseite zurück.",
     "telegram-conflict":
       "Telegram gibt die Chats des Bots nicht an Seluna weiter, weil ein anderes Programm seine Updates empfängt (ein Webhook oder ein Programm, das den Bot abfragt). Seluna braucht einen eigenen Bot: Erstelle mit /newbot bei @BotFather einen, oder entferne den Webhook dieses Bots.",
     "telegram-unavailable":
