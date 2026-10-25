@@ -1,6 +1,6 @@
 # 0036: Telegram bot token entered in the setup wizard and checked with getMe
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-25
 - **Area:** Setup wizard
 - **Source:** Issue #68
