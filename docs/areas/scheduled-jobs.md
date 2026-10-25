@@ -37,7 +37,7 @@ the operator relies on its log entries.
 4. An attempt that fails and is the row's fifth sets the row `failed` in the same update that counts it, and writes
    the log entry `{ outbox: <id>, status: "failed" }` after the row's own entry. The row is never sent again.
 5. Without a usable bot token or chat no attempt is counted and no row is marked `failed`; the rows wait for the
-   setup. A failed read of the chat logs `store-failed` per row, as for a first send.
+   setup. A failed read of the saved bot token or the chat logs `store-failed` per row, as for a first send.
 
 - A failed statement in steps 1 to 3 (marking, reading the rows, reading the settings) ends the job and writes
   `{ job: "retry", result: "store-failed" }`.

@@ -13,7 +13,8 @@ Workers Builds runs, and the update workflow that applies a release to the user'
 
 - The button at the top of `README.md` deploys the public repository `LarsLaskowski/Seluna`. It creates an
   independent copy of the repository in the user's GitHub account (not a fork), provisions the D1 database,
-  asks for the Worker secrets below, and deploys the Worker through Workers Builds.
+  asks for the Worker secret `SELUNA_SECRET` ([Worker secrets](#worker-secrets)), and deploys the Worker through
+  Workers Builds.
 - Every push to the production branch (`main`) of the copy starts a Workers Build that runs the deploy command
   below.
 - The button is documented to take the deploy command from the `deploy` script in `package.json`, but it may set
@@ -43,18 +44,20 @@ Workers Builds runs, and the update workflow that applies a release to the user'
 | Secret                   | Holds                                                                                                                                 | Set                                          |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | `SELUNA_SECRET`          | A random string of at least 32 characters chosen by the user                                                                          | Deploy form                                  |
-| `TELEGRAM_BOT_TOKEN`     | The token of the user's Telegram bot from @BotFather                                                                                  | Deploy form                                  |
+| `TELEGRAM_BOT_TOKEN`     | The bot token from @BotFather, optional; takes precedence over the saved one ([Setup wizard](setup-wizard.md#the-bot-token))          | By hand; the deploy form does not ask for it |
 | `GITHUB_APP_ID`          | The App ID of the GitHub App, optional; takes precedence over the app the wizard created ([Setup wizard](setup-wizard.md#github-app)) | By hand; the deploy form does not ask for it |
 | `GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub App, optional; takes precedence over the stored key                                                     | By hand; the deploy form does not ask for it |
 | `GITHUB_WEBHOOK_SECRET`  | The webhook secret, optional; takes precedence over the stored one ([HTTP routes](http-routes.md#webhook-signature))                  | By hand; the deploy form does not ask for it |
 | `TELEGRAM_CHAT_ID`       | The id of the chat to send to, optional; takes precedence over the wizard's choice ([Setup wizard](setup-wizard.md#telegram-chat))    | By hand; the deploy form does not ask for it |
 
-- The deploy form asks for exactly `SELUNA_SECRET` and `TELEGRAM_BOT_TOKEN`; `.dev.vars.example` names them with
-  a description each and holds no value.
+- The deploy form asks for exactly `SELUNA_SECRET` (the only entry of `cloudflare.bindings` in `package.json`); the
+  bot token is entered in the setup wizard's Telegram step and stored encrypted in D1. `.dev.vars.example` names
+  `SELUNA_SECRET` and, commented out as optional with its precedence, `TELEGRAM_BOT_TOKEN`, each with a description
+  and no value. An instance deployed with `TELEGRAM_BOT_TOKEN` keeps using it after an update.
 - The Bot API takes the bot token in the request URL (`https://api.telegram.org/bot<token>/<method>`). Seluna never
   logs that URL, but turning on Workers traces or logs that record outbound requests in the Cloudflare dashboard
-  records the token with them: treat those traces as secret, or replace the token with `/revoke` at @BotFather
-  afterwards.
+  records the token with them, whichever source it came from: treat those traces as secret, or replace the token
+  with `/revoke` at @BotFather afterwards.
 - No secret value is ever committed: Git ignores every file Wrangler loads local secrets from (`.dev.vars`,
   `.dev.vars.<env>`, `.env`, `.env.local`, `.env.<env>`, `.env.<env>.local`); only `.dev.vars.example` and
   `.env.example` are tracked, and they hold names and descriptions only.
@@ -201,8 +204,9 @@ How the owner uses it is in [`update.md`](../update.md); the rules it follows ar
 ## Related decisions
 
 - [`decisions/0013-deploy-to-cloudflare-and-workers-builds.md`](../decisions/0013-deploy-to-cloudflare-and-workers-builds.md)
-  — the button and Workers Builds, the binding without a database id, migrations before the deploy, the Telegram
-  bot token as a Worker secret.
+  — the button and Workers Builds, the binding without a database id, migrations before the deploy.
+- [`decisions/0036-telegram-bot-token-in-the-setup-wizard.md`](../decisions/0036-telegram-bot-token-in-the-setup-wizard.md)
+  — the bot token entered in the wizard instead of the deploy form, `TELEGRAM_BOT_TOKEN` optional with precedence.
 - [`decisions/0020-deploy-command-checked-in-the-setup-guide.md`](../decisions/0020-deploy-command-checked-in-the-setup-guide.md)
   — why the setup guide has the user check the deploy command after the button's deploy, and why the migrations
   stay out of the build command.

@@ -25,8 +25,8 @@ it and add their pages behind the login.
 /setup/github/callback` without a session included).
   5. **With a valid session**: `GET /setup` answers **200** with the status page, `POST /setup/logout` signs out
      (below), `POST /setup/settings` saves the settings and `POST /setup/reset` resets the saved credentials
-     ([Status and settings](#status-and-settings), [Reset](#reset)), `GET` and `POST /setup/telegram` and `POST /setup/telegram/verify` are the Telegram step
-     ([Telegram chat](#telegram-chat)), `GET` and `POST /setup/github` and `POST /setup/github/callback` are the
+     ([Status and settings](#status-and-settings), [Reset](#reset)), `GET` and `POST /setup/telegram`, `POST /setup/telegram/verify`, `POST /setup/telegram/token` and
+     `POST /setup/telegram/token/remove` are the Telegram step ([Telegram chat](#telegram-chat)), `GET` and `POST /setup/github` and `POST /setup/github/callback` are the
      GitHub App step ([GitHub App](#github-app)), everything else answers **404** with an empty body.
 - The start page (`GET /setup`) is the status page. In this order its main column
   ([Pages and response headers](#pages-and-response-headers)) shows: the heading, the _start body_ and a notice if
@@ -112,7 +112,7 @@ it and add their pages behind the login.
 
 - Every form carries the hidden field `csrf`. There are two kinds of form: the **login form** (the login page) and
   the **signed-in forms** (every form on a page answered with a valid session; today the sign-out form on the start
-  page, the settings and reset forms of the start page, the confirm and verify forms of the Telegram step and the account form of the GitHub App step). The key is
+  page, the settings and reset forms of the start page, the token, remove, confirm and verify forms of the Telegram step and the account form of the GitHub App step). The key is
   derived like the session key with salt and info `seluna/setup-csrf/v1`. Two forms carry no `csrf` field: the form
   of the GitHub review page, which posts to github.com, and the GitHub finish form, which is protected by its
   session-bound state instead ([GitHub App](#github-app)).
@@ -137,7 +137,11 @@ it and add their pages behind the login.
 
 ### Status and settings
 
-- The status section lists: _Version:_ (the version of the build); _Telegram chat:_ the saved chat id, _set by the
+- The status section lists: _Version:_ (the version of the build); _Telegram bot token:_ _set by the Worker secret
+  TELEGRAM_BOT_TOKEN_ when that secret is a non-empty string (well-formed or not), _saved in the setup_ for a usable
+  saved token, _none saved yet_, or _cannot be read_ when the saved token cannot be read with the current
+  `SELUNA_SECRET` or its row is damaged ([The bot token](#the-bot-token)); the value is never shown and Telegram is not
+  called; _Telegram chat:_ the saved chat id, _set by the
   Worker secret TELEGRAM_CHAT_ID_ (no value shown) when that secret is a non-empty string, or _none saved yet_;
   _GitHub App:_ a link `https://github.com/apps/<slug>` with the slug as text and `(App ID <id>)` when the `meta` slug
   row belongs to the saved App ID, the App ID alone otherwise, the _Worker secrets_ or _partial Worker secrets_ text
@@ -183,8 +187,8 @@ it and add their pages behind the login.
   `GET /setup` then answers **200**, never an error status, with the reset section: the _reset heading_, the _reset
   text_ and a form `POST /setup/reset` with the session-bound `csrf` field and the _reset button_.
 - `POST /setup/reset` reads its body (413, 400), checks the CSRF token (**403**, notice-only start page, _form
-  expired_) and then calls `resetCredentials`: `reset` deletes every `secrets` and `token_cache` row and the `meta`
-  row `key_check` and answers **303** with `Location: /setup/github`; `not-needed` answers **409** with the status
+  expired_) and then calls `resetCredentials`: `reset` deletes every `secrets` row (the GitHub App credentials and a saved Telegram
+  bot token) and every `token_cache` row and the `meta` row `key_check` and answers **303** with `Location: /setup/github`; `not-needed` answers **409** with the status
   page and _reset not needed_ and deletes nothing; a D1 failure answers **503** with _unavailable_.
 - The settings, the Telegram chat, `login_attempts` and `last_delivery` stay. Nothing outside D1 is called; the old
   GitHub App stays on GitHub and the _reset text_ tells the owner to delete it there.
@@ -193,38 +197,99 @@ it and add their pages behind the login.
   deletes run in one batch in this order: `token_cache` and `secrets` while both pins hold, then `key_check` while
   its value is the one read and no `secrets` row is left ([Storage](storage.md#key-check)). The answer is _reset_
   whether or not the guarded batch deleted anything; the next `GET /setup` shows the true state.
-- Afterwards `GET /setup/github` shows the form.
+- Afterwards `GET /setup/github` shows the form, and the Telegram step shows the token form unless
+  `TELEGRAM_BOT_TOKEN` is set.
 
 ### Telegram chat
 
-The step that tells Seluna which Telegram chat to send to. The bot token is the Worker secret
-`TELEGRAM_BOT_TOKEN`; the bot never gets a webhook, Seluna neither sets nor removes one and exposes no Telegram
-route. The only Bot API methods called are `getUpdates` (this step's page) and `sendMessage` (its test message).
+The step that takes the owner's Telegram bot token and tells Seluna which Telegram chat to send to. The bot never
+gets a webhook, Seluna neither sets nor removes one and exposes no Telegram route. The only Bot API methods called
+are `getMe` (the token form), `getUpdates` (this step's page) and `sendMessage` (its test message, and delivery).
 
-- **Precedence:** when the Worker secret `TELEGRAM_CHAT_ID` is a non-empty string, it decides the chat. `GET
-/setup/telegram` then answers **200** with a page whose main column shows only the heading and a card with the
-  _chat id secret_ text as an info notice (no intro, no saved-chat line, no form, no search link), and calls neither
-  Telegram nor D1; both POSTs answer **409**
-  with the same view. No page shows the secret's value.
+- **Chat precedence:** when the Worker secret `TELEGRAM_CHAT_ID` is a non-empty string, it decides the chat. `GET
+/setup/telegram` then answers **200** with the token card exactly as without it ([The bot token](#the-bot-token))
+  and a chat card holding only the _Chat_ heading and the _chat id secret_ text as an info notice (no intro, no
+  saved-chat line, no form, no search link). The page reads the saved token's state from D1 but calls Telegram zero
+  times: no chat search runs, so a saved token Telegram no longer accepts is not detected there and its notice
+  (_saved token rejected_) is not shown in this state. The token and remove forms work as without it. The confirm and
+  verify forms answer **409** with the same view (a D1 failure while reading the token's state: **503**, the
+  notice-only page, _unavailable_). No page shows the secret's value.
   Delivery uses `TELEGRAM_CHAT_ID` first, then the `settings` key `telegram_chat_id` ([Storage](storage.md)).
-- **Bot token:** read from the environment and never trimmed. It must match exactly `^\d{1,20}:[A-Za-z0-9_-]{1,200}$`
-  (digits, a colon, then letters, digits, `-` and `_`), because it is placed into the request URL path, where
-  `/`, `\`, `?`, `#`, `%`, `.`, whitespace, control characters and non-ASCII characters would change the method or
-  the path. A missing (absent, not a string or empty) token is _token missing_, any other value that does not match
-  is _token malformed_; neither calls Telegram.
+- **Bot token form:** a bot token, from either source, is never trimmed and must match exactly
+  `^\d{1,20}:[A-Za-z0-9_-]{1,200}$` (digits, a colon, then letters, digits, `-` and `_`; at most 221 characters, all
+  ASCII), because it is placed into the request URL path, where `/`, `\`, `?`, `#`, `%`, `.`, whitespace, control
+  characters and non-ASCII characters would change the method or the path. A value that does not match never
+  reaches a Bot API URL.
 - **Chat id:** a chat id is text matching `^-?[1-9]\d{0,15}$` whose number is a safe integer. The form field `chat`
   and a stored `telegram_chat_id` are checked this way; a stored value that is not a chat id is shown as _no saved
   chat_.
 
+#### The bot token
+
+- **Source:** the Worker secret `TELEGRAM_BOT_TOKEN` when it is a non-empty string, otherwise the token saved in this
+  step (the `secrets` row `telegram_bot_token`, encrypted, [Storage](storage.md#key-check)). A set Worker secret wins
+  also when it is malformed, without falling back to a saved token, and then no D1 row is read; a saved token is
+  neither used nor deleted while the secret is set. The same resolution serves the step, the confirm form, the status
+  page and delivery ([Notifications](notifications.md#sending-a-row)). Its outcomes and what the token card shows
+  for each, below its _Bot token_ heading:
+
+  - _Worker secret_ (`TELEGRAM_BOT_TOKEN` matches the form): the _worker secret token_ info notice, preceded by the
+    _token rejected_ notice after a 401 or 404 of the chat search.
+  - _Worker secret malformed_ (`TELEGRAM_BOT_TOKEN` set but not of the form): the _token malformed_ notice only.
+  - _missing_ (no Worker secret and no saved token, also without a usable `SELUNA_SECRET`): the _token intro_ and the
+    token form.
+  - _saved_ (a saved token that decrypts and is of the form): the _token saved_ text, a disclosure _Change token_
+    holding the token form, and the remove form; after a 401 or 404 of the chat search the _saved token rejected_
+    notice comes first and the disclosure is open.
+  - _unreadable_ (the key check value reports a changed `SELUNA_SECRET` or is damaged): the _token unreadable_ notice
+    only, no form and no remove form.
+  - _damaged_ (the key check value matches, but the token's row does not decrypt or decrypts to a value not of the
+    form): the _token damaged_ notice, the token form and the remove form.
+
+- **Token form:** `POST /setup/telegram/token` with the session-bound `csrf` field and one field `token`: a label
+  _Bot token_, an `<input id="token" type="password" name="token" autocomplete="off" spellcheck="false"
+maxlength="221" required>` that never carries a `value`, and the primary button _Save token_. **Remove form:**
+  `POST /setup/telegram/token/remove` with the `csrf` field and the secondary button _Remove token_. The disclosure is
+  a `<details>` element with a `<summary>`, so it needs no script.
+- `POST /setup/telegram/token` in this order, each step that rejects ending the request: the body is read (**413**
+  above 1 MiB, **400** unreadable, empty bodies); the CSRF token must be valid, else **403**, the notice-only page
+  and _form expired_; `TELEGRAM_BOT_TOKEN` set (well-formed or not): **409** with the _worker secret token_ notice;
+  exactly one `token` field matching the form, else **400** with the token form and _token invalid_ (a missing,
+  repeated, empty or space-padded field included); the saved token unreadable: **409** with the _token unreadable_
+  notice; the key check value reports a changed or damaged state (no token saved, but other credentials cannot be
+  read): **409** with _token not saved_; then one `getMe` (`POST https://api.telegram.org/bot<token>/getMe`, JSON
+  `{}`, 10 second abort, answer read up to 1 MiB in bytes): **401** or **404** answers **502** with the token form and
+  _token not accepted_; a 2xx answer whose body has `ok: true` is accepted (also for a bot with a webhook, which the
+  following chat search then shows as _conflict_); any other answer (a failed or aborted request, 429, another
+  status, an oversized or non-JSON body, `ok` not `true`) answers **502** with the token form and _token unverified_.
+  An accepted token is written encrypted, replacing a saved or damaged one, and the answer is **303** with `Location:
+/setup/telegram`; a write the key check refuses answers **409** with _token not saved_. `TELEGRAM_CHAT_ID` is not
+  looked at.
+- `POST /setup/telegram/token/remove` in this order: body (**413**, **400**); CSRF (**403**, notice-only page, _form
+  expired_); `TELEGRAM_BOT_TOKEN` set: **409** with the _worker secret token_ notice; the saved token unreadable:
+  **409** with the _token unreadable_ notice; otherwise the saved token's row is deleted
+  ([Storage](storage.md#key-check)) and the answer is **303** with `Location: /setup/telegram`, also when no token was
+  saved. The saved chat and the settings stay; outbox rows wait unsent until a token is available again. Telegram is
+  not called.
+- The 400, 409 and 502 answers of both forms show the step page with the token card only (no chat card), so they
+  call no further Telegram API and read nothing more from D1; the notice given replaces the one the state implies.
+  A D1 failure in either form answers **503** with the notice-only page and _unavailable_; the stored state is then
+  the one before or after the request. No answer, header or log entry contains the submitted or the saved token, and
+  no page is built from the submitted value.
+
 #### The step page
 
-- `GET /setup/telegram` (signed in) reads the saved chat from `settings`, then calls `getUpdates` **once**:
+- `GET /setup/telegram` (signed in) resolves the bot token ([The bot token](#the-bot-token)) and, unless
+  `TELEGRAM_CHAT_ID` is set, reads the saved chat from `settings`. Only with a usable token does it then call
+  `getUpdates` **once**:
   `POST https://api.telegram.org/bot<token>/getUpdates` with `Content-Type: application/json`, body
   `{"offset":-100,"limit":100,"timeout":0}` (no `allowed_updates`) and a 10 second abort. The negative offset
   returns the newest 100 updates and makes Telegram discard the bot's older ones, so every load changes the bot's
   state at Telegram (not Seluna's); only Seluna reads this bot's updates, and another program polling the same bot
   is a conflict.
-- Answers: 2xx with `ok: true` and a `result` array lists the chats; **401** or **404** is _token rejected_; **409**
+- Answers: 2xx with `ok: true` and a `result` array lists the chats; **401** or **404** marks the token in use as
+  rejected (the token card shows _token rejected_ for the Worker secret, _saved token rejected_ for a saved token) and
+  the chat card shows no search; **409**
   is _conflict_ (a webhook, or another program receiving the updates; Seluna does not remove it); every other
   status, a failed or aborted request, a body above 1 MiB (counted in bytes before decoding), a body that is not
   UTF-8 JSON and a 2xx body of another shape are _Telegram unavailable_. A Telegram `description`, the token or a
@@ -236,27 +301,32 @@ route. The only Bot API methods called are `getUpdates` (this step's page) and `
   update; channels, other types, ids that are not safe integers and updates without one of the three fields are
   skipped. A chat whose newest update is a `my_chat_member` with `new_chat_member.status` `left` or `kicked`, or a
   message carrying `migrate_to_chat_id`, is left out until a newer update of it arrives.
-- **Page:** the heading, then one card with the intro, a notice when one is given, the saved chat (_Saved chat:_
-  and the id, or _no saved chat_), a link to
+- **Page:** the heading, then the token card (the _Bot token_ heading and the content of
+  [The bot token](#the-bot-token)), then the chat card: the _Chat_ heading, the intro, a notice for a problem, the
+  saved chat (_Saved chat:_ and the id, or _no saved chat_), a link to
   `/setup/telegram` (_search_) and then either the _chats intro_ with a form `POST /setup/telegram` (one required
   radio input `chat` per chat with the decimal id as value, a label with the name, the `@username` and the kind,
   the session-bound CSRF field and the confirm button) or, with no chat, the _no chats_ text and no form. Every name
   is HTML-escaped and wrapped in its own `<bdi>`; a username is shown as `@<username>` in a separate
-  `<bdi class="username">` after the name, so a name cannot pose as a username. A problem (token missing,
-  malformed or rejected, conflict, unavailable) shows its notice instead of the chats, with the saved-chat line.
-- When reading `settings` fails, the answer is **503** with the notice-only page (the heading, then one card with
-  the intro, the notice and the search link) and the _unavailable_ notice; Telegram is not called.
+  `<bdi class="username">` after the name, so a name cannot pose as a username. A _conflict_ or _Telegram
+  unavailable_ shows its notice instead of the chats, with the saved-chat line and the search link. Without a usable
+  token, or after a 401 or 404, the chat card shows only the intro and the saved-chat line (no search link, no
+  chats).
+- When reading the saved token or `settings` fails, the answer is **503** with the notice-only page (the heading,
+  then one card with the intro, the notice and the search link) and the _unavailable_ notice; Telegram is not
+  called.
 
 #### Confirming a chat
 
 - `POST /setup/telegram` sends a test message with a six-digit code to the chosen chat and stores nothing. In this
   order: the body is read (**413** above 1 MiB, **400** unreadable, empty bodies); the CSRF token (signed-in form)
   must be valid, else **403**, the notice-only page and _form expired_; `TELEGRAM_CHAT_ID` set: **409**; the field
-  `chat` must occur once and be a chat id, else **400** and _invalid chat_; the bot token must be present (**503**
-  _token missing_) and well-formed (**503** _token malformed_); then one `sendMessage`
+  `chat` must occur once and be a chat id, else **400** and _invalid chat_; the bot token is resolved
+  ([The bot token](#the-bot-token)): missing, unreadable or damaged answers **503** _token missing_, a malformed Worker
+  secret **503** _token malformed_, a D1 failure **503** _unavailable_; then one `sendMessage`
   (`POST https://api.telegram.org/bot<token>/sendMessage`, JSON `{"chat_id":<id as a number>,"text":"<test message
 in the page language> <code>"}`, no `parse_mode`, 10 second abort). `sendMessage` 401 or 404 answers **502** with
-  _token rejected_; any other failure (status, `ok` not `true`, rejected fetch, unreadable or oversized answer)
+  _token rejected_ for the Worker secret and _saved token rejected_ for a saved token; any other failure (status, `ok` not `true`, rejected fetch, unreadable or oversized answer)
   answers **502** with _send failed_. Telegram is not called in the 413, 400, 403, 409 and 503 cases.
 - Success answers **200** with the code page: the heading, then one card with a notice when one is given (_wrong
   code_, below), the _code sent_ text with the chat id, the _code intro_, a
@@ -436,19 +506,20 @@ KEY-----`, lines of 64 characters), `github_webhook_secret` the webhook secret a
   separated by at least 0.75rem). The login page has its heading, intro and notice above one card with the form;
   the _not configured_ page its heading above one card with the paragraphs; the start page its heading, _start
   body_ and notice above one card each for the status, the reset, the setup steps and the settings, and the
-  sign-out form last in an actions area without a card ([Paths](#paths)). The Telegram and GitHub App step pages,
-  in every view, and the review, finish and created pages have their heading above one card with everything else,
-  in the order their sections above give. A part that is not shown leaves no empty card or notice behind.
+  sign-out form last in an actions area without a card ([Paths](#paths)). The Telegram step page has its heading
+  above the token card and, unless an answer omits it, the chat card ([The step page](#the-step-page)); its
+  notice-only and code views, the GitHub App step page in every view, and the review, finish and created pages have
+  their heading above one card with everything else, in the order their sections above give. A part that is not shown leaves no empty card or notice behind.
 - **Settings groups:** in the settings form, the quiet hours switch with its label is the legend of a framed group
   (`<fieldset>`) holding _Start_ and _End_; "Notify me about" is the legend of a second group holding the eight rule
   switches and the release notice switch.
-- **Buttons:** _Sign out_ is a secondary button, _Reset and create the GitHub App again_ a danger button, and every
-  other submit button (_Sign in_, _Save settings_, _Send test message_, _Save chat_, _Next_, _Continue to GitHub_,
-  _Finish_) a primary button. Buttons are at least 2.75rem high.
+- **Buttons:** _Sign out_ and _Remove token_ are secondary buttons, _Reset and create the GitHub App again_ a danger button, and every
+  other submit button (_Sign in_, _Save settings_, _Save token_, _Send test message_, _Save chat_, _Next_, _Continue
+  to GitHub_, _Finish_) a primary button. Buttons are at least 2.75rem high.
 - **Notices:** every notice of [Texts](#texts) is shown as an error notice with `role="alert"`. The _partial Worker
   secrets_ and _reset needed_ texts of the GitHub App step are error notices too, and the _chat id secret_ text, the
-  _Worker secrets_ text of the GitHub App step and the created page's _app saved_ are info notices; these five
-  carry no role.
+  _worker secret token_ text of the Telegram step, the _Worker secrets_ text of the GitHub App step and the created
+  page's _app saved_ are info notices; these six carry no role.
 - **Colours:** the pages follow the system setting: light colours by default, dark colours under
   `@media (prefers-color-scheme: dark)`, and `color-scheme: light dark`, so the browser's own controls (selects,
   time fields, checkboxes, radio buttons) follow too; a browser without the media query shows the light colours.
@@ -526,16 +597,28 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
 - _migrations missing_: "The database of this instance is missing its tables: the database migrations have not
   run. In the Cloudflare dashboard open Workers & Pages, this Worker, Settings and Build, set the Deploy command to
   npm run deploy and retry the latest build, as the setup guide describes."
-- _token missing_: "The Worker secret TELEGRAM_BOT_TOKEN is not set. In Telegram, send /newbot to @BotFather and
-  copy the token it returns. In the Cloudflare dashboard open this Worker, then Settings, then Variables and
-  Secrets, and add a secret named TELEGRAM_BOT_TOKEN with that token. Or run: npx wrangler secret put
-  TELEGRAM_BOT_TOKEN"
+- _token missing_ (answer of the confirm form): "No usable bot token is available. Open the Telegram chat step and
+  check the bot token there."
 - _token malformed_: "The Worker secret TELEGRAM_BOT_TOKEN is not a bot token. A token from @BotFather is digits, a
   colon, then letters, digits, - and _, without spaces. Copy it again from @BotFather and replace the secret in the
   Cloudflare dashboard under Settings, then Variables and Secrets."
 - _token rejected_: "Telegram does not accept the Worker secret TELEGRAM_BOT_TOKEN: it is mistyped or was revoked.
   Send /mybots to @BotFather, copy your bot's current token and replace the secret in the Cloudflare dashboard under
   Settings, then Variables and Secrets."
+- _token invalid_: "That is not a bot token. A token from @BotFather is digits, a colon, then letters, digits, - and
+  _, without spaces. Copy it again from @BotFather. Nothing was saved."
+- _token not accepted_: "Telegram does not accept this token: it is mistyped or was revoked. Send /mybots to
+  @BotFather, copy your bot's current token and enter it again. Nothing was saved."
+- _token unverified_: "Telegram could not be reached or gave an answer Seluna cannot read, so the token was not
+  saved. Please try again in a moment."
+- _saved token rejected_: "Telegram does not accept the saved bot token: it was revoked or the bot was deleted. Send
+  /mybots to @BotFather, copy your bot's current token and enter it here."
+- _token unreadable_: "The saved bot token cannot be read with the current SELUNA_SECRET: it was changed, or the
+  saved values are damaged. Set the earlier SELUNA_SECRET again, or reset the saved credentials on the start page and
+  enter the token again."
+- _token damaged_: "The saved bot token is damaged and cannot be read. Enter the token again, or remove it."
+- _token not saved_: "The token was not saved because the saved credentials cannot be read with the current
+  SELUNA_SECRET. Set the earlier SELUNA_SECRET again, or reset the saved credentials on the start page first."
 - _conflict_: "Telegram does not hand the bot's chats to Seluna because another program receives its updates (a
   webhook, or a program that polls the bot). Seluna needs a bot of its own: create one with /newbot at @BotFather, or
   remove the webhook from this bot."
@@ -550,7 +633,9 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
 - Start page: "Set up your instance step by step:" and the links "Telegram chat" and "GitHub App".
 - Step navigation: the name "Setup steps" and the items "Start page", "Telegram chat" and "GitHub App" (the last two
   are the headings of the two step pages); the language navigation is named "Language", the label it already shows.
-- Status: the heading "Status"; "Version:"; "Telegram chat:" with "None saved yet." or "Set by the Worker secret
+- Status: the heading "Status"; "Version:"; "Telegram bot token:" with "Set by the Worker secret
+  TELEGRAM_BOT_TOKEN.", "Saved in the setup.", "None saved yet." or "Cannot be read with the current SELUNA_SECRET.";
+  "Telegram chat:" with "None saved yet." or "Set by the Worker secret
   TELEGRAM_CHAT_ID."; "GitHub App:" with "None saved yet.", "Set by the Worker secrets GITHUB_APP_ID,
   GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET.", "Only some of the Worker secrets GITHUB_APP_ID,
   GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET are set.", "App ID" or "Cannot be read with the current
@@ -562,12 +647,12 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   the repository selections "all repositories" and "selected repositories"; _not installed_: "Not installed on any
   account yet."; _more installations_: "Only the first 100 installations are shown."; _installations unavailable_:
   "Cannot be loaded from GitHub right now."; _key unusable_: "The app's private key cannot be used.".
-- Reset: the heading "The saved credentials cannot be read"; the text "The saved GitHub credentials cannot be read
-  with the current SELUNA_SECRET: it was changed, or the saved values are damaged. If you still know the earlier
-  SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials and installation
-  tokens, and you create the GitHub App again. Delete the old app on GitHub afterwards: in the settings of your
-  account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are
-  kept."; the button "Reset and create the GitHub App again".
+- Reset: the heading "The saved credentials cannot be read"; the text "The saved credentials cannot be read with the
+  current SELUNA_SECRET: it was changed, or a saved value is damaged. If you still know the earlier SELUNA_SECRET, set
+  it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials, the installation tokens and the
+  saved Telegram bot token; you then create the GitHub App again and enter the bot token again in the Telegram chat
+  step. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer
+  settings, then GitHub Apps. The Telegram chat and the settings are kept."; the button "Reset and create the GitHub App again".
 - Settings: the heading "Settings"; "Language of the notifications"; "Time zone"; "Quiet hours: notifications arrive
   without sound" with "Start" and "End"; "Notify me about" with "New pull request", "Pull request ready for review",
   "Review requested", "CI failed on the default branch", "CI failed in a pull request", "Dependabot alert", "Code
@@ -576,6 +661,13 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
 - _settings invalid_: "The settings were not saved. Check the values: quiet hours need a start and an end in the
   form 22:00, and the two must differ."; _reset not needed_: "The saved credentials can be read with the current
   SELUNA_SECRET, so nothing was reset."
+- Telegram step token card: the heading "Bot token"; _token intro_ "Seluna sends its notifications through your own
+  Telegram bot. In Telegram, send /newbot to @BotFather and enter the token it returns here. Seluna checks the token
+  with Telegram and saves it encrypted; it is not shown again."; the label "Bot token"; the button "Save token";
+  _token saved_ "A bot token is saved. It is not shown again."; the disclosure "Change token"; the button "Remove
+  token"; _worker secret token_ "The bot token is set by the Worker secret TELEGRAM_BOT_TOKEN, which takes precedence
+  over a token saved here. To enter the token here, delete that secret."
+- Telegram step chat card: the heading "Chat".
 - _intro_: "Seluna sends its notifications to one Telegram chat. Open your bot in Telegram and send /start, or add the
   bot to a group. Then search for chats."
 - _search_: "Search for chats".
@@ -680,7 +772,13 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   are read after the failure and an error of that read answers _unavailable_; production D1 answers that read
   (decision 0021).
 - After a reset the old GitHub App stays on GitHub; the owner deletes it there by hand.
-- A login, logout, settings, reset, Telegram or GitHub form body is limited to 1 MiB counted in bytes before decoding; the parsed text is never longer than
+- The `getMe` answer was built from the Bot API reference, not captured from a real run, when the token form was
+  written; the live check on a deployed copy (a valid, a revoked, a mistyped token and a bot with a webhook) is
+  pending. A deviation fails closed: the token is not saved and the owner sees a fixed notice. Whether browsers fill
+  the token field (`type="password"`, `autocomplete="off"`) with the saved `SELUNA_SECRET`, or offer to replace the
+  saved login with the token, was not observed either; a hex `SELUNA_SECRET` filled into the field fails the bot
+  token form and answers 400 before any request.
+- A login, logout, settings, reset, Telegram (token, remove, confirm, verify) or GitHub form body is limited to 1 MiB counted in bytes before decoding; the parsed text is never longer than
   that number of bytes.
 - At most four values per cookie name are looked at; the `Accept-Language` and `Cookie` headers are otherwise
   limited only by the platform's header size, and reading them takes time proportional to their length, also for
@@ -701,6 +799,9 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
 - [`decisions/0016-telegram-chat-in-the-setup-wizard.md`](../decisions/0016-telegram-chat-in-the-setup-wizard.md) —
   `getUpdates` on page load with a negative offset, the token allow-list, the chat stored only after its code is
   typed back, the pending chat in a signed session-bound token.
+- [`decisions/0036-telegram-bot-token-in-the-setup-wizard.md`](../decisions/0036-telegram-bot-token-in-the-setup-wizard.md)
+  — the bot token entered in the Telegram step and kept encrypted, `getMe` as its check, the precedence of a set
+  `TELEGRAM_BOT_TOKEN` without fallback, a damaged token row repairable in the step.
 - [`decisions/0017-github-app-manifest-flow.md`](../decisions/0017-github-app-manifest-flow.md) — the manifest flow,
   the signed-out return and the finish form protected by its state, the owner check, the PKCS#8 conversion, the
   one-transaction write and the precedence of the Worker secrets.

@@ -260,8 +260,13 @@ A notification is rendered once, when its row is written, and stored as the row'
 - The chat is the Worker secret `TELEGRAM_CHAT_ID` when it is a non-empty string; it must then be a chat id
   (`^-?[1-9]\d{0,15}$`, a safe integer), and when it is not, no chat is configured — the stored chat is not used in
   its place. Without that secret it is the `settings` key `telegram_chat_id`, when it is a chat id. The bot token is
-  the Worker secret `TELEGRAM_BOT_TOKEN` in the form the setup wizard accepts ([Setup wizard](setup-wizard.md#telegram-chat)).
+  the Worker secret `TELEGRAM_BOT_TOKEN` when it is a non-empty string, otherwise the token saved in the setup wizard
+  (read from D1 and decrypted for each batch of rows), in either case only in the bot token form; a malformed Worker
+  secret is not replaced by the saved token ([Setup wizard](setup-wizard.md#the-bot-token)).
 - Without a usable bot token or chat, Telegram is not called and the row stays `pending` with its attempts
+  unchanged: the result is `no-token` when no token is set or saved, the Worker secret is malformed, the saved token
+  cannot be read with the current `SELUNA_SECRET` or its row is damaged, or there is no usable `SELUNA_SECRET`;
+  `no-chat` without a chat. A D1 error while reading the token or the chat is `store-failed`, with the row
   unchanged.
 - Otherwise one attempt is one `sendMessage` request with `chat_id`, `text`, `parse_mode` `HTML`,
   `link_preview_options` with `is_disabled` true (a link in an attacker-chosen title builds no preview card),

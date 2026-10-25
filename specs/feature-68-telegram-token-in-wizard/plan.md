@@ -69,7 +69,8 @@ everything else (failed fetch, abort after 10 s, 429, other status, oversized or
 Only `ok` of the answer is read.
 
 **Store** (`src/store/secrets.ts`): `SecretName` gains `telegram_bot_token` through a split
-(`GitHubSecretName` for `writeSecrets`); `deleteSecret` runs `DELETE FROM secrets WHERE key = ?1`.
+(`GitHubSecretName` for `writeSecrets`); `deleteSecret` runs `DELETE FROM secrets WHERE key = ?1` and, in the same
+batch, deletes the `key_check` row when no `secrets` row is left (Challenge note 1, Security note 1).
 
 **Step** (`src/setup/telegram-step.ts`):
 
@@ -277,6 +278,7 @@ deploy form secrets, signed-in forms, `secrets` keys, body-reading routes); ever
 | `docs/areas/deployment.md` (lines 44-56) | *Worker secrets* | Lead |
 | `docs/areas/notifications.md` (lines 262-265) | the token's sources, `no-token`/`store-failed` | Lead |
 | `docs/areas/http-routes.md` (lines 70-72) | the two new body-reading routes | Lead |
+| `docs/areas/scheduled-jobs.md` (*Retry* step 5) | a failed read of the saved token logs `store-failed` (found in step G4) | Lead |
 | `docs/ARCHITECTURE.md` (lines 64-69: methods; 117-123: Worker secrets) | `getMe`; the token optional as a Worker secret, else encrypted in D1; link decision 0036 | Lead |
 | `docs/decisions/0036-telegram-bot-token-in-the-setup-wizard.md` and its index row | written (Proposed) | Lead |
 | `.squad/project.md` | *Encrypted credentials* (the bot token in `secrets`, `TELEGRAM_BOT_TOKEN` optional with precedence), *Outbound-only Telegram* (`getMe` in the step, the token from D1 in delivery), *Test doubles* (the double answers `getMe`) | Dev |

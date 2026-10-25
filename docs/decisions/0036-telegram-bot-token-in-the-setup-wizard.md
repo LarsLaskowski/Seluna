@@ -77,6 +77,11 @@ for the token. The rules are in [`areas/setup-wizard.md`](../areas/setup-wizard.
 - A changed `SELUNA_SECRET` makes the saved token unreadable together with the GitHub credentials; the reset deletes it
   with them, and its text says so. D1 Time Travel keeps a deleted token for a while, as it keeps deleted credentials;
   a token that may have leaked is revoked at @BotFather.
+- The bot token can be the only credential, so removing it can remove the last `secrets` row. The key check value is
+  then deleted with it, so that no key check outlives the credentials and makes a later change of `SELUNA_SECRET`
+  look like unreadable credentials. Unlike the reset, this delete pins no key check value: it runs in the same batch
+  as the row delete, guarded only by an empty `secrets` table, and a write that checked the deleted value retries and
+  stores a new one ([`areas/storage.md`](../areas/storage.md#key-check)).
 - Instances that set `TELEGRAM_BOT_TOKEN` keep it; to move the token into the setup, the owner deletes the secret and
   enters the token in the step. Copying it over automatically was left out.
 - Revisiting this means changing the token resolution in one module (`src/bot-token.ts`) and the step's forms.
