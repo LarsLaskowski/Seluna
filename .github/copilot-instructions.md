@@ -74,7 +74,7 @@ which keeps its state in D1 and delivers through the user's own Telegram bot. Se
 
 <!-- stack:begin commands -->
 ```bash
-npm ci
+npm ci --ignore-scripts
 npm run format                                              # prettier --write
 npm run typecheck                                           # tsc --noEmit
 npm run build

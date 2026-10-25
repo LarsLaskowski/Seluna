@@ -38,7 +38,8 @@ the Lead's revision: review the plan's change since your round plus whether your
 in the first `log.md` row, as the only review of the change; from round 2 on, review only the delta since the
 previous round plus whether your earlier findings are resolved. In mode `diff` you also run the Reviewer's
 *Logger arguments* check (`.claude/agents/squad-reviewer.md`) on the changed log calls: a name that matches
-the stack's sensitive-name list is a blocking finding. A verification the Dev reported with its
+the stack's sensitive-name list is a blocking finding. When the issue concerns an exploit measurement, run no probes
+at all: read the Dev's measurement and report what reading cannot verify. A verification the Dev reported with its
 cases and output is evidence: read it against the diff and re-run only what bears on a security area and
 you doubt, instead of repeating the whole comparison.
 
@@ -58,6 +59,8 @@ Rules:
   and line plus what you ran or read. General hardening belongs in an issue, style is the Reviewer's.
 - Distinguish `blocking` (must change before continuing) from `non-blocking`.
 - In mode `diff`, take the code SHA and report it first as the Reviewer's *Inputs* say
-  (`.claude/agents/squad-reviewer.md`). Never edit files.
+  (`.claude/agents/squad-reviewer.md`). Never edit files, and never check out the code SHA or another revision
+  in the repository working tree: read it with `git show <sha>:<path>` or in a scratch `git worktree add
+  --detach` (`.squad/team.md`, *Shared rules*).
 
 End with exactly one line: `VERDICT: APPROVED` or `VERDICT: CHANGES_REQUIRED`.

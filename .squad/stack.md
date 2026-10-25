@@ -16,7 +16,7 @@ profile and owned by this repository: keep it true when the build changes.
   execute inside the Workers runtime) as test runner. Coverage uses the profile's `@vitest/coverage-v8`
   (decision 0033; the plugin enables V8 coverage inside the Workers runtime).
 - **Wrangler** bundles and deploys the Worker; `wrangler types` regenerates `worker-configuration.d.ts`.
-- The SessionStart hook `.claude/hooks/session-start.sh` runs `npm ci` in remote sessions.
+- The SessionStart hook `.claude/hooks/session-start.sh` runs `npm ci --ignore-scripts` in remote sessions.
 
 ## Layout
 
@@ -36,7 +36,7 @@ All commands go through `package.json` scripts; a missing script is added, not w
 
 | Name | Command |
 | ---- | ------- |
-| *Restore* | `npm ci` |
+| *Restore* | `npm ci --ignore-scripts` (dependency lifecycle scripts stay off; a package that needs one gets an explicit `npm rebuild <pkg>` step) |
 | *Format* (in the squad: by the member that changed the files, `.squad/team.md`) | `npm run format` (`prettier --write .`) |
 | *Format check* | `npm run format:check` (`prettier --check .`) |
 | *Type check* | `npm run typecheck` (`tsc --noEmit`, or `tsc -b --noEmit` with project references) |
