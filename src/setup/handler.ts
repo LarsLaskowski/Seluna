@@ -51,11 +51,18 @@ import {
   CODE_FIELD,
   confirmTelegramChat,
   PROOF_FIELD,
+  removeBotToken,
+  saveBotToken,
   TELEGRAM_STEP_PATH,
+  TELEGRAM_TOKEN_PATH,
+  TELEGRAM_TOKEN_REMOVE_PATH,
   TELEGRAM_VERIFY_PATH,
   telegramStepView,
+  TOKEN_FIELD,
+  tokenState,
   verifyTelegramChat,
 } from "./telegram-step";
+import type { TokenState } from "./telegram-step";
 import type { Notice } from "./texts";
 
 /** What the wizard needs from outside. */
@@ -265,12 +272,30 @@ function telegramPage(
 }
 
 const NOTICE_ONLY: TelegramPageView = { kind: "notice-only" };
-// Placeholder of the skeleton: the token part of a 409 for a confirm or verify form comes with the implementation.
-const CHAT_ID_SECRET_VIEW: TelegramPageView = {
-  kind: "step",
-  token: { kind: "worker-secret", rejected: false },
-  chat: { kind: "chat-id-secret" },
-};
+
+/** The step page without the chat search, for an answer that shows only the token part (`omitted`). */
+function tokenOnlyPage(
+  context: Context,
+  session: string,
+  status: number,
+  token: TokenState,
+  notice?: Notice,
+): Promise<Response> {
+  return telegramPage(context, session, status, { kind: "step", token, chat: { kind: "omitted" } }, notice);
+}
+
+/** The 409 page of a confirm or verify form while `TELEGRAM_CHAT_ID` is set: the token part as the step shows it. */
+async function chatIdSecretPage(context: Context, session: string): Promise<Response> {
+  const { env, db } = context.deps;
+  let token: TokenState;
+  try {
+    token = await tokenState(env, db);
+  } catch {
+    // The error is deliberately dropped: it must reach neither the log nor the response.
+    return telegramPage(context, session, 503, NOTICE_ONLY, "unavailable");
+  }
+  return telegramPage(context, session, 409, { kind: "step", token, chat: { kind: "chat-id-secret" } });
+}
 
 async function showTelegramStep(context: Context, session: string): Promise<Response> {
   const { env, db, fetch } = context.deps;
@@ -302,21 +327,27 @@ async function confirmTelegram(context: Context, session: string): Promise<Respo
     return form;
   }
   const { env, db, fetch, now } = context.deps;
-  const result = await confirmTelegramChat(
-    env,
-    db,
-    fetch,
-    context.telegramKey,
-    session,
-    form.getAll(CHAT_FIELD),
-    context.language,
-    now(),
-  );
+  let result: Awaited<ReturnType<typeof confirmTelegramChat>>;
+  try {
+    result = await confirmTelegramChat(
+      env,
+      db,
+      fetch,
+      context.telegramKey,
+      session,
+      form.getAll(CHAT_FIELD),
+      context.language,
+      now(),
+    );
+  } catch {
+    // The error is deliberately dropped: it must reach neither the log nor the response.
+    return telegramPage(context, session, 503, NOTICE_ONLY, "unavailable");
+  }
   switch (result.kind) {
     case "code-sent":
       return telegramPage(context, session, 200, { kind: "code", chatId: result.chatId, proof: result.proof });
     case "chat-id-secret":
-      return telegramPage(context, session, 409, CHAT_ID_SECRET_VIEW);
+      return chatIdSecretPage(context, session);
     case "invalid-chat":
       return telegramPage(context, session, 400, NOTICE_ONLY, "telegram-invalid-chat");
     case "token-missing":
@@ -324,9 +355,78 @@ async function confirmTelegram(context: Context, session: string): Promise<Respo
     case "token-malformed":
       return telegramPage(context, session, 503, NOTICE_ONLY, "telegram-token-malformed");
     case "token-rejected":
-      return telegramPage(context, session, 502, NOTICE_ONLY, "telegram-token-rejected");
+      return telegramPage(
+        context,
+        session,
+        502,
+        NOTICE_ONLY,
+        result.source === "saved" ? "telegram-saved-token-rejected" : "telegram-token-rejected",
+      );
     case "send-failed":
       return telegramPage(context, session, 502, NOTICE_ONLY, "telegram-send-failed");
+    default: {
+      const unreachable: never = result;
+      return unreachable;
+    }
+  }
+}
+
+async function saveToken(context: Context, session: string): Promise<Response> {
+  const form = await readTelegramForm(context, session);
+  if (form instanceof Response) {
+    return form;
+  }
+  const { env, db, fetch } = context.deps;
+  let result: Awaited<ReturnType<typeof saveBotToken>>;
+  try {
+    result = await saveBotToken(env, db, fetch, form.getAll(TOKEN_FIELD));
+  } catch {
+    // The error is deliberately dropped: it must reach neither the log nor the response.
+    return telegramPage(context, session, 503, NOTICE_ONLY, "unavailable");
+  }
+  // Every page is built from the result, never from the submitted token.
+  switch (result.kind) {
+    case "saved":
+      return plain(context, 303, [], TELEGRAM_STEP_PATH);
+    case "worker-secret":
+      return tokenOnlyPage(context, session, 409, { kind: "worker-secret", rejected: false });
+    case "invalid":
+      return tokenOnlyPage(context, session, 400, { kind: "entry" }, "telegram-token-invalid");
+    case "unreadable":
+      return tokenOnlyPage(context, session, 409, { kind: "unreadable" });
+    case "not-writable":
+      return tokenOnlyPage(context, session, 409, { kind: "unreadable" }, "telegram-token-not-saved");
+    case "rejected":
+      return tokenOnlyPage(context, session, 502, { kind: "entry" }, "telegram-token-not-accepted");
+    case "unavailable":
+      return tokenOnlyPage(context, session, 502, { kind: "entry" }, "telegram-token-unverified");
+    default: {
+      const unreachable: never = result;
+      return unreachable;
+    }
+  }
+}
+
+async function removeToken(context: Context, session: string): Promise<Response> {
+  const form = await readTelegramForm(context, session);
+  if (form instanceof Response) {
+    return form;
+  }
+  const { env, db } = context.deps;
+  let result: Awaited<ReturnType<typeof removeBotToken>>;
+  try {
+    result = await removeBotToken(env, db);
+  } catch {
+    // The error is deliberately dropped: it must reach neither the log nor the response.
+    return telegramPage(context, session, 503, NOTICE_ONLY, "unavailable");
+  }
+  switch (result.kind) {
+    case "removed":
+      return plain(context, 303, [], TELEGRAM_STEP_PATH);
+    case "worker-secret":
+      return tokenOnlyPage(context, session, 409, { kind: "worker-secret", rejected: false });
+    case "unreadable":
+      return tokenOnlyPage(context, session, 409, { kind: "unreadable" });
     default: {
       const unreachable: never = result;
       return unreachable;
@@ -359,7 +459,7 @@ async function verifyTelegram(context: Context, session: string): Promise<Respon
     case "saved":
       return plain(context, 303, [], TELEGRAM_STEP_PATH);
     case "chat-id-secret":
-      return telegramPage(context, session, 409, CHAT_ID_SECRET_VIEW);
+      return chatIdSecretPage(context, session);
     case "code-expired":
       return telegramPage(context, session, 400, NOTICE_ONLY, "telegram-code-expired");
     case "wrong-code":
@@ -540,6 +640,8 @@ function stepRoute(context: Context, session: string, pathname: string): Promise
     [`GET ${TELEGRAM_STEP_PATH}`]: showTelegramStep,
     [`POST ${TELEGRAM_STEP_PATH}`]: confirmTelegram,
     [`POST ${TELEGRAM_VERIFY_PATH}`]: verifyTelegram,
+    [`POST ${TELEGRAM_TOKEN_PATH}`]: saveToken,
+    [`POST ${TELEGRAM_TOKEN_REMOVE_PATH}`]: removeToken,
     [`GET ${GITHUB_STEP_PATH}`]: showGitHubStep,
     [`POST ${GITHUB_STEP_PATH}`]: startGitHub,
     [`POST ${GITHUB_CALLBACK_PATH}`]: finishGitHub,

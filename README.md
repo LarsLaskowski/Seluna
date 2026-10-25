@@ -54,14 +54,14 @@ flowchart LR
   C[Cron] -->|retry, clean up| O
 ```
 
-Every webhook is checked against its signature before anything happens. A delivery is processed once, a matching event is stored in the outbox before it is sent, and your messenger never calls your instance: Seluna only sends. The GitHub App credentials are stored encrypted. The details are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Every webhook is checked against its signature before anything happens. A delivery is processed once, a matching event is stored in the outbox before it is sent, and your messenger never calls your instance: Seluna only sends. The GitHub App credentials and the Telegram bot token you enter in the setup are stored encrypted. The details are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Get started
 
-1. Create a bot for Telegram, the first supported messenger, with [@BotFather](https://t.me/BotFather) and keep its token.
+1. Create a bot for Telegram, the first supported messenger, with [@BotFather](https://t.me/BotFather) and keep its token; you enter it in the setup wizard.
 2. Choose a random `SELUNA_SECRET` of at least 32 characters. It is the password of the setup page.
 3. Select **Deploy to Cloudflare** above. The button creates an independent copy of this repository in your GitHub account (not a fork) and deploys it.
-4. Open `https://<your-worker>.workers.dev/` (it leads to the setup page `/setup`), sign in and let the wizard connect your Telegram chat and create the GitHub App.
+4. Open `https://<your-worker>.workers.dev/` (it leads to the setup page `/setup`), sign in and let the wizard take your bot token, connect your Telegram chat and create the GitHub App.
 
 The full walk-through is in the [setup guide](docs/setup.md). Every push to `main` of your copy deploys it.
 

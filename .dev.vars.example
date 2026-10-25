@@ -2,5 +2,7 @@
 # It is the password of the /setup page and the source of the key that encrypts the stored credentials;
 # changing it later means running the setup again.
 SELUNA_SECRET=
-# Token of your Telegram bot: talk to @BotFather in Telegram, send /newbot and copy the token it returns.
-TELEGRAM_BOT_TOKEN=
+# Optional. Without it, enter the token of your Telegram bot in the setup wizard (step Telegram chat): talk to
+# @BotFather in Telegram, send /newbot and copy the token it returns. When set, this Worker secret takes precedence
+# over a token saved in the setup.
+# TELEGRAM_BOT_TOKEN=

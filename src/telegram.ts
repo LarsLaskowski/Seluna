@@ -32,15 +32,13 @@ export function botTokenFromEnv(env: object): BotToken {
     return { kind: "missing" };
   }
   // The token is placed in a URL path, which the URL parser reinterprets in many forms: only this allow-list passes.
-  return BOT_TOKEN_FORM.test(value) ? { kind: "usable", token: value } : { kind: "malformed" };
+  return isBotToken(value) ? { kind: "usable", token: value } : { kind: "malformed" };
 }
 
 /** Whether `value` is of the bot token form: digits, a colon, then letters, digits, `-` and `_` (the allow-list). */
-/* eslint-disable @typescript-eslint/no-unused-vars -- skeleton: the implementation uses the parameters */
 export function isBotToken(value: string): boolean {
-  throw new Error("Not implemented");
+  return BOT_TOKEN_FORM.test(value);
 }
-/* eslint-enable @typescript-eslint/no-unused-vars */
 
 /** Whether the Worker secret `TELEGRAM_CHAT_ID` is a non-empty string. */
 export function isChatIdSecretSet(env: object): boolean {
@@ -191,11 +189,16 @@ export type BotTokenCheck = "accepted" | "rejected" | "unavailable";
  * Calls `getMe` once with `token` (of the bot token form): 401 and 404 are `rejected`, a 2xx answer with `ok: true` is
  * `accepted`, everything else is `unavailable`. Only `ok` of the answer is read. Never throws.
  */
-/* eslint-disable @typescript-eslint/no-unused-vars -- skeleton: the implementation uses the parameters */
-export function verifyBotToken(token: string, fetcher: TelegramFetch): Promise<BotTokenCheck> {
-  return Promise.reject(new Error("Not implemented"));
+export async function verifyBotToken(token: string, fetcher: TelegramFetch): Promise<BotTokenCheck> {
+  const answer = await callBotApi(token, "getMe", {}, fetcher);
+  if (answer.kind === "failed") {
+    return "unavailable";
+  }
+  if (answer.status === 401 || answer.status === 404) {
+    return "rejected";
+  }
+  return answer.ok && isRecord(answer.body) && answer.body.ok === true ? "accepted" : "unavailable";
 }
-/* eslint-enable @typescript-eslint/no-unused-vars */
 
 type BotApiAnswer =
   | { readonly kind: "answered"; readonly status: number; readonly ok: boolean; readonly body: unknown }

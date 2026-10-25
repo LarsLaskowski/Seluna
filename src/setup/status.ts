@@ -1,3 +1,4 @@
+import { resolveBotToken } from "../bot-token";
 import { parseAppId, resolveAppCredentials } from "../github/app-credentials";
 import type { GitHubFetch } from "../github/conversion";
 import { listInstallations } from "../github/installations";
@@ -45,11 +46,24 @@ export interface StatusView {
 }
 
 /** Where the bot token comes from, read from the environment and D1; calls no Telegram API. D1 errors are not caught. */
-/* eslint-disable @typescript-eslint/no-unused-vars -- skeleton: the implementation uses the parameters */
-function botTokenStatus(env: object, db: D1Database): Promise<BotTokenStatus> {
-  return Promise.reject(new Error("Not implemented"));
+async function botTokenStatus(env: object, db: D1Database): Promise<BotTokenStatus> {
+  const resolved = await resolveBotToken(env, db);
+  switch (resolved.kind) {
+    case "usable":
+      return resolved.source === "worker-secret" ? "worker-secret" : "saved";
+    case "malformed":
+      return "worker-secret";
+    case "missing":
+      return "none";
+    case "unreadable":
+    case "damaged":
+      return "unreadable";
+    default: {
+      const unreachable: never = resolved;
+      return unreachable;
+    }
+  }
 }
-/* eslint-enable @typescript-eslint/no-unused-vars */
 
 async function chatStatus(env: object, db: D1Database): Promise<ChatStatus> {
   if (isChatIdSecretSet(env)) {

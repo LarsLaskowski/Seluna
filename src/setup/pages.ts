@@ -1,13 +1,15 @@
 import type { AccountChoice } from "../github/manifest";
 import type { Language } from "./language";
+import type { TelegramChat } from "../telegram";
 import type { GitHubStepView } from "./github-step";
 import { RULE_IDS, timeZones } from "../settings";
 import type { NotificationSettings } from "../settings";
 import { RESET_PATH, SETTINGS_PATH } from "./settings-form";
 import { formatDeliveryTime } from "./status";
-import type { AppStatus, ChatStatus, InstallationsView, StatusView } from "./status";
+import type { AppStatus, BotTokenStatus, ChatStatus, InstallationsView, StatusView } from "./status";
 import type { Installation, InstallationAccount } from "../github/installations";
-import type { TelegramStepView } from "./telegram-step";
+import { TELEGRAM_TOKEN_PATH, TELEGRAM_TOKEN_REMOVE_PATH } from "./telegram-step";
+import type { ChatPart, TelegramStepView, TokenState } from "./telegram-step";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 
@@ -177,6 +179,24 @@ function logoutFormHtml(language: Language, csrfToken: string): string {
   );
 }
 
+function botTokenStatusHtml(language: Language, botToken: BotTokenStatus): string {
+  const texts = TEXTS[language];
+  switch (botToken) {
+    case "worker-secret":
+      return escapeHtml(texts.botTokenSecret);
+    case "saved":
+      return escapeHtml(texts.botTokenSaved);
+    case "none":
+      return escapeHtml(texts.noneSavedYet);
+    case "unreadable":
+      return escapeHtml(texts.cannotBeRead);
+    default: {
+      const unreachable: never = botToken;
+      return unreachable;
+    }
+  }
+}
+
 function chatStatusHtml(language: Language, chat: ChatStatus): string {
   const texts = TEXTS[language];
   switch (chat.kind) {
@@ -287,6 +307,7 @@ function statusHtml(language: Language, status: StatusView): string {
   return card(
     `<h2>${escapeHtml(texts.statusHeading)}</h2>\n` +
       `<p>${escapeHtml(texts.versionLabel)} <code>${escapeHtml(status.version)}</code></p>\n` +
+      `<p>${escapeHtml(texts.botTokenLabel)} ${botTokenStatusHtml(language, status.botToken)}</p>\n` +
       `<p>${escapeHtml(texts.telegramChatLabel)} ${chatStatusHtml(language, status.chat)}</p>\n` +
       `<p>${escapeHtml(texts.githubAppLabel)} ${appStatusHtml(language, status.app)}</p>\n` +
       installationsHtml(language, status.installations) +
@@ -412,6 +433,136 @@ function searchLink(language: Language): string {
   return `<p><a href="/setup/telegram">${escapeHtml(TEXTS[language].telegramSearchLink)}</a></p>`;
 }
 
+function savedChatHtml(language: Language, savedChatId: number | undefined): string {
+  const texts = TEXTS[language];
+  return savedChatId === undefined
+    ? `<p>${escapeHtml(texts.telegramNoSavedChat)}</p>`
+    : `<p>${escapeHtml(texts.telegramSavedChat)} <code>${String(savedChatId)}</code></p>`;
+}
+
+/** One radio input per chat; every name is escaped and isolated in its own `bdi`, the username in another one after it. */
+function chatOptionHtml(language: Language, chat: TelegramChat): string {
+  const texts = TEXTS[language];
+  const username = chat.username === undefined ? "" : ` <bdi class="username">@${escapeHtml(chat.username)}</bdi>`;
+  const kind = chat.kind === "private" ? texts.telegramPrivateChat : texts.telegramGroup;
+  return (
+    `<label><input type="radio" name="chat" value="${String(chat.id)}" required> ` +
+    `<bdi>${escapeHtml(chat.name)}</bdi>${username} (${escapeHtml(kind)})</label>`
+  );
+}
+
+function chatsHtml(language: Language, csrfToken: string, chats: readonly TelegramChat[]): string {
+  const texts = TEXTS[language];
+  if (chats.length === 0) {
+    return `<p>${escapeHtml(texts.telegramNoChats)}</p>`;
+  }
+  return (
+    `<p>${escapeHtml(texts.telegramChatsIntro)}</p>\n<form method="post" action="/setup/telegram">\n${csrfInput(csrfToken)}\n` +
+    `${chats.map((chat) => chatOptionHtml(language, chat)).join("\n")}\n` +
+    `<button type="submit" class="primary">${escapeHtml(texts.telegramConfirmButton)}</button>\n</form>`
+  );
+}
+
+/** The token form: a masked field the browser does not fill, never with a value. */
+function tokenFormHtml(language: Language, csrfToken: string): string {
+  const texts = TEXTS[language];
+  return (
+    `<form method="post" action="${TELEGRAM_TOKEN_PATH}">\n${csrfInput(csrfToken)}\n` +
+    `<label for="token">${escapeHtml(texts.telegramTokenLabel)}</label>\n` +
+    `<input id="token" type="password" name="token" autocomplete="off" spellcheck="false" maxlength="221" required>\n` +
+    `<button type="submit" class="primary">${escapeHtml(texts.telegramTokenSaveButton)}</button>\n</form>`
+  );
+}
+
+function removeTokenFormHtml(language: Language, csrfToken: string): string {
+  return (
+    `<form method="post" action="${TELEGRAM_TOKEN_REMOVE_PATH}">\n${csrfInput(csrfToken)}\n` +
+    `<button type="submit" class="secondary">${escapeHtml(TEXTS[language].telegramTokenRemoveButton)}</button>\n</form>`
+  );
+}
+
+/** The content of the token card after its heading; `notice` replaces the notice the state implies. */
+function tokenCardHtml(language: Language, csrfToken: string, token: TokenState, notice: Notice | undefined): string {
+  const texts = TEXTS[language];
+  const parts: string[] = [`<h2>${escapeHtml(texts.telegramTokenHeading)}</h2>`];
+  switch (token.kind) {
+    case "missing":
+      parts.push(noticeHtml(language, notice));
+      parts.push(`<p>${escapeHtml(texts.telegramTokenIntro)}</p>`, tokenFormHtml(language, csrfToken));
+      break;
+    case "entry":
+      parts.push(noticeHtml(language, notice), tokenFormHtml(language, csrfToken));
+      break;
+    case "saved":
+      parts.push(
+        noticeHtml(language, notice ?? (token.rejected ? "telegram-saved-token-rejected" : undefined)),
+        `<p>${escapeHtml(texts.telegramTokenSaved)}</p>`,
+        `<details${token.rejected ? " open" : ""}>\n<summary>${escapeHtml(texts.telegramTokenChange)}</summary>\n` +
+          `${tokenFormHtml(language, csrfToken)}\n</details>`,
+        removeTokenFormHtml(language, csrfToken),
+      );
+      break;
+    case "damaged":
+      parts.push(
+        noticeHtml(language, notice ?? "telegram-token-damaged"),
+        tokenFormHtml(language, csrfToken),
+        removeTokenFormHtml(language, csrfToken),
+      );
+      break;
+    case "unreadable":
+      parts.push(noticeHtml(language, notice ?? "telegram-token-unreadable"));
+      break;
+    case "worker-secret":
+      parts.push(
+        noticeHtml(language, notice ?? (token.rejected ? "telegram-token-rejected" : undefined)),
+        `<p class="notice info">${escapeHtml(texts.telegramTokenWorkerSecret)}</p>`,
+      );
+      break;
+    case "worker-secret-malformed":
+      parts.push(noticeHtml(language, notice ?? "telegram-token-malformed"));
+      break;
+    default: {
+      const unreachable: never = token;
+      return unreachable;
+    }
+  }
+  return parts.filter((part) => part !== "").join("\n");
+}
+
+const CHAT_PROBLEM_NOTICES = {
+  conflict: "telegram-conflict",
+  unavailable: "telegram-unavailable",
+} as const satisfies Readonly<Record<string, Notice>>;
+
+/** The chat card, or an empty text for an omitted chat part. */
+function chatCardHtml(language: Language, csrfToken: string, chat: ChatPart): string {
+  const texts = TEXTS[language];
+  const heading = `<h2>${escapeHtml(texts.telegramChatHeading)}</h2>`;
+  const intro = `<p>${escapeHtml(texts.telegramIntro)}</p>`;
+  switch (chat.kind) {
+    case "omitted":
+      return "";
+    case "chat-id-secret":
+      return card(`${heading}\n<p class="notice info">${escapeHtml(texts.telegramChatIdSecret)}</p>`);
+    case "hidden":
+      return card(`${heading}\n${intro}\n${savedChatHtml(language, chat.savedChatId)}`);
+    case "problem":
+      return card(
+        `${heading}\n${intro}\n${noticeHtml(language, CHAT_PROBLEM_NOTICES[chat.problem])}\n` +
+          `${savedChatHtml(language, chat.savedChatId)}\n${searchLink(language)}`,
+      );
+    case "chats":
+      return card(
+        `${heading}\n${intro}\n${savedChatHtml(language, chat.savedChatId)}\n` +
+          `${searchLink(language)}\n${chatsHtml(language, csrfToken, chat.chats)}`,
+      );
+    default: {
+      const unreachable: never = chat;
+      return unreachable;
+    }
+  }
+}
+
 function codeHtml(language: Language, csrfToken: string, chatId: number, proof: string): string {
   const texts = TEXTS[language];
   return (
@@ -436,8 +587,13 @@ export function renderTelegramPage(
   const intro = `<p>${escapeHtml(texts.telegramIntro)}</p>`;
   let body: string;
   switch (view.kind) {
-    case "step":
-      throw new Error("Not implemented");
+    case "step": {
+      const chatCard = chatCardHtml(language, csrfToken, view.chat);
+      body =
+        `${heading}\n${card(tokenCardHtml(language, csrfToken, view.token, notice))}` +
+        (chatCard === "" ? "" : `\n${chatCard}`);
+      break;
+    }
     case "notice-only":
       body = titled(heading, `${intro}\n${noticeHtml(language, notice)}\n${searchLink(language)}`);
       break;

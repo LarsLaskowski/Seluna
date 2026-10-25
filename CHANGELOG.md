@@ -10,9 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Opening the Worker URL (`/`) leads to the setup page `/setup`; other unknown paths still answer 404.
+- Setup wizard step _Telegram chat_: the bot token is entered, changed and removed in the step; Seluna checks it with Telegram (`getMe`) and saves it encrypted like the GitHub App credentials, and the reset on the start page deletes it with them. The status section shows where the token comes from. The Worker secret `TELEGRAM_BOT_TOKEN` stays optional and takes precedence over a saved token.
 
 ### Changed
 
+- The Deploy to Cloudflare form asks only for `SELUNA_SECRET`; the Telegram bot token is entered in the setup wizard.
 - Setup wizard: the setup pages have a new look — a header with the language links, the parts of each page in separate cards, grouped settings, distinct buttons for sign-out and the reset, error and info notices, a dark mode that follows the system setting, a visible focus ring and a layout that fits a 360 px phone screen; texts, forms and the strict Content-Security-Policy are unchanged.
 - Setup wizard: the start page, the Telegram and GitHub App steps and the GitHub review and finish pages have a step navigation in the header (Start page, Telegram chat, GitHub App) with the current page marked, so every step page leads back to the start page in one click; the sign-in and not-configured pages keep only the language links.
 

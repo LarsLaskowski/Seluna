@@ -3,7 +3,8 @@ import type { NotificationSettings } from "./settings";
 import { markAttempted, markSent } from "./store/outbox";
 import type { AttemptOutcome } from "./store/outbox";
 import { readSetting, TELEGRAM_CHAT_ID_SETTING } from "./store/settings";
-import { botTokenFromEnv, CHAT_ID_SECRET_NAME, isChatIdSecretSet, parseChatId, sendNotification } from "./telegram";
+import { resolveBotToken } from "./bot-token";
+import { CHAT_ID_SECRET_NAME, isChatIdSecretSet, parseChatId, sendNotification } from "./telegram";
 import type { SendNotificationResult, TelegramFetch } from "./telegram";
 import { MESSAGE_TEXTS } from "./i18n/messages";
 
@@ -49,11 +50,11 @@ type Target =
 
 /** The bot token and chat to send to; a database failure reads as `store-failed`. */
 async function resolveTarget(deps: DeliveryDeps): Promise<Target> {
-  const token = botTokenFromEnv(deps.env);
-  if (token.kind !== "usable") {
-    return { kind: "unavailable", result: "no-token" };
-  }
   try {
+    const token = await resolveBotToken(deps.env, deps.db);
+    if (token.kind !== "usable") {
+      return { kind: "unavailable", result: "no-token" };
+    }
     const chatId = await chatTarget(deps.env, deps.db);
     return chatId === undefined
       ? { kind: "unavailable", result: "no-chat" }

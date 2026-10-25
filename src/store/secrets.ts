@@ -33,6 +33,8 @@ const SELECT_SECRET = "SELECT iv, ciphertext FROM secrets WHERE key = ?1";
 const INSERT_KEY_CHECK =
   "INSERT INTO meta (key, value) SELECT ?1, ?2 WHERE NOT EXISTS (SELECT 1 FROM secrets) " +
   "ON CONFLICT (key) DO NOTHING";
+const DELETE_SECRET = "DELETE FROM secrets WHERE key = ?1";
+const DELETE_UNUSED_KEY_CHECK = "DELETE FROM meta WHERE key = ?1 AND NOT EXISTS (SELECT 1 FROM secrets)";
 const UPSERT_SECRET =
   "INSERT INTO secrets (key, iv, ciphertext) SELECT ?1, ?2, ?3 " +
   "WHERE EXISTS (SELECT 1 FROM meta WHERE key = ?4 AND value = ?5) " +
@@ -230,11 +232,9 @@ export function writeSecrets(
  * Deletes the row of one credential; also when no such row exists. The key check value is deleted with the last
  * credential. D1 errors are not caught.
  */
-/* eslint-disable @typescript-eslint/no-unused-vars -- skeleton: the implementation uses the parameters */
-export function deleteSecret(db: D1Database, name: SecretName): Promise<void> {
-  return Promise.reject(new Error("Not implemented"));
+export async function deleteSecret(db: D1Database, name: SecretName): Promise<void> {
+  await db.batch([db.prepare(DELETE_SECRET).bind(name), db.prepare(DELETE_UNUSED_KEY_CHECK).bind(KEY_CHECK_META_KEY)]);
 }
-/* eslint-enable @typescript-eslint/no-unused-vars */
 
 const SELECT_KEY_CHECK_PINNED = "SELECT value, quote(value) AS pinned FROM meta WHERE key = ?1";
 const SELECT_ALL_SECRETS = "SELECT key, iv, ciphertext FROM secrets";

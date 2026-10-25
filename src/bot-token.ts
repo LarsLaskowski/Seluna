@@ -1,3 +1,7 @@
+import { keyFromEnv } from "./crypto";
+import { checkKey, readSecret } from "./store/secrets";
+import { botTokenFromEnv, isBotToken } from "./telegram";
+
 export type BotTokenSource = "worker-secret" | "saved";
 
 export type ResolvedBotToken =
@@ -13,8 +17,33 @@ export type ResolvedBotToken =
  * be decrypted with the current `SELUNA_SECRET`; `damaged`: only its own row is damaged or holds a value outside the
  * bot token form. D1 errors are not caught.
  */
-/* eslint-disable @typescript-eslint/no-unused-vars -- skeleton: the implementation uses the parameters */
-export function resolveBotToken(env: object, db: D1Database): Promise<ResolvedBotToken> {
-  return Promise.reject(new Error("Not implemented"));
+export async function resolveBotToken(env: object, db: D1Database): Promise<ResolvedBotToken> {
+  const fromEnv = botTokenFromEnv(env);
+  if (fromEnv.kind === "usable") {
+    return { kind: "usable", token: fromEnv.token, source: "worker-secret" };
+  }
+  if (fromEnv.kind === "malformed") {
+    return fromEnv;
+  }
+  const key = await keyFromEnv(env);
+  if (key === undefined) {
+    return { kind: "missing" };
+  }
+  const saved = await readSecret(db, key, "telegram_bot_token");
+  switch (saved.kind) {
+    case "ok":
+      // A saved value outside the allow-list is never placed in a URL.
+      return isBotToken(saved.value) ? { kind: "usable", token: saved.value, source: "saved" } : { kind: "damaged" };
+    case "missing":
+      return { kind: "missing" };
+    case "secret-changed":
+      return { kind: "unreadable" };
+    case "corrupt":
+      // A damaged key check value is a problem of all credentials; a matching one leaves only this row damaged.
+      return (await checkKey(db, key)) === "match" ? { kind: "damaged" } : { kind: "unreadable" };
+    default: {
+      const unreachable: never = saved;
+      return unreachable;
+    }
+  }
 }
-/* eslint-enable @typescript-eslint/no-unused-vars */
