@@ -87,6 +87,7 @@ Seluna is in active development and can already notify you about pull requests, 
 | --------------- | --------------------------------------------------------------------- |
 | 0.6.0           | A tidier setup: new look, navigation, bot token entered in the wizard |
 | 0.7.0           | A channel-neutral outbox and a switchable delivery channel            |
+| 0.8.0           | Messages for new issues and comments, and a digest of forks and stars |
 | 1.0.0           | Setup guide with screenshots, tested by someone outside the project   |
 | 1.1.0 and 1.2.0 | More channels: ntfy, Gotify, Matrix and Discord                       |
 
