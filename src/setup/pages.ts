@@ -487,8 +487,11 @@ function tokenCardHtml(language: Language, csrfToken: string, token: TokenState,
   const parts: string[] = [`<h2>${escapeHtml(texts.telegramTokenHeading)}</h2>`];
   switch (token.kind) {
     case "missing":
-      parts.push(noticeHtml(language, notice));
-      parts.push(`<p>${escapeHtml(texts.telegramTokenIntro)}</p>`, tokenFormHtml(language, csrfToken));
+      parts.push(
+        noticeHtml(language, notice),
+        `<p>${escapeHtml(texts.telegramTokenIntro)}</p>`,
+        tokenFormHtml(language, csrfToken),
+      );
       break;
     case "entry":
       parts.push(noticeHtml(language, notice), tokenFormHtml(language, csrfToken));

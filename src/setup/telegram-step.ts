@@ -130,6 +130,13 @@ export const TELEGRAM_VERIFY_PATH = "/setup/telegram/verify";
 export const PROOF_FIELD = "proof";
 export const CODE_FIELD = "code";
 
+/** What the confirm step needs from outside: the Worker environment, the database and the Bot API client. */
+export interface TelegramStepDeps {
+  readonly env: object;
+  readonly db: D1Database;
+  readonly fetcher: TelegramFetch;
+}
+
 export type ConfirmChatResult =
   | { readonly kind: "code-sent"; readonly chatId: number; readonly proof: string }
   | { readonly kind: "chat-id-secret" }
@@ -144,9 +151,7 @@ export type ConfirmChatResult =
  * The token comes from `resolveBotToken`. D1 errors are not caught.
  */
 export async function confirmTelegramChat(
-  env: object,
-  db: D1Database,
-  fetcher: TelegramFetch,
+  { env, db, fetcher }: TelegramStepDeps,
   proofKey: CryptoKey,
   session: string,
   chatFields: readonly string[],

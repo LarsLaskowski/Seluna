@@ -330,9 +330,7 @@ async function confirmTelegram(context: Context, session: string): Promise<Respo
   let result: Awaited<ReturnType<typeof confirmTelegramChat>>;
   try {
     result = await confirmTelegramChat(
-      env,
-      db,
-      fetch,
+      { env, db, fetcher: fetch },
       context.telegramKey,
       session,
       form.getAll(CHAT_FIELD),
