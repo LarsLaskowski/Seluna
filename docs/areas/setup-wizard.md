@@ -204,7 +204,8 @@ it and add their pages behind the login.
 
 The step that takes the owner's Telegram bot token and tells Seluna which Telegram chat to send to. The bot never
 gets a webhook, Seluna neither sets nor removes one and exposes no Telegram route. The only Bot API methods called
-are `getMe` (the token form), `getUpdates` (this step's page) and `sendMessage` (its test message, and delivery).
+are `getMe` (at most once per submitted token form whose token matches the bot token form, and never for one
+that does not), `getUpdates` (this step's page) and `sendMessage` (its test message, and delivery).
 
 - **Chat precedence:** when the Worker secret `TELEGRAM_CHAT_ID` is a non-empty string, it decides the chat. `GET
 /setup/telegram` then answers **200** with the token card exactly as without it ([The bot token](#the-bot-token))
@@ -326,7 +327,10 @@ maxlength="221" required>` that never carries a `value`, and the primary button 
   secret **503** _token malformed_, a D1 failure **503** _unavailable_; then one `sendMessage`
   (`POST https://api.telegram.org/bot<token>/sendMessage`, JSON `{"chat_id":<id as a number>,"text":"<test message
 in the page language> <code>"}`, no `parse_mode`, 10 second abort). `sendMessage` 401 or 404 answers **502** with
-  _token rejected_ for the Worker secret and _saved token rejected_ for a saved token; any other failure (status, `ok` not `true`, rejected fetch, unreadable or oversized answer)
+  _token rejected_ on the notice-only page when the token is the Worker secret; for a saved token it answers **502**
+  with the step page holding only the token card in its _saved_ state marked rejected: the _saved token rejected_
+  notice, the _token saved_ text, the open _Change token_ disclosure with the token form, and the remove form (no chat
+  card) ([The bot token](#the-bot-token)); any other failure (status, `ok` not `true`, rejected fetch, unreadable or oversized answer)
   answers **502** with _send failed_. Telegram is not called in the 413, 400, 403, 409 and 503 cases.
 - Success answers **200** with the code page: the heading, then one card with a notice when one is given (_wrong
   code_, below), the _code sent_ text with the chat id, the _code intro_, a
