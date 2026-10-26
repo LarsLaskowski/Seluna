@@ -1,6 +1,6 @@
 import { resolveBotToken } from "../bot-token";
 import type { ChannelList } from "../channels/channel";
-import { CHANNELS } from "../channels/registry";
+import { CHANNELS, readActiveChannel } from "../channels/registry";
 import { parseAppId, resolveAppCredentials } from "../github/app-credentials";
 import type { GitHubFetch } from "../github/conversion";
 import { listInstallations } from "../github/installations";
@@ -53,8 +53,24 @@ export interface MessengersView {
 }
 
 /** The messengers card's data. D1 errors are not caught. */
-export function messengersView(env: object, db: D1Database, channels: ChannelList): Promise<MessengersView> {
-  throw new Error("Not implemented");
+export async function messengersView(env: object, db: D1Database, channels: ChannelList): Promise<MessengersView> {
+  const activeId = (await readActiveChannel(db, channels)).id;
+  const entries: MessengerEntry[] = [];
+  for (const channel of channels) {
+    entries.push({
+      id: channel.id,
+      name: channel.displayName,
+      setupPath: channel.setupPath,
+      configured: (await channel.prepare(env, db)).kind === "ready",
+      active: channel.id === activeId,
+      removable: await channel.hasRemovableCredentials(env, db),
+    });
+  }
+  const active = entries.find((entry) => entry.active) ?? entries[0];
+  if (active === undefined) {
+    throw new TypeError("No messenger is registered");
+  }
+  return { entries, active };
 }
 
 export interface StatusView {

@@ -1,9 +1,9 @@
 import { resolveBotToken } from "../bot-token";
 import type { BotTokenSource, ResolvedBotToken } from "../bot-token";
 import type { ChannelList } from "../channels/channel";
-import { CHANNELS } from "../channels/registry";
+import { CHANNELS, readActiveChannel } from "../channels/registry";
 import { keyFromEnv } from "../crypto";
-import { checkKey, deleteSecret, writeSecret } from "../store/secrets";
+import { checkKey, writeSecret } from "../store/secrets";
 import { readSetting, TELEGRAM_CHAT_ID_SETTING, writeSetting } from "../store/settings";
 import {
   botTokenFromEnv,
@@ -103,6 +103,12 @@ async function searchedChat(
   }
 }
 
+/** Whether Telegram is the active messenger and not set up. D1 errors are not caught. */
+async function activeTelegramNotSetUp(env: object, db: D1Database, channels: ChannelList): Promise<boolean> {
+  const active = await readActiveChannel(db, channels);
+  return active.id === "telegram" && (await active.prepare(env, db)).kind !== "ready";
+}
+
 /**
  * What the step page shows: the token state from `resolveBotToken` and the chat part; calls `getUpdates` at most once
  * and only with a usable token while `TELEGRAM_CHAT_ID` is not set. D1 errors are not caught.
@@ -113,6 +119,18 @@ export async function telegramStepView(
   fetcher: TelegramFetch,
   channels: ChannelList = CHANNELS,
 ): Promise<TelegramStepView> {
+  const view = await stepViewOf(env, db, fetcher);
+  let notSetUp: boolean;
+  try {
+    notSetUp = await activeTelegramNotSetUp(env, db, channels);
+  } catch {
+    // The notice is an addition: a failing read leaves it out and does not hide the step.
+    notSetUp = false;
+  }
+  return notSetUp ? { ...view, activeNotSetUp: true } : view;
+}
+
+async function stepViewOf(env: object, db: D1Database, fetcher: TelegramFetch): Promise<TelegramStepView> {
   const resolved = await resolveBotToken(env, db);
   const token = tokenStateOfResolved(resolved);
   if (isChatIdSecretSet(env)) {
@@ -250,21 +268,6 @@ export async function saveBotToken(
   }
   const written = await writeSecret(db, key, "telegram_bot_token", token);
   return written.kind === "ok" ? { kind: "saved" } : { kind: "not-writable" };
-}
-
-export type RemoveTokenResult =
-  { readonly kind: "removed" } | { readonly kind: "worker-secret" } | { readonly kind: "unreadable" };
-
-/** Deletes the saved bot token (also when none is saved); calls no Telegram API. D1 errors are not caught. */
-export async function removeBotToken(env: object, db: D1Database): Promise<RemoveTokenResult> {
-  if (botTokenFromEnv(env).kind !== "missing") {
-    return { kind: "worker-secret" };
-  }
-  if ((await resolveBotToken(env, db)).kind === "unreadable") {
-    return { kind: "unreadable" };
-  }
-  await deleteSecret(db, "telegram_bot_token");
-  return { kind: "removed" };
 }
 
 export type VerifyChatResult =

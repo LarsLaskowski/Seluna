@@ -1,7 +1,6 @@
 import { readSetting, TELEGRAM_CHAT_ID_SETTING } from "../store/settings";
-import { resolveBotToken } from "../bot-token";
+import { removeBotToken, resolveBotToken } from "../bot-token";
 import { renderTelegramText } from "../message";
-import { removeBotToken } from "../setup/telegram-step";
 import { CHAT_ID_SECRET_NAME, isChatIdSecretSet, parseChatId, sendNotification } from "../telegram";
 import type { Channel, ChannelMessage, ChannelSendDeps, ChannelSendResult, SendOptions } from "./channel";
 
