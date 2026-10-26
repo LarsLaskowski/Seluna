@@ -91,6 +91,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0035](0035-root-url-redirects-to-setup.md) | The root URL redirects to the setup wizard | Accepted | 2026-10-24 |
 | [0036](0036-telegram-bot-token-in-the-setup-wizard.md) | Telegram bot token entered in the setup wizard and checked with getMe | Accepted | 2026-10-25 |
 | [0037](0037-squad-working-records-off-main.md) | Squad working records stay off main, and product PRs never change the squad | Accepted | 2026-10-25 |
-| [0038](0038-channel-neutral-outbox-and-active-delivery-channel.md) | Channel-neutral outbox and one active delivery channel | Proposed | 2026-10-26 |
+| [0038](0038-channel-neutral-outbox-and-active-delivery-channel.md) | Channel-neutral outbox and one active delivery channel | Accepted | 2026-10-26 |
 
 <!-- project:end index -->

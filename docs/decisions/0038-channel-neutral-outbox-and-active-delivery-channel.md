@@ -1,6 +1,6 @@
 # 0038: Channel-neutral outbox and one active delivery channel
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-26
 - **Area:** Notifications
 - **Source:** Issue #69
