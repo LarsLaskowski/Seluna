@@ -1,7 +1,8 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { DeliveryLogEntry } from "./delivery";
-import { checkForRelease, formatReleaseMessage } from "./release-check";
+import { renderTelegramText } from "./message";
+import { checkForRelease, formatReleaseMessage, releaseNotification } from "./release-check";
 import type { ReleaseCheckDeps, ReleaseCheckResult } from "./release-check";
 import { DEFAULT_SETTINGS } from "./settings";
 import { NOTIFIED_RELEASE_META_KEY } from "./store/notified-release";
@@ -20,6 +21,10 @@ const ENGLISH_TEXT =
   "<b>New Seluna release</b> · LarsLaskowski/Seluna\nVersion 0.5.0 is available; this instance runs 0.4.0.";
 const GERMAN_TEXT =
   "<b>Neue Seluna-Version</b> · LarsLaskowski/Seluna\nVersion 0.5.0 ist verfügbar; diese Instanz läuft mit 0.4.0.";
+const ENGLISH_STORED =
+  '{"title":"New Seluna release","repository":"LarsLaskowski/Seluna","number":null,"subject":"Version 0.5.0 is available; this instance runs 0.4.0.","context":""}';
+const GERMAN_STORED =
+  '{"title":"Neue Seluna-Version","repository":"LarsLaskowski/Seluna","number":null,"subject":"Version 0.5.0 ist verfügbar; diese Instanz läuft mit 0.4.0.","context":""}';
 const ACCEPTED = jsonAnswer(200, FIXTURES.sendMessage);
 
 beforeEach(async () => {
@@ -111,7 +116,43 @@ async function outboxRows(): Promise<readonly unknown[]> {
   return results;
 }
 
+describe("releaseNotification", () => {
+  it.each([
+    {
+      language: "en" as const,
+      title: "New Seluna release",
+      subject: "Version 0.5.0 is available; this instance runs 0.4.0.",
+    },
+    {
+      language: "de" as const,
+      title: "Neue Seluna-Version",
+      subject: "Version 0.5.0 ist verfügbar; diese Instanz läuft mit 0.4.0.",
+    },
+  ])("releaseNotification returns the neutral $language notice and the tag URL", ({ language, title, subject }) => {
+    const notice = releaseNotification({ major: 0, minor: 5, patch: 0 }, { major: 0, minor: 4, patch: 0 }, language);
+
+    expect(notice, "notice").toEqual({
+      notification: { title, repository: "LarsLaskowski/Seluna", number: undefined, subject, context: "" },
+      buttonUrl: RELEASE_URL,
+    });
+  });
+});
+
 describe("formatReleaseMessage (AC6)", () => {
+  it.each([{ language: "en" as const }, { language: "de" as const }])(
+    "formatReleaseMessage equals renderTelegramText of releaseNotification in $language",
+    ({ language }) => {
+      const latest = { major: 0, minor: 5, patch: 0 };
+      const running = { major: 0, minor: 4, patch: 0 };
+
+      const message = formatReleaseMessage(latest, running, language);
+
+      const notice = releaseNotification(latest, running, language);
+      expect(message.text, "text").toBe(renderTelegramText(notice.notification));
+      expect(message.buttonUrl, "button URL").toBe(notice.buttonUrl);
+    },
+  );
+
   it.each([
     { language: "en" as const, text: ENGLISH_TEXT },
     { language: "de" as const, text: GERMAN_TEXT },
@@ -147,7 +188,7 @@ describe("checkForRelease (AC6: reporting)", () => {
     expect(await remembered(), "remembered version").toBe("0.5.0");
     expect(await outboxRows(), "outbox rows").toMatchObject([
       {
-        text: ENGLISH_TEXT,
+        text: ENGLISH_STORED,
         button_url: RELEASE_URL,
         silent: 0,
         status: "sent",
@@ -172,7 +213,7 @@ describe("checkForRelease (AC6: reporting)", () => {
     const result = await checkForRelease(STARTED_AT, deps);
 
     expect(result, "result").toBe("reported");
-    expect(await outboxRows(), "outbox rows").toMatchObject([{ text: GERMAN_TEXT, button_url: RELEASE_URL }]);
+    expect(await outboxRows(), "outbox rows").toMatchObject([{ text: GERMAN_STORED, button_url: RELEASE_URL }]);
   });
 
   it("checkForRelease answers known and sends nothing on the second run", async () => {
@@ -199,7 +240,7 @@ describe("checkForRelease (AC6: reporting)", () => {
     expect(telegram.requests.length, "number of Telegram requests").toBe(1);
     expect(await outboxRows(), "outbox rows").toMatchObject([
       {
-        text: "<b>New Seluna release</b> · LarsLaskowski/Seluna\nVersion 0.6.0 is available; this instance runs 0.4.0.",
+        text: '{"title":"New Seluna release","repository":"LarsLaskowski/Seluna","number":null,"subject":"Version 0.6.0 is available; this instance runs 0.4.0.","context":""}',
       },
     ]);
   });

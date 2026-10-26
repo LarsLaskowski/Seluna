@@ -4,9 +4,17 @@ import { NOTIFIED_RELEASE_META_KEY, readNotifiedRelease, recordReleaseNotice } f
 import type { NewOutboxRow } from "./outbox";
 import { applyMigrations } from "../../test/d1";
 
+const NOTICE_TEXT =
+  '{"title":"New Seluna release","repository":"LarsLaskowski/Seluna","number":null,"subject":"Version 0.5.0 is available; this instance runs 0.4.0.","context":""}';
 const CREATED_AT = new Date("2026-10-21T05:17:00Z");
 const NOTICE: NewOutboxRow = {
-  text: "<b>New Seluna release</b> · LarsLaskowski/Seluna\nVersion 0.5.0 is available; this instance runs 0.4.0.",
+  notification: {
+    title: "New Seluna release",
+    repository: "LarsLaskowski/Seluna",
+    number: undefined,
+    subject: "Version 0.5.0 is available; this instance runs 0.4.0.",
+    context: "",
+  },
   buttonUrl: "https://github.com/LarsLaskowski/Seluna/releases/tag/v0.5.0",
   silent: false,
 };
@@ -84,7 +92,7 @@ describe("recordReleaseNotice (AC6: both writes or neither)", () => {
     expect(await outboxRows(), "outbox rows").toEqual([
       {
         id,
-        text: NOTICE.text,
+        text: NOTICE_TEXT,
         button_url: NOTICE.buttonUrl,
         silent: 0,
         status: "pending",

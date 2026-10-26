@@ -12,6 +12,8 @@ import secretCreated from "../test/fixtures/secret_scanning_alert/created.json";
 import failedPullRequestRun from "../test/fixtures/workflow_run/completed-failure-pull-request.json";
 import successfulDefaultBranchRun from "../test/fixtures/workflow_run/completed-success-default-branch.json";
 import type { DraftLookup } from "./draft-lookup";
+import { renderTelegramText } from "./message";
+import { decodeStoredNotification } from "./notification";
 import { RULES } from "./rules/registry";
 import type { Notification, Rule, WebhookPayload } from "./rules/rule";
 import { readLastDelivery } from "./store/meta";
@@ -129,6 +131,15 @@ async function count(table: "deliveries" | "outbox"): Promise<unknown> {
   return row?.n;
 }
 
+/** The Telegram HTML text of a stored `text` column value: the stored JSON decoded and rendered. */
+function telegramTextOf(stored: unknown): string {
+  const notification = typeof stored === "string" ? decodeStoredNotification(stored) : undefined;
+  if (notification === undefined) {
+    throw new TypeError("The stored text is not a stored notification");
+  }
+  return renderTelegramText(notification);
+}
+
 function sentBody(request: RecordedRequest | undefined): Record<string, unknown> {
   if (request === undefined || !isRecord(request.body)) {
     throw new TypeError("No sendMessage request with a JSON object body was recorded");
@@ -147,6 +158,18 @@ describe("processWebhook", () => {
     const sent = sentBody(telegram.requests[0]);
     expect(sent.text, "text").toBe("<b>New pull request</b> · octo/repo #7\nFix &lt;b&gt; &amp; &lt;/b&gt;\nmain");
     expect(sent.parse_mode, "parse_mode").toBe("HTML");
+  });
+
+  it("processWebhook writes the cleaned notification as a JSON object in text for a matched delivery", async () => {
+    const { deps } = harness({ rules: [testRule("  Fix <b> &\nit  ")] });
+
+    await processWebhook(pingDelivery(), deps);
+
+    const row = await env.DB.prepare("SELECT text, button_url FROM outbox").first();
+    expect(row?.text, "stored text").toBe(
+      '{"title":"New pull request","repository":"octo/repo","number":7,"subject":"Fix <b> & it","context":"main"}',
+    );
+    expect(row?.button_url, "stored button URL").toBe("https://github.com/octo/repo/pull/7");
   });
 
   it("processWebhook sends without sound during the stored quiet hours and stores silent 0", async () => {
@@ -280,14 +303,16 @@ describe("processWebhook", () => {
 
     expect(outcome.status, "status").toBe(202);
     expect(outcome.decision, "decision").toBe("reported");
-    expect(await env.DB.prepare("SELECT text, button_url FROM outbox").all(), "outbox rows").toMatchObject({
-      results: [
-        {
-          text: "<b>New pull request</b> · example-owner/example-other-repo #143\n[Docs] Update the contributor documentation\nby example-owner · claude/example-branch → main",
-          button_url: "https://github.com/example-owner/example-other-repo/pull/143",
-        },
+    const rows = await env.DB.prepare("SELECT text, button_url FROM outbox").all();
+    expect(
+      rows.results.map((row) => [telegramTextOf(row.text), row.button_url]),
+      "outbox rows",
+    ).toEqual([
+      [
+        "<b>New pull request</b> · example-owner/example-other-repo #143\n[Docs] Update the contributor documentation\nby example-owner · claude/example-branch → main",
+        "https://github.com/example-owner/example-other-repo/pull/143",
       ],
-    });
+    ]);
   });
 
   it.each<{ fixture: string; payload: object }>([
@@ -492,7 +517,7 @@ async function switchOff(rule: string): Promise<void> {
 
 async function storedTexts(): Promise<unknown[]> {
   const rows = await env.DB.prepare("SELECT text FROM outbox ORDER BY id").all();
-  return rows.results.map((row) => row.text);
+  return rows.results.map((row) => telegramTextOf(row.text));
 }
 
 describe("processWebhook with the CI failure rules", () => {
@@ -676,7 +701,7 @@ function alertDelivery(event: string, payload: object, delivery = DELIVERY_ID): 
 
 async function storedMessages(): Promise<unknown[]> {
   const rows = await env.DB.prepare("SELECT text, button_url FROM outbox ORDER BY id").all();
-  return rows.results.map((row) => [row.text, row.button_url]);
+  return rows.results.map((row) => [telegramTextOf(row.text), row.button_url]);
 }
 
 describe("processWebhook with the security alert rules", () => {

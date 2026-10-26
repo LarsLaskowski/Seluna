@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { isKnownDelivery, recordDelivery } from "./deliveries";
 import { readLastDelivery } from "./meta";
+import type { StoredNotification } from "../notification";
 import { applyMigrations } from "../../test/d1";
 
 beforeEach(async () => {
@@ -36,11 +37,16 @@ describe("isKnownDelivery", () => {
   });
 });
 
+/** A stored notification whose title is `title`. */
+function notificationTitled(title: string): StoredNotification {
+  return { title, repository: "o/r", number: 1, subject: "S", context: "C" };
+}
+
 describe("recordDelivery", () => {
   it("recordDelivery stores the delivery, its outbox rows and last_delivery and returns the row ids in order", async () => {
     const messages = [
-      { text: "first", buttonUrl: "https://github.com/o/r/pull/1", silent: false },
-      { text: "second", buttonUrl: undefined, silent: true },
+      { notification: notificationTitled("first"), buttonUrl: "https://github.com/o/r/pull/1", silent: false },
+      { notification: notificationTitled("second"), buttonUrl: undefined, silent: true },
     ];
 
     const result = await recordDelivery(
@@ -62,12 +68,18 @@ describe("recordDelivery", () => {
     expect(results, "rows").toEqual([
       {
         id: ids[0],
-        text: "first",
+        text: '{"title":"first","repository":"o/r","number":1,"subject":"S","context":"C"}',
         button_url: "https://github.com/o/r/pull/1",
         silent: 0,
         created_at: 1_792_240_440_000,
       },
-      { id: ids[1], text: "second", button_url: null, silent: 1, created_at: 1_792_240_440_000 },
+      {
+        id: ids[1],
+        text: '{"title":"second","repository":"o/r","number":1,"subject":"S","context":"C"}',
+        button_url: null,
+        silent: 1,
+        created_at: 1_792_240_440_000,
+      },
     ]);
     expect(await env.DB.prepare("SELECT * FROM deliveries").first(), "delivery row").toEqual({
       id: "new-1",
@@ -81,7 +93,7 @@ describe("recordDelivery", () => {
     await insertDelivery("known-1");
 
     const result = await recordDelivery(env.DB, { id: "known-1", event: "ping", receivedAt: RECEIVED_AT }, [
-      { text: "never stored", buttonUrl: undefined, silent: false },
+      { notification: notificationTitled("never stored"), buttonUrl: undefined, silent: false },
     ]);
 
     expect(result, "result").toEqual({ kind: "duplicate" });
@@ -102,7 +114,7 @@ describe("recordDelivery", () => {
     };
 
     const recording = recordDelivery(failingBatch, { id: "new-9", event: "ping", receivedAt: RECEIVED_AT }, [
-      { text: "never stored", buttonUrl: undefined, silent: false },
+      { notification: notificationTitled("never stored"), buttonUrl: undefined, silent: false },
     ]);
 
     await expect(recording, "result").rejects.toThrow("The batch failed");

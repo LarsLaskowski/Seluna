@@ -26,9 +26,29 @@ async function rowOf(id: number): Promise<Record<string, unknown> | null> {
 }
 
 describe("outboxInsert", () => {
+  it("outboxInsert stores the notification as a JSON object without markup and null for a missing number", async () => {
+    const row = {
+      notification: { title: "A & B", repository: "o/r", number: undefined, subject: "<b>x</b>", context: "" },
+      buttonUrl: undefined,
+      silent: false,
+    };
+
+    const [result] = await env.DB.batch<{ id: number }>([outboxInsert(env.DB, row, new Date(1000))]);
+
+    const stored = await rowOf(Number(result?.results[0]?.id));
+    expect(stored?.text, "stored text").toBe(
+      '{"title":"A & B","repository":"o/r","number":null,"subject":"<b>x</b>","context":""}',
+    );
+    expect(stored?.button_url, "stored button URL").toBeNull();
+  });
+
   it("outboxInsert stores text, button URL, silent and created_at and returns the id", async () => {
     const createdAt = new Date(1_792_240_440_000);
-    const row = { text: "<b>T</b>", buttonUrl: "https://github.com/o/r", silent: true };
+    const row = {
+      notification: { title: "T", repository: "o/r", number: 7, subject: "S", context: "C" },
+      buttonUrl: "https://github.com/o/r",
+      silent: true,
+    };
 
     const [result] = await env.DB.batch<{ id: number }>([outboxInsert(env.DB, row, createdAt)]);
 
@@ -36,7 +56,7 @@ describe("outboxInsert", () => {
     expect(id, "returned id").toEqual(expect.any(Number));
     expect(await rowOf(Number(id)), "stored row").toEqual({
       id,
-      text: "<b>T</b>",
+      text: '{"title":"T","repository":"o/r","number":7,"subject":"S","context":"C"}',
       button_url: "https://github.com/o/r",
       silent: 1,
       attempts: 0,
@@ -214,6 +234,91 @@ describe("readDueRows", () => {
       { id: withButton?.id, text: "<b>x</b>", buttonUrl: "https://github.com/o/r", silent: true },
       { id: plain, text: "t", buttonUrl: undefined, silent: false },
     ]);
+  });
+});
+
+/** Inserts a pending row with the SQL literal `textLiteral` as its text; the id. */
+async function insertWithText(textLiteral: string, createdAt: number): Promise<number> {
+  const row = await env.DB.prepare(
+    `INSERT INTO outbox (text, button_url, silent, created_at) VALUES (${textLiteral}, NULL, 0, ?1) RETURNING id`,
+  )
+    .bind(createdAt)
+    .first();
+  const id = row?.id;
+  if (typeof id !== "number") {
+    throw new TypeError("The insert returned no id");
+  }
+  return id;
+}
+
+const STORED_JSON = '{"title":"T","repository":"o/r","number":7,"subject":"S","context":"C"}';
+
+describe("readDueRows and the form of the stored text", () => {
+  it("readDueRows returns a row starting with <b> without notification and a row starting with { with its decoded notification", async () => {
+    const old = await insertWithText("'<b>T</b> · o/r #7\nS\nC'", 1000);
+    const current = await insertWithText(`'${STORED_JSON}'`, 2000);
+
+    const rows = await readDueRows(env.DB, new Date(10_000), 10);
+
+    expect(rows, "rows").toEqual([
+      { id: old, text: "<b>T</b> · o/r #7\nS\nC", buttonUrl: undefined, silent: false },
+      {
+        id: current,
+        text: STORED_JSON,
+        notification: { title: "T", repository: "o/r", number: 7, subject: "S", context: "C" },
+        buttonUrl: undefined,
+        silent: false,
+      },
+    ]);
+    expect("notification" in (rows[0] ?? {}), "an old-form row has no notification field").toBe(false);
+  });
+
+  it("readDueRows decodes a stored number null as a notification without a number", async () => {
+    await insertWithText(`'{"title":"T","repository":"o/r","number":null,"subject":"S","context":""}'`, 1000);
+
+    const rows = await readDueRows(env.DB, new Date(10_000), 10);
+
+    expect(rows[0]?.notification, "notification").toEqual({
+      title: "T",
+      repository: "o/r",
+      number: undefined,
+      subject: "S",
+      context: "",
+    });
+  });
+
+  it.each([
+    { case: "invalid JSON", text: "{not json" },
+    { case: "another shape", text: '{"title":1,"repository":"o/r","number":null,"subject":"S","context":"C"}' },
+    { case: "a missing field", text: '{"title":"T","repository":"o/r","number":null,"subject":"S"}' },
+  ])("readDueRows marks a row as damaged whose text starts with { and holds $case", async ({ text }) => {
+    const id = await insertWithText(`'${text}'`, 1000);
+
+    const rows = await readDueRows(env.DB, new Date(10_000), 10);
+
+    expect(rows, "rows").toEqual([{ id, text, notification: "damaged", buttonUrl: undefined, silent: false }]);
+  });
+
+  it("readDueRows marks a row as damaged with the text empty when its text is a blob, and still returns the other rows", async () => {
+    const before = await insertWithText(`'${STORED_JSON}'`, 1000);
+    const blob = await insertWithText("X'3C623E'", 2000);
+    const after = await insertWithText("'<b>T</b> · o/r'", 3000);
+
+    const rows = await readDueRows(env.DB, new Date(10_000), 10);
+
+    expect(
+      rows.map((row) => row.id),
+      "ids",
+    ).toEqual([before, blob, after]);
+    expect(rows[1], "the blob row").toEqual({
+      id: blob,
+      text: "",
+      notification: "damaged",
+      buttonUrl: undefined,
+      silent: false,
+    });
+    expect(rows[0]?.notification, "the row before").toMatchObject({ title: "T" });
+    expect(rows[2]?.notification, "the row after has no notification").toBeUndefined();
   });
 });
 
