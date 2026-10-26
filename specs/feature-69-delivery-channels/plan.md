@@ -313,6 +313,13 @@ APPROVED. Notes (1) and (2) (`outboxIsCurrent`, live D1 check) are moot after th
 `src/channels/http.ts` is written into the shared HTTP rules of `docs/areas/notifications.md` (*Areas*);
 (4) `legacyNotificationOf` parses with `startsWith`/`indexOf`, no unbounded lazy groups (*Approach*).
 
+### Security notes (second review, non-blocking, verbatim)
+
+1. The optional `notification` field allows a raw send. `PendingMessage.notification` is optional, and a row without it is sent by Telegram as its stored `text` with `parse_mode` HTML. If a writer path ever passes a new row to `deliverMessages` without setting `notification`, the raw JSON goes out unescaped as HTML. `readDueRows` sets the field for retry rows, and the webhook path is guarded by `processWebhook sends the escaped title with parse_mode HTML to sendMessage` (`src/webhook.test.ts:140-148`), which must stay unchanged. Suggestion: when `notification` is absent, `deliverMessages` should still check whether `text` starts with `{` and decode it or mark it damaged, rather than trusting the caller.
+2. A non-Telegram channel's handling of an unparsable old row is not defined. When `contentNotification` returns `undefined`, the plan does not say what such a channel does. It should be stated, for example as a `failed` attempt.
+3. Damaged rows versus a channel that is not ready. The order is not stated. S8 says attempts stay unchanged while the active channel is not ready; the plan should say whether a damaged row still counts an attempt in that case.
+4. The `text` value of a non-string row is not specified. `OutboxRow.text` (typed `string`) has no stated value for it, for example `''`. The skeleton should fix one.
+
 ## Decision records
 
 - `docs/decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md` (Proposed; amends 0023).

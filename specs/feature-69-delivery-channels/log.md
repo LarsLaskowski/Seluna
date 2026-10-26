@@ -15,3 +15,4 @@ are quoted in full.
 | 2026-10-26 18:17 | 2b Plan revise | Product Manager | Escalation answered: B, store the neutral notification as JSON in the existing outbox.text column, no migration 0002 (issue Scope waived on this point) |
 | 2026-10-26 18:17 | 2b Plan revise | Lead | m1-m3 and 4 Security notes accepted; M1 (JSON in text column, no migration) escalated, recommendation B (opus/medium · usage not reported) |
 | 2026-10-26 18:21 | 2b Plan revise (option B) | Lead | spec/plan/tasks/0038 revised for option B (JSON in text column, no migration); plan-check and decision-check pass (opus/medium · 58,375 tokens · 13 tool uses · 225 s · continued) |
+| 2026-10-26 18:22 | 3 Plan security review (revision) | Security | APPROVED, 4 non-blocking findings (raw-send guard when notification absent, unparsable old row on non-Telegram channel, damaged row vs channel not ready, text value of non-string row) (opus/medium · 51,113 tokens · 8 tool uses · 66 s) |
