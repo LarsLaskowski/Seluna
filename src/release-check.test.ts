@@ -6,7 +6,9 @@ import { checkForRelease, formatReleaseMessage, releaseNotification } from "./re
 import type { ReleaseCheckDeps, ReleaseCheckResult } from "./release-check";
 import { DEFAULT_SETTINGS } from "./settings";
 import { NOTIFIED_RELEASE_META_KEY } from "./store/notified-release";
-import { writeNotificationSettings, writeSetting } from "./store/settings";
+import { DELIVERY_CHANNEL_SETTING, writeNotificationSettings, writeSetting } from "./store/settings";
+import { TELEGRAM_CHANNEL } from "./channels/telegram";
+import { testChannel } from "../test/channel";
 import { applyMigrations } from "../test/d1";
 import { FIXTURES as GITHUB_FIXTURES, githubApiDouble, jsonAnswer as githubAnswer, REJECTED } from "../test/github";
 import type { GitHubRouteAnswer } from "../test/github";
@@ -416,5 +418,56 @@ describe("checkForRelease (AC8: failures)", () => {
     expect(telegram.requests.length, "number of Telegram requests").toBe(0);
     expect(await outboxRows(), "outbox rows").toEqual([]);
     expect(await remembered(), "remembered version").toBeUndefined();
+  });
+});
+
+describe("checkForRelease through the active channel", () => {
+  it.each([
+    { language: "en" as const, label: "Open on GitHub", stored: ENGLISH_STORED },
+    { language: "de" as const, label: "Auf GitHub öffnen", stored: GERMAN_STORED },
+  ])(
+    "checkForRelease sends the notice through the active test channel in $language and not through Telegram",
+    async ({ language, label, stored }) => {
+      await writeNotificationSettings(env.DB, { ...DEFAULT_SETTINGS, language });
+      await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+      const channel = testChannel();
+      const { deps, log, telegram } = harness();
+
+      const result = await checkForRelease(STARTED_AT, { ...deps, channels: [TELEGRAM_CHANNEL, channel] });
+
+      expect(result, "result").toBe("reported");
+      expect(telegram.requests.length, "Telegram requests").toBe(0);
+      expect(channel.sends.length, "sends through the test channel").toBe(1);
+      expect(channel.sends[0]?.message, "message").toEqual({
+        content: {
+          kind: "notification",
+          notification: releaseNotification(
+            { major: 0, minor: 5, patch: 0 },
+            { major: 0, minor: 4, patch: 0 },
+            language,
+          ).notification,
+        },
+        buttonUrl: RELEASE_URL,
+      });
+      expect(channel.sends[0]?.options.silent, "silent").toBe(false);
+      expect(channel.sends[0]?.options.buttonLabel, "button label").toBe(label);
+      expect(await outboxRows(), "outbox rows").toMatchObject([{ text: stored, status: "sent", attempts: 1 }]);
+      expect(log, "log entries").toHaveLength(1);
+      expect(log[0], "log entry").toMatchObject({ result: "sent" });
+    },
+  );
+
+  it("checkForRelease keeps the row pending with attempts 0 and calls no channel while the active test channel is not ready", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+    const channel = testChannel({ configured: false });
+    const { deps, log, telegram } = harness();
+
+    const result = await checkForRelease(STARTED_AT, { ...deps, channels: [TELEGRAM_CHANNEL, channel] });
+
+    expect(result, "result").toBe("reported");
+    expect(telegram.requests.length, "Telegram requests: no fallback").toBe(0);
+    expect(channel.sends.length, "sends").toBe(0);
+    expect(await outboxRows(), "outbox rows").toMatchObject([{ status: "pending", attempts: 0 }]);
+    expect(log[0], "log entry").toMatchObject({ result: "no-token" });
   });
 });

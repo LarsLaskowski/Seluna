@@ -2,9 +2,13 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { deliverMessages, wait } from "./delivery";
 import type { DeliveryDeps, DeliveryLogEntry, DeliverySettings, PendingMessage } from "./delivery";
+import type { ChannelList } from "./channels/channel";
+import { TELEGRAM_CHANNEL } from "./channels/telegram";
+import type { StoredNotification } from "./notification";
 import type { Language } from "./setup/language";
 import { writeSecret } from "./store/secrets";
-import { TELEGRAM_CHAT_ID_SETTING, writeSetting } from "./store/settings";
+import { DELIVERY_CHANNEL_SETTING, TELEGRAM_CHAT_ID_SETTING, writeSetting } from "./store/settings";
+import { testChannel } from "../test/channel";
 import { applyMigrations } from "../test/d1";
 import { keyFor, withFirstCharacterChanged } from "../test/keys";
 import { FIXTURES, jsonAnswer, REJECTED, telegramDouble } from "../test/telegram";
@@ -559,5 +563,401 @@ describe("deliverMessages with a saved bot token", () => {
     expect(telegram.requests.length, "number of requests").toBe(0);
     expect(await stateOf(message), "row").toEqual({ status: "pending", attempts: 0 });
     expect(log, "log entries").toEqual([{ outbox: message.id, result: "no-token" }]);
+  });
+});
+
+const NOTIFICATION: StoredNotification = {
+  title: "New pull request",
+  repository: "octo/repo",
+  number: 7,
+  subject: "Fix <b> & </b>",
+  context: "main",
+};
+const NOTIFICATION_JSON =
+  '{"title":"New pull request","repository":"octo/repo","number":7,"subject":"Fix <b> & </b>","context":"main"}';
+const OLD_FORM_TEXT = "<b>New pull request</b> · octo/repo #7\nFix &lt;b&gt; &amp; &lt;/b&gt;\nmain";
+
+/** Inserts a row of the new form and returns it as `readDueRows` or the webhook hands it over. */
+async function insertNewRow(
+  notification: StoredNotification = NOTIFICATION,
+  buttonUrl: string | null = BUTTON_URL,
+  attempts = 0,
+): Promise<PendingMessage> {
+  const row = await insertRow(JSON.stringify(notification), buttonUrl, 0, attempts);
+  return { ...row, notification };
+}
+
+/** The deps of `harness` with the registered channels `channels`. */
+function harnessWith(
+  channels: ChannelList,
+  answers: TelegramAnswers = {},
+  deliveryEnv: object = READY_ENV,
+  db: D1Database = env.DB,
+): Harness {
+  const base = harness(answers, deliveryEnv, db);
+  return { ...base, deps: { ...base.deps, channels } };
+}
+
+describe("deliverMessages through the active channel", () => {
+  it("deliverMessages sends through the active test channel and not through Telegram", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+    const channel = testChannel();
+    const message = await insertNewRow();
+    const { deps, log, telegram } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+    await deliverMessages([message], settingsIn("de"), deps);
+
+    expect(telegram.requests.length, "Telegram requests").toBe(0);
+    expect(channel.sends.length, "sends through the test channel").toBe(1);
+    expect(channel.sends[0]?.message, "message").toEqual({
+      content: { kind: "notification", notification: NOTIFICATION },
+      buttonUrl: BUTTON_URL,
+    });
+    expect(channel.sends[0]?.options, "options").toEqual({
+      silent: false,
+      buttonLabel: "Auf GitHub öffnen",
+      outboxId: message.id,
+    });
+    expect(await stateOf(message), "row").toEqual({ status: "sent", attempts: 1 });
+    expect(log, "log entries").toEqual([{ outbox: message.id, result: "sent" }]);
+  });
+
+  it("deliverMessages sends through Telegram when the active channel is telegram and a test channel is registered", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "telegram");
+    const channel = testChannel();
+    const message = await insertNewRow();
+    const { deps, telegram } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(channel.sends.length, "sends through the test channel").toBe(0);
+    expect(telegram.requests[0]?.body, "JSON body").toMatchObject({
+      text: "<b>New pull request</b> · octo/repo #7\nFix &lt;b&gt; &amp; &lt;/b&gt;\nmain",
+      parse_mode: "HTML",
+    });
+  });
+
+  it("deliverMessages sends through Telegram when the stored channel names no registered channel", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "gone");
+    const channel = testChannel();
+    const message = await insertNewRow();
+    const { deps, telegram } = harnessWith([channel, TELEGRAM_CHANNEL]);
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(channel.sends.length, "sends through the test channel").toBe(0);
+    expect(telegram.requests.length, "Telegram requests").toBe(1);
+    expect(telegram.requests[0]?.body, "JSON body").toMatchObject({
+      text: "<b>New pull request</b> · octo/repo #7\nFix &lt;b&gt; &amp; &lt;/b&gt;\nmain",
+    });
+  });
+
+  it("deliverMessages passes the silent flag, the quiet hours and the button label of the language at sending", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+    const channel = testChannel();
+    const message = await insertNewRow();
+    const { deps } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+    await deliverMessages([message], inQuietHours(), deps);
+
+    expect(channel.sends[0]?.options, "options").toEqual({
+      silent: true,
+      buttonLabel: "Open on GitHub",
+      outboxId: message.id,
+    });
+  });
+
+  it("deliverMessages resolves the active channel once for a batch of two rows", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+    const channel = testChannel();
+    const first = await insertNewRow();
+    const second = await insertNewRow();
+    const { deps } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+    await deliverMessages([first, second], settingsIn("en"), deps);
+
+    expect(channel.prepareCalls(), "prepare calls").toBe(1);
+    expect(channel.sends.length, "sends").toBe(2);
+  });
+
+  it("deliverMessages keeps the channel it resolved for the whole batch when the setting changes during it", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "first");
+    const second = testChannel({ id: "second" });
+    const first = testChannel({
+      id: "first",
+      onSend: () => writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "second"),
+    });
+    const one = await insertNewRow();
+    const two = await insertNewRow();
+    const { deps, telegram } = harnessWith([TELEGRAM_CHANNEL, first, second]);
+
+    await deliverMessages([one, two], settingsIn("en"), deps);
+
+    expect(first.sends.length, "sends through the channel the batch started with").toBe(2);
+    expect(second.sends.length, "sends through the channel switched to").toBe(0);
+    expect(telegram.requests.length, "Telegram requests").toBe(0);
+  });
+
+  it("deliverMessages sends the next batch through the channel switched to", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "first");
+    const second = testChannel({ id: "second" });
+    const first = testChannel({ id: "first" });
+    const one = await insertNewRow();
+    const two = await insertNewRow();
+    const channels: ChannelList = [TELEGRAM_CHANNEL, first, second];
+    const { deps } = harnessWith(channels);
+    await deliverMessages([one], settingsIn("en"), deps);
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "second");
+
+    await deliverMessages([two], settingsIn("en"), deps);
+
+    expect(first.sends.length, "sends through the first channel").toBe(1);
+    expect(second.sends.length, "sends through the second channel").toBe(1);
+  });
+
+  it("deliverMessages keeps a row's attempts across a switch and counts the next one", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+    const channel = testChannel({ sendResult: "failed" });
+    const message = await insertNewRow(NOTIFICATION, BUTTON_URL, 2);
+    const { deps, log } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(await stateOf(message), "row").toEqual({ status: "pending", attempts: 3 });
+    expect(log, "log entries").toEqual([{ outbox: message.id, result: "failed" }]);
+  });
+
+  it("deliverMessages marks a row with 2 earlier attempts sent through the other channel with attempts 3", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+    const channel = testChannel();
+    const message = await insertNewRow(NOTIFICATION, BUTTON_URL, 2);
+    const { deps } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(channel.sends.length, "sends through the test channel").toBe(1);
+    expect(await stateOf(message), "row").toEqual({ status: "sent", attempts: 3 });
+  });
+
+  it("deliverMessages marks the row failed after the fifth attempt through the test channel", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+    const channel = testChannel({ sendResult: "failed" });
+    const message = await insertNewRow(NOTIFICATION, BUTTON_URL, 4);
+    const { deps, log } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(await stateOf(message), "row").toEqual({ status: "failed", attempts: 5 });
+    expect(log, "log entries").toEqual([
+      { outbox: message.id, result: "failed" },
+      { outbox: message.id, status: "failed" },
+    ]);
+  });
+
+  it.each<{ sent: "rejected" | "rate-limited" | "failed"; logged: string }>([
+    { sent: "rejected", logged: "token-rejected" },
+    { sent: "rate-limited", logged: "rate-limited" },
+    { sent: "failed", logged: "failed" },
+  ])("deliverMessages logs $logged and counts an attempt when the channel answers $sent", async ({ sent, logged }) => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+    const channel = testChannel({ sendResult: sent });
+    const message = await insertNewRow();
+    const { deps, log } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(await stateOf(message), "row").toEqual({ status: "pending", attempts: 1 });
+    expect(log, "log entries").toEqual([{ outbox: message.id, result: logged }]);
+  });
+
+  it("deliverMessages logs store-failed and calls no channel when the active channel cannot be read", async () => {
+    const channel = testChannel();
+    const message = await insertNewRow();
+    const { deps, log, telegram } = harnessWith(
+      [channel, TELEGRAM_CHANNEL],
+      {},
+      READY_ENV,
+      dbFailingFor(env.DB, /settings/),
+    );
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(channel.sends.length, "sends").toBe(0);
+    expect(telegram.requests.length, "Telegram requests").toBe(0);
+    expect(await stateOf(message), "row").toEqual({ status: "pending", attempts: 0 });
+    expect(log, "log entries").toEqual([{ outbox: message.id, result: "store-failed" }]);
+  });
+});
+
+describe("deliverMessages and the active channel that is not ready", () => {
+  it.each<{ case: string; unavailable: "no-token" | "no-chat" }>([
+    { case: "has no credentials", unavailable: "no-token" },
+    { case: "has no destination", unavailable: "no-chat" },
+  ])(
+    "deliverMessages calls no channel, keeps attempts and logs $unavailable while a test channel $case, beside a ready Telegram",
+    async ({ unavailable }) => {
+      await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+      const channel = testChannel({ configured: false, unavailable });
+      const message = await insertNewRow(NOTIFICATION, BUTTON_URL, 2);
+      const { deps, log, telegram } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+      await deliverMessages([message], settingsIn("en"), deps);
+
+      expect(channel.sends.length, "sends").toBe(0);
+      expect(telegram.requests.length, "Telegram requests: no fallback to another channel").toBe(0);
+      expect(await stateOf(message), "row").toEqual({ status: "pending", attempts: 2 });
+      expect(log, "log entries").toEqual([{ outbox: message.id, result: unavailable }]);
+    },
+  );
+
+  it("deliverMessages leaves a damaged row's attempts unchanged while the active channel is not ready", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+    const channel = testChannel({ configured: false });
+    const row = await insertRow("{not json", null, 0, 1);
+    const damaged: PendingMessage = { ...row, notification: "damaged" };
+    const { deps, log } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+    await deliverMessages([damaged], settingsIn("en"), deps);
+
+    expect(await stateOf(damaged), "row").toEqual({ status: "pending", attempts: 1 });
+    expect(log, "log entries").toEqual([{ outbox: damaged.id, result: "no-token" }]);
+  });
+});
+
+describe("deliverMessages and damaged rows", () => {
+  it("deliverMessages counts a failed attempt for a damaged row, calls no channel and still sends the next row", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+    const channel = testChannel();
+    const row = await insertRow("{not json");
+    const damaged: PendingMessage = { ...row, notification: "damaged" };
+    const next = await insertNewRow();
+    const { deps, log, telegram } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+    await deliverMessages([damaged, next], settingsIn("en"), deps);
+
+    expect(channel.sends.length, "sends: only the readable row").toBe(1);
+    expect(channel.sends[0]?.options.outboxId, "the row sent").toBe(next.id);
+    expect(telegram.requests.length, "Telegram requests").toBe(0);
+    expect(await stateOf(damaged), "damaged row").toEqual({ status: "pending", attempts: 1 });
+    expect(await stateOf(next), "next row").toEqual({ status: "sent", attempts: 1 });
+    expect(log, "log entries").toEqual([
+      { outbox: damaged.id, result: "failed" },
+      { outbox: next.id, result: "sent" },
+    ]);
+  });
+
+  it("deliverMessages counts a failed attempt for a damaged row through Telegram without a Telegram request", async () => {
+    const row = await insertRow("{not json");
+    const damaged: PendingMessage = { ...row, notification: "damaged" };
+    const next = await insertRow();
+    const { deps, telegram } = harness();
+
+    await deliverMessages([damaged, next], settingsIn("en"), deps);
+
+    expect(telegram.requests.length, "Telegram requests: only the next row").toBe(1);
+    expect(await stateOf(damaged), "damaged row").toEqual({ status: "pending", attempts: 1 });
+    expect(await stateOf(next), "next row").toEqual({ status: "sent", attempts: 1 });
+  });
+
+  it("deliverMessages marks a damaged row with 4 attempts failed on the fifth and logs the marking", async () => {
+    const row = await insertRow("{not json", null, 0, 4);
+    const damaged: PendingMessage = { ...row, notification: "damaged" };
+    const { deps, log, telegram } = harness();
+
+    await deliverMessages([damaged], settingsIn("en"), deps);
+
+    expect(telegram.requests.length, "Telegram requests").toBe(0);
+    expect(await stateOf(damaged), "row").toEqual({ status: "failed", attempts: 5 });
+    expect(log, "log entries").toEqual([
+      { outbox: damaged.id, result: "failed" },
+      { outbox: damaged.id, status: "failed" },
+    ]);
+  });
+
+  it("deliverMessages sends a row without a notification whose text is not JSON as the stored text", async () => {
+    const message = await insertRow(OLD_FORM_TEXT, BUTTON_URL);
+    const channel = testChannel();
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+    const { deps } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(channel.sends[0]?.message.content, "content").toEqual({ kind: "legacy", text: OLD_FORM_TEXT });
+  });
+
+  it("deliverMessages decodes a row without a notification whose text starts with { and never sends the raw JSON", async () => {
+    const message = await insertRow(NOTIFICATION_JSON, BUTTON_URL);
+    const { deps, telegram } = harness();
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(telegram.requests.length, "Telegram requests").toBe(1);
+    expect(telegram.requests[0]?.body, "JSON body").toMatchObject({
+      text: "<b>New pull request</b> · octo/repo #7\nFix &lt;b&gt; &amp; &lt;/b&gt;\nmain",
+      parse_mode: "HTML",
+    });
+    expect(await stateOf(message), "row").toEqual({ status: "sent", attempts: 1 });
+  });
+
+  it("deliverMessages hands a row without a notification whose text starts with { to a test channel as a notification", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+    const channel = testChannel();
+    const message = await insertRow(NOTIFICATION_JSON, BUTTON_URL);
+    const { deps } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(channel.sends[0]?.message.content, "content").toEqual({ kind: "notification", notification: NOTIFICATION });
+  });
+
+  it.each([
+    { case: "invalid JSON", text: "{not json" },
+    { case: "another shape", text: '{"title":1}' },
+  ])(
+    "deliverMessages marks a row without a notification as damaged and sends no raw JSON when its text starts with { and holds $case",
+    async ({ text }) => {
+      const message = await insertRow(text);
+      const { deps, log, telegram } = harness();
+
+      await deliverMessages([message], settingsIn("en"), deps);
+
+      expect(telegram.requests.length, "Telegram requests").toBe(0);
+      expect(await stateOf(message), "row").toEqual({ status: "pending", attempts: 1 });
+      expect(log, "log entries").toEqual([{ outbox: message.id, result: "failed" }]);
+    },
+  );
+});
+
+describe("deliverMessages and old-form rows reaching another channel", () => {
+  it("deliverMessages hands a test channel the title, repository, number, lines and button an old row's text holds", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+    const channel = testChannel();
+    const message = await insertRow(OLD_FORM_TEXT, BUTTON_URL);
+    const { deps } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+    await deliverMessages([message], settingsIn("en"), deps);
+
+    expect(channel.sends[0]?.notification, "notification the channel read").toEqual(NOTIFICATION);
+    expect(channel.sends[0]?.message.buttonUrl, "button URL").toBe(BUTTON_URL);
+    expect(await stateOf(message), "row").toEqual({ status: "sent", attempts: 1 });
+  });
+
+  it("deliverMessages counts a failed attempt when a channel gets an old row whose text it cannot read", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+    const channel = testChannel();
+    const message = await insertRow("t");
+    const next = await insertNewRow();
+    const { deps, log } = harnessWith([TELEGRAM_CHANNEL, channel]);
+
+    await deliverMessages([message, next], settingsIn("en"), deps);
+
+    expect(channel.sends.length, "sends reached the channel").toBe(2);
+    expect(channel.sends[0]?.notification, "notification read from the unreadable row").toBeUndefined();
+    expect(await stateOf(message), "unreadable row").toEqual({ status: "pending", attempts: 1 });
+    expect(await stateOf(next), "next row").toEqual({ status: "sent", attempts: 1 });
+    expect(log, "log entries").toEqual([
+      { outbox: message.id, result: "failed" },
+      { outbox: next.id, result: "sent" },
+    ]);
   });
 });
