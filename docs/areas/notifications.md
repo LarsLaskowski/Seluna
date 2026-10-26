@@ -243,7 +243,9 @@ No migration changes the column: it is still `text` ([Storage](storage.md)).
   (`legacyNotificationOf`): the first line must start with `<b>`, the title runs to the first `</b> · `, the rest is the
   repository, a trailing ` #` and 1 to 16 digits (first not `0`, a safe integer) is cut off as the number, lines 2 and 3
   are the further lines (a missing one is empty), and `&lt;`, `&gt;`, `&amp;` are decoded once, in this order. A text of
-  more than three lines or of another shape cannot be recovered; the channel then counts a failed attempt. The parsing
+  more than three lines or of another shape cannot be recovered (`contentNotification` returns `undefined`); a channel
+  that renders the notification itself must then answer `failed`, which counts a failed attempt. Telegram is not
+  affected: it sends the old text unchanged. The parsing
   uses `startsWith` and `indexOf`, no regular expression with unbounded groups.
 - **Damaged rows**: a row whose `text` starts with `{` but is not a valid stored notification (not JSON, not an object,
   a missing or mistyped field, a number that is not a whole number from 1 to 2^53 − 1), or whose `text` is not a

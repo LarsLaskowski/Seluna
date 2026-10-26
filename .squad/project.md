@@ -113,7 +113,7 @@ change with it.
 - the test that pins the read/write round trip
 
 **A new delivery channel** touches:
-- its entry in `CHANNELS` in `src/channels/registry.ts` and its adapter under `src/channels/` (`prepare`, `send`, `hasRemovableCredentials`, `remove`), on the shared `src/channels/http.ts`
+- its entry in `CHANNELS` in `src/channels/registry.ts` and its adapter under `src/channels/` (`prepare`, `send`, `hasRemovableCredentials`, `remove`), on the shared `src/channels/http.ts`; a `send` that renders the notification itself must answer `failed` when `contentNotification` returns `undefined` (an old-form row it cannot recover)
 - its setup page `/setup/<id>` (the id must match `CHANNEL_ID_FORM` and avoid `RESERVED_SETUP_SEGMENTS`), its `ChannelSecretName` and its texts in `src/setup/texts.ts` (English and German)
 - its test double or tests, `docs/areas/notifications.md` (*Delivery channels*), `docs/areas/setup-wizard.md` (*Messengers*) and the component list in `docs/ARCHITECTURE.md`
 
