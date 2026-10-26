@@ -1,7 +1,7 @@
 # Spec: Channel-neutral outbox and switchable delivery channel
 
 Source: Issue #69
-Status: Draft
+Status: Approved by Lead
 
 ## Problem
 
