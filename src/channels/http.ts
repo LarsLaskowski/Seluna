@@ -29,10 +29,13 @@ export async function postJson(url: string, payload: object, fetcher: ChannelFet
       await response.body?.cancel().catch(() => undefined);
       return { kind: "answered", status: response.status, ok: false, body: undefined };
     }
-    // Only the retry hint of a 429 is read of a non-2xx answer; an answer that is too large is a failure.
+    // Only the retry hint of a 429 is read of a non-2xx answer. A 2xx answer that is too large or unreadable is a
+    // failure; the same 429 only has no retry hint.
     const read = await readBodyWithLimit(response, MAX_CHANNEL_RESPONSE_BYTES);
     if (read.kind !== "ok") {
-      return { kind: "failed" };
+      return response.ok
+        ? { kind: "failed" }
+        : { kind: "answered", status: response.status, ok: false, body: undefined };
     }
     const body = jsonOf(read.body);
     // A 2xx answer that is not JSON is a failure; the unreadable body of a 429 only leaves out the retry hint.

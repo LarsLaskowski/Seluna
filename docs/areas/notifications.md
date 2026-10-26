@@ -291,7 +291,8 @@ channel that sends it.
 - **Shared HTTP rules** (`src/channels/http.ts`, used by the Telegram client): one JSON `POST` per request with
   `content-type: application/json`, aborted after 10 seconds; the answer is read at most 1 MiB, counted in bytes
   before decoding, for a 2xx and for a 429 only (the body of any other status is cancelled unread); a 2xx answer that
-  is not UTF-8 JSON, or an answer above the limit, is `failed`. After a 429 whose retry hint is a whole number from 1
+  is not UTF-8 JSON or above the limit is `failed`; a 429 whose body is above the limit or unreadable is a 429 without a
+  retry hint (`rate-limited`, no retry). After a 429 whose retry hint is a whole number from 1
   to 5 seconds the request is sent once more after that wait, within the same attempt; a rejected wait is `failed`.
   Requests follow redirects as `fetch` does by default (`redirect: "follow"`), because Telegram's fixed host never
   redirects; the first channel with a server address chosen by the owner must decide on this consciously. Network
@@ -385,7 +386,7 @@ channel that sends it.
   only the fixed decision or result above is logged.
 - The answer of Telegram is read only for a 2xx (to check `ok`) and for a 429 (for `retry_after`), at most 1 MiB,
   counted before decoding ([HTTP routes](http-routes.md#request-body-size)); a 429 whose body is above the limit
-  counts as `failed`.
+  counts as `rate-limited`, without a retry.
 - A stored row that cannot be read as a notification never stops the other rows ([Message format](#message-format)).
 
 ## Related decisions
