@@ -1,4 +1,6 @@
 import { resolveBotToken } from "../bot-token";
+import type { ChannelList } from "../channels/channel";
+import { CHANNELS } from "../channels/registry";
 import { parseAppId, resolveAppCredentials } from "../github/app-credentials";
 import type { GitHubFetch } from "../github/conversion";
 import { listInstallations } from "../github/installations";
@@ -34,6 +36,27 @@ export interface StatusGitHub {
   readonly now: () => Date;
 }
 
+/** One messenger on the start page. */
+export interface MessengerEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly setupPath: string;
+  readonly configured: boolean;
+  readonly active: boolean;
+  readonly removable: boolean;
+}
+
+/** The messengers in registry order and the active one. */
+export interface MessengersView {
+  readonly entries: readonly MessengerEntry[];
+  readonly active: MessengerEntry;
+}
+
+/** The messengers card's data. D1 errors are not caught. */
+export function messengersView(env: object, db: D1Database, channels: ChannelList): Promise<MessengersView> {
+  throw new Error("Not implemented");
+}
+
 export interface StatusView {
   readonly version: string;
   readonly botToken: BotTokenStatus;
@@ -43,6 +66,7 @@ export interface StatusView {
   readonly resetNeeded: boolean;
   readonly settings: NotificationSettings;
   readonly installations: InstallationsView;
+  readonly messengers: MessengersView;
 }
 
 /** Where the bot token comes from, read from the environment and D1; calls no Telegram API. D1 errors are not caught. */
@@ -142,6 +166,7 @@ export async function statusView(
   storageKey: CryptoKey,
   version: string,
   github: StatusGitHub,
+  channels: ChannelList = CHANNELS,
 ): Promise<StatusView> {
   const settings = await readNotificationSettings(db);
   const botToken = await botTokenStatus(env, db);
@@ -156,6 +181,7 @@ export async function statusView(
     resetNeeded: await needsReset(db, storageKey),
     settings,
     installations: await installationsView(env, db, version, github, app),
+    messengers: await messengersView(env, db, channels),
   };
 }
 

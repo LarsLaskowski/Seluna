@@ -1,5 +1,7 @@
 import { resolveBotToken } from "../bot-token";
 import type { BotTokenSource, ResolvedBotToken } from "../bot-token";
+import type { ChannelList } from "../channels/channel";
+import { CHANNELS } from "../channels/registry";
 import { keyFromEnv } from "../crypto";
 import { checkKey, deleteSecret, writeSecret } from "../store/secrets";
 import { readSetting, TELEGRAM_CHAT_ID_SETTING, writeSetting } from "../store/settings";
@@ -48,6 +50,8 @@ export interface TelegramStepView {
   readonly kind: "step";
   readonly token: TokenState;
   readonly chat: ChatPart;
+  /** Whether Telegram is the active messenger and not set up. */
+  readonly activeNotSetUp?: boolean;
 }
 
 /** The token card's state for `resolved`; `rejected` is false because no Telegram request is made. */
@@ -103,7 +107,12 @@ async function searchedChat(
  * What the step page shows: the token state from `resolveBotToken` and the chat part; calls `getUpdates` at most once
  * and only with a usable token while `TELEGRAM_CHAT_ID` is not set. D1 errors are not caught.
  */
-export async function telegramStepView(env: object, db: D1Database, fetcher: TelegramFetch): Promise<TelegramStepView> {
+export async function telegramStepView(
+  env: object,
+  db: D1Database,
+  fetcher: TelegramFetch,
+  channels: ChannelList = CHANNELS,
+): Promise<TelegramStepView> {
   const resolved = await resolveBotToken(env, db);
   const token = tokenStateOfResolved(resolved);
   if (isChatIdSecretSet(env)) {

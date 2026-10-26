@@ -1,3 +1,4 @@
+import type { ChannelList } from "../channels/channel";
 import { MAX_BODY_BYTES, readBodyWithLimit } from "../body";
 import { isSelunaSecretConfigured, keyFromEnv, signingKeyFromEnv, verifySelunaSecret } from "../crypto";
 import { resetCredentials } from "../store/secrets";
@@ -77,6 +78,8 @@ export interface SetupDeps {
   readonly githubFetch: GitHubFetch;
   /** The build's version, sent in the GitHub API's User-Agent. */
   readonly version: string;
+  /** The registered messengers; defaults to `CHANNELS`. */
+  readonly channels?: ChannelList;
 }
 
 export const SETUP_PATH = "/setup";

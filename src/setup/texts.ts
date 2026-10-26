@@ -32,7 +32,10 @@ export type Notice =
   | "github-owner-mismatch"
   | "github-store-failed"
   | "settings-invalid"
-  | "reset-not-needed";
+  | "reset-not-needed"
+  | "messenger-invalid"
+  | "messenger-not-set-up"
+  | "messenger-worker-secrets";
 
 export interface SetupTexts {
   readonly pageTitle: string;
@@ -143,6 +146,19 @@ export interface SetupTexts {
   readonly ruleLabels: Readonly<Record<RuleId, string>>;
   readonly notConfiguredHeading: string;
   readonly notConfiguredParagraphs: readonly string[];
+  readonly messengersHeading: string;
+  readonly messengersIntro: string;
+  readonly messengerStateNotSetUp: string;
+  readonly messengerStateSetUp: string;
+  readonly messengerStateActive: string;
+  readonly messengerActiveNotSetUp: string;
+  readonly messengerSetUpLink: string;
+  readonly messengerChangeLink: string;
+  readonly messengerActivateButton: string;
+  readonly messengerRemoveButton: string;
+  readonly messengerLabel: string;
+  readonly messengerNotSetUpSuffix: string;
+  readonly telegramActiveNotSetUp: string;
   readonly notices: Readonly<Record<Notice, string>>;
 }
 
@@ -286,7 +302,26 @@ const ENGLISH: SetupTexts = {
     "In the Cloudflare dashboard open this Worker, then Settings, then Variables and Secrets, and add a secret named SELUNA_SECRET with that string. Or run: npx wrangler secret put SELUNA_SECRET",
     "Then reload this page.",
   ],
+  messengersHeading: "Messengers",
+  messengersIntro:
+    "Seluna sends its notifications through one messenger, the active one. Set up a messenger, then activate it; notifications still waiting are then sent through it.",
+  messengerStateNotSetUp: "Not set up",
+  messengerStateSetUp: "Set up",
+  messengerStateActive: "Active",
+  messengerActiveNotSetUp: "Active, but not set up: notifications wait until it is set up.",
+  messengerSetUpLink: "Set up",
+  messengerChangeLink: "Change",
+  messengerActivateButton: "Activate",
+  messengerRemoveButton: "Remove",
+  messengerLabel: "Messenger:",
+  messengerNotSetUpSuffix: "(not set up)",
+  telegramActiveNotSetUp:
+    "Telegram is the active messenger: notifications wait until a bot token and a chat are set up here.",
   notices: {
+    "messenger-invalid": "Please choose a messenger from the list.",
+    "messenger-not-set-up": "This messenger is not set up yet. Set it up first, then activate it.",
+    "messenger-worker-secrets":
+      "This messenger is set by Worker secrets, which Seluna cannot remove. Delete them in the Cloudflare dashboard under Settings, then Variables and Secrets.",
     "wrong-secret": "That is not the SELUNA_SECRET of this instance.",
     locked:
       "Too many failed attempts. Signing in is locked for 15 minutes after the fifth failed attempt; try again later.",
@@ -486,7 +521,27 @@ const GERMAN: SetupTexts = {
     "Öffne im Cloudflare-Dashboard diesen Worker, dann Settings, dann Variables and Secrets, und füge ein Secret namens SELUNA_SECRET mit dieser Zeichenfolge hinzu. Oder führe aus: npx wrangler secret put SELUNA_SECRET",
     "Lade danach diese Seite neu.",
   ],
+  messengersHeading: "Messenger",
+  messengersIntro:
+    "Seluna sendet seine Benachrichtigungen über einen Messenger, den aktiven. Richte einen Messenger ein und aktiviere ihn dann; noch wartende Benachrichtigungen werden danach über ihn gesendet.",
+  messengerStateNotSetUp: "Nicht eingerichtet",
+  messengerStateSetUp: "Eingerichtet",
+  messengerStateActive: "Aktiv",
+  messengerActiveNotSetUp: "Aktiv, aber nicht eingerichtet: Benachrichtigungen warten, bis er eingerichtet ist.",
+  messengerSetUpLink: "Einrichten",
+  messengerChangeLink: "Ändern",
+  messengerActivateButton: "Aktivieren",
+  messengerRemoveButton: "Entfernen",
+  messengerLabel: "Messenger:",
+  messengerNotSetUpSuffix: "(nicht eingerichtet)",
+  telegramActiveNotSetUp:
+    "Telegram ist der aktive Messenger: Benachrichtigungen warten, bis hier ein Bot-Token und ein Chat eingerichtet sind.",
   notices: {
+    "messenger-invalid": "Bitte wähle einen Messenger aus der Liste.",
+    "messenger-not-set-up":
+      "Dieser Messenger ist noch nicht eingerichtet. Richte ihn zuerst ein und aktiviere ihn dann.",
+    "messenger-worker-secrets":
+      "Dieser Messenger ist durch Worker-Secrets gesetzt, die Seluna nicht entfernen kann. Lösche sie im Cloudflare-Dashboard unter Settings, dann Variables and Secrets.",
     "wrong-secret": "Das ist nicht das SELUNA_SECRET dieser Instanz.",
     locked:
       "Zu viele fehlgeschlagene Versuche. Die Anmeldung ist nach dem fünften fehlgeschlagenen Versuch 15 Minuten lang gesperrt; versuche es später erneut.",
