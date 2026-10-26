@@ -4,6 +4,9 @@ import type { NotificationSettings } from "../settings";
 /** `settings` key of the Telegram chat id chosen in the setup wizard (decimal text). */
 export const TELEGRAM_CHAT_ID_SETTING = "telegram_chat_id";
 
+/** `settings` key of the active delivery channel id. */
+export const DELIVERY_CHANNEL_SETTING = "delivery_channel";
+
 /** The stored value of `key`, or `undefined`. D1 errors are not caught. */
 export async function readSetting(db: D1Database, key: string): Promise<string | undefined> {
   const row = await db.prepare("SELECT value FROM settings WHERE key = ?1").bind(key).first();

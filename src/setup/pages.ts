@@ -5,8 +5,9 @@ import type { GitHubStepView } from "./github-step";
 import { RULE_IDS, timeZones } from "../settings";
 import type { NotificationSettings } from "../settings";
 import { RESET_PATH, SETTINGS_PATH } from "./settings-form";
+import { CHANNEL_ACTIVATE_PATH, CHANNEL_FIELD, CHANNEL_REMOVE_PATH } from "./messengers";
 import { formatDeliveryTime } from "./status";
-import type { AppStatus, BotTokenStatus, ChatStatus, InstallationsView, StatusView } from "./status";
+import type { AppStatus, BotTokenStatus, ChatStatus, InstallationsView, MessengerEntry, StatusView } from "./status";
 import type { Installation, InstallationAccount } from "../github/installations";
 import { TELEGRAM_TOKEN_PATH, TELEGRAM_TOKEN_REMOVE_PATH } from "./telegram-step";
 import type { ChatPart, TelegramStepView, TokenState } from "./telegram-step";
@@ -300,6 +301,8 @@ function installationsHtml(language: Language, installations: InstallationsView)
 
 function statusHtml(language: Language, status: StatusView): string {
   const texts = TEXTS[language];
+  const { active } = status.messengers;
+  const suffix = active.configured ? "" : ` ${escapeHtml(texts.messengerNotSetUpSuffix)}`;
   const delivery =
     status.lastDelivery === undefined
       ? escapeHtml(texts.noneReceivedYet)
@@ -307,11 +310,58 @@ function statusHtml(language: Language, status: StatusView): string {
   return card(
     `<h2>${escapeHtml(texts.statusHeading)}</h2>\n` +
       `<p>${escapeHtml(texts.versionLabel)} <code>${escapeHtml(status.version)}</code></p>\n` +
+      `<p>${escapeHtml(texts.messengerLabel)} ${escapeHtml(status.messengers.active.name)}${suffix}</p>\n` +
       `<p>${escapeHtml(texts.botTokenLabel)} ${botTokenStatusHtml(language, status.botToken)}</p>\n` +
       `<p>${escapeHtml(texts.telegramChatLabel)} ${chatStatusHtml(language, status.chat)}</p>\n` +
       `<p>${escapeHtml(texts.githubAppLabel)} ${appStatusHtml(language, status.app)}</p>\n` +
       installationsHtml(language, status.installations) +
       `<p>${escapeHtml(texts.lastDeliveryLabel)} ${delivery}</p>`,
+  );
+}
+
+function messengerFormHtml(
+  csrfToken: string,
+  path: string,
+  entry: MessengerEntry,
+  buttonClass: string,
+  label: string,
+): string {
+  return (
+    `<form method="post" action="${path}">\n${csrfInput(csrfToken)}\n` +
+    `<input type="hidden" name="${CHANNEL_FIELD}" value="${escapeHtml(entry.id)}">\n` +
+    `<button type="submit" class="${buttonClass}">${escapeHtml(label)}</button>\n</form>`
+  );
+}
+
+function messengerItemHtml(language: Language, csrfToken: string, entry: MessengerEntry): string {
+  const texts = TEXTS[language];
+  let state: string | undefined;
+  if (!entry.active) {
+    state = entry.configured ? texts.messengerStateSetUp : texts.messengerStateNotSetUp;
+  } else if (entry.configured) {
+    state = texts.messengerStateActive;
+  }
+  const name = escapeHtml(entry.name);
+  const parts = [state === undefined ? `<strong>${name}</strong>` : `<strong>${name}:</strong> ${escapeHtml(state)}`];
+  if (state === undefined) {
+    parts.push(`<p class="notice info">${escapeHtml(texts.messengerActiveNotSetUp)}</p>`);
+  }
+  const link = entry.configured ? texts.messengerChangeLink : texts.messengerSetUpLink;
+  parts.push(`<a href="${escapeHtml(entry.setupPath)}">${escapeHtml(link)}</a>`);
+  if (entry.configured && !entry.active) {
+    parts.push(messengerFormHtml(csrfToken, CHANNEL_ACTIVATE_PATH, entry, "primary", texts.messengerActivateButton));
+  }
+  if (entry.removable) {
+    parts.push(messengerFormHtml(csrfToken, CHANNEL_REMOVE_PATH, entry, "secondary", texts.messengerRemoveButton));
+  }
+  return `<li>${parts.join("\n")}</li>`;
+}
+
+function messengersHtml(language: Language, csrfToken: string, status: StatusView): string {
+  const texts = TEXTS[language];
+  const items = status.messengers.entries.map((entry) => messengerItemHtml(language, csrfToken, entry));
+  return card(
+    `<h2>${escapeHtml(texts.messengersHeading)}</h2>\n<p>${escapeHtml(texts.messengersIntro)}</p>\n<ul>\n${items.join("\n")}\n</ul>`,
   );
 }
 
@@ -367,6 +417,7 @@ export function renderStartPage(language: Language, csrfToken: string, view: Sta
         head,
         statusHtml(language, view.status),
         ...(view.status.resetNeeded ? [resetHtml(language, csrfToken)] : []),
+        messengersHtml(language, csrfToken, view.status),
         stepLinksHtml(language),
         settingsFormHtml(language, csrfToken, view.status.settings),
         logoutFormHtml(language, csrfToken),
@@ -482,9 +533,18 @@ function removeTokenFormHtml(language: Language, csrfToken: string): string {
 }
 
 /** The content of the token card after its heading; `notice` replaces the notice the state implies. */
-function tokenCardHtml(language: Language, csrfToken: string, token: TokenState, notice: Notice | undefined): string {
+function tokenCardHtml(
+  language: Language,
+  csrfToken: string,
+  token: TokenState,
+  notice: Notice | undefined,
+  activeNotSetUp: boolean,
+): string {
   const texts = TEXTS[language];
   const parts: string[] = [`<h2>${escapeHtml(texts.telegramTokenHeading)}</h2>`];
+  if (activeNotSetUp) {
+    parts.push(`<p class="notice info">${escapeHtml(texts.telegramActiveNotSetUp)}</p>`);
+  }
   switch (token.kind) {
     case "missing":
       parts.push(
@@ -593,7 +653,7 @@ export function renderTelegramPage(
     case "step": {
       const chatCard = chatCardHtml(language, csrfToken, view.chat);
       body =
-        `${heading}\n${card(tokenCardHtml(language, csrfToken, view.token, notice))}` +
+        `${heading}\n${card(tokenCardHtml(language, csrfToken, view.token, notice, view.activeNotSetUp === true))}` +
         (chatCard === "" ? "" : `\n${chatCard}`);
       break;
     }

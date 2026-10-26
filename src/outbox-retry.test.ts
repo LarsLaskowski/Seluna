@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { DeliveryDeps, DeliveryLogEntry } from "./delivery";
 import { RETRY_BATCH_SIZE, RETRY_GRACE_MS, retryPendingRows } from "./outbox-retry";
 import { DEFAULT_SETTINGS } from "./settings";
-import { writeNotificationSettings } from "./store/settings";
+import { DELIVERY_CHANNEL_SETTING, writeNotificationSettings, writeSetting } from "./store/settings";
+import { TELEGRAM_CHANNEL } from "./channels/telegram";
+import { testChannel } from "../test/channel";
 import { applyMigrations } from "../test/d1";
 import { FIXTURES, jsonAnswer, telegramDouble } from "../test/telegram";
 import type { TelegramAnswers } from "../test/telegram";
@@ -327,5 +329,105 @@ describe("retryPendingRows (AC3: an outage and missing credentials)", () => {
     expect(telegram.requests.length, "the message was sent once").toBe(1);
     expect(await stateOf(id), "row").toEqual({ status: "pending", attempts: 0 });
     expect(log, "log entries").toEqual([{ outbox: id, result: "store-failed" }]);
+  });
+});
+
+const NEW_FORM_TEXT =
+  '{"title":"New pull request","repository":"octo/repo","number":7,"subject":"Fix <b> & </b>","context":"main"}';
+
+describe("retryPendingRows through the active channel", () => {
+  it("retryPendingRows sends a pending row through the newly activated test channel", async () => {
+    const id = await insertRow({ text: NEW_FORM_TEXT, buttonUrl: BUTTON_URL, attempts: 2 });
+    const channel = testChannel();
+    const { deps, log, telegram } = harness({ sendMessage: ACCEPTED });
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+
+    const result = await retryPendingRows(STARTED_AT, { ...deps, channels: [TELEGRAM_CHANNEL, channel] });
+
+    expect(result, "result").toBe("done");
+    expect(telegram.requests.length, "Telegram requests").toBe(0);
+    expect(channel.sends.length, "sends through the test channel").toBe(1);
+    expect(channel.sends[0]?.message, "message").toEqual({
+      content: {
+        kind: "notification",
+        notification: {
+          title: "New pull request",
+          repository: "octo/repo",
+          number: 7,
+          subject: "Fix <b> & </b>",
+          context: "main",
+        },
+      },
+      buttonUrl: BUTTON_URL,
+    });
+    expect(await stateOf(id), "attempts carry over").toEqual({ status: "sent", attempts: 3 });
+    expect(log, "log entries").toEqual([{ outbox: id, result: "sent" }]);
+  });
+
+  it("retryPendingRows hands an old-form row to the test channel as the notification its text holds", async () => {
+    await insertRow({ text: "<b>T</b> · o/r #7\nS\nC" });
+    const channel = testChannel();
+    const { deps } = harness();
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+
+    await retryPendingRows(STARTED_AT, { ...deps, channels: [TELEGRAM_CHANNEL, channel] });
+
+    expect(channel.sends[0]?.notification, "notification the channel read").toEqual({
+      title: "T",
+      repository: "o/r",
+      number: 7,
+      subject: "S",
+      context: "C",
+    });
+  });
+
+  it("retryPendingRows sends a new-form row through Telegram as its rendered text", async () => {
+    const id = await insertRow({ text: NEW_FORM_TEXT });
+    const { deps, telegram } = harness({ sendMessage: ACCEPTED });
+
+    await retryPendingRows(STARTED_AT, deps);
+
+    expect(telegram.requests[0]?.body, "request body").toMatchObject({
+      text: "<b>New pull request</b> · octo/repo #7\nFix &lt;b&gt; &amp; &lt;/b&gt;\nmain",
+      parse_mode: "HTML",
+    });
+    expect(await stateOf(id), "row").toEqual({ status: "sent", attempts: 1 });
+  });
+
+  it("retryPendingRows counts a failed attempt for a damaged row, sends the other rows and stops no run", async () => {
+    const damaged = await insertRow({ text: "{not json", ageMs: 5 * MINUTE_MS });
+    const blob = await env.DB.prepare(
+      "INSERT INTO outbox (text, button_url, silent, created_at) VALUES (X'3C623E', NULL, 0, ?1) RETURNING id",
+    )
+      .bind(STARTED_AT.getTime() - 4 * MINUTE_MS)
+      .first();
+    const good = await insertRow({ text: "<b>T</b> · o/r #7" });
+    const { deps, log, telegram } = harness({ sendMessage: ACCEPTED });
+
+    const result = await retryPendingRows(STARTED_AT, deps);
+
+    expect(result, "result").toBe("done");
+    expect(telegram.requests.length, "Telegram requests: only the readable row").toBe(1);
+    expect(await stateOf(damaged), "undecodable row").toEqual({ status: "pending", attempts: 1 });
+    expect(await stateOf(Number(blob?.id)), "blob row").toEqual({ status: "pending", attempts: 1 });
+    expect(await stateOf(good), "readable row").toEqual({ status: "sent", attempts: 1 });
+    expect(log, "log entries").toEqual([
+      { outbox: damaged, result: "failed" },
+      { outbox: blob?.id, result: "failed" },
+      { outbox: good, result: "sent" },
+    ]);
+  });
+
+  it("retryPendingRows leaves the attempts of a pending row unchanged while the active test channel is not ready", async () => {
+    const id = await insertRow({ text: NEW_FORM_TEXT, attempts: 1 });
+    const channel = testChannel({ configured: false, unavailable: "no-chat" });
+    const { deps, log, telegram } = harness();
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+
+    await retryPendingRows(STARTED_AT, { ...deps, channels: [TELEGRAM_CHANNEL, channel] });
+
+    expect(telegram.requests.length, "Telegram requests").toBe(0);
+    expect(await stateOf(id), "row").toEqual({ status: "pending", attempts: 1 });
+    expect(log, "log entries").toEqual([{ outbox: id, result: "no-chat" }]);
   });
 });

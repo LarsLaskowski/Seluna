@@ -1,3 +1,4 @@
+import { encodeStoredNotification } from "../notification";
 import type { NewOutboxRow } from "./outbox";
 
 /** `meta` key of the newest release version that was reported, `A.B.C`. */
@@ -27,7 +28,7 @@ export async function recordReleaseNotice(
         "INSERT INTO outbox (text, button_url, silent, created_at) " +
           `SELECT ?1, ?2, 0, ?3 WHERE ${REMEMBERED} = ?4 RETURNING id`,
       )
-      .bind(row.text, row.buttonUrl ?? null, createdAt.getTime(), expected),
+      .bind(encodeStoredNotification(row.notification), row.buttonUrl ?? null, createdAt.getTime(), expected),
     db
       .prepare(
         "INSERT INTO meta (key, value) " +

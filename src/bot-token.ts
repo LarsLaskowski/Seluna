@@ -1,5 +1,5 @@
 import { keyFromEnv } from "./crypto";
-import { checkKey, readSecret } from "./store/secrets";
+import { checkKey, deleteSecret, readSecret } from "./store/secrets";
 import { botTokenFromEnv, isBotToken } from "./telegram";
 
 export type BotTokenSource = "worker-secret" | "saved";
@@ -46,4 +46,19 @@ export async function resolveBotToken(env: object, db: D1Database): Promise<Reso
       return unreachable;
     }
   }
+}
+
+export type RemoveTokenResult =
+  { readonly kind: "removed" } | { readonly kind: "worker-secret" } | { readonly kind: "unreadable" };
+
+/** Deletes the saved bot token (also when none is saved); calls no Telegram API. D1 errors are not caught. */
+export async function removeBotToken(env: object, db: D1Database): Promise<RemoveTokenResult> {
+  if (botTokenFromEnv(env).kind !== "missing") {
+    return { kind: "worker-secret" };
+  }
+  if ((await resolveBotToken(env, db)).kind === "unreadable") {
+    return { kind: "unreadable" };
+  }
+  await deleteSecret(db, "telegram_bot_token");
+  return { kind: "removed" };
 }

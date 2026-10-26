@@ -201,7 +201,7 @@ it("the Worker resolves a draft check through the GitHub API client and, without
   expect(telegram.methods(), "Bot API methods called").toEqual(["sendMessage"]);
   expect(outbound, "outbound requests").toHaveBeenCalledTimes(1);
   expect(await env.DB.prepare("SELECT text, status FROM outbox").first(), "outbox row").toEqual({
-    text: "<b>Wiring draft (draft status unknown)</b> · octo/repo #2\nSubject\nContext",
+    text: '{"title":"Wiring draft (draft status unknown)","repository":"octo/repo","number":2,"subject":"Subject","context":"Context"}',
     status: "sent",
   });
 });

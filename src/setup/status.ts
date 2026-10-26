@@ -1,4 +1,6 @@
 import { resolveBotToken } from "../bot-token";
+import type { ChannelList } from "../channels/channel";
+import { CHANNELS, readActiveChannel } from "../channels/registry";
 import { parseAppId, resolveAppCredentials } from "../github/app-credentials";
 import type { GitHubFetch } from "../github/conversion";
 import { listInstallations } from "../github/installations";
@@ -34,6 +36,42 @@ export interface StatusGitHub {
   readonly now: () => Date;
 }
 
+/** One messenger on the start page. */
+export interface MessengerEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly setupPath: string;
+  readonly configured: boolean;
+  readonly active: boolean;
+  readonly removable: boolean;
+}
+
+/** The messengers in registry order and the active one. */
+export interface MessengersView {
+  readonly entries: readonly MessengerEntry[];
+  readonly active: MessengerEntry;
+}
+
+/** The messengers card's data. D1 errors are not caught. */
+export async function messengersView(env: object, db: D1Database, channels: ChannelList): Promise<MessengersView> {
+  const activeId = (await readActiveChannel(db, channels)).id;
+  const entries: readonly MessengerEntry[] = await Promise.all(
+    channels.map(async (channel): Promise<MessengerEntry> => ({
+      id: channel.id,
+      name: channel.displayName,
+      setupPath: channel.setupPath,
+      configured: (await channel.prepare(env, db)).kind === "ready",
+      active: channel.id === activeId,
+      removable: await channel.hasRemovableCredentials(env, db),
+    })),
+  );
+  const active = entries.find((entry) => entry.active) ?? entries[0];
+  if (active === undefined) {
+    throw new TypeError("No messenger is registered");
+  }
+  return { entries, active };
+}
+
 export interface StatusView {
   readonly version: string;
   readonly botToken: BotTokenStatus;
@@ -43,6 +81,7 @@ export interface StatusView {
   readonly resetNeeded: boolean;
   readonly settings: NotificationSettings;
   readonly installations: InstallationsView;
+  readonly messengers: MessengersView;
 }
 
 /** Where the bot token comes from, read from the environment and D1; calls no Telegram API. D1 errors are not caught. */
@@ -142,6 +181,7 @@ export async function statusView(
   storageKey: CryptoKey,
   version: string,
   github: StatusGitHub,
+  channels: ChannelList = CHANNELS,
 ): Promise<StatusView> {
   const settings = await readNotificationSettings(db);
   const botToken = await botTokenStatus(env, db);
@@ -156,6 +196,7 @@ export async function statusView(
     resetNeeded: await needsReset(db, storageKey),
     settings,
     installations: await installationsView(env, db, version, github, app),
+    messengers: await messengersView(env, db, channels),
   };
 }
 

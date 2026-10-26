@@ -1,3 +1,6 @@
+import type { ChannelList } from "../channels/channel";
+import { CHANNELS } from "../channels/registry";
+import { removeBotToken } from "../bot-token";
 import { MAX_BODY_BYTES, readBodyWithLimit } from "../body";
 import { isSelunaSecretConfigured, keyFromEnv, signingKeyFromEnv, verifySelunaSecret } from "../crypto";
 import { resetCredentials } from "../store/secrets";
@@ -45,13 +48,13 @@ import {
 } from "./github-step";
 import { parseSettingsForm, RESET_PATH, SETTINGS_PATH } from "./settings-form";
 import { statusView } from "./status";
+import { activateChannel, channelOfForm, CHANNEL_ACTIVATE_PATH, CHANNEL_REMOVE_PATH } from "./messengers";
 import { createSessionToken, isValidSessionToken, SESSION_COOKIE, SESSION_LIFETIME_MS } from "./session";
 import {
   CHAT_FIELD,
   CODE_FIELD,
   confirmTelegramChat,
   PROOF_FIELD,
-  removeBotToken,
   saveBotToken,
   TELEGRAM_STEP_PATH,
   TELEGRAM_TOKEN_PATH,
@@ -77,6 +80,8 @@ export interface SetupDeps {
   readonly githubFetch: GitHubFetch;
   /** The build's version, sent in the GitHub API's User-Agent. */
   readonly version: string;
+  /** The registered messengers; defaults to `CHANNELS`. */
+  readonly channels?: ChannelList;
 }
 
 export const SETUP_PATH = "/setup";
@@ -301,7 +306,7 @@ async function showTelegramStep(context: Context, session: string): Promise<Resp
   const { env, db, fetch } = context.deps;
   let view: TelegramPageView;
   try {
-    view = await telegramStepView(env, db, fetch);
+    view = await telegramStepView(env, db, fetch, channelsOf(context));
   } catch {
     // The error is deliberately dropped: it must reach neither the log nor the response.
     return telegramPage(context, session, 503, NOTICE_ONLY, "unavailable");
@@ -645,6 +650,11 @@ function stepRoute(context: Context, session: string, pathname: string): Promise
     : undefined;
 }
 
+/** The registered messengers of this request. */
+function channelsOf(context: Context): ChannelList {
+  return context.deps.channels ?? CHANNELS;
+}
+
 const START_NOTICE_ONLY: StartPageView = { kind: "notice-only" };
 
 /** The start page with the status view at `status`; a D1 failure answers 503 with the notice-only page. */
@@ -654,7 +664,14 @@ async function startPage(context: Context, session: string, status: number, noti
   try {
     view = {
       kind: "status",
-      status: await statusView(env, db, context.storageKey, version, { fetcher: githubFetch, now }),
+      status: await statusView(
+        env,
+        db,
+        context.storageKey,
+        version,
+        { fetcher: githubFetch, now },
+        channelsOf(context),
+      ),
     };
   } catch {
     // The error is deliberately dropped: it must reach neither the log nor the response.
@@ -715,6 +732,66 @@ async function resetSaved(context: Context, session: string): Promise<Response> 
   }
 }
 
+async function activateMessenger(context: Context, session: string): Promise<Response> {
+  const form = await readStartForm(context, session);
+  if (form instanceof Response) {
+    return form;
+  }
+  const channels = channelsOf(context);
+  const channel = channelOfForm(form, channels);
+  if (channel === undefined) {
+    return startPage(context, session, 400, "messenger-invalid");
+  }
+  let result: Awaited<ReturnType<typeof activateChannel>>;
+  try {
+    result = await activateChannel(context.deps.env, context.deps.db, channel, channels);
+  } catch {
+    // The error is deliberately dropped: it must reach neither the log nor the response.
+    return formPage(context, { kind: "start", session, view: START_NOTICE_ONLY }, 503, "unavailable");
+  }
+  switch (result) {
+    case "activated":
+    case "already-active":
+      return plain(context, 303, [], SETUP_PATH);
+    case "not-set-up":
+      return startPage(context, session, 409, "messenger-not-set-up");
+    default: {
+      const unreachable: never = result;
+      return unreachable;
+    }
+  }
+}
+
+async function removeMessenger(context: Context, session: string): Promise<Response> {
+  const form = await readStartForm(context, session);
+  if (form instanceof Response) {
+    return form;
+  }
+  const channel = channelOfForm(form, channelsOf(context));
+  if (channel === undefined) {
+    return startPage(context, session, 400, "messenger-invalid");
+  }
+  let result: Awaited<ReturnType<typeof channel.remove>>;
+  try {
+    result = await channel.remove(context.deps.env, context.deps.db);
+  } catch {
+    // The error is deliberately dropped: it must reach neither the log nor the response.
+    return formPage(context, { kind: "start", session, view: START_NOTICE_ONLY }, 503, "unavailable");
+  }
+  switch (result) {
+    case "removed":
+      return plain(context, 303, [], SETUP_PATH);
+    case "worker-secret":
+      return startPage(context, session, 409, "messenger-worker-secrets");
+    case "unreadable":
+      return startPage(context, session, 409, "telegram-token-unreadable");
+    default: {
+      const unreachable: never = result;
+      return unreachable;
+    }
+  }
+}
+
 async function signedIn(context: Context, session: string, pathname: string): Promise<Response> {
   const { method } = context.request;
   if (method === "GET" && pathname === SETUP_PATH) {
@@ -725,6 +802,12 @@ async function signedIn(context: Context, session: string, pathname: string): Pr
   }
   if (method === "POST" && pathname === RESET_PATH) {
     return resetSaved(context, session);
+  }
+  if (method === "POST" && pathname === CHANNEL_ACTIVATE_PATH) {
+    return activateMessenger(context, session);
+  }
+  if (method === "POST" && pathname === CHANNEL_REMOVE_PATH) {
+    return removeMessenger(context, session);
   }
   if (method === "POST" && pathname === LOGOUT_PATH) {
     return signOut(context, session);

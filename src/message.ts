@@ -1,3 +1,4 @@
+import type { StoredNotification } from "./notification";
 import type { Notification } from "./rules/rule";
 
 /** Longest title, in code points. */
@@ -69,8 +70,8 @@ export function buttonUrl(url: string): string | undefined {
   return allowed && parsed.href.length <= MAX_BUTTON_URL_LENGTH ? parsed.href : undefined;
 }
 
-/** Renders a notification as the three-line Telegram HTML text and its button URL. */
-export function formatMessage(notification: Notification): OutboxMessage {
+/** The Telegram HTML text of a stored notification; every field is cleaned again and escaped. */
+export function renderTelegramText(notification: StoredNotification): string {
   const number = notification.number;
   const numberText = number !== undefined && Number.isSafeInteger(number) && number >= 1 ? ` #${String(number)}` : "";
   const lines = [
@@ -82,5 +83,10 @@ export function formatMessage(notification: Notification): OutboxMessage {
       lines.push(escapeTelegramHtml(cleaned));
     }
   }
-  return { text: lines.join("\n"), buttonUrl: buttonUrl(notification.url) };
+  return lines.join("\n");
+}
+
+/** Renders a notification as the three-line Telegram HTML text and its button URL. */
+export function formatMessage(notification: Notification): OutboxMessage {
+  return { text: renderTelegramText(notification), buttonUrl: buttonUrl(notification.url) };
 }

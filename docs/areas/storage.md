@@ -21,32 +21,32 @@ anyone who can only read the database.
 The first migration (`migrations/0001_initial_schema.sql`) creates exactly these six tables. Columns are
 `NOT NULL` unless marked nullable.
 
-| Table         | Column            | Type    | Holds                                                                                                                                                          |
-| ------------- | ----------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `settings`    | `key`             | TEXT    | Primary key: the name of a setting                                                                                                                             |
-|               | `value`           | TEXT    | The setting's value as text                                                                                                                                    |
-| `secrets`     | `key`             | TEXT    | Primary key: `github_app_id`, `github_private_key`, `github_webhook_secret` or `telegram_bot_token`                                                            |
-|               | `iv`              | TEXT    | Base64 of the 12-byte IV; the table rejects any value that is not 16 characters long                                                                           |
-|               | `ciphertext`      | TEXT    | Base64 of the AES-256-GCM ciphertext with its 16-byte tag                                                                                                      |
-| `deliveries`  | `id`              | TEXT    | Primary key: the `X-GitHub-Delivery` value                                                                                                                     |
-|               | `event`           | TEXT    | The `X-GitHub-Event` value                                                                                                                                     |
-|               | `received_at`     | INTEGER | When the delivery was received (indexed)                                                                                                                       |
-| `outbox`      | `id`              | INTEGER | Primary key, assigned by the database                                                                                                                          |
-|               | `text`            | TEXT    | The message text as sent to Telegram: Telegram HTML, rendered when the row is written ([Notifications](notifications.md#message-format))                       |
-|               | `button_url`      | TEXT    | Nullable: the URL of the message's button, only an `https://github.com` URL ([Notifications](notifications.md#message-format)); the button label is not stored |
-|               | `silent`          | INTEGER | `1` to send without sound at any time, otherwise `0`: the quiet hours decide at sending (default `0`; nothing else is accepted)                                |
-|               | `attempts`        | INTEGER | Delivery attempts so far (default `0`, never negative)                                                                                                         |
-|               | `status`          | TEXT    | `pending` (default), `sent` or `failed`; nothing else is accepted                                                                                              |
-|               | `created_at`      | INTEGER | When the row was written; indexed together with `status`                                                                                                       |
-| `token_cache` | `installation_id` | INTEGER | Primary key: the GitHub App installation id                                                                                                                    |
-|               | `iv`              | TEXT    | As in `secrets`                                                                                                                                                |
-|               | `ciphertext`      | TEXT    | The installation token, encrypted as in `secrets`                                                                                                              |
-|               | `expires_at`      | INTEGER | When the token expires, as GitHub's `expires_at` of the token answer                                                                                           |
-| `meta`        | `key`             | TEXT    | Primary key: the name of a value the instance keeps for itself                                                                                                 |
-|               | `value`           | TEXT    | The value as text                                                                                                                                              |
+| Table         | Column            | Type    | Holds                                                                                                                                                                                |
+| ------------- | ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `settings`    | `key`             | TEXT    | Primary key: the name of a setting                                                                                                                                                   |
+|               | `value`           | TEXT    | The setting's value as text                                                                                                                                                          |
+| `secrets`     | `key`             | TEXT    | Primary key: `github_app_id`, `github_private_key`, `github_webhook_secret` or `telegram_bot_token`                                                                                  |
+|               | `iv`              | TEXT    | Base64 of the 12-byte IV; the table rejects any value that is not 16 characters long                                                                                                 |
+|               | `ciphertext`      | TEXT    | Base64 of the AES-256-GCM ciphertext with its 16-byte tag                                                                                                                            |
+| `deliveries`  | `id`              | TEXT    | Primary key: the `X-GitHub-Delivery` value                                                                                                                                           |
+|               | `event`           | TEXT    | The `X-GitHub-Event` value                                                                                                                                                           |
+|               | `received_at`     | INTEGER | When the delivery was received (indexed)                                                                                                                                             |
+| `outbox`      | `id`              | INTEGER | Primary key, assigned by the database                                                                                                                                                |
+|               | `text`            | TEXT    | The notification as a JSON object starting with `{` (new rows), or Telegram HTML starting with `<b>` (rows of an earlier version) ([Notifications](notifications.md#message-format)) |
+|               | `button_url`      | TEXT    | Nullable: the URL of the message's button, only an `https://github.com` URL ([Notifications](notifications.md#message-format)); the button label is not stored                       |
+|               | `silent`          | INTEGER | `1` to send without sound at any time, otherwise `0`: the quiet hours decide at sending (default `0`; nothing else is accepted)                                                      |
+|               | `attempts`        | INTEGER | Delivery attempts so far (default `0`, never negative)                                                                                                                               |
+|               | `status`          | TEXT    | `pending` (default), `sent` or `failed`; nothing else is accepted                                                                                                                    |
+|               | `created_at`      | INTEGER | When the row was written; indexed together with `status`                                                                                                                             |
+| `token_cache` | `installation_id` | INTEGER | Primary key: the GitHub App installation id                                                                                                                                          |
+|               | `iv`              | TEXT    | As in `secrets`                                                                                                                                                                      |
+|               | `ciphertext`      | TEXT    | The installation token, encrypted as in `secrets`                                                                                                                                    |
+|               | `expires_at`      | INTEGER | When the token expires, as GitHub's `expires_at` of the token answer                                                                                                                 |
+| `meta`        | `key`             | TEXT    | Primary key: the name of a value the instance keeps for itself                                                                                                                       |
+|               | `value`           | TEXT    | The value as text                                                                                                                                                                    |
 
 - `settings` holds the owner's choices: the language, the time zone, the quiet hours, the enabled rules, the
-  update notice and the Telegram chat id. The notification settings are twelve rows with these keys and formats;
+  update notice, the Telegram chat id and the active delivery channel (`delivery_channel`, below). The notification settings are twelve rows with these keys and formats;
   an absent row, or a value that does not fit its format, reads as the default of that row alone (code:
   `settingsFromStored` in `src/settings.ts`), and the twelve rows are written in one batch:
 
@@ -84,7 +84,14 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   token, so a row another call replaced in between stays. Expired rows and rows of an earlier app's installations
   are not removed by these reads and writes; the cleanup of the cron deletes every row whose `expires_at` has passed
   ([Scheduled jobs](scheduled-jobs.md#cleanup)).
-- An `outbox` row is written `pending` and changed only while it is still `pending`: to `sent` when Telegram accepted
+- `outbox.text` needs no migration for the JSON form: the column is `TEXT NOT NULL` since the first migration, and
+  the first character tells the two forms apart (`{` or `<b>`). A row whose `text` starts with `{` but does not decode,
+  or is not text, is read as damaged and ends `failed` after five attempts; it never stops the other rows.
+- `delivery_channel` is the id of the active delivery channel (`telegram`, lowercase letters, digits and hyphens, at
+  most 32 characters). It is written alone by the _Activate_ form of the start page, never by the settings form; an
+  absent or unknown value reads as `telegram` ([Notifications](notifications.md#delivery-channels)). The credentials of
+  a channel are `secrets` rows (`ChannelSecretName`, today `telegram_bot_token`).
+- An `outbox` row is written `pending` and changed only while it is still `pending`: to `sent` when the active channel accepted
   it, to `failed` by its fifth failed attempt or, for a row that already holds 5 or more attempts, by the retry of the
   cron ([Scheduled jobs](scheduled-jobs.md#retry)). A `pending` row is never deleted; `sent` and `failed` rows are
   deleted 30 days after they were written, `deliveries` rows 7 days after they were received
@@ -114,7 +121,7 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
 - Nothing secret is kept in D1 in plain text: the GitHub App credentials and the Telegram bot token (`secrets`) and
   the installation tokens (`token_cache`) are stored only encrypted.
 - Everything else is plain text on purpose, so a reader of the database sees it: `settings` (including the
-  Telegram chat id), `deliveries`, `meta` apart from the key check value, and the `outbox` rows, whose `text` and
+  Telegram chat id), `deliveries`, `meta` apart from the key check value, and the `outbox` rows, whose `text` (the JSON notification or Telegram HTML) and
   `button_url` name repositories, pull request titles and branches, also of private repositories. None of these
   grants access to anything.
 - A value is encrypted with AES-256-GCM under a random 12-byte IV drawn for every single write, with the default
@@ -228,6 +235,8 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   — one cached token per installation, written without the key check guard, deleted by IV after a 401.
 - [`decisions/0036-telegram-bot-token-in-the-setup-wizard.md`](../decisions/0036-telegram-bot-token-in-the-setup-wizard.md)
   — the Telegram bot token as an encrypted credential in `secrets`, under the same key check and reset.
+- [`decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md`](../decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)
+  — the notification as JSON in `outbox.text` without a migration, the setting `delivery_channel`.
 - [`decisions/0014-d1-schema-and-data-access.md`](../decisions/0014-d1-schema-and-data-access.md) — one schema
   migration for all tables, data access only through `src/store/`, times in milliseconds, text columns for
   encrypted values, migrations frozen once on `main`.

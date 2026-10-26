@@ -18,7 +18,7 @@ import type { GitHubPageView, TelegramPageView } from "./pages";
 import { DEFAULT_SETTINGS, RULE_IDS } from "../settings";
 import type { NotificationSettings } from "../settings";
 import type { Installation } from "../github/installations";
-import type { InstallationsView, StatusView } from "./status";
+import type { InstallationsView, MessengerEntry, MessengersView, StatusView } from "./status";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 import type { TelegramChat } from "../telegram";
@@ -57,6 +57,9 @@ const NOTICES: readonly Notice[] = [
   "github-store-failed",
   "settings-invalid",
   "reset-not-needed",
+  "messenger-invalid",
+  "messenger-not-set-up",
+  "messenger-worker-secrets",
 ];
 const CSRF_TOKEN = "T".repeat(43);
 
@@ -642,6 +645,27 @@ function escapeRegExp(text: string): string {
 
 const DELIVERY_AT_UTC = new Date(Date.UTC(2026, 9, 17, 12, 34));
 
+function entryOf(changes: Partial<MessengerEntry> = {}): MessengerEntry {
+  return {
+    id: "telegram",
+    name: "Telegram",
+    setupPath: "/setup/telegram",
+    configured: true,
+    active: true,
+    removable: false,
+    ...changes,
+  };
+}
+
+/** The messengers of a status view: `entries` in order, the active one named by its flag. */
+function messengersOf(entries: readonly MessengerEntry[]): MessengersView {
+  const active = entries.find((entry) => entry.active);
+  if (active === undefined) {
+    throw new TypeError("No entry is active");
+  }
+  return { entries, active };
+}
+
 function statusViewWith(changes: Partial<StatusView> = {}): StatusView {
   return {
     version: "1.2.3-test",
@@ -652,6 +676,7 @@ function statusViewWith(changes: Partial<StatusView> = {}): StatusView {
     resetNeeded: false,
     settings: DEFAULT_SETTINGS,
     installations: { kind: "hidden" },
+    messengers: messengersOf([entryOf()]),
     ...changes,
   };
 }
@@ -758,13 +783,15 @@ const ALL_PAGES: readonly PageCase[] = LANGUAGES.flatMap((language): readonly Pa
     return () => renderGitHubReviewPage(language, choice, "seluna-demo", REVIEW_ACTION, '{"name":"seluna-demo"}');
   };
   const stepLinks = [TELEGRAM_LINK, GITHUB_LINK];
+  // The status view also links the setup page of the messenger in the Messengers card.
+  const statusLinks = [TELEGRAM_LINK, GITHUB_LINK, TELEGRAM_LINK];
   return [
     entry("login", [], [], () => renderLoginPage(language, CSRF_TOKEN)),
     entry("login with a notice", [], [], () => renderLoginPage(language, CSRF_TOKEN, "wrong-secret")),
     entry("not-configured", [], [], () => renderNotConfiguredPage(language)),
     entry(
       "start status with a saved app, installations and reset needed",
-      stepLinks,
+      statusLinks,
       [SLUG_LINK],
       start({
         app: { kind: "saved", appId: 12_345, slug: "seluna-demo" },
@@ -774,19 +801,19 @@ const ALL_PAGES: readonly PageCase[] = LANGUAGES.flatMap((language): readonly Pa
     ),
     entry(
       "start status with Worker secrets and installations unavailable",
-      stepLinks,
+      statusLinks,
       [],
       start({ app: { kind: "worker-secrets" }, installations: { kind: "unavailable" } }),
     ),
     entry(
       "start status without an app",
-      stepLinks,
+      statusLinks,
       [],
       start({ app: { kind: "none" }, chat: { kind: "none" }, lastDelivery: undefined }),
     ),
     entry(
       "start status with a notice",
-      stepLinks,
+      statusLinks,
       [],
       start({ app: { kind: "saved", appId: 12_345, slug: undefined } }, "form-expired"),
     ),
@@ -1257,6 +1284,7 @@ describe("the buttons", () => {
     switch (action) {
       case "/setup/logout":
       case "/setup/telegram/token/remove":
+      case "/setup/channel/remove":
         return "secondary";
       case "/setup/reset":
         return "danger";
@@ -1374,7 +1402,7 @@ describe("renderStartPage sections", () => {
       expect(
         sections.map((section) => section.kind),
         "section kinds",
-      ).toEqual(["card", "card", "card", "card", "actions"]);
+      ).toEqual(["card", "card", "card", "card", "card", "actions"]);
       expect(compact(sections[0]?.html ?? "").startsWith(`<h2>${escapeHtml(texts.statusHeading)}</h2>`), "status").toBe(
         true,
       );
@@ -1383,16 +1411,20 @@ describe("renderStartPage sections", () => {
       );
       expect(sections[1]?.html, "reset form").toContain('action="/setup/reset"');
       expect(buttonClasses(sections[1]?.html ?? ""), "reset button").toEqual(["danger"]);
-      expect(sections[2]?.html, "Telegram link").toContain('<a href="/setup/telegram">');
-      expect(sections[2]?.html, "GitHub link").toContain('<a href="/setup/github">');
       expect(
-        compact(sections[3]?.html ?? "").startsWith(`<h2>${escapeHtml(texts.settingsHeading)}</h2>`),
+        compact(sections[2]?.html ?? "").startsWith(`<h2>${escapeHtml(texts.messengersHeading)}</h2>`),
+        "messengers after the reset section",
+      ).toBe(true);
+      expect(sections[3]?.html, "Telegram link").toContain('<a href="/setup/telegram">');
+      expect(sections[3]?.html, "GitHub link").toContain('<a href="/setup/github">');
+      expect(
+        compact(sections[4]?.html ?? "").startsWith(`<h2>${escapeHtml(texts.settingsHeading)}</h2>`),
         "settings",
       ).toBe(true);
-      expect(sections[3]?.html, "settings form").toContain('action="/setup/settings"');
-      expect(buttonClasses(sections[3]?.html ?? ""), "settings button").toEqual(["primary"]);
-      expect(sections[4]?.html, "sign-out form").toContain('action="/setup/logout"');
-      expect(buttonClasses(sections[4]?.html ?? ""), "sign-out button").toEqual(["secondary"]);
+      expect(sections[4]?.html, "settings form").toContain('action="/setup/settings"');
+      expect(buttonClasses(sections[4]?.html ?? ""), "settings button").toEqual(["primary"]);
+      expect(sections[5]?.html, "sign-out form").toContain('action="/setup/logout"');
+      expect(buttonClasses(sections[5]?.html ?? ""), "sign-out button").toEqual(["secondary"]);
       expect(
         main
           .slice(main.indexOf("<section"))
@@ -1412,7 +1444,11 @@ describe("renderStartPage sections", () => {
       expect(
         sections.map((section) => section.kind),
         "section kinds",
-      ).toEqual(["card", "card", "card", "actions"]);
+      ).toEqual(["card", "card", "card", "card", "actions"]);
+      expect(
+        compact(sections[1]?.html ?? "").startsWith(`<h2>${escapeHtml(TEXTS[language].messengersHeading)}</h2>`),
+        "messengers follow the status section",
+      ).toBe(true);
       expect(page, "reset form").not.toContain('action="/setup/reset"');
       expect(
         sections.filter((section) => plainText(section.html) === ""),
@@ -2551,5 +2587,349 @@ describe("STYLE step navigation", () => {
 
   it("STYLE gives the header the card background", () => {
     expect(declaredValue(rulesFor("header.site"), "background"), "background of header.site").toBe("var(--card)");
+  });
+});
+
+/** The inside of the card whose heading is the Messengers heading of `language`, or an empty text. */
+function messengersCard(html: string, language: Language): string {
+  return sectionWith(html, `<h2>${escapeHtml(TEXTS[language].messengersHeading)}</h2>`);
+}
+
+/** The `li` elements of the Messengers card in order. */
+function messengerItems(html: string, language: Language): string[] {
+  return Array.from(messengersCard(html, language).matchAll(/<li>([\s\S]*?)<\/li>/g), (match) => match[1] ?? "");
+}
+
+/** The actions of the forms in `html` with the value of their hidden `channel` field and their button class. */
+function messengerForms(html: string): { action: string; channel: string; classes: string[] }[] {
+  return Array.from(html.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form>/g), (form) => ({
+    action: attributesOf(form[1] ?? "").get("action") ?? "",
+    channel: attributesOf(/<input\b(?=[^>]*name="channel")[^>]*>/.exec(form[2] ?? "")?.[0] ?? "").get("value") ?? "",
+    classes: buttonClasses(form[2] ?? ""),
+  }));
+}
+
+/** The links `<a href=…>text</a>` of `html` as pairs. */
+function linksOf(html: string): [string, string][] {
+  return Array.from(html.matchAll(/<a href="([^"]*)">([\s\S]*?)<\/a>/g), (match): [string, string] => [
+    match[1] ?? "",
+    match[2] ?? "",
+  ]);
+}
+
+describe("renderStartPage Messengers card", () => {
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderStartPage shows the Messengers card with its heading and intro in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+
+      const page = startPage(language);
+
+      const card = messengersCard(page, language);
+      expect(
+        compact(card).startsWith(
+          `<h2>${escapeHtml(texts.messengersHeading)}</h2><p>${escapeHtml(texts.messengersIntro)}</p>`,
+        ),
+        "heading and intro",
+      ).toBe(true);
+      expect(card, "list").toMatch(/<ul>[\s\S]*<\/ul>/);
+    },
+  );
+
+  it.each(
+    LANGUAGES.flatMap(
+      (language) =>
+        [
+          {
+            language,
+            case: "not set up and not active",
+            changes: { configured: false, active: false },
+            state: "messengerStateNotSetUp",
+            link: "messengerSetUpLink",
+          },
+          {
+            language,
+            case: "set up and not active",
+            changes: { configured: true, active: false },
+            state: "messengerStateSetUp",
+            link: "messengerChangeLink",
+          },
+        ] as const,
+    ),
+  )(
+    "renderStartPage shows a messenger that is $case with its state and link in $language",
+    ({ language, changes, state, link }) => {
+      const texts = TEXTS[language];
+      const entries = [
+        entryOf({ id: "first", name: "First", setupPath: "/setup/first", ...changes, active: false }),
+        entryOf(),
+      ];
+
+      const page = startPage(language, { messengers: messengersOf(entries) });
+
+      const [item] = messengerItems(page, language);
+      expect(plainText(item ?? ""), "item text").toContain(`First: ${texts[state]}`);
+      expect(linksOf(item ?? ""), "links").toEqual([["/setup/first", texts[link]]]);
+    },
+  );
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderStartPage shows a messenger that is set up and active as Active with the Change link in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+
+      const page = startPage(language, { messengers: messengersOf([entryOf({ configured: true, active: true })]) });
+
+      const [item] = messengerItems(page, language);
+      expect(plainText(item ?? ""), "item text").toContain(`Telegram: ${texts.messengerStateActive}`);
+      expect(item, "no info notice").not.toContain('class="notice info"');
+      expect(linksOf(item ?? ""), "links").toEqual([["/setup/telegram", texts.messengerChangeLink]]);
+    },
+  );
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderStartPage shows a messenger that is active but not set up with the info notice and the Set up link in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+
+      const page = startPage(language, { messengers: messengersOf([entryOf({ configured: false, active: true })]) });
+
+      const [item] = messengerItems(page, language);
+      expect(item, "info notice").toContain(`<p class="notice info">${escapeHtml(texts.messengerActiveNotSetUp)}</p>`);
+      expect(linksOf(item ?? ""), "links").toEqual([["/setup/telegram", texts.messengerSetUpLink]]);
+    },
+  );
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderStartPage shows Activate as a primary button only for a set-up messenger that is not active in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+      const entries = [
+        entryOf({ id: "a", name: "A", setupPath: "/setup/a", configured: false, active: false }),
+        entryOf({ id: "b", name: "B", setupPath: "/setup/b", configured: true, active: false }),
+        entryOf({ id: "c", name: "C", setupPath: "/setup/c", configured: true, active: true }),
+        entryOf({ id: "d", name: "D", setupPath: "/setup/d", configured: false, active: true }),
+      ];
+
+      const page = startPage(language, { messengers: messengersOf(entries) });
+
+      const items = messengerItems(page, language);
+      expect(
+        items.map((item) => messengerForms(item)),
+        "forms per messenger",
+      ).toEqual([[], [{ action: "/setup/channel/activate", channel: "b", classes: ["primary"] }], [], []]);
+      expect(items[1], "button text").toContain(`>${escapeHtml(texts.messengerActivateButton)}</button>`);
+    },
+  );
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderStartPage shows Remove as a secondary button exactly for a removable messenger, active or not, in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+      const entries = [
+        entryOf({ id: "a", name: "A", setupPath: "/setup/a", configured: false, active: false, removable: true }),
+        entryOf({ id: "b", name: "B", setupPath: "/setup/b", configured: true, active: false, removable: false }),
+        entryOf({ id: "c", name: "C", setupPath: "/setup/c", configured: true, active: true, removable: true }),
+        entryOf({ id: "d", name: "D", setupPath: "/setup/d", configured: false, active: true, removable: true }),
+      ];
+
+      const page = startPage(language, { messengers: messengersOf(entries) });
+
+      const items = messengerItems(page, language);
+      expect(
+        items.map((item) => messengerForms(item).filter((form) => form.action === "/setup/channel/remove")),
+        "remove forms per messenger",
+      ).toEqual([
+        [{ action: "/setup/channel/remove", channel: "a", classes: ["secondary"] }],
+        [],
+        [{ action: "/setup/channel/remove", channel: "c", classes: ["secondary"] }],
+        [{ action: "/setup/channel/remove", channel: "d", classes: ["secondary"] }],
+      ]);
+      expect(items[0], "button text").toContain(`>${escapeHtml(texts.messengerRemoveButton)}</button>`);
+    },
+  );
+
+  it("renderStartPage shows Activate before Remove for a set-up messenger that is not active and removable", () => {
+    const entry = entryOf({ configured: true, active: false, removable: true });
+
+    const page = startPage("en", {
+      messengers: messengersOf([entryOf({ id: "other", name: "Other", setupPath: "/setup/other" }), entry]),
+    });
+
+    const forms = messengerForms(messengerItems(page, "en")[1] ?? "");
+    expect(
+      forms.map((form) => form.action),
+      "form order",
+    ).toEqual(["/setup/channel/activate", "/setup/channel/remove"]);
+  });
+
+  it("renderStartPage puts the session-bound token and the messenger id into every messenger form", () => {
+    const entry = entryOf({ configured: true, active: false, removable: true });
+
+    const page = startPage("en", {
+      messengers: messengersOf([entryOf({ id: "other", name: "Other", setupPath: "/setup/other" }), entry]),
+    });
+
+    const item = messengerItems(page, "en")[1] ?? "";
+    expect(Array.from(item.matchAll(new RegExp(`name="csrf" value="${CSRF_TOKEN}"`, "g"))), "csrf inputs").toHaveLength(
+      2,
+    );
+    expect(attributeValues(item, "method"), "methods").toEqual(["post", "post"]);
+    expect(
+      messengerForms(item).map((form) => form.channel),
+      "channel fields",
+    ).toEqual(["telegram", "telegram"]);
+    expect(inputTag(item, "channel"), "channel input").toMatch(/type="hidden"/);
+  });
+
+  it("renderStartPage lists every messenger in the order of the entries, also those not set up", () => {
+    const entries = [
+      entryOf({ id: "zeta", name: "Zeta", setupPath: "/setup/zeta", configured: false, active: false }),
+      entryOf({ id: "alpha", name: "Alpha", setupPath: "/setup/alpha", configured: true, active: true }),
+      entryOf({ id: "mid", name: "Mid", setupPath: "/setup/mid", configured: false, active: false }),
+    ];
+
+    const page = startPage("en", { messengers: messengersOf(entries) });
+
+    expect(
+      messengerItems(page, "en").map((item) => linksOf(item)[0]?.[0]),
+      "setup links in order",
+    ).toEqual(["/setup/zeta", "/setup/alpha", "/setup/mid"]);
+  });
+
+  it("renderStartPage escapes the name and the setup path of a messenger", () => {
+    const entry = entryOf({ id: "x", name: '<script>"&', setupPath: '/setup/"><b>', configured: true, active: false });
+
+    const page = startPage("en", { messengers: messengersOf([entry, entryOf()]) });
+
+    expect(page, "raw script").not.toContain("<script>");
+    expect(page, "raw bold").not.toContain("<b>");
+    expect(messengerItems(page, "en")[0], "escaped name").toContain(escapeHtml('<script>"&'));
+  });
+});
+
+describe("renderStartPage Messenger status line", () => {
+  /** The text of the _Messenger:_ paragraph of the status section. */
+  function messengerLine(page: string, language: Language): string {
+    const status = sectionsOf(mainOf(page))[0]?.html ?? "";
+    const label = escapeRegExp(escapeHtml(TEXTS[language].messengerLabel));
+    return plainText(new RegExp(`<p>${label}[\\s\\S]*?</p>`).exec(status)?.[0] ?? "");
+  }
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderStartPage shows Messenger: with the active name right after the Version line in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+
+      const page = startPage(language);
+
+      expect(messengerLine(page, language), "line").toBe(`${texts.messengerLabel} Telegram`);
+      const status = sectionsOf(mainOf(page))[0]?.html ?? "";
+      expect(status.indexOf(escapeHtml(texts.versionLabel)), "version before messenger").toBeLessThan(
+        status.indexOf(escapeHtml(texts.messengerLabel)),
+      );
+      expect(status.indexOf(escapeHtml(texts.messengerLabel)), "messenger before the bot token").toBeLessThan(
+        status.indexOf(escapeHtml(texts.botTokenLabel)),
+      );
+    },
+  );
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderStartPage shows (not set up) after the name of an active messenger that is not set up in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+
+      const page = startPage(language, { messengers: messengersOf([entryOf({ configured: false })]) });
+
+      expect(messengerLine(page, language), "line").toBe(
+        `${texts.messengerLabel} Telegram ${texts.messengerNotSetUpSuffix}`,
+      );
+    },
+  );
+
+  it("renderStartPage names the active messenger, not the first, in the status line", () => {
+    const entries = [
+      entryOf({ id: "first", name: "First", setupPath: "/setup/first", active: false }),
+      entryOf({ id: "second", name: "Second", setupPath: "/setup/second", configured: true, active: true }),
+    ];
+
+    const page = startPage("en", { messengers: messengersOf(entries) });
+
+    expect(messengerLine(page, "en"), "line").toBe("Messenger: Second");
+  });
+
+  it("renderStartPage escapes the name of the active messenger in the status line", () => {
+    const page = startPage("en", { messengers: messengersOf([entryOf({ name: "<i>x</i>" })]) });
+
+    expect(page, "raw markup").not.toContain("<i>x</i>");
+    expect(messengerLine(page, "en"), "line").toBe("Messenger: &lt;i&gt;x&lt;/i&gt;");
+  });
+});
+
+describe("renderTelegramPage active-but-not-set-up notice", () => {
+  const STEP_VIEWS: readonly { readonly case: string; readonly token: TokenState }[] = [
+    { case: "a missing token", token: { kind: "missing" } },
+    { case: "a saved token", token: { kind: "saved", rejected: false } },
+    { case: "a Worker secret token", token: WORKER_SECRET_TOKEN },
+  ];
+
+  it.each(
+    LANGUAGES.flatMap((language) => STEP_VIEWS.map((view) => ({ language, case: view.case, token: view.token }))),
+  )(
+    "renderTelegramPage shows the info notice as the first element of the token card after its heading for $case in $language",
+    ({ language, token }) => {
+      const texts = TEXTS[language];
+
+      const page = renderTelegramPage(language, CSRF_TOKEN, {
+        kind: "step",
+        token,
+        chat: { kind: "hidden", savedChatId: undefined },
+        activeNotSetUp: true,
+      });
+
+      const card = compact(sectionsOf(mainOf(page))[0]?.html ?? "");
+      expect(
+        card.startsWith(
+          `<h2>${escapeHtml(texts.telegramTokenHeading)}</h2><p class="notice info">${escapeHtml(texts.telegramActiveNotSetUp)}</p>`,
+        ),
+        "the notice follows the heading",
+      ).toBe(true);
+    },
+  );
+});
+
+describe("renderStartPage Messengers card: negatives", () => {
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderStartPage shows no info notice for a messenger that is not active in $language",
+    ({ language }) => {
+      const page = startPage(language, {
+        messengers: messengersOf([
+          entryOf({ configured: false, active: false }),
+          entryOf({ id: "second", name: "Second", setupPath: "/setup/second" }),
+        ]),
+      });
+
+      expect(Array.from(messengersCard(page, language).matchAll(/class="notice info"/g)), "info notices").toEqual([]);
+    },
+  );
+
+  it("renderStartPage shows no Messengers card in the notice-only view", () => {
+    const page = renderStartPage("en", CSRF_TOKEN, { kind: "notice-only" }, "unavailable");
+
+    expect(page, "heading").not.toContain(escapeHtml(TEXTS.en.messengersHeading));
+  });
+
+  it.each([
+    { case: "activeNotSetUp false", changes: { activeNotSetUp: false } },
+    { case: "activeNotSetUp omitted", changes: {} },
+  ])("renderTelegramPage shows no Telegram active notice with $case", ({ changes }) => {
+    const page = renderTelegramPage("en", CSRF_TOKEN, {
+      kind: "step",
+      token: { kind: "missing" },
+      chat: { kind: "hidden", savedChatId: undefined },
+      ...changes,
+    });
+
+    expect(page, "notice").not.toContain(escapeHtml(TEXTS.en.telegramActiveNotSetUp));
   });
 });

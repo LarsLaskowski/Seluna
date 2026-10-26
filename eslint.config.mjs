@@ -20,6 +20,36 @@ export default tseslint.config(
     },
   },
   {
+    // The rules return channel-neutral notifications: no messenger code may be reached from them (AC12).
+    files: ["src/rules/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "**/message",
+                "**/message.js",
+                "**/telegram",
+                "**/telegram.js",
+                "**/delivery",
+                "**/delivery.js",
+                "**/notification",
+                "**/notification.js",
+                "**/channels",
+                "**/channels/*",
+                "**/bot-token",
+                "**/bot-token.js",
+              ],
+              message: "src/rules/ returns channel-neutral notifications and may not import messenger code.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Configuration files are plain JavaScript outside the TypeScript project.
     files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
     ...tseslint.configs.disableTypeChecked,

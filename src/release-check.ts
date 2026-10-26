@@ -3,8 +3,9 @@ import type { DeliveryDeps } from "./delivery";
 import { fetchLatestRelease, UPSTREAM_REPOSITORY } from "./github/release";
 import type { GitHubFetch } from "./github/conversion";
 import { MESSAGE_TEXTS } from "./i18n/messages";
-import { escapeTelegramHtml } from "./message";
+import { renderTelegramText } from "./message";
 import type { OutboxMessage } from "./message";
+import type { StoredNotification } from "./notification";
 import type { Language } from "./setup/language";
 import { readNotifiedRelease, recordReleaseNotice } from "./store/notified-release";
 import { readNotificationSettings } from "./store/settings";
@@ -30,13 +31,27 @@ export interface ReleaseCheckDeps extends DeliveryDeps {
 
 /** The release notice in `language`: its Telegram HTML text and the button URL of the release. */
 export function formatReleaseMessage(latest: Version, running: Version, language: Language): OutboxMessage {
+  const { notification, buttonUrl } = releaseNotification(latest, running, language);
+  return { text: renderTelegramText(notification), buttonUrl };
+}
+
+/** The release notice in `language` as a stored notification, with the button URL of the release. */
+export function releaseNotification(
+  latest: Version,
+  running: Version,
+  language: Language,
+): { readonly notification: StoredNotification; readonly buttonUrl: string } {
   const texts = MESSAGE_TEXTS[language];
   const latestText = versionText(latest);
-  const title = `<b>${escapeTelegramHtml(texts.newSelunaRelease)}</b> · ${escapeTelegramHtml(UPSTREAM_REPOSITORY)}`;
-  const line = escapeTelegramHtml(texts.releaseAvailable(latestText, versionText(running)));
-  // The URL is built from the three numbers, never from the tag text of the answer.
   return {
-    text: `${title}\n${line}`,
+    notification: {
+      title: texts.newSelunaRelease,
+      repository: UPSTREAM_REPOSITORY,
+      number: undefined,
+      subject: texts.releaseAvailable(latestText, versionText(running)),
+      context: "",
+    },
+    // The URL is built from the three numbers, never from the tag text of the answer.
     buttonUrl: `https://github.com/${UPSTREAM_REPOSITORY}/releases/tag/v${latestText}`,
   };
 }
@@ -81,10 +96,11 @@ async function run(startedAt: Date, deps: ReleaseCheckDeps): Promise<ReleaseChec
   if (remembered !== undefined && compareVersions(latest.version, remembered) <= 0) {
     return "known";
   }
-  const message = formatReleaseMessage(latest.version, running, settings.language);
+  const release = releaseNotification(latest.version, running, settings.language);
+  const message = { text: renderTelegramText(release.notification), buttonUrl: release.buttonUrl };
   const id = await recordReleaseNotice(
     deps.db,
-    { text: message.text, buttonUrl: message.buttonUrl, silent: false },
+    { notification: release.notification, buttonUrl: release.buttonUrl, silent: false },
     startedAt,
     versionText(latest.version),
     stored,
@@ -92,6 +108,10 @@ async function run(startedAt: Date, deps: ReleaseCheckDeps): Promise<ReleaseChec
   if (id === undefined) {
     return "known";
   }
-  await deliverMessages([{ id, text: message.text, buttonUrl: message.buttonUrl, silent: false }], settings, deps);
+  await deliverMessages(
+    [{ id, text: message.text, buttonUrl: message.buttonUrl, silent: false, notification: release.notification }],
+    settings,
+    deps,
+  );
   return "reported";
 }

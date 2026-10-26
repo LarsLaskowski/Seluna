@@ -6,7 +6,9 @@ import {
   formatMessage,
   MAX_BUTTON_URL_LENGTH,
   MAX_LINE_CHARACTERS,
+  renderTelegramText,
 } from "./message";
+import type { StoredNotification } from "./notification";
 import type { Notification } from "./rules/rule";
 
 /** The scheme without TLS, built apart so the source holds no clear-text URL. */
@@ -93,6 +95,78 @@ describe("formatMessage", () => {
     const message = formatMessage(notificationWith({ url: `${PLAIN_SCHEME}://github.com/o/r/pull/7` }));
 
     expect(message.buttonUrl, "button URL").toBeUndefined();
+  });
+});
+
+describe("renderTelegramText", () => {
+  it.each<{ case: string; overrides: Partial<Notification> }>([
+    { case: "three lines and a number", overrides: {} },
+    { case: "an empty line 2", overrides: { subject: "" } },
+    { case: "an empty line 3", overrides: { context: "" } },
+    { case: "empty lines 2 and 3", overrides: { subject: "", context: "" } },
+    { case: "no number", overrides: { number: undefined } },
+    { case: "the number 0", overrides: { number: 0 } },
+    { case: "a fractional number", overrides: { number: 1.5 } },
+    {
+      case: "markup characters in every field",
+      overrides: { title: "<b>&", repository: "o&<r>", subject: "<i>", context: "&amp;" },
+    },
+    {
+      case: "control and directional characters",
+      overrides: { title: "a\u202Eb", subject: "x\ny", context: "\u0000" },
+    },
+    {
+      case: "fields over their limits",
+      overrides: {
+        title: "t".repeat(65),
+        repository: "r".repeat(141),
+        subject: "&".repeat(257),
+        context: "c".repeat(257),
+      },
+    },
+  ])("renderTelegramText equals the text of formatMessage for $case", ({ overrides }) => {
+    const notification = notificationWith(overrides);
+    const stored: StoredNotification = {
+      title: notification.title,
+      repository: notification.repository,
+      number: notification.number,
+      subject: notification.subject,
+      context: notification.context,
+    };
+
+    const text = renderTelegramText(stored);
+
+    expect(text, "rendered text").toBe(formatMessage(notification).text);
+  });
+
+  it("renderTelegramText writes the bold title, the repository, the number and the lines of a stored notification", () => {
+    const text = renderTelegramText({ title: "T", repository: "o/r", number: 7, subject: "S", context: "C" });
+
+    expect(text, "rendered text").toBe("<b>T</b> · o/r #7\nS\nC");
+  });
+
+  it("renderTelegramText escapes <, > and & in every field of a stored notification", () => {
+    const text = renderTelegramText({
+      title: "<b>&",
+      repository: "o<r>",
+      number: undefined,
+      subject: "Use <T> & Map",
+      context: "&lt;",
+    });
+
+    expect(text, "rendered text").toBe("<b>&lt;b&gt;&amp;</b> · o&lt;r&gt;\nUse &lt;T&gt; &amp; Map\n&amp;lt;");
+  });
+
+  it("renderTelegramText cleans a stored field again before escaping it", () => {
+    const text = renderTelegramText({
+      title: "  a\u202Eb ",
+      repository: "o/r",
+      number: undefined,
+      subject: "x\ny",
+      context: "",
+    });
+
+    expect(text, "rendered text").toBe("<b>ab</b> · o/r\nx y");
   });
 });
 

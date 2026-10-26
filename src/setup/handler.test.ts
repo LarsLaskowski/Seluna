@@ -3,7 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_BODY_BYTES } from "../body";
 import { LOGIN_ATTEMPTS_META_KEY, LOGIN_LOCK_MS } from "../store/login-attempts";
 import { readSecret, writeSecret, writeSecrets } from "../store/secrets";
-import { readNotificationSettings, writeNotificationSettings } from "../store/settings";
+import {
+  DELIVERY_CHANNEL_SETTING,
+  readNotificationSettings,
+  readSetting,
+  TELEGRAM_CHAT_ID_SETTING,
+  writeNotificationSettings,
+  writeSetting,
+} from "../store/settings";
+import type { ChannelList } from "../channels/channel";
+import { TELEGRAM_CHANNEL } from "../channels/telegram";
 import { MAX_TELEGRAM_RESPONSE_BYTES } from "../telegram";
 import { DEFAULT_SETTINGS } from "../settings";
 import type { NotificationSettings } from "../settings";
@@ -17,6 +26,8 @@ import { createSessionToken, SESSION_COOKIE, SESSION_LIFETIME_MS } from "./sessi
 import { RESET_PATH, SETTINGS_PATH } from "./settings-form";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
+import { testChannel } from "../../test/channel";
+import type { TestChannel } from "../../test/channel";
 import { applyMigrations, migrationTestDb, schemaOnlyDb, unusedDb } from "../../test/d1";
 import {
   conversionAnswer,
@@ -4228,5 +4239,563 @@ describe("handleSetup token secrecy", () => {
       expect(rows, `rows hold ${spelling}`).not.toContain(spelling);
     }
     expect(await savedBotToken(), "readable token").toBe(NEW_TOKEN);
+  });
+});
+
+const ACTIVATE_PATH = "/setup/channel/activate";
+const REMOVE_CHANNEL_PATH = "/setup/channel/remove";
+const CHANNEL_PATHS = [ACTIVATE_PATH, REMOVE_CHANNEL_PATH];
+const TELEGRAM_READY_ENV = {
+  SELUNA_SECRET: SECRET,
+  TELEGRAM_BOT_TOKEN: BOT_TOKEN,
+  TELEGRAM_CHAT_ID: CHAT_SECRET_VALUE,
+};
+
+/** Dependencies with Telegram and `second` registered; `deliveryEnv` is the Worker environment. */
+function channelDeps(
+  second: TestChannel,
+  deliveryEnv: object = TELEGRAM_READY_ENV,
+  overrides: Partial<SetupDeps> = {},
+): SetupDeps {
+  const channels: ChannelList = [TELEGRAM_CHANNEL, second];
+  return depsAt(NOW.getTime(), { env: deliveryEnv, channels, ...overrides });
+}
+
+/** The fields of a messenger form: a valid session-bound token and one `channel` field per entry. */
+async function channelFields(ids: readonly string[]): Promise<FormFields> {
+  return [["csrf", await validCsrf()], ...ids.map((id): [string, string] => ["channel", id])];
+}
+
+async function activate(ids: readonly string[], deps: SetupDeps): Promise<Response> {
+  return postSignedIn(ACTIVATE_PATH, await channelFields(ids), deps);
+}
+
+async function removeChannel(ids: readonly string[], deps: SetupDeps): Promise<Response> {
+  return postSignedIn(REMOVE_CHANNEL_PATH, await channelFields(ids), deps);
+}
+
+async function storedChannel(): Promise<string | undefined> {
+  return readSetting(env.DB, DELIVERY_CHANNEL_SETTING);
+}
+
+/** The Messengers card of an English start page, or an empty text. */
+function messengersCardOf(html: string): string {
+  const start = html.indexOf(`<h2>${escapeHtml(TEXTS.en.messengersHeading)}</h2>`);
+  return start < 0 ? "" : html.slice(start, html.indexOf("</section>", start));
+}
+
+/** The `li` of the Messengers card that links to `path`, or an empty text. */
+function messengerItemOf(html: string, path: string): string {
+  const items = Array.from(messengersCardOf(html).matchAll(/<li>([\s\S]*?)<\/li>/g), (match) => match[1] ?? "");
+  return items.find((item) => item.includes(`href="${path}"`)) ?? "";
+}
+
+describe("handleSetup start page Messengers card", () => {
+  it("GET /setup shows Telegram as active but not set up with the Set up link, and the Messenger line with (not set up)", async () => {
+    const response = await stepPage(depsAt(), "/setup");
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    const item = messengerItemOf(html, "/setup/telegram");
+    expect(item, "info notice").toContain(`<p class="notice info">${escapeHtml(TEXTS.en.messengerActiveNotSetUp)}</p>`);
+    expect(item, "Set up link").toContain(`>${escapeHtml(TEXTS.en.messengerSetUpLink)}</a>`);
+    expect(item, "forms").not.toContain("<form");
+    expect(html, "Messenger line").toMatch(
+      new RegExp(
+        `<p>${escapeHtml(TEXTS.en.messengerLabel)}\\s+Telegram\\s+${escapeRegExp(TEXTS.en.messengerNotSetUpSuffix)}</p>`,
+      ),
+    );
+  });
+
+  it("GET /setup shows Telegram as active without the notice and without Remove when both Worker secrets set it up", async () => {
+    const response = await stepPage(channelDeps(testChannel({ configured: false })), "/setup");
+
+    const html = await response.text();
+    const item = messengerItemOf(html, "/setup/telegram");
+    expect(item, "state").toContain(escapeHtml(TEXTS.en.messengerStateActive));
+    expect(item, "info notice").not.toContain("notice info");
+    expect(item, "Change link").toContain(`>${escapeHtml(TEXTS.en.messengerChangeLink)}</a>`);
+    expect(item, "forms").not.toContain("<form");
+    expect(html, "Messenger line").toMatch(new RegExp(`<p>${escapeHtml(TEXTS.en.messengerLabel)}\\s+Telegram</p>`));
+  });
+
+  it("GET /setup lists a second messenger that is not set up after Telegram with the Set up link and no form", async () => {
+    const html = await (await stepPage(channelDeps(testChannel({ configured: false })), "/setup")).text();
+
+    const item = messengerItemOf(html, "/setup/test");
+    expect(item, "state").toContain(escapeHtml(TEXTS.en.messengerStateNotSetUp));
+    expect(item, "Set up link").toContain(`>${escapeHtml(TEXTS.en.messengerSetUpLink)}</a>`);
+    expect(item, "forms").not.toContain("<form");
+    expect(html.indexOf('href="/setup/telegram"'), "registry order").toBeLessThan(html.indexOf('href="/setup/test"'));
+  });
+
+  it("GET /setup shows Activate for a set-up second messenger that is not active, and Remove only when it can remove", async () => {
+    const plain = await (await stepPage(channelDeps(testChannel({ configured: true })), "/setup")).text();
+    const removable = await (
+      await stepPage(channelDeps(testChannel({ configured: true, removable: true })), "/setup")
+    ).text();
+
+    expect(messengerItemOf(plain, "/setup/test"), "activate form").toContain(`action="${ACTIVATE_PATH}"`);
+    expect(messengerItemOf(plain, "/setup/test"), "remove form").not.toContain(`action="${REMOVE_CHANNEL_PATH}"`);
+    expect(messengerItemOf(removable, "/setup/test"), "remove form").toContain(`action="${REMOVE_CHANNEL_PATH}"`);
+  });
+
+  it("GET /setup shows Remove for Telegram with a saved token, active or not", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    const deps = channelDeps(testChannel(), { SELUNA_SECRET: SECRET });
+
+    const html = await (await stepPage(deps, "/setup")).text();
+
+    expect(messengerItemOf(html, "/setup/telegram"), "remove form").toContain(`action="${REMOVE_CHANNEL_PATH}"`);
+  });
+
+  it("GET /setup shows the second messenger as active and Telegram with Activate when delivery_channel names it", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+
+    const html = await (await stepPage(channelDeps(testChannel({ configured: true })), "/setup")).text();
+
+    expect(messengerItemOf(html, "/setup/test"), "second state").toContain(escapeHtml(TEXTS.en.messengerStateActive));
+    expect(messengerItemOf(html, "/setup/telegram"), "Telegram activate form").toContain(`action="${ACTIVATE_PATH}"`);
+    expect(html, "Messenger line").toMatch(new RegExp(`<p>${escapeHtml(TEXTS.en.messengerLabel)}\\s+test</p>`));
+  });
+
+  it("GET /setup shows Telegram as active when the stored delivery_channel names no registered messenger", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "gone");
+
+    const html = await (await stepPage(channelDeps(testChannel({ configured: true })), "/setup")).text();
+
+    expect(messengerItemOf(html, "/setup/telegram"), "Telegram state").toContain(
+      escapeHtml(TEXTS.en.messengerStateActive),
+    );
+    expect(messengerItemOf(html, "/setup/telegram"), "no Activate for the active one").not.toContain("<form");
+    expect(html, "Messenger line").toMatch(new RegExp(`<p>${escapeHtml(TEXTS.en.messengerLabel)}\\s+Telegram</p>`));
+  });
+
+  it("GET /setup puts the Messengers card after the status section and before the step links", async () => {
+    const html = await (await stepPage(depsAt(), "/setup")).text();
+
+    expect(html.indexOf(escapeHtml(TEXTS.en.statusHeading)), "status before messengers").toBeLessThan(
+      html.indexOf(escapeHtml(TEXTS.en.messengersHeading)),
+    );
+    expect(html.indexOf(escapeHtml(TEXTS.en.messengersHeading)), "messengers before the settings").toBeLessThan(
+      html.indexOf(escapeHtml(TEXTS.en.settingsHeading)),
+    );
+  });
+});
+
+describe("handleSetup POST /setup/channel/activate", () => {
+  it("POST /setup/channel/activate activates a set-up channel and answers 303 to /setup", async () => {
+    const second = testChannel({ configured: true });
+
+    const response = await activate(["test"], channelDeps(second));
+
+    expect(response.status, "status").toBe(303);
+    expect(response.headers.get("Location"), "Location").toBe("/setup");
+    expect(await storedChannel(), "stored channel").toBe("test");
+  });
+
+  it("POST /setup/channel/activate makes the start page show the activated messenger as active", async () => {
+    const deps = channelDeps(testChannel({ configured: true }));
+    await activate(["test"], deps);
+
+    const html = await (await stepPage(deps, "/setup")).text();
+
+    expect(messengerItemOf(html, "/setup/test"), "state").toContain(escapeHtml(TEXTS.en.messengerStateActive));
+    expect(html, "Messenger line").toMatch(new RegExp(`<p>${escapeHtml(TEXTS.en.messengerLabel)}\\s+test</p>`));
+  });
+
+  it("POST /setup/channel/activate activates Telegram again when it is set up", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+
+    const response = await activate(["telegram"], channelDeps(testChannel()));
+
+    expect(response.status, "status").toBe(303);
+    expect(await storedChannel(), "stored channel").toBe("telegram");
+  });
+
+  it("POST /setup/channel/activate answers 303 and changes nothing for the channel that is already active", async () => {
+    const response = await activate(["telegram"], channelDeps(testChannel({ configured: true })));
+
+    expect(response.status, "status").toBe(303);
+    expect(response.headers.get("Location"), "Location").toBe("/setup");
+    expect(await storedChannel(), "stored channel").toBeUndefined();
+  });
+
+  it("POST /setup/channel/activate answers 409 messenger-not-set-up for a channel that is not set up and keeps the active one", async () => {
+    const response = await activate(["test"], channelDeps(testChannel({ configured: false })));
+
+    expect(response.status, "status").toBe(409);
+    const html = await response.text();
+    expectStartPage(html);
+    expect(html, "notice").toContain(noticeText("messenger-not-set-up"));
+    expect(html, "status heading").toContain(escapeHtml(TEXTS.en.statusHeading));
+    expect(await storedChannel(), "stored channel").toBeUndefined();
+  });
+
+  it("POST /setup/channel/activate answers 409 for Telegram without a bot token and keeps the active channel", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+
+    const response = await activate(["telegram"], channelDeps(testChannel(), { SELUNA_SECRET: SECRET }));
+
+    expect(response.status, "status").toBe(409);
+    expect(await response.text(), "notice").toContain(noticeText("messenger-not-set-up"));
+    expect(await storedChannel(), "stored channel").toBe("test");
+  });
+
+  it.each([
+    { case: "missing", ids: [] as readonly string[] },
+    { case: "empty", ids: [""] },
+    { case: "unknown", ids: ["gotify"] },
+    { case: "upper-case", ids: ["TELEGRAM"] },
+    { case: "padded", ids: [" test"] },
+    { case: "a path", ids: ["../telegram"] },
+    { case: "repeated", ids: ["test", "test"] },
+    { case: "two ids", ids: ["telegram", "test"] },
+  ])("POST /setup/channel/activate answers 400 messenger-invalid when the channel field is $case", async ({ ids }) => {
+    const response = await activate(ids, channelDeps(testChannel({ configured: true })));
+
+    expect(response.status, "status").toBe(400);
+    const html = await response.text();
+    expectStartPage(html);
+    expect(html, "notice").toContain(noticeText("messenger-invalid"));
+    expect(await storedChannel(), "stored channel").toBeUndefined();
+  });
+
+  it("POST /setup/channel/activate keeps the last write when two requests activate different channels", async () => {
+    const first = testChannel({ id: "first", configured: true });
+    const second = testChannel({ id: "second", configured: true });
+    const deps = depsAt(NOW.getTime(), { env: TELEGRAM_READY_ENV, channels: [TELEGRAM_CHANNEL, first, second] });
+
+    const responses = await Promise.all([activate(["first"], deps), activate(["second"], deps)]);
+
+    expect(
+      responses.map((response) => response.status),
+      "statuses",
+    ).toEqual([303, 303]);
+    expect(["first", "second"], "the stored channel is one of the two").toContain(await storedChannel());
+  });
+});
+
+describe("handleSetup POST /setup/channel/remove", () => {
+  it("POST /setup/channel/remove deletes the saved bot token and answers 303 to /setup", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    await writeSetting(env.DB, TELEGRAM_CHAT_ID_SETTING, "5001001");
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+
+    const response = await removeChannel(["telegram"], channelDeps(testChannel(), { SELUNA_SECRET: SECRET }));
+
+    expect(response.status, "status").toBe(303);
+    expect(response.headers.get("Location"), "Location").toBe("/setup");
+    expect(await savedBotToken(), "saved token").toBeUndefined();
+    expect(await readSetting(env.DB, TELEGRAM_CHAT_ID_SETTING), "saved chat stays").toBe("5001001");
+    expect(await storedChannel(), "stored channel stays").toBe("test");
+  });
+
+  it("POST /setup/channel/remove deletes the saved bot token of the active Telegram, which stays active", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    const deps = channelDeps(testChannel(), { SELUNA_SECRET: SECRET, TELEGRAM_CHAT_ID: CHAT_SECRET_VALUE });
+
+    const response = await removeChannel(["telegram"], deps);
+
+    expect(response.status, "status").toBe(303);
+    expect(await savedBotToken(), "saved token").toBeUndefined();
+    const html = await (await stepPage(deps, "/setup")).text();
+    expect(messengerItemOf(html, "/setup/telegram"), "info notice").toContain(
+      `<p class="notice info">${escapeHtml(TEXTS.en.messengerActiveNotSetUp)}</p>`,
+    );
+  });
+
+  it("POST /setup/channel/remove answers 303 and deletes nothing when nothing is saved", async () => {
+    await saveGitHubCredentials();
+
+    const response = await removeChannel(["telegram"], channelDeps(testChannel(), { SELUNA_SECRET: SECRET }));
+
+    expect(response.status, "status").toBe(303);
+    expect(await secretsCount(), "secrets rows: the GitHub credentials stay").toBe(3);
+  });
+
+  it("POST /setup/channel/remove answers 409 messenger-worker-secrets with TELEGRAM_BOT_TOKEN set and deletes nothing", async () => {
+    await saveBotToken(SAVED_TOKEN);
+
+    const response = await removeChannel(["telegram"], channelDeps(testChannel()));
+
+    expect(response.status, "status").toBe(409);
+    const html = await response.text();
+    expectStartPage(html);
+    expect(html, "notice").toContain(noticeText("messenger-worker-secrets"));
+    expect(await savedBotToken(), "saved token stays").toBe(SAVED_TOKEN);
+  });
+
+  it("POST /setup/channel/remove answers 409 telegram-token-unreadable for a token saved under another SELUNA_SECRET and deletes nothing", async () => {
+    await saveBotToken(SAVED_TOKEN, OTHER_SECRET);
+
+    const response = await removeChannel(["telegram"], channelDeps(testChannel(), { SELUNA_SECRET: SECRET }));
+
+    expect(response.status, "status").toBe(409);
+    const html = await response.text();
+    expectStartPage(html);
+    expect(html, "notice").toContain(noticeText("telegram-token-unreadable"));
+    expect(await secretsCount(), "secrets rows").toBe(1);
+  });
+
+  it("POST /setup/channel/remove removes through the channel's own step and answers 303", async () => {
+    const second = testChannel({ configured: true, removable: true, removeResult: "removed" });
+
+    const response = await removeChannel(["test"], channelDeps(second));
+
+    expect(response.status, "status").toBe(303);
+    expect(response.headers.get("Location"), "Location").toBe("/setup");
+    expect(second.removeCalls(), "remove calls").toBe(1);
+  });
+
+  it.each([
+    { removeResult: "worker-secret", notice: "messenger-worker-secrets" },
+    { removeResult: "unreadable", notice: "telegram-token-unreadable" },
+  ] as const)(
+    "POST /setup/channel/remove answers 409 $notice when the channel refuses with $removeResult",
+    async ({ removeResult, notice }) => {
+      const second = testChannel({ configured: true, removable: true, removeResult });
+
+      const response = await removeChannel(["test"], channelDeps(second));
+
+      expect(response.status, "status").toBe(409);
+      expect(await response.text(), "notice").toContain(noticeText(notice));
+    },
+  );
+
+  it.each([
+    { case: "missing", ids: [] as readonly string[] },
+    { case: "empty", ids: [""] },
+    { case: "unknown", ids: ["gotify"] },
+    { case: "upper-case", ids: ["Telegram"] },
+    { case: "padded", ids: ["telegram "] },
+    { case: "a path", ids: ["../telegram"] },
+    { case: "repeated", ids: ["telegram", "telegram"] },
+  ])(
+    "POST /setup/channel/remove answers 400 messenger-invalid when the channel field is $case and deletes nothing",
+    async ({ ids }) => {
+      await saveBotToken(SAVED_TOKEN);
+      const second = testChannel({ configured: true, removable: true });
+
+      const response = await removeChannel(ids, channelDeps(second, { SELUNA_SECRET: SECRET }));
+
+      expect(response.status, "status").toBe(400);
+      const html = await response.text();
+      expectStartPage(html);
+      expect(html, "notice").toContain(noticeText("messenger-invalid"));
+      expect(await savedBotToken(), "saved token stays").toBe(SAVED_TOKEN);
+      expect(second.removeCalls(), "remove calls").toBe(0);
+    },
+  );
+});
+
+describe("handleSetup messenger forms: protection", () => {
+  it.each(
+    CHANNEL_PATHS.flatMap((path) =>
+      CSRF_FAILURES.map((failure) => ({ path, token: failure.name, tokens: failure.tokens })),
+    ),
+  )("POST $path rejects $token with 403 and changes nothing", async ({ path, tokens: tokensOf }) => {
+    await saveBotToken(SAVED_TOKEN);
+    const second = testChannel({ configured: true, removable: true });
+    const fields: FormFields = [
+      ...(await tokensOf()).map((token): [string, string] => ["csrf", token]),
+      ["channel", "test"],
+    ];
+
+    const response = await postSignedIn(path, fields, channelDeps(second, { SELUNA_SECRET: SECRET }));
+
+    expect(response.status, "status").toBe(403);
+    const html = await response.text();
+    expectStartPage(html);
+    expect(html, "notice").toContain(noticeText("form-expired"));
+    expect(html, "settings form").not.toContain('action="/setup/settings"');
+    expect(await storedChannel(), "stored channel").toBeUndefined();
+    expect(second.removeCalls(), "remove calls").toBe(0);
+    expect(await savedBotToken(), "saved token stays").toBe(SAVED_TOKEN);
+  });
+
+  it.each(CHANNEL_PATHS)("POST %s answers a body over 1 MiB with 413 and an empty body", async (path) => {
+    const response = await call(path, {
+      method: "POST",
+      cookies: await signedInCookies(),
+      body: "a".repeat(MAX_BODY_BYTES + 1),
+    });
+
+    expect(response.status, "status").toBe(413);
+    expect(await response.text(), "body").toBe("");
+  });
+
+  it.each(CHANNEL_PATHS)("POST %s answers an unreadable body with 400 and an empty body", async (path) => {
+    const unreadable = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.error(new Error("connection lost"));
+      },
+    });
+
+    const response = await call(path, { method: "POST", cookies: await signedInCookies(), body: unreadable });
+
+    expect(response.status, "status").toBe(400);
+    expect(await response.text(), "body").toBe("");
+  });
+
+  it.each(CHANNEL_PATHS)("POST %s answers an empty form with 403 and the form expired notice", async (path) => {
+    const response = await call(path, { method: "POST", cookies: await signedInCookies(), body: "" });
+
+    expect(response.status, "status").toBe(403);
+    expect(await response.text(), "notice").toContain(noticeText("form-expired"));
+  });
+
+  it.each(CHANNEL_PATHS)("POST %s without a session answers the login page and changes nothing", async (path) => {
+    const response = await call(
+      path,
+      { method: "POST", body: form([["channel", "test"]]) },
+      depsAt(NOW.getTime(), { db: unusedDb() }),
+    );
+
+    expect(response.status, "status").toBe(200);
+    expectLoginPage(await response.text());
+  });
+
+  it.each(CHANNEL_PATHS)("GET %s answers 404 when signed in", async (path) => {
+    const response = await call(path, { cookies: await signedInCookies() });
+
+    expect(response.status, "status").toBe(404);
+    expect(await response.text(), "body").toBe("");
+  });
+
+  it.each(CHANNEL_PATHS)("POST %s answers 503 with the unavailable notice when D1 fails", async (path) => {
+    const second = testChannel({ configured: true, removable: true });
+
+    const response = await postSignedIn(
+      path,
+      await channelFields(["telegram"]),
+      channelDeps(second, { SELUNA_SECRET: SECRET }, { db: migrationTestDb() }),
+    );
+
+    expect(response.status, "status").toBe(503);
+    const html = await response.text();
+    expect(html, "unavailable notice").toContain(noticeText("unavailable"));
+    expect(html.toLowerCase(), "error text").not.toContain("no such table");
+  });
+});
+
+describe("handleSetup Telegram step notice for an active Telegram that is not set up", () => {
+  const NOTICE = `<p class="notice info">${escapeHtml(TEXTS.en.telegramActiveNotSetUp)}</p>`;
+
+  it("GET /setup/telegram shows the Telegram active, not set up notice above the token card while Telegram is active without a token", async () => {
+    const html = await (await stepPage(depsAt())).text();
+
+    expect(html, "notice").toContain(NOTICE);
+    expect(html.indexOf(NOTICE), "above the token form").toBeLessThan(
+      html.indexOf(escapeHtml(TEXTS.en.telegramTokenIntro)),
+    );
+  });
+
+  it("GET /setup/telegram shows the notice while Telegram is active with a token and without a chat", async () => {
+    const html = await (await stepPage(telegramDeps(telegramDouble()))).text();
+
+    expect(html, "notice").toContain(NOTICE);
+  });
+
+  it("GET /setup/telegram shows the notice when the stored channel names no registered messenger", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "gone");
+
+    const html = await (await stepPage(channelDeps(testChannel(), { SELUNA_SECRET: SECRET }), STEP_PATH)).text();
+
+    expect(html, "notice").toContain(NOTICE);
+  });
+
+  it("POST /setup/telegram/token/remove answers 303 to the step, which then shows the notice while Telegram is active", async () => {
+    await saveBotToken(SAVED_TOKEN);
+    const deps = savedTokenDeps(telegramDouble());
+
+    const response = await removeToken(deps);
+    const html = await (await stepPage(deps)).text();
+
+    expect(response.status, "status").toBe(303);
+    expect(response.headers.get("Location"), "Location").toBe(STEP_PATH);
+    expect(html, "notice").toContain(NOTICE);
+  });
+});
+
+describe("handleSetup Telegram step notice: negatives", () => {
+  const NOTICE = `<p class="notice info">${escapeHtml(TEXTS.en.telegramActiveNotSetUp)}</p>`;
+
+  it("GET /setup/telegram shows no notice while Telegram is active and set up", async () => {
+    const html = await (await stepPage(chatSecretDeps(telegramDouble()))).text();
+
+    expect(html, "notice").not.toContain(NOTICE);
+  });
+
+  it("GET /setup/telegram shows no notice while another messenger is active and Telegram is not set up", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+
+    const html = await (
+      await stepPage(channelDeps(testChannel({ configured: true }), { SELUNA_SECRET: SECRET }), STEP_PATH)
+    ).text();
+
+    expect(html, "notice").not.toContain(NOTICE);
+  });
+
+  it("GET /setup/telegram shows the step without the notice when reading the active messenger fails", async () => {
+    const failing: D1Database = {
+      prepare: (query: string) => {
+        if (query.includes("settings")) {
+          throw new Error("The database failed");
+        }
+        return env.DB.prepare(query);
+      },
+      batch: (statements) => env.DB.batch(statements),
+      exec: () => Promise.reject(new Error("Not supported by this wrapper")),
+      dump: () => Promise.reject(new Error("Not supported by this wrapper")),
+      withSession: () => {
+        throw new Error("Not supported by this wrapper");
+      },
+    };
+
+    const response = await stepPage(chatSecretDeps(telegramDouble(), { db: failing }));
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "notice").not.toContain(NOTICE);
+    expect(html, "token card").toContain(escapeHtml(TEXTS.en.telegramTokenHeading));
+  });
+});
+
+describe("handleSetup settings form and delivery_channel", () => {
+  it("POST /setup/settings leaves delivery_channel unchanged", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+
+    const response = await postSignedIn(SETTINGS_PATH, await settingsFormFields(), depsAt());
+
+    expect(response.status, "status").toBe(303);
+    expect(await storedChannel(), "stored channel").toBe("test");
+  });
+
+  it("POST /setup/settings ignores a delivery_channel field", async () => {
+    const response = await postSignedIn(
+      SETTINGS_PATH,
+      await settingsFormFields([["delivery_channel", "test"]]),
+      depsAt(),
+    );
+
+    expect(response.status, "status").toBe(303);
+    expect(await storedChannel(), "stored channel").toBeUndefined();
+  });
+
+  it("GET /setup shows the settings form without a delivery_channel field", async () => {
+    const html = await (await stepPage(depsAt(), "/setup")).text();
+
+    expect(html, "settings form").toContain('action="/setup/settings"');
+    expect(html, "delivery_channel").not.toContain("delivery_channel");
+  });
+
+  it("GET /setup shows no Remove for Telegram while TELEGRAM_BOT_TOKEN is set although a token is saved", async () => {
+    await saveBotToken(SAVED_TOKEN);
+
+    const html = await (await stepPage(channelDeps(testChannel()), "/setup")).text();
+
+    expect(messengerItemOf(html, "/setup/telegram"), "item").not.toBe("");
+    expect(messengerItemOf(html, "/setup/telegram"), "remove form").not.toContain(`action="${REMOVE_CHANNEL_PATH}"`);
   });
 });

@@ -19,14 +19,14 @@ files or endpoints.
   `SELUNA_SECRET`, compared in constant time (`verifySelunaSecret` in `src/crypto.ts`). The session is an
   HMAC-SHA256-signed token with a 12-hour expiry (`src/setup/session.ts`, key from `signingKeyFromEnv`) in a cookie
   with `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/setup`; every form carries a signed double-submit CSRF token, which on the
-  signed-in forms is also bound to the session (`src/setup/csrf.ts`), except the GitHub finish form, which is protected
+  signed-in forms (among them the two forms of the Messengers card, `POST /setup/channel/activate` and `POST /setup/channel/remove`, which change where notifications go and delete a channel's saved credentials) is also bound to the session (`src/setup/csrf.ts`), except the GitHub finish form, which is protected
   by the session-bound state of the manifest flow instead (`src/setup/github-state.ts`, decision 0017); attempts are counted in the `meta` row `login_attempts` before the secret is checked and
   lock the login for 15 minutes after 5 failures (`src/store/login-attempts.ts`); a D1 failure there answers a fixed notice
   (_migrations missing_ when `sqlite_master` lacks a schema table, `src/store/schema.ts`, decision 0021, else
   _unavailable_) and never the error; pages have no script or external
   resource and a strict Content-Security-Policy (`src/setup/pages.ts`) (decision 0015).
 - **Encrypted credentials:** the GitHub App ID, private key and webhook secret and the Telegram bot token entered in
-  the setup wizard (`telegram_bot_token`, written alone through `writeSecret` and deleted through `deleteSecret`) live
+  the setup wizard (`telegram_bot_token`, a `ChannelSecretName`, written alone through `writeSecret` and deleted through `deleteSecret`, also by _Remove_ of the Messengers card on the start page through `removeBotToken`) live
   in the D1 table `secrets` as AES-256-GCM ciphertext (random 96-bit nonce per value; code in `src/crypto.ts` and `src/store/secrets.ts`, the three
   credentials of the manifest flow together through `writeSecrets`); the key comes from the Worker secret `SELUNA_SECRET`. The D1 table `token_cache` holds installation tokens encrypted the same way, each ciphertext is bound to its row (additional data), expired rows are deleted by the cleanup cron (`src/cleanup.ts`), and a key check value in `meta` reports a changed `SELUNA_SECRET`. The
   Telegram bot token is the optional Worker secret `TELEGRAM_BOT_TOKEN`, which takes precedence over the saved token
@@ -68,17 +68,17 @@ files or endpoints.
   owner, repository name and number allow-listed before they enter a URL; only `https://api.github.com`, no redirects
   followed, 10-second timeout, answers read bounded (1 MiB) and narrowed; no token, key or JWT in a log, page, result
   or plain D1 (decision 0026).
-- **Outbound-only Telegram:** the Worker calls only the Telegram Bot API methods `getMe` (at most once per submitted token form whose token matches the bot token form, in
+- **Outbound delivery channels:** the Worker delivers through the one active channel of the registry (`src/channels/registry.ts`, `src/channels/channel.ts`; today only Telegram, `src/channels/telegram.ts`), reading its destination once per batch (`src/delivery.ts`), and every channel request goes through the shared HTTP code `src/channels/http.ts` (JSON `POST`, 10-second timeout, answer read bounded to 1 MiB, one retry after a short 429, redirects followed as `fetch` does by default, which a channel with an owner-chosen server URL must decide on). For Telegram the Worker calls only the Bot API methods `getMe` (at most once per submitted token form whose token matches the bot token form, in
   the setup wizard's Telegram step, `src/setup/telegram-step.ts`), `getUpdates` (in the same step) and `sendMessage`
-  (`src/telegram.ts`); delivery reads the token from the Worker secret or from D1 (`src/delivery.ts`); it never sets
+  (`src/telegram.ts`); delivery reads the token from the Worker secret or from D1 (`src/channels/telegram.ts`); it never sets
   or deletes a webhook and exposes no Telegram route; the input it takes from Telegram is the status and `ok` of the
   `getMe` answer and the `getUpdates` answer of the signed-in step and the status of each `sendMessage` answer and, for a 429, its `parameters.retry_after`, all read bounded
-  (1 MiB) and narrowed in `src/telegram.ts` (a notification is sent from `src/delivery.ts`); a
+  (1 MiB) and narrowed in `src/telegram.ts` over `src/channels/http.ts` (a notification is sent from `src/delivery.ts` through the active channel); `src/rules/` may not import a channel, the message or notification modules or the delivery (an ESLint `no-restricted-imports` block); a
   chat is stored only after the owner typed back the code of its test message (`src/setup/chat-proof.ts`); the bot
   token appears only in the request URL, which Seluna never logs.
 - **Parsing of external input:** webhook bodies are JSON from GitHub and are narrowed from `unknown`; the body (JSON or the form field `payload`) is narrowed in `src/webhook.ts`; fields are
-  cleaned, length-limited and escaped (Telegram HTML) in `src/message.ts` before they enter a message, because titles and branch names
-  are attacker-controlled text.
+  cleaned and length-limited in `src/notification.ts` (`storedNotificationOf`) before they are stored in the outbox as JSON, and cleaned again and escaped (Telegram HTML) at send time in `src/message.ts` (`renderTelegramText`) before they enter a message, because titles and branch names
+  are attacker-controlled text; the stored JSON and the text of rows written by an earlier version are parsed in `src/notification.ts` (`decodeStoredNotification`, `legacyNotificationOf`, with `startsWith`/`indexOf`, no regular expression with unbounded groups), and a row that does not decode is never sent.
 - **Request body size:** every route that reads a request body reads it through the bounded reader in `src/body.ts` (1 MiB; a `Content-Length` above it is rejected before reading, and the body is always counted while read); a route that reads a body any other way is a `security`-tier finding.
 - **Logging of external data:** logs carry event type, delivery id, the action and repository (pattern-checked) and the decision of the processing, each sent outbox row logs its id and result (a row marked failed after its fifth attempt logs its id and status `failed`), each scheduled job logs only a fixed result (`src/scheduled.ts`: `store-failed`, `unknown`, the release check's result), and per request the method, the URL path without query string and the status (`src/router.ts`); never payload text, headers, query strings, tokens or keys.
 
@@ -112,10 +112,15 @@ change with it.
 - the setting table in `README.md`
 - the test that pins the read/write round trip
 
+**A new delivery channel** touches:
+- its entry in `CHANNELS` in `src/channels/registry.ts` and its adapter under `src/channels/` (`prepare`, `send`, `hasRemovableCredentials`, `remove`), on the shared `src/channels/http.ts`; a `send` that renders the notification itself must answer `failed` when `contentNotification` returns `undefined` (an old-form row it cannot recover)
+- its setup page `/setup/<id>` (the id must match `CHANNEL_ID_FORM` and avoid `RESERVED_SETUP_SEGMENTS`), its `ChannelSecretName` and its texts in `src/setup/texts.ts` (English and German)
+- its test double or tests, `docs/areas/notifications.md` (*Delivery channels*), `docs/areas/setup-wizard.md` (*Messengers*) and the component list in `docs/ARCHITECTURE.md`
+
 **A new or changed rule (a notification kind)** touches:
 - the pure rule function and its tests, with a real payload under `test/fixtures/<event>/<action>.json`, its entry in `src/rules/registry.ts` and its texts in `src/i18n/en.ts` and `src/i18n/de.ts`
 - the GitHub App manifest (events and permissions it needs) and the webhook event routing
-- the message formatting and its escaping, the component list in `docs/ARCHITECTURE.md` and the rule list in `README.md`
+- the stored notification and its rendering by the channels (`src/notification.ts`, `renderTelegramText` in `src/message.ts`) with its escaping, the component list in `docs/ARCHITECTURE.md` and the rule list in `README.md`
 
 **A new or changed D1 table or column** touches:
 - a new migration (never an edited one), the access module under `src/store/` and its tests, the cleanup cron if rows expire
@@ -161,6 +166,15 @@ otherwise):
   fixtures stay reference-built until they are replaced by captured answers, and a plan that reads a new Bot API
   answer either asks the Product Manager for a captured sample up front or plans a live check on a deployed copy
   before the pull request is marked ready (decision 0016).
+- **Delivery channel double** — `test/channel.ts`: `testChannel({ id, configured, unavailable, removable, removeResult,
+  sendResult, onSend })` returns a `Channel` (name = id, `setupPath` `/setup/<id>`) that stands in for any messenger
+  besides Telegram; it makes no request and holds no credentials. `prepare` is ready or, with `configured: false`,
+  unavailable (`no-token` or `no-chat`); `hasRemovableCredentials` and `remove` answer as configured. Its `send`
+  models a channel that renders the notification itself: it reads it through `contentNotification` and answers
+  `failed` when that returns `undefined` (an old-form row it cannot read), otherwise `sendResult`. It records every
+  send (`sends`: message, options and the notification it read), the calls of `prepare` (`prepareCalls()`) and of
+  `remove` (`removeCalls()`); `onSend` runs after a send was recorded, so a test can act while a batch is being sent
+  (for example switch the active channel).
 - **Clock** — an injected `() => Date` (or `vi.useFakeTimers()`) so rules, retries and token expiry are tested
   without waiting; code under test never calls `Date.now()` directly.
 - **Real GitHub payloads** — captured events stored as `test/fixtures/<event>/<action>.json`, with secrets and

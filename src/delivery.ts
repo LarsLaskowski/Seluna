@@ -2,10 +2,11 @@ import { isQuietTime } from "./quiet-hours";
 import type { NotificationSettings } from "./settings";
 import { markAttempted, markSent } from "./store/outbox";
 import type { AttemptOutcome } from "./store/outbox";
-import { readSetting, TELEGRAM_CHAT_ID_SETTING } from "./store/settings";
-import { resolveBotToken } from "./bot-token";
-import { CHAT_ID_SECRET_NAME, isChatIdSecretSet, parseChatId, sendNotification } from "./telegram";
-import type { SendNotificationResult, TelegramFetch } from "./telegram";
+import { decodeStoredNotification } from "./notification";
+import type { StoredNotification } from "./notification";
+import type { ChannelFetch } from "./channels/http";
+import type { ChannelList, ChannelSendResult, ChannelTarget, OutboxContent } from "./channels/channel";
+import { CHANNELS, readActiveChannel } from "./channels/registry";
 import { MESSAGE_TEXTS } from "./i18n/messages";
 
 export interface PendingMessage {
@@ -13,6 +14,8 @@ export interface PendingMessage {
   readonly text: string;
   readonly buttonUrl: string | undefined;
   readonly silent: boolean;
+  /** The decoded notification; `"damaged"` for an undecodable stored row; absent for an old-form row. */
+  readonly notification?: StoredNotification | "damaged";
 }
 
 export type DeliveryResult =
@@ -27,42 +30,44 @@ export type DeliverySettings = Pick<NotificationSettings, "language" | "timeZone
 export interface DeliveryDeps {
   readonly env: object;
   readonly db: D1Database;
-  readonly fetch: TelegramFetch;
+  readonly fetch: ChannelFetch;
   readonly sleep: (milliseconds: number) => Promise<void>;
   readonly log: (entry: DeliveryLogEntry) => void;
   /** The clock read once per row, just before it is sent, for the quiet hours. */
   readonly now: () => Date;
-}
-
-/** `TELEGRAM_CHAT_ID` when set (no fallback if it is not a chat id), else `settings` `telegram_chat_id`. D1 errors reject. */
-export async function chatTarget(env: object, db: D1Database): Promise<number | undefined> {
-  if (isChatIdSecretSet(env)) {
-    const secret: unknown = CHAT_ID_SECRET_NAME in env ? env[CHAT_ID_SECRET_NAME] : undefined;
-    return typeof secret === "string" ? parseChatId(secret) : undefined;
-  }
-  const stored = await readSetting(db, TELEGRAM_CHAT_ID_SETTING);
-  return stored === undefined ? undefined : parseChatId(stored);
+  /** The registered channels; defaults to `CHANNELS`. */
+  readonly channels?: ChannelList;
 }
 
 type Target =
-  | { readonly kind: "ready"; readonly token: string; readonly chatId: number }
+  | Extract<ChannelTarget, { readonly kind: "ready" }>
   | { readonly kind: "unavailable"; readonly result: "no-token" | "no-chat" | "store-failed" };
 
-/** The bot token and chat to send to; a database failure reads as `store-failed`. */
+/** The active channel's destination, resolved once per batch; a database failure reads as `store-failed`. */
 async function resolveTarget(deps: DeliveryDeps): Promise<Target> {
   try {
-    const token = await resolveBotToken(deps.env, deps.db);
-    if (token.kind !== "usable") {
-      return { kind: "unavailable", result: "no-token" };
-    }
-    const chatId = await chatTarget(deps.env, deps.db);
-    return chatId === undefined
-      ? { kind: "unavailable", result: "no-chat" }
-      : { kind: "ready", token: token.token, chatId };
+    const channel = await readActiveChannel(deps.db, deps.channels ?? CHANNELS);
+    return await channel.prepare(deps.env, deps.db);
   } catch {
     // The error is dropped: only the fixed result reaches the log.
     return { kind: "unavailable", result: "store-failed" };
   }
+}
+
+/** What a row holds for a channel, or `undefined` when it is damaged. A new row never reaches a channel as raw JSON. */
+function contentOf(message: PendingMessage): OutboxContent | undefined {
+  const { notification } = message;
+  if (notification === "damaged") {
+    return undefined;
+  }
+  if (notification !== undefined) {
+    return { kind: "notification", notification };
+  }
+  if (message.text.startsWith("{")) {
+    const decoded = decodeStoredNotification(message.text);
+    return decoded === undefined ? undefined : { kind: "notification", notification: decoded };
+  }
+  return { kind: "legacy", text: message.text };
 }
 
 /** Whether the quiet hours hold now; a failing clock reads as not quiet, so the row is still sent. */
@@ -83,30 +88,32 @@ interface DeliveryOutcome {
 /** Sends one row, records the attempt and returns the outcome to log. Never rejects. */
 async function deliverOne(
   message: PendingMessage,
-  target: { readonly token: string; readonly chatId: number },
+  target: Extract<Target, { readonly kind: "ready" }>,
   settings: DeliverySettings,
-  buttonText: string,
+  buttonLabel: string,
   deps: DeliveryDeps,
 ): Promise<DeliveryOutcome> {
-  let sent: SendNotificationResult;
+  let sent: ChannelSendResult = "failed";
   try {
-    const silent = message.silent || quietAtSend(settings, deps);
-    sent = await sendNotification(
-      target.token,
-      target.chatId,
-      { text: message.text, buttonText, buttonUrl: message.buttonUrl, silent },
-      deps.fetch,
-      deps.sleep,
-    );
+    const content = contentOf(message);
+    if (content !== undefined) {
+      const silent = message.silent || quietAtSend(settings, deps);
+      sent = await target.send(
+        { content, buttonUrl: message.buttonUrl },
+        { silent, buttonLabel, outboxId: message.id },
+        { fetch: deps.fetch, sleep: deps.sleep },
+      );
+    }
   } catch {
     sent = "failed";
   }
+  const result: DeliveryResult = sent === "rejected" ? "token-rejected" : sent;
   try {
     if (sent === "sent") {
       await markSent(deps.db, message.id);
-      return { result: sent, status: undefined };
+      return { result, status: undefined };
     }
-    return { result: sent, status: await markAttempted(deps.db, message.id) };
+    return { result, status: await markAttempted(deps.db, message.id) };
   } catch {
     return { result: "store-failed", status: undefined };
   }

@@ -4,12 +4,12 @@ import { applyDraftChecks } from "./draft-lookup";
 import type { DraftLookup } from "./draft-lookup";
 import { installationIdOf } from "./github/api-client";
 import { formatMessage } from "./message";
+import { storedNotificationOf } from "./notification";
 import { runRules } from "./rules/rule";
-import type { Rule, RuleDecision, WebhookPayload } from "./rules/rule";
+import type { Notification, Rule, RuleDecision, WebhookPayload } from "./rules/rule";
 import { recordDelivery, isKnownDelivery } from "./store/deliveries";
 import { readNotificationSettings } from "./store/settings";
 import type { NotificationSettings } from "./settings";
-import type { OutboxMessage } from "./message";
 import type { TelegramFetch } from "./telegram";
 
 const FORM_MEDIA_TYPE = "application/x-www-form-urlencoded";
@@ -105,11 +105,11 @@ async function notificationsOf(
   payload: WebhookPayload,
   settings: NotificationSettings,
   deps: WebhookDeps,
-): Promise<{ readonly decision: RuleDecision; readonly messages: readonly OutboxMessage[] }> {
+): Promise<{ readonly decision: RuleDecision; readonly notifications: readonly Notification[] }> {
   const run = runRules(deps.rules, event, payload, settings);
   const notifications = await applyDraftChecks(run.notifications, installationIdOf(payload), deps.lookUpDraft);
   const decision = run.decision === "reported" && notifications.length === 0 ? "no-match" : run.decision;
-  return { decision, messages: notifications.map((notification) => formatMessage(notification)) };
+  return { decision, notifications };
 }
 
 /** Records a signed delivery, evaluates the rules, stores the messages and hands their sending to `waitUntil`. */
@@ -132,8 +132,13 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
   const fields = logFieldsOf(payload);
   try {
     const settings = await readNotificationSettings(deps.db);
-    const { decision, messages } = await notificationsOf(event, payload, settings, deps);
-    const rows = messages.map((message) => ({ text: message.text, buttonUrl: message.buttonUrl, silent: false }));
+    const { decision, notifications } = await notificationsOf(event, payload, settings, deps);
+    const messages = notifications.map((notification) => formatMessage(notification));
+    const rows = notifications.map((notification, index) => ({
+      notification: storedNotificationOf(notification),
+      buttonUrl: messages[index]?.buttonUrl,
+      silent: false,
+    }));
     const recorded = await recordDelivery(deps.db, { id, event, receivedAt: deps.now() }, rows);
     if (recorded.kind === "duplicate") {
       return outcomeOf(200, "duplicate");
@@ -142,7 +147,13 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
     rows.forEach((row, index) => {
       const outboxId = recorded.outboxIds[index];
       if (outboxId !== undefined) {
-        pending.push({ id: outboxId, ...row });
+        pending.push({
+          id: outboxId,
+          text: messages[index]?.text ?? "",
+          buttonUrl: row.buttonUrl,
+          silent: row.silent,
+          notification: row.notification,
+        });
       }
     });
     if (pending.length > 0) {

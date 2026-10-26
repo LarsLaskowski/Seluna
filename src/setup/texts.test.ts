@@ -23,7 +23,7 @@ describe("TEXTS", () => {
     expect(TEXTS.en.notConfiguredParagraphs.length, "English not-configured paragraphs").toBeGreaterThan(0);
     expect(TEXTS.de.notConfiguredParagraphs.length, "German not-configured paragraphs").toBeGreaterThan(0);
     expect(Object.keys(TEXTS.de.notices), "German notice keys").toEqual(Object.keys(TEXTS.en.notices));
-    expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(31);
+    expect(Object.keys(TEXTS.en.notices).length, "number of notices").toBe(34);
   });
 
   it("texts keep the same keys in the same order in English and German", () => {
@@ -119,6 +119,86 @@ describe("TEXTS", () => {
       "settings-invalid":
         "The settings were not saved. Check the values: quiet hours need a start and an end in the form 22:00, and the two must differ.",
       "reset-not-needed": "The saved credentials can be read with the current SELUNA_SECRET, so nothing was reset.",
+      "messenger-invalid": "Please choose a messenger from the list.",
+      "messenger-not-set-up": "This messenger is not set up yet. Set it up first, then activate it.",
+      "messenger-worker-secrets":
+        "This messenger is set by Worker secrets, which Seluna cannot remove. Delete them in the Cloudflare dashboard under Settings, then Variables and Secrets.",
+    });
+  });
+
+  it("texts word the English messenger texts as the specification does", () => {
+    const { en } = TEXTS;
+
+    expect(
+      {
+        messengersHeading: en.messengersHeading,
+        messengersIntro: en.messengersIntro,
+        messengerStateNotSetUp: en.messengerStateNotSetUp,
+        messengerStateSetUp: en.messengerStateSetUp,
+        messengerStateActive: en.messengerStateActive,
+        messengerActiveNotSetUp: en.messengerActiveNotSetUp,
+        messengerSetUpLink: en.messengerSetUpLink,
+        messengerChangeLink: en.messengerChangeLink,
+        messengerActivateButton: en.messengerActivateButton,
+        messengerRemoveButton: en.messengerRemoveButton,
+        messengerLabel: en.messengerLabel,
+        messengerNotSetUpSuffix: en.messengerNotSetUpSuffix,
+        telegramActiveNotSetUp: en.telegramActiveNotSetUp,
+      },
+      "English messenger texts",
+    ).toEqual({
+      messengersHeading: "Messengers",
+      messengersIntro:
+        "Seluna sends its notifications through one messenger, the active one. Set up a messenger, then activate it; notifications still waiting are then sent through it.",
+      messengerStateNotSetUp: "Not set up",
+      messengerStateSetUp: "Set up",
+      messengerStateActive: "Active",
+      messengerActiveNotSetUp: "Active, but not set up: notifications wait until it is set up.",
+      messengerSetUpLink: "Set up",
+      messengerChangeLink: "Change",
+      messengerActivateButton: "Activate",
+      messengerRemoveButton: "Remove",
+      messengerLabel: "Messenger:",
+      messengerNotSetUpSuffix: "(not set up)",
+      telegramActiveNotSetUp:
+        "Telegram is the active messenger: notifications wait until a bot token and a chat are set up here.",
+    });
+  });
+
+  it("texts word the German messenger texts as the skeleton has them", () => {
+    const { de } = TEXTS;
+
+    expect(
+      {
+        messengersHeading: de.messengersHeading,
+        messengerStateNotSetUp: de.messengerStateNotSetUp,
+        messengerStateSetUp: de.messengerStateSetUp,
+        messengerStateActive: de.messengerStateActive,
+        messengerActiveNotSetUp: de.messengerActiveNotSetUp,
+        messengerSetUpLink: de.messengerSetUpLink,
+        messengerChangeLink: de.messengerChangeLink,
+        messengerActivateButton: de.messengerActivateButton,
+        messengerRemoveButton: de.messengerRemoveButton,
+        messengerLabel: de.messengerLabel,
+        messengerNotSetUpSuffix: de.messengerNotSetUpSuffix,
+        invalid: de.notices["messenger-invalid"],
+        notSetUp: de.notices["messenger-not-set-up"],
+      },
+      "German messenger texts",
+    ).toEqual({
+      messengersHeading: "Messenger",
+      messengerStateNotSetUp: "Nicht eingerichtet",
+      messengerStateSetUp: "Eingerichtet",
+      messengerStateActive: "Aktiv",
+      messengerActiveNotSetUp: "Aktiv, aber nicht eingerichtet: Benachrichtigungen warten, bis er eingerichtet ist.",
+      messengerSetUpLink: "Einrichten",
+      messengerChangeLink: "Ändern",
+      messengerActivateButton: "Aktivieren",
+      messengerRemoveButton: "Entfernen",
+      messengerLabel: "Messenger:",
+      messengerNotSetUpSuffix: "(nicht eingerichtet)",
+      invalid: "Bitte wähle einen Messenger aus der Liste.",
+      notSetUp: "Dieser Messenger ist noch nicht eingerichtet. Richte ihn zuerst ein und aktiviere ihn dann.",
     });
   });
 

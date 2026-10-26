@@ -25,13 +25,14 @@ it and add their pages behind the login.
 /setup/github/callback` without a session included).
   5. **With a valid session**: `GET /setup` answers **200** with the status page, `POST /setup/logout` signs out
      (below), `POST /setup/settings` saves the settings and `POST /setup/reset` resets the saved credentials
-     ([Status and settings](#status-and-settings), [Reset](#reset)), `GET` and `POST /setup/telegram`, `POST /setup/telegram/verify`, `POST /setup/telegram/token` and
+     ([Status and settings](#status-and-settings), [Reset](#reset)), `POST /setup/channel/activate` and
+     `POST /setup/channel/remove` are the forms of the Messengers card ([Messengers](#messengers)), `GET` and `POST /setup/telegram`, `POST /setup/telegram/verify`, `POST /setup/telegram/token` and
      `POST /setup/telegram/token/remove` are the Telegram step ([Telegram chat](#telegram-chat)), `GET` and `POST /setup/github` and `POST /setup/github/callback` are the
      GitHub App step ([GitHub App](#github-app)), everything else answers **404** with an empty body.
 - The start page (`GET /setup`) is the status page. In this order its main column
   ([Pages and response headers](#pages-and-response-headers)) shows: the heading, the _start body_ and a notice if
   any; then, each in its own card, the status section, the reset section when a reset is needed ([Reset](#reset)),
-  the setup steps as links (_Telegram chat_, to `/setup/telegram`, and _GitHub App_, to `/setup/github`) and the
+  the Messengers card ([Messengers](#messengers)), the setup steps as links (_Telegram chat_, to `/setup/telegram`, and _GitHub App_, to `/setup/github`) and the
   settings form; last the sign-out form in the actions area. `GET` on `/setup/settings` or `/setup/reset` answers
   **404** with a session.
 
@@ -112,7 +113,7 @@ it and add their pages behind the login.
 
 - Every form carries the hidden field `csrf`. There are two kinds of form: the **login form** (the login page) and
   the **signed-in forms** (every form on a page answered with a valid session; today the sign-out form on the start
-  page, the settings and reset forms of the start page, the token, remove, confirm and verify forms of the Telegram step and the account form of the GitHub App step). The key is
+  page, the settings, reset, activate and remove forms of the start page, the token, remove, confirm and verify forms of the Telegram step and the account form of the GitHub App step). The key is
   derived like the session key with salt and info `seluna/setup-csrf/v1`. Two forms carry no `csrf` field: the form
   of the GitHub review page, which posts to github.com, and the GitHub finish form, which is protected by its
   session-bound state instead ([GitHub App](#github-app)).
@@ -137,7 +138,8 @@ it and add their pages behind the login.
 
 ### Status and settings
 
-- The status section lists: _Version:_ (the version of the build); _Telegram bot token:_ _set by the Worker secret
+- The status section lists: _Version:_ (the version of the build); _Messenger:_ the name of the active messenger,
+  followed by _(not set up)_ when it is not set up ([Messengers](#messengers)); _Telegram bot token:_ _set by the Worker secret
   TELEGRAM_BOT_TOKEN_ when that secret is a non-empty string (well-formed or not), _saved in the setup_ for a usable
   saved token, _none saved yet_, or _cannot be read_ when the saved token cannot be read with the current
   `SELUNA_SECRET` or its row is damaged ([The bot token](#the-bot-token)); the value is never shown and Telegram is not
@@ -178,7 +180,45 @@ it and add their pages behind the login.
   shows 22:00 and 07:00 again when they are next switched on.
 - `GET /setup` with a D1 failure answers **503** with the notice-only start page (in its main column the heading,
   the _start body_ and the notice, the step links card and the sign-out form in the actions area) and _unavailable_.
-  The 403 answers of the sign-out, settings and reset forms render the notice-only page too and read no D1.
+  The 403 answers of the sign-out, settings, reset, activate and remove forms render the notice-only page too and read no D1.
+
+### Messengers
+
+Seluna sends its notifications through one messenger, the active one ([Notifications](notifications.md#delivery-channels)).
+Telegram is the only registered messenger today; further ones register in `src/channels/registry.ts`.
+
+- **Card:** the Messengers card sits between the reset section and the step links. It holds the heading
+  _Messengers_, an intro paragraph and a list with one entry per registered messenger in registry order. An entry shows
+  the name in bold; for a messenger that is not active, a colon and its state, _Not set up_ or _Set up_; for the active
+  one that is set up, a colon and _Active_; for the active one that is not set up, an info notice _Active, but not set
+  up_ instead (notifications wait until it is set up). Then a link to the messenger's step page (`/setup/<id>`), _Set
+  up_ when it is not set up and _Change_ when it is, and the forms below. A messenger is _set up_ when its
+  destination can be resolved (for Telegram: a usable bot token and a chat).
+- **Forms:** _Activate_ (a primary button) is shown for a messenger that is set up and not active; _Remove_ (a
+  secondary button) for a messenger with credentials saved in the setup that its own step can remove (also the
+  active one); for Telegram that is a saved bot token in the token card's _saved_ or _damaged_ state, so never while
+  `TELEGRAM_BOT_TOKEN` is set or while the saved token cannot be read with the current `SELUNA_SECRET`. Each is a `POST` form
+  with the session-bound `csrf` field and a hidden field `channel` holding the messenger's id, to
+  `POST /setup/channel/activate` and `POST /setup/channel/remove`.
+- **Processing** (both routes): the body is read with the 1 MiB limit (**413**, **400** when it cannot be read), then the
+  CSRF token is checked (**403**, notice-only start page, _form expired_). The `channel` field must occur exactly once
+  and equal, byte for byte, the id of a registered messenger (no trimming, no case folding, no path); otherwise **400**
+  with the status page and the _messenger invalid_ notice, nothing changes. A D1 failure answers **503** with the
+  notice-only start page and _unavailable_.
+- **Activate:** the active messenger answers **303** to `/setup` without a write. A messenger that is not set up
+  answers **409** with the status page and the _messenger not set up_ notice, the active messenger unchanged.
+  Otherwise the setting `delivery_channel` is written ([Storage](storage.md)) and the answer is **303** to
+  `/setup`. Rows still pending are then sent through the new messenger, with the attempts they already have. The
+  settings form never writes `delivery_channel`.
+- **Remove:** deletes the credentials the messenger saved in the setup, also when it is the active one (then the
+  entry shows the _Active, but not set up_ notice and notifications wait); nothing saved is **303** without a
+  delete. For Telegram it is the same as _Remove token_ of the step: a bot token set by the Worker secret
+  `TELEGRAM_BOT_TOKEN` answers **409** with the _messenger Worker secrets_ notice, a saved token that cannot be read
+  with the current `SELUNA_SECRET` answers **409** with the _token unreadable_ notice, and otherwise the token row is
+  deleted and the answer is **303** to `/setup`.
+- The Telegram step page shows an info notice _Telegram active, not set up_ as the first element of the token card,
+  after its heading, exactly while Telegram is the active messenger (also when no messenger is stored) and not set up.
+  Failing to read the active messenger there only leaves the notice out.
 
 ### Reset
 
@@ -517,13 +557,13 @@ KEY-----`, lines of 64 characters), `github_webhook_secret` the webhook secret a
 - **Settings groups:** in the settings form, the quiet hours switch with its label is the legend of a framed group
   (`<fieldset>`) holding _Start_ and _End_; "Notify me about" is the legend of a second group holding the eight rule
   switches and the release notice switch.
-- **Buttons:** _Sign out_ and _Remove token_ are secondary buttons, _Reset and create the GitHub App again_ a danger button, and every
-  other submit button (_Sign in_, _Save settings_, _Save token_, _Send test message_, _Save chat_, _Next_, _Continue
+- **Buttons:** _Sign out_, _Remove token_ and _Remove_ (Messengers card) are secondary buttons, _Reset and create the GitHub App again_ a danger button, and every
+  other submit button (_Sign in_, _Save settings_, _Activate_, _Save token_, _Send test message_, _Save chat_, _Next_, _Continue
   to GitHub_, _Finish_) a primary button. Buttons are at least 2.75rem high.
 - **Notices:** every notice of [Texts](#texts) is shown as an error notice with `role="alert"`. The _partial Worker
   secrets_ and _reset needed_ texts of the GitHub App step are error notices too, and the _chat id secret_ text, the
   _worker secret token_ text of the Telegram step, the _Worker secrets_ text of the GitHub App step and the created
-  page's _app saved_ are info notices; these six carry no role.
+  page's _app saved_ are info notices, and so are the _Active, but not set up_ text of the Messengers card and the _Telegram active, not set up_ text of the Telegram step; these eight carry no role.
 - **Colours:** the pages follow the system setting: light colours by default, dark colours under
   `@media (prefers-color-scheme: dark)`, and `color-scheme: light dark`, so the browser's own controls (selects,
   time fields, checkboxes, radio buttons) follow too; a browser without the media query shows the light colours.
@@ -634,6 +674,9 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
 - _wrong code_: "The code does not match the test message. Check the code in your chat and enter it again."
 - _code expired_: "The code has expired or the form is no longer valid. Search for chats again and send a new test
   message."
+- Messengers: the heading "Messengers"; the intro "Seluna sends its notifications through one messenger, the active one. Set up a messenger, then activate it; notifications still waiting are then sent through it."; the states "Not set up", "Set up" and "Active"; the notice "Active, but not set up: notifications wait until it is set up."; the links "Set up" and "Change"; the buttons "Activate" and "Remove"; in the status section the label "Messenger:" and the suffix "(not set up)".
+- _messenger invalid_: "Please choose a messenger from the list."; _messenger not set up_: "This messenger is not set up yet. Set it up first, then activate it."; _messenger Worker secrets_: "This messenger is set by Worker secrets, which Seluna cannot remove. Delete them in the Cloudflare dashboard under Settings, then Variables and Secrets."
+- Telegram step: the info notice "Telegram is the active messenger: notifications wait until a bot token and a chat are set up here."
 - Start page: "Set up your instance step by step:" and the links "Telegram chat" and "GitHub App".
 - Step navigation: the name "Setup steps" and the items "Start page", "Telegram chat" and "GitHub App" (the last two
   are the headings of the two step pages); the language navigation is named "Language", the label it already shows.
@@ -782,7 +825,7 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   the token field (`type="password"`, `autocomplete="off"`) with the saved `SELUNA_SECRET`, or offer to replace the
   saved login with the token, was not observed either; a hex `SELUNA_SECRET` filled into the field fails the bot
   token form and answers 400 before any request.
-- A login, logout, settings, reset, Telegram (token, remove, confirm, verify) or GitHub form body is limited to 1 MiB counted in bytes before decoding; the parsed text is never longer than
+- A login, logout, settings, reset, messenger (activate, remove), Telegram (token, remove, confirm, verify) or GitHub form body is limited to 1 MiB counted in bytes before decoding; the parsed text is never longer than
   that number of bytes.
 - At most four values per cookie name are looked at; the `Accept-Language` and `Cookie` headers are otherwise
   limited only by the platform's header size, and reading them takes time proportional to their length, also for
@@ -806,6 +849,8 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
 - [`decisions/0036-telegram-bot-token-in-the-setup-wizard.md`](../decisions/0036-telegram-bot-token-in-the-setup-wizard.md)
   — the bot token entered in the Telegram step and kept encrypted, `getMe` as its check, the precedence of a set
   `TELEGRAM_BOT_TOKEN` without fallback, a damaged token row repairable in the step.
+- [`decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md`](../decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)
+  — the active messenger on the start page, _Activate_ and _Remove_, no fallback, removing the active messenger allowed.
 - [`decisions/0017-github-app-manifest-flow.md`](../decisions/0017-github-app-manifest-flow.md) — the manifest flow,
   the signed-out return and the finish form protected by its state, the owner check, the PKCS#8 conversion, the
   one-transaction write and the precedence of the Worker secrets.

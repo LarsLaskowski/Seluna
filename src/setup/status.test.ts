@@ -18,7 +18,12 @@ import { GITHUB_APP_SLUG_META_KEY, LAST_DELIVERY_META_KEY } from "../store/meta"
 import { writeSecret, writeSecrets } from "../store/secrets";
 import type { Installation } from "../github/installations";
 import type { StatusGitHub, StatusView } from "./status";
-import { formatDeliveryTime, statusView } from "./status";
+import { formatDeliveryTime, messengersView, statusView } from "./status";
+import type { MessengerEntry } from "./status";
+import { TELEGRAM_CHANNEL } from "../channels/telegram";
+import type { ChannelList } from "../channels/channel";
+import { DELIVERY_CHANNEL_SETTING, TELEGRAM_CHAT_ID_SETTING } from "../store/settings";
+import { testChannel } from "../../test/channel";
 
 const SECRET = "throwaway-setup-secret-0123456789abcdef";
 const OTHER_SECRET = "another-throwaway-secret-fedcba9876543210";
@@ -84,6 +89,19 @@ async function saveApp(appId: string, privateKey: string): Promise<void> {
   expect(written, "seeding the credentials").toEqual({ kind: "ok" });
 }
 
+/** The Telegram entry of the messengers card: active by default. */
+function telegramEntry(changes: Partial<MessengerEntry> = {}): MessengerEntry {
+  return {
+    id: "telegram",
+    name: "Telegram",
+    setupPath: "/setup/telegram",
+    configured: false,
+    active: true,
+    removable: false,
+    ...changes,
+  };
+}
+
 describe("statusView", () => {
   const EMPTY: Omit<StatusView, "version"> = {
     botToken: "none",
@@ -93,6 +111,7 @@ describe("statusView", () => {
     resetNeeded: false,
     settings: DEFAULT_SETTINGS,
     installations: { kind: "hidden" },
+    messengers: { entries: [telegramEntry()], active: telegramEntry() },
   };
 
   it.each<{ case: string; prepare: () => Promise<void>; workerEnv?: object; expected: Partial<StatusView> }>([
@@ -260,6 +279,31 @@ describe("statusView", () => {
     expect(JSON.stringify(view), "status view as text").not.toContain(OTHER_BOT_TOKEN);
     expect(JSON.stringify(view), "status view as text").not.toContain(BOT_TOKEN);
     expect(github.requests, "GitHub requests").toEqual([]);
+  });
+
+  it("statusView lists the registered messengers it is given and the active one", async () => {
+    await putSetting(DELIVERY_CHANNEL_SETTING, "test");
+    const channel = testChannel({ configured: true });
+    const channels: ChannelList = [TELEGRAM_CHANNEL, channel];
+
+    const view = await statusView(
+      { SELUNA_SECRET: SECRET },
+      env.DB,
+      await keyFor(SECRET),
+      VERSION,
+      { fetcher: GITHUB.fetcher, now: GITHUB.now },
+      channels,
+    );
+
+    const test: MessengerEntry = {
+      id: "test",
+      name: "test",
+      setupPath: "/setup/test",
+      configured: true,
+      active: true,
+      removable: false,
+    };
+    expect(view.messengers, "messengers").toEqual({ entries: [telegramEntry({ active: false }), test], active: test });
   });
 
   it("statusView lets a D1 error reach the caller", async () => {
@@ -517,4 +561,158 @@ describe("formatDeliveryTime", () => {
       expect(text.endsWith(")"), "text ends with the zone in parentheses").toBe(true);
     },
   );
+});
+
+/** The Worker environment of a set-up Telegram: a usable token and a chat. */
+const TELEGRAM_READY_ENV = { SELUNA_SECRET: SECRET, TELEGRAM_BOT_TOKEN: BOT_TOKEN, TELEGRAM_CHAT_ID: "987654321" };
+
+describe("messengersView", () => {
+  it("messengersView lists Telegram alone as active and not set up when nothing is set up", async () => {
+    const view = await messengersView({ SELUNA_SECRET: SECRET }, env.DB, [TELEGRAM_CHANNEL]);
+
+    expect(view, "messengers").toEqual({ entries: [telegramEntry()], active: telegramEntry() });
+  });
+
+  it("messengersView lists every registered channel in the registry order, also one that is not set up", async () => {
+    const first = testChannel({ id: "first", configured: false });
+    const second = testChannel({ id: "second", configured: true });
+
+    const view = await messengersView({ SELUNA_SECRET: SECRET }, env.DB, [first, TELEGRAM_CHANNEL, second]);
+
+    expect(
+      view.entries.map((entry) => [entry.id, entry.name, entry.setupPath, entry.configured, entry.active]),
+      "entries",
+    ).toEqual([
+      ["first", "first", "/setup/first", false, false],
+      ["telegram", "Telegram", "/setup/telegram", false, true],
+      ["second", "second", "/setup/second", true, false],
+    ]);
+  });
+
+  it("messengersView marks the channel the delivery_channel setting names as active and returns its entry", async () => {
+    await putSetting(DELIVERY_CHANNEL_SETTING, "second");
+    const second = testChannel({ id: "second", configured: true });
+
+    const view = await messengersView({ SELUNA_SECRET: SECRET }, env.DB, [TELEGRAM_CHANNEL, second]);
+
+    expect(
+      view.entries.map((entry) => entry.active),
+      "active flags",
+    ).toEqual([false, true]);
+    expect(view.active, "active entry").toBe(view.entries[1]);
+  });
+
+  it.each([
+    { case: "an unknown id", stored: "gone" },
+    { case: "an upper-case id", stored: "SECOND" },
+    { case: "a padded id", stored: " second" },
+    { case: "an empty id", stored: "" },
+  ])("messengersView reads $case as telegram", async ({ stored }) => {
+    await putSetting(DELIVERY_CHANNEL_SETTING, stored);
+    const second = testChannel({ id: "second" });
+
+    const view = await messengersView({ SELUNA_SECRET: SECRET }, env.DB, [TELEGRAM_CHANNEL, second]);
+
+    expect(view.active.id, "active id").toBe("telegram");
+    expect(
+      view.entries.map((entry) => entry.active),
+      "active flags",
+    ).toEqual([true, false]);
+  });
+
+  it.each<{ case: string; workerEnv: object; prepare: () => Promise<void>; configured: boolean; removable: boolean }>([
+    {
+      case: "the Worker secrets for token and chat: set up and not removable",
+      workerEnv: TELEGRAM_READY_ENV,
+      prepare: () => Promise.resolve(),
+      configured: true,
+      removable: false,
+    },
+    {
+      case: "a Worker secret token without a chat: not set up",
+      workerEnv: { TELEGRAM_BOT_TOKEN: BOT_TOKEN },
+      prepare: () => Promise.resolve(),
+      configured: false,
+      removable: false,
+    },
+    {
+      case: "a saved token and a saved chat: set up and removable",
+      workerEnv: {},
+      prepare: async () => {
+        await saveBotToken(SECRET, OTHER_BOT_TOKEN);
+        await putSetting(TELEGRAM_CHAT_ID_SETTING, "5001001");
+      },
+      configured: true,
+      removable: true,
+    },
+    {
+      case: "a saved token without a chat: not set up but removable",
+      workerEnv: {},
+      prepare: () => saveBotToken(SECRET, OTHER_BOT_TOKEN),
+      configured: false,
+      removable: true,
+    },
+    {
+      case: "a saved token that cannot be read: not set up and not removable",
+      workerEnv: {},
+      prepare: () => saveBotToken(OTHER_SECRET, OTHER_BOT_TOKEN),
+      configured: false,
+      removable: false,
+    },
+    {
+      case: "a saved token whose own row is damaged: not set up but removable",
+      workerEnv: {},
+      prepare: async () => {
+        await saveBotToken(SECRET, OTHER_BOT_TOKEN);
+        await env.DB.prepare(
+          "UPDATE secrets SET ciphertext = (CASE WHEN substr(ciphertext, 1, 1) = 'A' THEN 'B' ELSE 'A' END) || substr(ciphertext, 2) WHERE key = 'telegram_bot_token'",
+        ).run();
+      },
+      configured: false,
+      removable: true,
+    },
+    {
+      case: "a Worker secret token beside a saved token: not removable",
+      workerEnv: { TELEGRAM_BOT_TOKEN: BOT_TOKEN },
+      prepare: () => saveBotToken(SECRET, OTHER_BOT_TOKEN),
+      configured: false,
+      removable: false,
+    },
+  ])("messengersView reports Telegram with $case", async ({ workerEnv, prepare, configured, removable }) => {
+    await prepare();
+
+    const view = await messengersView({ SELUNA_SECRET: SECRET, ...workerEnv }, env.DB, [TELEGRAM_CHANNEL]);
+
+    expect(view.entries[0], "Telegram entry").toEqual(telegramEntry({ configured, removable }));
+  });
+
+  it("messengersView takes configured and removable of a channel from its own answers", async () => {
+    const channel = testChannel({ id: "second", configured: true, removable: true });
+
+    const view = await messengersView({ SELUNA_SECRET: SECRET }, env.DB, [TELEGRAM_CHANNEL, channel]);
+
+    expect(view.entries[1], "entry").toEqual({
+      id: "second",
+      name: "second",
+      setupPath: "/setup/second",
+      configured: true,
+      active: false,
+      removable: true,
+    });
+  });
+
+  it("messengersView puts no credential into its answer", async () => {
+    await saveBotToken(SECRET, OTHER_BOT_TOKEN);
+
+    const view = await messengersView({ ...TELEGRAM_READY_ENV }, env.DB, [TELEGRAM_CHANNEL]);
+
+    expect(JSON.stringify(view), "view as text").not.toContain(OTHER_BOT_TOKEN);
+    expect(JSON.stringify(view), "view as text").not.toContain(BOT_TOKEN);
+  });
+
+  it("messengersView lets a D1 error reach the caller", async () => {
+    const pending = messengersView({ SELUNA_SECRET: SECRET }, migrationTestDb(), [TELEGRAM_CHANNEL]);
+
+    await expect(pending, "result").rejects.toThrow(/no such table/i);
+  });
 });
