@@ -3,8 +3,11 @@ import { decrypt, encrypt } from "../crypto";
 /** The GitHub App credentials kept in the `secrets` table, written together by `writeSecrets`. */
 export type GitHubSecretName = "github_app_id" | "github_private_key" | "github_webhook_secret";
 
+/** The delivery channel credentials kept in the `secrets` table. */
+export type ChannelSecretName = "telegram_bot_token";
+
 /** The credentials kept in the `secrets` table. */
-export type SecretName = GitHubSecretName | "telegram_bot_token";
+export type SecretName = GitHubSecretName | ChannelSecretName;
 
 /** Outcome of reading one credential. */
 export type SecretReadResult =

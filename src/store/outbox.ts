@@ -1,5 +1,9 @@
+import { encodeStoredNotification } from "../notification";
+import type { StoredNotification } from "../notification";
+
+/** A row to be stored: the notification is written to `outbox.text` as JSON. */
 export interface NewOutboxRow {
-  readonly text: string;
+  readonly notification: StoredNotification;
   readonly buttonUrl: string | undefined;
   readonly silent: boolean;
 }
@@ -8,7 +12,7 @@ export interface NewOutboxRow {
 export function outboxInsert(db: D1Database, row: NewOutboxRow, createdAt: Date): D1PreparedStatement {
   return db
     .prepare("INSERT INTO outbox (text, button_url, silent, created_at) VALUES (?1, ?2, ?3, ?4) RETURNING id")
-    .bind(row.text, row.buttonUrl ?? null, row.silent ? 1 : 0, createdAt.getTime());
+    .bind(encodeStoredNotification(row.notification), row.buttonUrl ?? null, row.silent ? 1 : 0, createdAt.getTime());
 }
 
 /** Marks a pending row sent and counts the attempt. D1 errors are not caught. */
@@ -25,7 +29,10 @@ export const MAX_ATTEMPTS = 5;
 /** A stored row that is sent or still to be sent. */
 export interface OutboxRow {
   readonly id: number;
+  /** The stored text; `""` for a damaged row whose `text` is not a string. */
   readonly text: string;
+  /** The decoded notification of a new-form row, `"damaged"` for an undecodable one; absent for an old-form row. */
+  readonly notification?: StoredNotification | "damaged";
   readonly buttonUrl: string | undefined;
   readonly silent: boolean;
 }

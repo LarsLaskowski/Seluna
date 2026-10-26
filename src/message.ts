@@ -1,3 +1,4 @@
+import type { StoredNotification } from "./notification";
 import type { Notification } from "./rules/rule";
 
 /** Longest title, in code points. */
@@ -83,4 +84,9 @@ export function formatMessage(notification: Notification): OutboxMessage {
     }
   }
   return { text: lines.join("\n"), buttonUrl: buttonUrl(notification.url) };
+}
+
+/** The Telegram HTML text of a stored notification; every field is cleaned again and escaped. */
+export function renderTelegramText(notification: StoredNotification): string {
+  throw new Error("Not implemented");
 }

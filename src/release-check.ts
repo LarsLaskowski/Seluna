@@ -5,6 +5,7 @@ import type { GitHubFetch } from "./github/conversion";
 import { MESSAGE_TEXTS } from "./i18n/messages";
 import { escapeTelegramHtml } from "./message";
 import type { OutboxMessage } from "./message";
+import type { StoredNotification } from "./notification";
 import type { Language } from "./setup/language";
 import { readNotifiedRelease, recordReleaseNotice } from "./store/notified-release";
 import { readNotificationSettings } from "./store/settings";
@@ -39,6 +40,15 @@ export function formatReleaseMessage(latest: Version, running: Version, language
     text: `${title}\n${line}`,
     buttonUrl: `https://github.com/${UPSTREAM_REPOSITORY}/releases/tag/v${latestText}`,
   };
+}
+
+/** The release notice in `language` as a stored notification, with the button URL of the release. */
+export function releaseNotification(
+  latest: Version,
+  running: Version,
+  language: Language,
+): { readonly notification: StoredNotification; readonly buttonUrl: string } {
+  throw new Error("Not implemented");
 }
 
 /** Reports the latest release once when it is newer than the running and the remembered version. Never rejects. */
@@ -84,7 +94,11 @@ async function run(startedAt: Date, deps: ReleaseCheckDeps): Promise<ReleaseChec
   const message = formatReleaseMessage(latest.version, running, settings.language);
   const id = await recordReleaseNotice(
     deps.db,
-    { text: message.text, buttonUrl: message.buttonUrl, silent: false },
+    {
+      notification: releaseNotification(latest.version, running, settings.language).notification,
+      buttonUrl: message.buttonUrl,
+      silent: false,
+    },
     startedAt,
     versionText(latest.version),
     stored,
