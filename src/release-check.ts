@@ -108,6 +108,10 @@ async function run(startedAt: Date, deps: ReleaseCheckDeps): Promise<ReleaseChec
   if (id === undefined) {
     return "known";
   }
-  await deliverMessages([{ id, text: message.text, buttonUrl: message.buttonUrl, silent: false }], settings, deps);
+  await deliverMessages(
+    [{ id, text: message.text, buttonUrl: message.buttonUrl, silent: false, notification: release.notification }],
+    settings,
+    deps,
+  );
   return "reported";
 }

@@ -1,3 +1,4 @@
+import { legacyNotificationOf } from "../notification";
 import type { StoredNotification } from "../notification";
 import type { ChannelFetch } from "./http";
 
@@ -59,5 +60,5 @@ export type ChannelList = readonly [Channel, ...Channel[]];
 
 /** The notification of `content`: its own, or the one parsed from an old-form text; `undefined` when unreadable. */
 export function contentNotification(content: OutboxContent): StoredNotification | undefined {
-  throw new Error("Not implemented");
+  return content.kind === "notification" ? content.notification : legacyNotificationOf(content.text);
 }

@@ -1,4 +1,5 @@
 import type { Channel, ChannelList } from "./channel";
+import { DELIVERY_CHANNEL_SETTING, readSetting } from "../store/settings";
 import { TELEGRAM_CHANNEL } from "./telegram";
 
 /** The form of a channel id. */
@@ -12,10 +13,14 @@ export const CHANNELS: ChannelList = [TELEGRAM_CHANNEL];
 
 /** The channel whose id is `stored`, else the default channel, else the first. */
 export function activeChannelOf(channels: ChannelList, stored: string | undefined): Channel {
-  throw new Error("Not implemented");
+  return (
+    channels.find((channel) => channel.id === stored) ??
+    channels.find((channel) => channel.id === DEFAULT_CHANNEL_ID) ??
+    channels[0]
+  );
 }
 
 /** The active channel from the `delivery_channel` setting. D1 errors reject. */
-export function readActiveChannel(db: D1Database, channels: ChannelList): Promise<Channel> {
-  throw new Error("Not implemented");
+export async function readActiveChannel(db: D1Database, channels: ChannelList): Promise<Channel> {
+  return activeChannelOf(channels, await readSetting(db, DELIVERY_CHANNEL_SETTING));
 }

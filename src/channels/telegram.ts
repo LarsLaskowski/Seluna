@@ -1,6 +1,9 @@
 import { readSetting, TELEGRAM_CHAT_ID_SETTING } from "../store/settings";
-import { CHAT_ID_SECRET_NAME, isChatIdSecretSet, parseChatId } from "../telegram";
-import type { Channel } from "./channel";
+import { resolveBotToken } from "../bot-token";
+import { renderTelegramText } from "../message";
+import { removeBotToken } from "../setup/telegram-step";
+import { CHAT_ID_SECRET_NAME, isChatIdSecretSet, parseChatId, sendNotification } from "../telegram";
+import type { Channel, ChannelMessage, ChannelSendDeps, ChannelSendResult, SendOptions } from "./channel";
 
 /** `TELEGRAM_CHAT_ID` when set (no fallback if it is not a chat id), else `settings` `telegram_chat_id`. D1 errors reject. */
 export async function chatTarget(env: object, db: D1Database): Promise<number | undefined> {
@@ -12,18 +15,51 @@ export async function chatTarget(env: object, db: D1Database): Promise<number | 
   return stored === undefined ? undefined : parseChatId(stored);
 }
 
+/** Sends one message through the Bot API with the resolved token and chat. Never rejects. */
+async function sendThroughBotApi(
+  token: string,
+  chatId: number,
+  message: ChannelMessage,
+  options: SendOptions,
+  deps: ChannelSendDeps,
+): Promise<ChannelSendResult> {
+  const { content } = message;
+  const text = content.kind === "notification" ? renderTelegramText(content.notification) : content.text;
+  const sent = await sendNotification(
+    token,
+    chatId,
+    { text, buttonText: options.buttonLabel, buttonUrl: message.buttonUrl, silent: options.silent },
+    deps.fetch,
+    deps.sleep,
+  );
+  return sent === "token-rejected" ? "rejected" : sent;
+}
+
 /** The Telegram channel. */
 export const TELEGRAM_CHANNEL: Channel = {
   id: "telegram",
   displayName: "Telegram",
   setupPath: "/setup/telegram",
-  prepare: () => {
-    throw new Error("Not implemented");
+  prepare: async (env, db) => {
+    const token = await resolveBotToken(env, db);
+    if (token.kind !== "usable") {
+      return { kind: "unavailable", result: "no-token" };
+    }
+    const chatId = await chatTarget(env, db);
+    if (chatId === undefined) {
+      return { kind: "unavailable", result: "no-chat" };
+    }
+    return {
+      kind: "ready",
+      send: (message, options, deps) => sendThroughBotApi(token.token, chatId, message, options, deps),
+    };
   },
-  hasRemovableCredentials: () => {
-    throw new Error("Not implemented");
+  hasRemovableCredentials: async (env, db) => {
+    const token = await resolveBotToken(env, db);
+    return (token.kind === "usable" && token.source === "saved") || token.kind === "damaged";
   },
-  remove: () => {
-    throw new Error("Not implemented");
+  remove: async (env, db) => {
+    const result = await removeBotToken(env, db);
+    return result.kind;
   },
 };

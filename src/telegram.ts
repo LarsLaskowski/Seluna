@@ -1,4 +1,11 @@
-import { readJsonWithLimit } from "./body";
+import {
+  CHANNEL_TIMEOUT_MS,
+  MAX_CHANNEL_RESPONSE_BYTES,
+  MAX_RETRY_WAIT_SECONDS,
+  postJson,
+  postJsonWithRetry,
+} from "./channels/http";
+import type { ChannelFetch, HttpAnswer } from "./channels/http";
 
 const BOT_TOKEN_FORM = /^\d{1,20}:[A-Za-z0-9_-]{1,200}$/;
 const CHAT_ID_FORM = /^-?[1-9]\d{0,15}$/;
@@ -6,7 +13,7 @@ const USERNAME_FORM = /^\w{1,64}$/;
 const UPDATE_FIELDS = ["message", "edited_message", "my_chat_member"] as const;
 
 /** Sends one request to the Telegram Bot API; injected so tests never reach the network. */
-export type TelegramFetch = (request: Request) => Promise<Response>;
+export type TelegramFetch = ChannelFetch;
 
 /** Name of the Worker secret holding the bot token. */
 export const BOT_TOKEN_NAME = "TELEGRAM_BOT_TOKEN";
@@ -14,9 +21,9 @@ export const BOT_TOKEN_NAME = "TELEGRAM_BOT_TOKEN";
 export const CHAT_ID_SECRET_NAME = "TELEGRAM_CHAT_ID";
 export const TELEGRAM_API_ORIGIN = "https://api.telegram.org";
 /** Largest Bot API answer read, in bytes before decoding: 1 MiB. */
-export const MAX_TELEGRAM_RESPONSE_BYTES = 1_048_576;
+export const MAX_TELEGRAM_RESPONSE_BYTES = MAX_CHANNEL_RESPONSE_BYTES;
 /** Each Bot API request is aborted after 10 seconds. */
-export const TELEGRAM_TIMEOUT_MS = 10_000;
+export const TELEGRAM_TIMEOUT_MS = CHANNEL_TIMEOUT_MS;
 /** `getUpdates` asks for the newest this many updates (`offset` is its negative). */
 export const GET_UPDATES_LIMIT = 100;
 /** A chat name or username is cut to this many code points. */
@@ -200,48 +207,15 @@ export async function verifyBotToken(token: string, fetcher: TelegramFetch): Pro
   return answer.ok && isRecord(answer.body) && answer.body.ok === true ? "accepted" : "unavailable";
 }
 
-type BotApiAnswer =
-  | { readonly kind: "answered"; readonly status: number; readonly ok: boolean; readonly body: unknown }
-  | { readonly kind: "failed" };
+type BotApiAnswer = HttpAnswer;
 
 /** One POST to a Bot API method with a JSON body; never throws. The body of a non-2xx answer is read only for a 429. */
-async function callBotApi(
-  token: string,
-  method: string,
-  payload: object,
-  fetcher: TelegramFetch,
-): Promise<BotApiAnswer> {
-  try {
-    const request = new Request(`${TELEGRAM_API_ORIGIN}/bot${token}/${method}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
-    });
-    const response = await fetcher(request);
-    if (!response.ok) {
-      if (response.status === 429) {
-        // Only the `retry_after` of a 429 is used; the answer is read within the same bound.
-        return {
-          kind: "answered",
-          status: response.status,
-          ok: false,
-          body: await readJsonWithLimit(response, MAX_TELEGRAM_RESPONSE_BYTES),
-        };
-      }
-      await response.body?.cancel().catch(() => undefined);
-      return { kind: "answered", status: response.status, ok: false, body: undefined };
-    }
-    return {
-      kind: "answered",
-      status: response.status,
-      ok: true,
-      body: await readJsonWithLimit(response, MAX_TELEGRAM_RESPONSE_BYTES),
-    };
-  } catch {
-    // Network errors, aborts and unreadable answers carry nothing the owner can use; the cause is dropped.
-    return { kind: "failed" };
-  }
+function callBotApi(token: string, method: string, payload: object, fetcher: TelegramFetch): Promise<BotApiAnswer> {
+  return postJson(botUrl(token, method), payload, fetcher);
+}
+
+function botUrl(token: string, method: string): string {
+  return `${TELEGRAM_API_ORIGIN}/bot${token}/${method}`;
 }
 
 export type SendMessageResult = "sent" | "token-rejected" | "failed";
@@ -264,7 +238,7 @@ export async function sendMessage(
 }
 
 /** Longest `retry_after`, in seconds, waited for within one attempt. */
-export const MAX_RETRY_AFTER_SECONDS = 5;
+export const MAX_RETRY_AFTER_SECONDS = MAX_RETRY_WAIT_SECONDS;
 
 export interface OutgoingMessage {
   readonly text: string;
@@ -315,17 +289,6 @@ export async function sendNotification(
       ? {}
       : { reply_markup: { inline_keyboard: [[{ text: message.buttonText, url: message.buttonUrl }]] } }),
   };
-  let answer = await callBotApi(token, "sendMessage", payload, fetcher);
-  if (answer.kind === "answered" && answer.status === 429) {
-    const seconds = parseRetryAfter(answer.body);
-    if (seconds !== undefined && seconds <= MAX_RETRY_AFTER_SECONDS) {
-      try {
-        await sleep(seconds * 1000);
-      } catch {
-        return "failed";
-      }
-      answer = await callBotApi(token, "sendMessage", payload, fetcher);
-    }
-  }
+  const answer = await postJsonWithRetry(botUrl(token, "sendMessage"), payload, fetcher, sleep, parseRetryAfter);
   return notificationResult(answer);
 }

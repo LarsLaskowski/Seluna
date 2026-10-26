@@ -147,7 +147,13 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
     rows.forEach((row, index) => {
       const outboxId = recorded.outboxIds[index];
       if (outboxId !== undefined) {
-        pending.push({ id: outboxId, text: messages[index]?.text ?? "", buttonUrl: row.buttonUrl, silent: row.silent });
+        pending.push({
+          id: outboxId,
+          text: messages[index]?.text ?? "",
+          buttonUrl: row.buttonUrl,
+          silent: row.silent,
+          notification: row.notification,
+        });
       }
     });
     if (pending.length > 0) {
