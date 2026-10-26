@@ -14,3 +14,4 @@ are quoted in full.
 | 2026-10-26 18:09 | 2b Plan challenge | Devil's Advocate | OBJECTIONS 1 major (store JSON in existing text column, no migration, never weighed), 3 minor (cron on outdated DB, non-text notification = damaged, outboxIsCurrent definition) (opus/medium · 89,772 tokens · 20 tool uses · 211 s) |
 | 2026-10-26 18:17 | 2b Plan revise | Product Manager | Escalation answered: B, store the neutral notification as JSON in the existing outbox.text column, no migration 0002 (issue Scope waived on this point) |
 | 2026-10-26 18:17 | 2b Plan revise | Lead | m1-m3 and 4 Security notes accepted; M1 (JSON in text column, no migration) escalated, recommendation B (opus/medium · usage not reported) |
+| 2026-10-26 18:21 | 2b Plan revise (option B) | Lead | spec/plan/tasks/0038 revised for option B (JSON in text column, no migration); plan-check and decision-check pass (opus/medium · usage pending) |

@@ -1,7 +1,7 @@
 # Spec: Channel-neutral outbox and switchable delivery channel
 
 Source: Issue #69
-Status: Approved by Lead
+Status: Approved by Product Manager
 
 ## Problem
 
@@ -17,9 +17,10 @@ receives does not change.
 - S1: Given Telegram is set up and active, when a rule reports a delivery, then the row stores the notification
   without markup and Telegram receives, when it is sent, exactly the `sendMessage` request it receives today for that
   notification (same text, `parse_mode`, `disable_notification`, link preview option and button).
-- S2: Given `outbox` rows written before the update (Telegram HTML in `text`), when the update's migration has run
-  and such a row is sent with Telegram active, then Telegram receives the stored text unchanged, with the button as
-  today.
+- S2: Given `outbox` rows written before the update (Telegram HTML in `text`, always starting with `<b>`), when such
+  a row is sent with Telegram active after the update, then Telegram receives the stored text unchanged, with the
+  button as today. A row written after the update holds the notification as a JSON object in the same `text` column
+  (starting with `{`); no migration is needed.
 - S3: Given a pending row and the owner activates another set-up messenger, when the row is sent next (the cron
   retry, or the release check's own row), then it goes out through the newly active messenger, rendered by it;
   every send that starts after the switch uses the new messenger.
@@ -48,12 +49,6 @@ receives does not change.
   Telegram step page shows the info notice _Telegram active, not set up_ above its token card.
 - S9: Given the cron retry and the daily release notice, when they send, then they send through the active messenger
   with the same rules as a webhook's rows (quiet hours as _silent_, the button label in the language at sending).
-- S10: Given the database lacks the new migration (Workers Builds' default `npx wrangler deploy` applies none), when
-  the owner opens the start page or a sign-in hits a D1 failure, then the answer is **503** with the notice-only page
-  and _migrations missing_, as for a missing table today. Every webhook delivery meanwhile answers **503** and stores
-  nothing: GitHub does not resend it on its own, and its message is lost unless the owner redelivers it from the
-  app's delivery list after fixing the deploy command.
-
 Texts (English; the German ones are their translation in `src/setup/texts.ts`): the card heading "Messengers" and
 its intro "Seluna sends its notifications through one messenger, the active one. Set up a messenger, then activate
 it; notifications still waiting are then sent through it."; the states, links and hint as quoted in S4; the buttons
@@ -62,8 +57,7 @@ it; notifications still waiting are then sent through it."; the states, links an
 messenger is not set up yet. Set it up first, then activate it." and _messenger worker secrets_ "This messenger is set
 by Worker secrets, which Seluna cannot remove. Delete them in the Cloudflare dashboard under Settings, then Variables
 and Secrets."; the info notice _Telegram active, not set up_ "Telegram is the active messenger: notifications wait
-until a bot token and a chat are set up here."; _migrations missing_ now begins "The database of this instance is not
-up to date: its migrations have not run." (the rest unchanged).
+until a bot token and a chat are set up here."
 
 ## Errors and edge cases
 
@@ -87,26 +81,27 @@ up to date: its migrations have not run." (the rest unchanged).
   finishes through the messenger it started with; the next batch uses the new one. A row keeps its attempt count
   across a switch; `sent` and `failed` rows are never sent again.
 - E9: Two _Activate_ requests at once: the last write wins; the active messenger is always one registered messenger.
-- E10: A new row whose stored notification cannot be read (damaged by hand): the send counts an attempt with the result
-  `failed`, so the row ends `failed` after its fifth attempt instead of waiting forever.
-- E11: A pre-migration row sent while a messenger other than Telegram is active: that messenger receives the title
+- E10: A row whose `text` starts with `{` but is not a readable notification (invalid JSON, another shape, a field of
+  the wrong type), or whose `text` is not a string at all (a blob written by hand; a number is stored as text by the column): the send counts an
+  attempt with the result `failed`, without calling the messenger, so the row ends `failed` after its fifth attempt;
+  the other rows of the batch are still sent.
+- E11: A row written before the update sent while a messenger other than Telegram is active: that messenger receives the title
   (between `<b>` and `</b>`), the repository and number (after ` · `, the number from a trailing ` #<digits>`), the
   first further line as line 2 and the second as line 3 (absent lines empty, as `formatMessage` dropped empty ones;
   the release notice has one), and the row's button URL. Decoding replaces exactly `&lt;`, `&gt;` and then `&amp;`,
   nothing else.
-- E12: The earlier version runs between the migration and the new deploy (or after a failed deploy): its inserts still
-  succeed, and the rows it writes are pre-migration rows to the new version (S2).
 
 ## Non-functional requirements
 
 - **Compatibility:** with Telegram active the Bot API requests are unchanged, byte for byte in their JSON body and URL;
-  existing delivery, retry and release-check tests stay green except where a row's stored form is asserted. Existing
-  `pending`, `sent` and `failed` rows survive the migration with their status, attempts and times.
+  existing delivery, retry and release-check tests stay green except where a row's stored form is asserted. The
+  schema does not change: existing rows keep their status, attempts and times, and an earlier version's insert still
+  works.
 - **Storage:** a new row holds the notification (title, repository, number, line 2, line 3, button URL) as text without
   any messenger's markup, each rule text cleaned and cut to today's limits (64, 140, 256, 256 code points) when written
   and escaped only when a messenger renders it; the release notice's fixed texts as today; the button URL under
-  today's rules. The migration is a new file
-  `migrations/0002_*.sql`; `0001` is not edited.
+  today's rules. It is a JSON object in the existing `text` column; no migration (the Product Manager waived the
+  issue's migration `0002`).
 - **Rules:** no module under `src/rules/` depends on a messenger or produces markup.
 - **Security:** a messenger's credentials are stored only encrypted in `secrets`, under the key check, and deleted by
   the reset (which already deletes every `secrets` row); the shared HTTP code every messenger uses calls out only, with
@@ -121,18 +116,17 @@ up to date: its migrations have not run." (the rest unchanged).
   `token-rejected`, `failed`, `no-token`, `no-chat`, `store-failed`), with Telegram's meanings unchanged; never a
   credential, a destination, a request URL, a message text or a messenger's answer. The new forms log only the request
   line of [HTTP routes](../../docs/areas/http-routes.md#logging).
-- **Time:** sending reads the active messenger once per batch, and the start page reads the `outbox` column list
-  (S10): one more D1 read each. Whether D1 answers the column read (for example `pragma_table_info`) is unverified;
-  the plan names its check.
+- **Time:** sending reads the active messenger once per batch: one more D1 read per batch.
 
 ## Acceptance criteria
 
 - [ ] AC1: For each rule notification and the release notice, the Telegram request sent for a row written after the
-  migration equals the request sent before this change for the same notification, silent flag and language (S1, S9).
-- [ ] AC2: A row written after the migration holds the neutral notification and no Telegram markup; a row written
-  before it (text only) is delivered with Telegram active as an unchanged `sendMessage` with its stored text (S2, E12).
-- [ ] AC3: The migration applies to a database holding `pending`, `sent` and `failed` rows and keeps each row's text,
-  button URL, silent flag, attempts, status and time; the earlier version's insert still succeeds after it (E12).
+  update equals the request sent before this change for the same notification, silent flag and language (S1, S9).
+- [ ] AC2: A row written after the update holds in `text` the neutral notification as a JSON object (starting with
+  `{`) and no Telegram markup; a row written before it (starting with `<b>`) is delivered with Telegram active as an
+  unchanged `sendMessage` with its stored text (S2).
+- [ ] AC3: A row whose `text` starts with `{` but does not decode to a notification, or whose `text` is not a string,
+  counts a `failed` attempt without a messenger call, and the batch's other rows are still sent (E10).
 - [ ] AC4: With a second (test) messenger registered and set up, activating it makes the next send of a pending row,
   in the cron retry and in the release check, go through it and not through Telegram; a batch in progress keeps the
   messenger it started with; attempts carry over (S3, S9, E8).
@@ -149,16 +143,13 @@ up to date: its migrations have not run." (the rest unchanged).
   up_ exactly while Telegram is active and not set up (S8, E7).
 - [ ] AC9: An unknown stored `delivery_channel` reads as `telegram`; saving the settings form leaves `delivery_channel`
   unchanged (E6).
-- [ ] AC10: A row whose stored notification cannot be read counts a `failed` attempt (E10); a pre-migration row sent by
-  a test messenger reaches it as the title, repository, number, lines and button its text holds (E11).
+- [ ] AC10: A row written before the update and sent by a test messenger reaches it as the title, repository, number, lines and button its text holds (E11).
 - [ ] AC11: The shared HTTP code times out after 10 seconds, reads at most 1 MiB, retries once only after a 429 with a
   wait of 1 to 5 seconds and never puts a credential, URL or text into a log entry or result.
-- [ ] AC12: Without the new `outbox` column, the signed-in start page and the sign-in's D1-failure path answer 503
-  with _migrations missing_; with it, they answer as before (S10).
-- [ ] AC13: No module under `src/rules/` imports `src/message.ts`, `src/telegram.ts` or anything under `src/channels/`
+- [ ] AC12: No module under `src/rules/` imports `src/message.ts`, `src/telegram.ts` or anything under `src/channels/`
   (checked by a lint rule or a test, as the plan decides).
-- [ ] AC14: A decision record superseding the rendering choice of decision 0023 (released) exists, and the area documents below,
-  `docs/ARCHITECTURE.md`, `.squad/project.md`, `README.md`, `migrations/README.md` and `CHANGELOG.md` describe the built behavior (review).
+- [ ] AC13: A decision record superseding the rendering choice of decision 0023 (released) exists, and the area documents below,
+  `docs/ARCHITECTURE.md`, `.squad/project.md`, `README.md` and `CHANGELOG.md` describe the built behavior (review).
 
 ## Out of scope
 
@@ -167,15 +158,15 @@ up to date: its migrations have not run." (the rest unchanged).
 - Sending to several messengers at once, and any fallback to a messenger other than the active one.
 - Entering the Telegram bot token (#68, done); changes to the Telegram step other than the notice of S8, to the step
   navigation or to the reset texts.
-- An extra log field naming the messenger; storing a webhook's rows in the old form when the migration is missing.
+- An extra log field naming the messenger.
 - Resetting a row's attempts when the messenger is switched.
-- Running an earlier version on the migrated database after the new version wrote rows (a reverted update): those rows
-  are not guaranteed to be delivered by it.
+- Running an earlier version after the new version wrote rows (a reverted update): the earlier version sends such a
+  row's JSON text as the message (or Telegram refuses it if the text holds `<`), accepted by the Product Manager.
 
 ## Open questions
 
-- How do pre-migration rows reach the new model? Answered: they stay as they are and are told apart by having no
-  stored notification; with Telegram active their text is sent as stored (S2); another messenger gets the same lines
+- How do rows written before the update reach the new model? Answered: they stay as they are and are told apart by
+  their first character (`<b>`, never `{`); with Telegram active their text is sent as stored (S2); another messenger gets the same lines
   without markup (E11), which the writer's fixed format makes recoverable (`src/message.ts`: escaped fields, only `<b>`
   around the title, line feeds between lines). No message is dropped by the transition.
 - Removing the active messenger: refusal or fallback? Answered: neither — removal is allowed from the card and from
@@ -185,8 +176,8 @@ up to date: its migrations have not run." (the rest unchanged).
   Telegram is the only messenger.
 - The active messenger becomes unconfigured? Answered: rows wait without counting attempts, as today without a token
   ([decision 0036](../../docs/decisions/0036-telegram-bot-token-in-the-setup-wizard.md)); no fallback (S8).
-- A database without the new migration? Answered: detected and shown as _migrations missing_ (S10); the webhook's 503
-  and the loss of deliveries not redelivered by hand are stated, not prevented (Out of scope).
+- A migration `0002` (issue *Scope*)? Answered: the Product Manager chose no migration; the JSON goes into `text`, so a
+  deploy without migrations loses nothing.
 - When do pending rows go out after a switch? Answered: at their next send, which for an older row is the 10-minute
   cron retry (rows older than 60 seconds, 10 per run, [Scheduled jobs](../../docs/areas/scheduled-jobs.md#retry)); the
   messenger is resolved once at the start of each batch (S3, E8). Activation sends nothing by itself.
@@ -195,20 +186,18 @@ up to date: its migrations have not run." (the rest unchanged).
 ## Area documents
 
 - `docs/areas/notifications.md`: the notification stored neutral and rendered by the active messenger at sending;
-  Telegram's rendering (today's message format) as the Telegram messenger's; pre-migration rows; the active messenger
+  Telegram's rendering (today's message format) as the Telegram messenger's; rows written before the update; the active messenger
   resolved once per batch, no fallback; the shared HTTP rules; log results.
-- `docs/areas/storage.md`: the new `outbox` column and the old rows, the `delivery_channel` setting, messenger
+- `docs/areas/storage.md`: what `outbox.text` holds for new and old rows, the `delivery_channel` setting, messenger
   credentials in `secrets`.
 - `docs/areas/setup-wizard.md`: the _Messengers_ card, its states, actions, forms, answers and texts; the _Messenger:_
   status line; the two forms in *Paths* and the CSRF list.
 - `docs/areas/scheduled-jobs.md`: retry and release notice through the active messenger.
 - `docs/areas/http-routes.md`: the two new body-reading `POST` routes in the body limit list.
-- `docs/areas/deployment.md`: a database without the new column (S10), beside the missing tables;
-  `migrations/README.md`: the new migration.
 
 ## Challenge
 
-- M1 (missing migration is not "as today"): accepted — the claim was wrong (the table check sees no column, the setup
+- M1 (missing migration is not "as today"): accepted, later moot (m6) — the claim was wrong (the table check sees no column, the setup
   pages read no `outbox`). Added S10 and AC12 (detection, reworded _migrations missing_); the webhook's 503 and the
   loss of deliveries not redelivered by hand are stated; old-form rows stay out of scope; `deployment.md` added.
 - M2 (E1 and E7 contradict): accepted, option (a): removal of the active messenger is allowed from card and step alike,
@@ -219,4 +208,6 @@ up to date: its migrations have not run." (the rest unchanged).
 - m4: accepted — fields stored cleaned and cut, escaped at rendering (NFR Storage); the Telegram text stays identical
   because `formatMessage` cleans before it escapes.
 - m5: accepted — Telegram's client uses the shared HTTP code (NFR Security), guarded by AC1.
-- m6: accepted — `migrations/README.md` in the area documents and AC14.
+- m6: accepted — later moot: the Product Manager chose no migration (plan challenge M1), so S10, E12, the migration
+  detection criterion and `migrations/README.md` were dropped and the criteria renumbered (AC12 rules imports, AC13
+  documentation); AC3 now covers damaged rows.
