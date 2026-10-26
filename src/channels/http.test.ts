@@ -42,6 +42,15 @@ function waitOf(body: unknown): number | undefined {
   return undefined;
 }
 
+/** A body stream that fails when it is read. */
+function unreadableBody(): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      controller.error(new Error("connection lost"));
+    },
+  });
+}
+
 function sleepSpy(): ReturnType<typeof vi.fn<(milliseconds: number) => Promise<void>>> {
   return vi.fn<(milliseconds: number) => Promise<void>>(() => Promise.resolve());
 }
@@ -176,12 +185,28 @@ describe("postJson", () => {
     expect(answer, "answer").toEqual({ kind: "answered", status: 429, ok: false, body: { wait: 3 } });
   });
 
-  it("postJson reads no more than 1 MiB of a 429 answer", async () => {
+  it("postJson answers a 429 whose body is above 1 MiB as a 429 without a body", async () => {
     const double = answering(new Response("x".repeat(MAX_CHANNEL_RESPONSE_BYTES + 1), { status: 429 }));
 
     const answer = await postJson("https://channel.example/send", PAYLOAD, double.fetch);
 
-    expect(answer, "answer").toEqual({ kind: "failed" });
+    expect(answer, "answer").toEqual({ kind: "answered", status: 429, ok: false, body: undefined });
+  });
+
+  it("postJson answers a 429 whose body cannot be read as a 429 without a body", async () => {
+    const double = answering(new Response(unreadableBody(), { status: 429 }));
+
+    const answer = await postJson("https://channel.example/send", PAYLOAD, double.fetch);
+
+    expect(answer, "answer").toEqual({ kind: "answered", status: 429, ok: false, body: undefined });
+  });
+
+  it("postJson answers a 429 whose body is not JSON as a 429 without a body", async () => {
+    const double = answering(new Response("not json", { status: 429 }));
+
+    const answer = await postJson("https://channel.example/send", PAYLOAD, double.fetch);
+
+    expect(answer, "answer").toEqual({ kind: "answered", status: 429, ok: false, body: undefined });
   });
 });
 
@@ -218,6 +243,20 @@ describe("postJsonWithRetry", () => {
     const answer = await postJsonWithRetry("https://channel.example/send", PAYLOAD, double.fetch, sleep, waitOf);
 
     expect(answer, "answer").toEqual({ kind: "answered", status: 429, ok: false, body });
+    expect(sleep, "sleep").not.toHaveBeenCalled();
+    expect(double.fetch, "number of requests").toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { case: "above 1 MiB", body: () => "x".repeat(MAX_CHANNEL_RESPONSE_BYTES + 1) },
+    { case: "unreadable", body: unreadableBody },
+  ])("postJsonWithRetry sends once and does not wait after a 429 whose body is $case", async ({ body }) => {
+    const double = answering(new Response(body(), { status: 429 }));
+    const sleep = sleepSpy();
+
+    const answer = await postJsonWithRetry("https://channel.example/send", PAYLOAD, double.fetch, sleep, waitOf);
+
+    expect(answer, "answer").toEqual({ kind: "answered", status: 429, ok: false, body: undefined });
     expect(sleep, "sleep").not.toHaveBeenCalled();
     expect(double.fetch, "number of requests").toHaveBeenCalledTimes(1);
   });
