@@ -239,8 +239,8 @@ No migration changes the column: it is still `text` ([Storage](storage.md)).
   around them; it does not stop ordinary right-to-left letters in a title or repository from reordering the
   neutral characters `·` and `#` of line 1 on screen.
 - **Old-form rows** (written by an earlier version, `text` starting with `<b>`) keep their Telegram HTML. Telegram
-  sends their `text` unchanged. Any other channel receives the notification recovered from it
-  (`legacyNotificationOf`): the first line must start with `<b>`, the title runs to the first `</b> · `, the rest is the
+  sends their `text` unchanged. Any other channel receives the text and recovers the notification from it
+  through `contentNotification` (`legacyNotificationOf`): the first line must start with `<b>`, the title runs to the first `</b> · `, the rest is the
   repository, a trailing ` #` and 1 to 16 digits (first not `0`, a safe integer) is cut off as the number, lines 2 and 3
   are the further lines (a missing one is empty), and `&lt;`, `&gt;`, `&amp;` are decoded once, in this order. A text of
   more than three lines or of another shape cannot be recovered (`contentNotification` returns `undefined`); a channel
