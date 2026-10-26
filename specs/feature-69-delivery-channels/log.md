@@ -19,4 +19,4 @@ are quoted in full.
 | 2026-10-26 18:25 | 4 Skeleton G1 | Dev | G1 skeleton: src/notification.ts stubs, renderTelegramText, releaseNotification, NewOutboxRow/OutboxRow, DELIVERY_CHANNEL_SETTING, SecretName; typecheck fails only in 3 test files for the Tester (sonnet/medium · 88,305 tokens · 17 tool uses · 124 s) |
 | 2026-10-26 18:30 | 5 Tests first G1 | Tester | G1 tests written (notification, message, release-check, outbox, webhook, deliveries, notified-release); 127 fail on stubs as expected, none deferred (sonnet/medium · 146,344 tokens · 23 tool uses · 287 s) |
 | 2026-10-26 18:33 | 6 Implement G1 | Dev | G1 implemented; 7 G1 test files pass (274 tests); one stale test in src/index.test.ts (stored text expectation) handed to the Tester (sonnet/medium · 98,949 tokens · 12 tool uses · 173 s) |
-| 2026-10-26 18:33 | 5 Tests first G1 (coverage delta) | Tester | index.test.ts expectation adapted to stored JSON; 12 tests pass (sonnet/medium · usage pending) |
+| 2026-10-26 18:33 | 5 Tests first G1 (coverage delta) | Tester | index.test.ts expectation adapted to stored JSON; 12 tests pass (sonnet/medium · 1,954 tokens · 4 tool uses · 25 s · continued) |
