@@ -41,7 +41,7 @@ describe("storedNotificationOf", () => {
   it("storedNotificationOf cleans every field and does not escape it", () => {
     const stored = storedNotificationOf(
       notificationWith({
-        title: " a‮b<c> ",
+        title: " a\u202Eb<c> ",
         repository: "o/\nr&",
         subject: "x\u0000y <i>",
         context: "\uD800z",

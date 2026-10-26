@@ -1,10 +1,4 @@
-import {
-  CHANNEL_TIMEOUT_MS,
-  MAX_CHANNEL_RESPONSE_BYTES,
-  MAX_RETRY_WAIT_SECONDS,
-  postJson,
-  postJsonWithRetry,
-} from "./channels/http";
+import { postJson, postJsonWithRetry } from "./channels/http";
 import type { ChannelFetch, HttpAnswer } from "./channels/http";
 
 const BOT_TOKEN_FORM = /^\d{1,20}:[A-Za-z0-9_-]{1,200}$/;
@@ -21,9 +15,9 @@ export const BOT_TOKEN_NAME = "TELEGRAM_BOT_TOKEN";
 export const CHAT_ID_SECRET_NAME = "TELEGRAM_CHAT_ID";
 export const TELEGRAM_API_ORIGIN = "https://api.telegram.org";
 /** Largest Bot API answer read, in bytes before decoding: 1 MiB. */
-export const MAX_TELEGRAM_RESPONSE_BYTES = MAX_CHANNEL_RESPONSE_BYTES;
+export { MAX_CHANNEL_RESPONSE_BYTES as MAX_TELEGRAM_RESPONSE_BYTES } from "./channels/http";
 /** Each Bot API request is aborted after 10 seconds. */
-export const TELEGRAM_TIMEOUT_MS = CHANNEL_TIMEOUT_MS;
+export { CHANNEL_TIMEOUT_MS as TELEGRAM_TIMEOUT_MS } from "./channels/http";
 /** `getUpdates` asks for the newest this many updates (`offset` is its negative). */
 export const GET_UPDATES_LIMIT = 100;
 /** A chat name or username is cut to this many code points. */
@@ -238,7 +232,7 @@ export async function sendMessage(
 }
 
 /** Longest `retry_after`, in seconds, waited for within one attempt. */
-export const MAX_RETRY_AFTER_SECONDS = MAX_RETRY_WAIT_SECONDS;
+export { MAX_RETRY_WAIT_SECONDS as MAX_RETRY_AFTER_SECONDS } from "./channels/http";
 
 export interface OutgoingMessage {
   readonly text: string;
