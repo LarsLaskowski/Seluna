@@ -1,5 +1,11 @@
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { CHANNEL_TIMEOUT_MS, MAX_CHANNEL_RESPONSE_BYTES, postJson, postJsonWithRetry } from "./http";
+import {
+  CHANNEL_TIMEOUT_MS,
+  MAX_CHANNEL_RESPONSE_BYTES,
+  MAX_RETRY_WAIT_SECONDS,
+  postJson,
+  postJsonWithRetry,
+} from "./http";
 import type { ChannelFetch } from "./http";
 
 const URL_WITH_CREDENTIAL = "https://channel.example/bot123456789:AAH-throwaway_token0123456789abcdefghij/send";
@@ -39,6 +45,14 @@ function waitOf(body: unknown): number | undefined {
 function sleepSpy(): ReturnType<typeof vi.fn<(milliseconds: number) => Promise<void>>> {
   return vi.fn<(milliseconds: number) => Promise<void>>(() => Promise.resolve());
 }
+
+describe("channel constants", () => {
+  it("the shared HTTP limits are 10 seconds, 1 MiB and 5 seconds", () => {
+    expect(CHANNEL_TIMEOUT_MS, "timeout").toBe(10_000);
+    expect(MAX_CHANNEL_RESPONSE_BYTES, "answer limit").toBe(1_048_576);
+    expect(MAX_RETRY_WAIT_SECONDS, "longest wait").toBe(5);
+  });
+});
 
 describe("postJson", () => {
   it("postJson posts the payload as JSON to the URL and returns the status and the decoded body", async () => {

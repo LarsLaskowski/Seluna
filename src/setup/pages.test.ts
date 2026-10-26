@@ -2897,3 +2897,39 @@ describe("renderTelegramPage active-but-not-set-up notice", () => {
     },
   );
 });
+
+describe("renderStartPage Messengers card: negatives", () => {
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderStartPage shows no info notice for a messenger that is not active in $language",
+    ({ language }) => {
+      const page = startPage(language, {
+        messengers: messengersOf([
+          entryOf({ configured: false, active: false }),
+          entryOf({ id: "second", name: "Second", setupPath: "/setup/second" }),
+        ]),
+      });
+
+      expect(Array.from(messengersCard(page, language).matchAll(/class="notice info"/g)), "info notices").toEqual([]);
+    },
+  );
+
+  it("renderStartPage shows no Messengers card in the notice-only view", () => {
+    const page = renderStartPage("en", CSRF_TOKEN, { kind: "notice-only" }, "unavailable");
+
+    expect(page, "heading").not.toContain(escapeHtml(TEXTS.en.messengersHeading));
+  });
+
+  it.each([
+    { case: "activeNotSetUp false", changes: { activeNotSetUp: false } },
+    { case: "activeNotSetUp omitted", changes: {} },
+  ])("renderTelegramPage shows no Telegram active notice with $case", ({ changes }) => {
+    const page = renderTelegramPage("en", CSRF_TOKEN, {
+      kind: "step",
+      token: { kind: "missing" },
+      chat: { kind: "hidden", savedChatId: undefined },
+      ...changes,
+    });
+
+    expect(page, "notice").not.toContain(escapeHtml(TEXTS.en.telegramActiveNotSetUp));
+  });
+});

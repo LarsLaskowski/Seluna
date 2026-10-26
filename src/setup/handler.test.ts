@@ -4625,10 +4625,42 @@ describe("handleSetup messenger forms: protection", () => {
     expect(await response.text(), "body").toBe("");
   });
 
-  it.each(CHANNEL_PATHS)("POST %s answers an empty body with 400", async (path) => {
-    const response = await call(path, { method: "POST", cookies: await signedInCookies(), body: "" });
+  it.each(CHANNEL_PATHS)("POST %s answers an unreadable body with 400 and an empty body", async (path) => {
+    const unreadable = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.error(new Error("connection lost"));
+      },
+    });
+
+    const response = await call(path, { method: "POST", cookies: await signedInCookies(), body: unreadable });
 
     expect(response.status, "status").toBe(400);
+    expect(await response.text(), "body").toBe("");
+  });
+
+  it.each(CHANNEL_PATHS)("POST %s answers an empty form with 403 and the form expired notice", async (path) => {
+    const response = await call(path, { method: "POST", cookies: await signedInCookies(), body: "" });
+
+    expect(response.status, "status").toBe(403);
+    expect(await response.text(), "notice").toContain(noticeText("form-expired"));
+  });
+
+  it.each(CHANNEL_PATHS)("POST %s without a session answers the login page and changes nothing", async (path) => {
+    const response = await call(
+      path,
+      { method: "POST", body: form([["channel", "test"]]) },
+      depsAt(NOW.getTime(), { db: unusedDb() }),
+    );
+
+    expect(response.status, "status").toBe(200);
+    expectLoginPage(await response.text());
+  });
+
+  it.each(CHANNEL_PATHS)("GET %s answers 404 when signed in", async (path) => {
+    const response = await call(path, { cookies: await signedInCookies() });
+
+    expect(response.status, "status").toBe(404);
+    expect(await response.text(), "body").toBe("");
   });
 
   it.each(CHANNEL_PATHS)("POST %s answers 503 with the unavailable notice when D1 fails", async (path) => {
@@ -4683,5 +4715,87 @@ describe("handleSetup Telegram step notice for an active Telegram that is not se
     expect(response.status, "status").toBe(303);
     expect(response.headers.get("Location"), "Location").toBe(STEP_PATH);
     expect(html, "notice").toContain(NOTICE);
+  });
+});
+
+describe("handleSetup Telegram step notice: negatives", () => {
+  const NOTICE = `<p class="notice info">${escapeHtml(TEXTS.en.telegramActiveNotSetUp)}</p>`;
+
+  it("GET /setup/telegram shows no notice while Telegram is active and set up", async () => {
+    const html = await (await stepPage(chatSecretDeps(telegramDouble()))).text();
+
+    expect(html, "notice").not.toContain(NOTICE);
+  });
+
+  it("GET /setup/telegram shows no notice while another messenger is active and Telegram is not set up", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+
+    const html = await (
+      await stepPage(channelDeps(testChannel({ configured: true }), { SELUNA_SECRET: SECRET }), STEP_PATH)
+    ).text();
+
+    expect(html, "notice").not.toContain(NOTICE);
+  });
+
+  it("GET /setup/telegram shows the step without the notice when reading the active messenger fails", async () => {
+    const failing: D1Database = {
+      prepare: (query: string) => {
+        if (query.includes("settings")) {
+          throw new Error("The database failed");
+        }
+        return env.DB.prepare(query);
+      },
+      batch: (statements) => env.DB.batch(statements),
+      exec: () => Promise.reject(new Error("Not supported by this wrapper")),
+      dump: () => Promise.reject(new Error("Not supported by this wrapper")),
+      withSession: () => {
+        throw new Error("Not supported by this wrapper");
+      },
+    };
+
+    const response = await stepPage(chatSecretDeps(telegramDouble(), { db: failing }));
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    expect(html, "notice").not.toContain(NOTICE);
+    expect(html, "token card").toContain(escapeHtml(TEXTS.en.telegramTokenHeading));
+  });
+});
+
+describe("handleSetup settings form and delivery_channel", () => {
+  it("POST /setup/settings leaves delivery_channel unchanged", async () => {
+    await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
+
+    const response = await postSignedIn(SETTINGS_PATH, await settingsFormFields(), depsAt());
+
+    expect(response.status, "status").toBe(303);
+    expect(await storedChannel(), "stored channel").toBe("test");
+  });
+
+  it("POST /setup/settings ignores a delivery_channel field", async () => {
+    const response = await postSignedIn(
+      SETTINGS_PATH,
+      await settingsFormFields([["delivery_channel", "test"]]),
+      depsAt(),
+    );
+
+    expect(response.status, "status").toBe(303);
+    expect(await storedChannel(), "stored channel").toBeUndefined();
+  });
+
+  it("GET /setup shows the settings form without a delivery_channel field", async () => {
+    const html = await (await stepPage(depsAt(), "/setup")).text();
+
+    expect(html, "settings form").toContain('action="/setup/settings"');
+    expect(html, "delivery_channel").not.toContain("delivery_channel");
+  });
+
+  it("GET /setup shows no Remove for Telegram while TELEGRAM_BOT_TOKEN is set although a token is saved", async () => {
+    await saveBotToken(SAVED_TOKEN);
+
+    const html = await (await stepPage(channelDeps(testChannel()), "/setup")).text();
+
+    expect(messengerItemOf(html, "/setup/telegram"), "item").not.toBe("");
+    expect(messengerItemOf(html, "/setup/telegram"), "remove form").not.toContain(`action="${REMOVE_CHANNEL_PATH}"`);
   });
 });

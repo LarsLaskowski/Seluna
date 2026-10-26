@@ -810,6 +810,25 @@ describe("deliverMessages and the active channel that is not ready", () => {
     },
   );
 
+  it.each<{ case: string; deliveryEnv: object; result: string }>([
+    { case: "no token", deliveryEnv: { TELEGRAM_CHAT_ID: String(CHAT) }, result: "no-token" },
+    { case: "no chat", deliveryEnv: { TELEGRAM_BOT_TOKEN: TOKEN }, result: "no-chat" },
+  ])(
+    "deliverMessages calls no channel and logs $result when Telegram is active with $case and a ready test channel is registered",
+    async ({ deliveryEnv, result }) => {
+      const channel = testChannel();
+      const message = await insertNewRow();
+      const { deps, log, telegram } = harnessWith([TELEGRAM_CHANNEL, channel], {}, deliveryEnv);
+
+      await deliverMessages([message], settingsIn("en"), deps);
+
+      expect(telegram.requests.length, "Telegram requests").toBe(0);
+      expect(channel.sends.length, "sends through the test channel: no fallback").toBe(0);
+      expect(await stateOf(message), "row").toEqual({ status: "pending", attempts: 0 });
+      expect(log, "log entries").toEqual([{ outbox: message.id, result }]);
+    },
+  );
+
   it("deliverMessages leaves a damaged row's attempts unchanged while the active channel is not ready", async () => {
     await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
     const channel = testChannel({ configured: false });

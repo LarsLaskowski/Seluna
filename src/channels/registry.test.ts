@@ -1,6 +1,13 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { activeChannelOf, CHANNELS, readActiveChannel } from "./registry";
+import {
+  activeChannelOf,
+  CHANNEL_ID_FORM,
+  CHANNELS,
+  DEFAULT_CHANNEL_ID,
+  readActiveChannel,
+  RESERVED_SETUP_SEGMENTS,
+} from "./registry";
 import type { ChannelList } from "./channel";
 import { TELEGRAM_CHANNEL } from "./telegram";
 import { DELIVERY_CHANNEL_SETTING, writeSetting } from "../store/settings";
@@ -88,5 +95,54 @@ describe("readActiveChannel", () => {
     };
 
     await expect(readActiveChannel(failing, BOTH), "read").rejects.toThrow("The database failed");
+  });
+});
+
+describe("CHANNELS", () => {
+  it("CHANNELS holds telegram and DEFAULT_CHANNEL_ID names it", () => {
+    expect(DEFAULT_CHANNEL_ID, "default id").toBe("telegram");
+    expect(
+      CHANNELS.map((channel) => channel.id),
+      "ids",
+    ).toEqual(["telegram"]);
+    expect(CHANNELS[0].displayName, "display name").toBe("Telegram");
+  });
+
+  it("CHANNELS ids match the id form, avoid the reserved segments and set setupPath to /setup/<id>", () => {
+    const ids = CHANNELS.map((channel) => channel.id);
+
+    expect(
+      ids.filter((id) => !CHANNEL_ID_FORM.test(id)),
+      "ids outside the form",
+    ).toEqual([]);
+    expect(
+      ids.filter((id) => RESERVED_SETUP_SEGMENTS.includes(id)),
+      "reserved ids",
+    ).toEqual([]);
+    expect(
+      CHANNELS.map((channel) => channel.setupPath),
+      "setup paths",
+    ).toEqual(ids.map((id) => `/setup/${id}`));
+    expect(new Set(ids).size, "distinct ids").toBe(ids.length);
+  });
+});
+
+describe("CHANNEL_ID_FORM and RESERVED_SETUP_SEGMENTS", () => {
+  it.each(["a", "telegram", "a-b", "a1", `a${"b".repeat(31)}`])("CHANNEL_ID_FORM accepts %s", (id) => {
+    expect(CHANNEL_ID_FORM.test(id), "accepted").toBe(true);
+  });
+
+  it.each(["", "A", "1a", "-a", "a_b", "a b", " a", "a ", "a/b", "../a", `a${"b".repeat(32)}`, "é"])(
+    "CHANNEL_ID_FORM rejects %j",
+    (id) => {
+      expect(CHANNEL_ID_FORM.test(id), "accepted").toBe(false);
+    },
+  );
+
+  it("RESERVED_SETUP_SEGMENTS holds the six paths the wizard owns", () => {
+    expect(
+      [...RESERVED_SETUP_SEGMENTS].sort((a, b) => a.localeCompare(b)),
+      "reserved segments",
+    ).toEqual(["channel", "github", "login", "logout", "reset", "settings"]);
   });
 });
