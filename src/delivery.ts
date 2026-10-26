@@ -2,10 +2,13 @@ import { isQuietTime } from "./quiet-hours";
 import type { NotificationSettings } from "./settings";
 import { markAttempted, markSent } from "./store/outbox";
 import type { AttemptOutcome } from "./store/outbox";
-import { readSetting, TELEGRAM_CHAT_ID_SETTING } from "./store/settings";
+import { chatTarget } from "./channels/telegram";
+import type { StoredNotification } from "./notification";
+import type { ChannelFetch } from "./channels/http";
+import type { ChannelList } from "./channels/channel";
 import { resolveBotToken } from "./bot-token";
-import { CHAT_ID_SECRET_NAME, isChatIdSecretSet, parseChatId, sendNotification } from "./telegram";
-import type { SendNotificationResult, TelegramFetch } from "./telegram";
+import { sendNotification } from "./telegram";
+import type { SendNotificationResult } from "./telegram";
 import { MESSAGE_TEXTS } from "./i18n/messages";
 
 export interface PendingMessage {
@@ -13,6 +16,8 @@ export interface PendingMessage {
   readonly text: string;
   readonly buttonUrl: string | undefined;
   readonly silent: boolean;
+  /** The decoded notification; `"damaged"` for an undecodable stored row; absent for an old-form row. */
+  readonly notification?: StoredNotification | "damaged";
 }
 
 export type DeliveryResult =
@@ -27,21 +32,13 @@ export type DeliverySettings = Pick<NotificationSettings, "language" | "timeZone
 export interface DeliveryDeps {
   readonly env: object;
   readonly db: D1Database;
-  readonly fetch: TelegramFetch;
+  readonly fetch: ChannelFetch;
   readonly sleep: (milliseconds: number) => Promise<void>;
   readonly log: (entry: DeliveryLogEntry) => void;
   /** The clock read once per row, just before it is sent, for the quiet hours. */
   readonly now: () => Date;
-}
-
-/** `TELEGRAM_CHAT_ID` when set (no fallback if it is not a chat id), else `settings` `telegram_chat_id`. D1 errors reject. */
-export async function chatTarget(env: object, db: D1Database): Promise<number | undefined> {
-  if (isChatIdSecretSet(env)) {
-    const secret: unknown = CHAT_ID_SECRET_NAME in env ? env[CHAT_ID_SECRET_NAME] : undefined;
-    return typeof secret === "string" ? parseChatId(secret) : undefined;
-  }
-  const stored = await readSetting(db, TELEGRAM_CHAT_ID_SETTING);
-  return stored === undefined ? undefined : parseChatId(stored);
+  /** The registered channels; defaults to `CHANNELS`. */
+  readonly channels?: ChannelList;
 }
 
 type Target =
