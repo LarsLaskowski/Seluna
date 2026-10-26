@@ -71,8 +71,9 @@ until a bot token and a chat are set up here."
   nothing changes.
 - E4: _Activate_ or _Remove_ with a missing, repeated, empty or unknown `channel` field (also `../telegram`, an upper-case
   or padded id): **400** with the start page and the notice _messenger invalid_; nothing changes.
-- E5: Either form: body above 1 MiB **413**, unreadable **400** (empty bodies); invalid CSRF token **403** with the
-  notice-only start page and _form expired_; a D1 failure **503** with _unavailable_; no session: the login page.
+- E5: Either form: request body above 1 MiB **413**, a request body that cannot be read (the stream fails) **400**,
+  both answered with an empty response body; a request without CSRF token (an empty request body included) or with an
+  invalid one **403** with the notice-only start page and _form expired_, like every other start page form; a D1 failure **503** with _unavailable_; no session: the login page.
 - E6: The stored `delivery_channel` names no registered messenger (edited by hand, or a messenger a later version no
   longer has): it reads as `telegram`, and the start page shows Telegram active.
 - E7: The owner removes the Telegram token in the Telegram step while Telegram is active: allowed as today (303 to
