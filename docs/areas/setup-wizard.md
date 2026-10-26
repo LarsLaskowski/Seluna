@@ -180,7 +180,7 @@ it and add their pages behind the login.
   shows 22:00 and 07:00 again when they are next switched on.
 - `GET /setup` with a D1 failure answers **503** with the notice-only start page (in its main column the heading,
   the _start body_ and the notice, the step links card and the sign-out form in the actions area) and _unavailable_.
-  The 403 answers of the sign-out, settings and reset forms render the notice-only page too and read no D1.
+  The 403 answers of the sign-out, settings, reset, activate and remove forms render the notice-only page too and read no D1.
 
 ### Messengers
 
@@ -195,7 +195,9 @@ Telegram is the only registered messenger today; further ones register in `src/c
   up_ when it is not set up and _Change_ when it is, and the forms below. A messenger is _set up_ when its
   destination can be resolved (for Telegram: a usable bot token and a chat).
 - **Forms:** _Activate_ (a primary button) is shown for a messenger that is set up and not active; _Remove_ (a
-  secondary button) for a messenger with credentials saved in the setup (also the active one). Each is a `POST` form
+  secondary button) for a messenger with credentials saved in the setup that its own step can remove (also the
+  active one); for Telegram that is a saved bot token in the token card's _saved_ or _damaged_ state, so never while
+  `TELEGRAM_BOT_TOKEN` is set or while the saved token cannot be read with the current `SELUNA_SECRET`. Each is a `POST` form
   with the session-bound `csrf` field and a hidden field `channel` holding the messenger's id, to
   `POST /setup/channel/activate` and `POST /setup/channel/remove`.
 - **Processing** (both routes): the body is read with the 1 MiB limit (**413**, **400** when it cannot be read), then the

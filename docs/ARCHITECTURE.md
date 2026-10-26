@@ -35,7 +35,7 @@ flowchart LR
   C -->|release check, no credentials| GA[GitHub API]
 ```
 
-## Webhook to the messenger
+## Webhook to Telegram
 
 1. GitHub sends an event to `POST /webhook`. The Worker verifies the `X-Hub-Signature-256` signature over the raw
    body; an invalid signature is rejected and nothing is stored. The secret is the Worker secret

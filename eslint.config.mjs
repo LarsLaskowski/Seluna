@@ -30,12 +30,17 @@ export default tseslint.config(
             {
               group: [
                 "**/message",
+                "**/message.js",
                 "**/telegram",
+                "**/telegram.js",
                 "**/delivery",
+                "**/delivery.js",
                 "**/notification",
+                "**/notification.js",
                 "**/channels",
                 "**/channels/*",
                 "**/bot-token",
+                "**/bot-token.js",
               ],
               message: "src/rules/ returns channel-neutral notifications and may not import messenger code.",
             },
