@@ -166,6 +166,15 @@ otherwise):
   fixtures stay reference-built until they are replaced by captured answers, and a plan that reads a new Bot API
   answer either asks the Product Manager for a captured sample up front or plans a live check on a deployed copy
   before the pull request is marked ready (decision 0016).
+- **Delivery channel double** — `test/channel.ts`: `testChannel({ id, configured, unavailable, removable, removeResult,
+  sendResult, onSend })` returns a `Channel` (name = id, `setupPath` `/setup/<id>`) that stands in for any messenger
+  besides Telegram; it makes no request and holds no credentials. `prepare` is ready or, with `configured: false`,
+  unavailable (`no-token` or `no-chat`); `hasRemovableCredentials` and `remove` answer as configured. Its `send`
+  models a channel that renders the notification itself: it reads it through `contentNotification` and answers
+  `failed` when that returns `undefined` (an old-form row it cannot read), otherwise `sendResult`. It records every
+  send (`sends`: message, options and the notification it read), the calls of `prepare` (`prepareCalls()`) and of
+  `remove` (`removeCalls()`); `onSend` runs after a send was recorded, so a test can act while a batch is being sent
+  (for example switch the active channel).
 - **Clock** — an injected `() => Date` (or `vi.useFakeTimers()`) so rules, retries and token expiry are tested
   without waiting; code under test never calls `Date.now()` directly.
 - **Real GitHub payloads** — captured events stored as `test/fixtures/<event>/<action>.json`, with secrets and

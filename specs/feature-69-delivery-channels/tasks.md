@@ -19,4 +19,4 @@ documentation edit is in one row, owned by the Dev (test documentation: the Test
 | 9 | G3 | Implement: Messengers card and status line, the two routes, Telegram step notice, texts (layout: plan, *Approach*) | files of row 7, `src/setup/pages.ts` | AC5, AC6, AC7, AC8, AC9 | 8 | Dev | [x] |
 | 10 | G4 | `no-restricted-imports` block for `src/rules/**/*.ts` (no new API) | `eslint.config.mjs` | AC12 | 9 | Dev | [x] |
 | 11 | G4 | Area documents and documentation (plan, *Areas* and *Documentation updates*) | `docs/areas/notifications.md`, `docs/areas/storage.md`, `docs/areas/setup-wizard.md`, `docs/areas/scheduled-jobs.md`, `docs/areas/http-routes.md`, `docs/ARCHITECTURE.md`, `.squad/project.md`, `README.md`, `CHANGELOG.md` | AC13 | 10 | Dev | [x] |
-| 12 | G4 | Test documentation: `test/channel.ts` in `.squad/project.md` *Test doubles* | `.squad/project.md` | AC13 | 10 | Tester | [ ] |
+| 12 | G4 | Test documentation: `test/channel.ts` in `.squad/project.md` *Test doubles* | `.squad/project.md` | AC13 | 10 | Tester | [x] |
