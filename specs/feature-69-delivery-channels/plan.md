@@ -1,7 +1,7 @@
 # Plan: Channel-neutral outbox and switchable delivery channel
 
 Source: Issue #69 | [spec.md](spec.md)
-Status: Draft
+Status: Revised (1)
 Tier: security — it moves output escaping (the guard against attacker-controlled titles) from write time to send time, adds two signed-in CSRF-protected routes that delete stored credentials and change where notifications go, and refactors the outbound Telegram client.
 Security areas touched: Encrypted credentials (`SecretName`, credential removal from the start page through `removeBotToken`), Setup login (two new signed-in forms `POST /setup/channel/activate` and `POST /setup/channel/remove` with the session-bound CSRF token, the start page's schema check), Outbound-only Telegram (`src/telegram.ts` moved onto the shared HTTP code in `src/channels/http.ts`, delivery through `src/channels/telegram.ts`), Parsing of external input (escaping at send time in `renderTelegramText`, the stored JSON and the old-row text parsed in `src/notification.ts`), Request body size (the two new routes read through `src/body.ts`), Logging of external data (delivery log results unchanged)
 Plan size: the feature spans the outbox schema, the delivery path and the setup wizard, and every one of them needs exact signatures and named tests.
@@ -26,7 +26,7 @@ See [spec.md](spec.md), *Problem*. Every spec claim about today's code was check
 | 10 | The reset deletes every `secrets` row | `src/store/secrets.ts:247` (`DELETE FROM secrets WHERE <guard>`) | confirmed |
 | 11 | Decision 0023 is released | `git tag --contains` of its adding commit: v0.3.0 and later | confirmed |
 | 12 | Production D1 answers `SELECT … FROM sqlite_master` | decision 0021; `docs/areas/setup-wizard.md` *Limits and errors* | confirmed |
-| 13 | `ALTER TABLE outbox ADD COLUMN notification TEXT` applies in D1 and SQLite rewrites the table's `sql` text in `sqlite_master` to include the column | to verify: Tester, step 5, the AC3 and AC12 tests in the Workers test pool (Miniflare's SQLite); production: the orchestrator's live check on a deployed copy before the PR is marked ready (step 11), signing in and opening `/setup` after the Workers Build applied the migration | unverified |
+| 13 | `ALTER TABLE outbox ADD COLUMN notification TEXT` applies in D1 and SQLite rewrites the table's `sql` text in `sqlite_master` to include the column | to verify: Tester, step 5, the AC3 and AC12 tests in the Workers test pool (Miniflare's SQLite); production: the orchestrator's live check on a deployed copy before the PR is marked ready (step 11), signing in and opening `/setup` after the Workers Build applied the migration and recording that it answers 200 with the status page (not _migrations missing_) | unverified |
 | 14 | The earlier Worker's insert `INSERT INTO outbox (text, button_url, silent, created_at)` succeeds after the migration | to verify: Tester, step 5, AC3 test (insert of that exact statement after applying both migrations) | unverified |
 | 15 | Telegram refuses a `sendMessage` with an empty `text` (only for the out-of-scope reverted update, decision 0038 *Consequences*) | to verify: nobody — no Telegram egress in sessions (`.squad/project.md`, *Test doubles*); stated as expected, not relied on | unverified |
 | 16 | `delivery.test.ts`, `outbox-retry.test.ts`, `index.test.ts`, `scheduled.test.ts` and `cleanup.test.ts` insert rows with `text` only, which stay old-form rows after the migration | `src/delivery.test.ts:38`, `src/outbox-retry.test.ts:35`, `src/index.test.ts:241`, `src/scheduled.test.ts:120`, `src/cleanup.test.ts:26` | confirmed |
@@ -61,9 +61,11 @@ double `test/channel.ts` (below).
 | AC9 | `handleSetup POST /setup/settings leaves delivery_channel unchanged` | `src/setup/handler.test.ts` |
 | AC10 | `deliverMessages counts a failed attempt for a row whose notification is damaged and calls no channel` | `src/delivery.test.ts` |
 | AC10 | `decodeStoredNotification returns undefined for every malformed JSON or field`; `legacyNotificationOf recovers title, repository, number and lines` (it.each: three lines, empty line 2 or 3 dropped, no number, release notice, `&amp;lt;` decoded once, foreign text undefined) | `src/notification.test.ts` |
-| AC10 | `readDueRows marks a row with a damaged notification as damaged` | `src/store/outbox.test.ts` |
+| AC10 | `readDueRows marks a row whose notification is malformed JSON, of another shape, or not a string (an integer or a blob) as damaged and still returns the other rows` | `src/store/outbox.test.ts` |
 | AC11 | `postJson aborts after CHANNEL_TIMEOUT_MS`; `postJson rejects an answer above 1 MiB`; `postJson reads a non-2xx body only for a 429`; `postJsonWithRetry waits 1 to 5 seconds once and sends again`; `postJsonWithRetry does not wait for a longer, missing or second retry-after`; `postJsonWithRetry returns failed when the sleep rejects` | `src/channels/http.test.ts` |
-| AC12 | `readSchemaState returns outdated when the outbox sql lacks the notification column`; `outboxIsCurrent` it.each | `src/store/schema.test.ts` |
+| AC12 | `readSchemaState returns outdated when the outbox sql lacks the notification column`; `outboxIsCurrent` it.each: the 0001 `sql` text, the text after the `ALTER TABLE`, a decoy whose text contains `notification` outside a column definition (e.g. in a default or another column's name `notification_old`), a non-string | `src/store/schema.test.ts` |
+| AC12 | `retryPendingRows returns store-failed on a database without the notification column` | `src/outbox-retry.test.ts` |
+| AC12 | `checkForRelease returns store-failed and keeps notified_release on a database without the notification column` | `src/release-check.test.ts` |
 | AC12 | `handleSetup GET /setup answers 503 migrations-missing on an outdated database`; `handleSetup POST /setup/login answers migrations-missing on a D1 failure with an outdated outbox` | `src/setup/handler.test.ts` |
 
 ## Verification without tests
@@ -82,7 +84,8 @@ AC13 and AC14 are verified without a unit test, although the change has producti
 (nullable, no check). A new row writes `text` `''` and `notification` as the JSON of `encodeStoredNotification`:
 an object with keys in this order `title`, `repository`, `number` (`null` when none), `subject`, `context`. A row with
 `notification` `NULL` is an old-form row. `readDueRows` reads `notification`: `NULL` → no `notification` field; a
-string → `decodeStoredNotification` or `"damaged"`; any other type → the existing `TypeError`. The webhook converts each
+string → `decodeStoredNotification` or `"damaged"`; any other type → `"damaged"` too, so one bad row never stops a
+retry run (the other columns keep the existing `TypeError`). The webhook converts each
 rule notification with `storedNotificationOf` (each field through `cleanField` with today's limits, number only when
 a safe integer ≥ 1) and keeps `buttonUrl(notification.url)` for `button_url`; the release check stores
 `releaseNotification(...)` (fixed texts, not cleaned, as today).
@@ -90,8 +93,10 @@ a safe integer ≥ 1) and keeps `buttonUrl(notification.url)` for `button_url`; 
 **Rendering.** `renderTelegramText(notification)` builds exactly `formatMessage`'s text (clean, escape, layout);
 `formatMessage` becomes `{ text: renderTelegramText(fields), buttonUrl: buttonUrl(url) }`, and `formatReleaseMessage`
 becomes `renderTelegramText(releaseNotification(...).notification)` with its button URL (fact 5 and 6: identical).
-`legacyNotificationOf(text)` splits at `\n`; line 1 must match `^<b>(.*?)</b> · (.*?)(?: #([1-9]\d{0,15}))?$`
-(title and repository decoded); the further lines are line 2 and line 3 (missing ones `''`); more than three lines
+`legacyNotificationOf(text)` splits at `\n` and parses line 1 with `startsWith`/`indexOf`, no regular expression with
+unbounded groups: it must start with `<b>`; the title runs to the first `</b> · `; the rest is the repository, and a
+trailing ` #` followed by 1 to 16 digits (first not `0`, a safe integer) is cut off as the number (title and
+repository decoded); the further lines are line 2 and line 3 (missing ones `''`); more than three lines
 or no match → `undefined`. Decoding replaces `&lt;`, `&gt;`, then `&amp;`. Telegram never parses: it sends the old text.
 
 **Channels.** `src/channels/channel.ts` (types), `src/channels/http.ts` (shared HTTP: the request exactly as
@@ -110,7 +115,8 @@ otherwise `send(message, { silent, buttonLabel, outboxId }, { fetch, sleep })`. 
 or in `prepare` is `store-failed` for every row, unchanged. `DeliveryDeps.channels` and `SetupDeps.channels` are
 optional and default to `CHANNELS` (tests inject a test channel; production passes nothing).
 
-**Setup.** `GET /setup` first runs `readSchemaState`; anything but `complete` answers 503, notice-only start page,
+**Setup.** `outboxIsCurrent(sql)` is true only for a string matching `/[(,]\s*"?notification"?\s+TEXT\b/i` (a column
+definition, not any occurrence of the word). `GET /setup` first runs `readSchemaState`; anything but `complete` answers 503, notice-only start page,
 `migrations-missing` (so does `d1FailureNotice`). `statusView` adds `messengers` from `messengersView`. Routes in
 `signedIn`: `POST /setup/channel/activate` and `POST /setup/channel/remove`, both through `readStartForm` (body limit,
 CSRF), then `channelOfForm` (400 `messenger-invalid`), then the action; a D1 failure → 503 notice-only `unavailable`.
@@ -207,7 +213,7 @@ src/delivery.ts: `export interface PendingMessage { readonly id: number; readonl
 
 src/store/outbox.ts: `export interface NewOutboxRow { readonly notification: StoredNotification; readonly buttonUrl: string | undefined; readonly silent: boolean }`; `OutboxRow` gains `readonly notification?: StoredNotification | "damaged"`.
 
-src/store/schema.ts: `export type SchemaState = "complete" | "tables-missing" | "outdated"`; `export function outboxIsCurrent(sql: unknown): boolean`; `SCHEMA_TABLES_SQL` selects the name and sql columns.
+src/store/schema.ts: `export type SchemaState = "complete" | "tables-missing" | "outdated"`; `export function outboxIsCurrent(sql: unknown): boolean` (true only for a string holding the column definition, see *Approach*); `SCHEMA_TABLES_SQL` selects the name and sql columns.
 
 src/store/settings.ts: `export const DELIVERY_CHANNEL_SETTING = "delivery_channel"`. src/store/secrets.ts: `export type ChannelSecretName = "telegram_bot_token"` with `SecretName = GitHubSecretName | ChannelSecretName`.
 
@@ -251,16 +257,20 @@ Files no unit test can cover: none (`migrations/0002_outbox_notification.sql` is
 
 - `docs/areas/notifications.md`: *Message format* becomes the Telegram channel's rendering at send time; a new
   section *Delivery channels* (the active channel read once per batch, no fallback, old-form rows, damaged rows, the
-  shared HTTP rules, `rejected` logged as `token-rejected`); *Sending a row* through the active channel; *Related
+  shared HTTP rules — including that `src/channels/http.ts` follows redirects as `fetch` does by default, which the
+  first follow-up with an owner-chosen server URL must decide on — `rejected` logged as `token-rejected`); *Sending a row* through the active channel; *Related
   decisions* gains 0038.
 - `docs/areas/storage.md`: `outbox.notification` and the old rows (the table list says two migrations); the
   `settings` key `delivery_channel`; channel credentials as `secrets` rows.
 - `docs/areas/setup-wizard.md`: *Paths* (two routes; start page order), *CSRF protection* (the two forms), *Status
   and settings* (_Messenger:_ line), a new section *Messengers*, *The step page* (the Telegram notice), *Pages and
   response headers* (buttons, info notices), *Texts*, *Limits and errors* (`GET /setup` schema check).
-- `docs/areas/scheduled-jobs.md`: retry and release notice through the active channel; D1 statement count + 1.
+- `docs/areas/scheduled-jobs.md`: retry and release notice through the active channel; D1 statement count + 1; on a
+  database without the second migration every retry run logs `store-failed` and the release check's batch rolls back
+  (`store-failed`, tried again the next day).
 - `docs/areas/http-routes.md`: the two body-reading routes in the body limit list.
-- `docs/areas/deployment.md`: a database without the second migration (503 webhook, _migrations missing_).
+- `docs/areas/deployment.md`: a database without the second migration (503 webhook, _migrations missing_, the cron
+  runs `store-failed` as above).
 
 ## Documentation updates
 
@@ -298,6 +308,28 @@ webhook 503 on a database without the migration is existing behavior for any mis
   their own format.
 - [ ] `channel` form value is compared exactly against registered ids; it never enters a URL or a page unless it
   equals one. The link and hidden values come from the registry, escaped.
+
+## Challenge
+
+- M1 (store the JSON in `text`, no migration): open — escalated to the Product Manager, because the issue's *Scope*
+  names migration `0002` explicitly. Weighed: the `text` variant tells a new row by its leading `{` (every old row
+  starts with `<b>`, fact 4 and 5), needs no migration, and so drops fact 13, the live D1 check, S10/AC12, E12, the
+  `outdated` state and the webhook loss of a deploy without migrations; an earlier Worker after a revert would send the
+  raw JSON as text (visible, not lost; with the column variant those rows end `failed`). The column variant is typed
+  and explicit, and is what the issue lists. Recommendation: the `text` variant. This plan stays the column variant
+  until the answer; the `text` variant removes the rows named above and rewrites *Storage*, spec NFR *Storage*, S10,
+  E12, AC3 and AC12, and decision 0038.
+- m1 (cron on a database without the migration): accepted — `docs/areas/scheduled-jobs.md` and `deployment.md`
+  describe it; one test each in `src/outbox-retry.test.ts` and `src/release-check.test.ts` (AC12 rows).
+- m2 (non-string `notification` stops a retry run): accepted — mapped to `"damaged"` (*Approach*, AC10 row).
+- m3 (`outboxIsCurrent` loose): accepted — exact column-definition regex (*Signatures*), it.each with a decoy.
+
+## Security review
+
+APPROVED. Notes taken: (1) `outboxIsCurrent` matches the column definition, with a decoy case (AC12 row);
+(2) the live D1 check records that `/setup` answers 200 with the status page (fact 13); (3) the redirect behavior of
+`src/channels/http.ts` is written into the shared HTTP rules of `docs/areas/notifications.md` (*Areas*);
+(4) `legacyNotificationOf` parses with `startsWith`/`indexOf`, no unbounded lazy groups (*Approach*).
 
 ## Decision records
 

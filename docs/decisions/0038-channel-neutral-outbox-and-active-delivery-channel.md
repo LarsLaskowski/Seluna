@@ -27,9 +27,13 @@ How the neutral notification is stored:
 1. **A nullable column `notification` (JSON) added by `ALTER TABLE`; new rows write `text` as `''`; a row without it
    is a row of the earlier version, whose `text` is Telegram HTML** — one statement, every existing row, index and
    check stays, and the earlier Worker's inserts still succeed. Chosen.
-2. **Rebuild `outbox` with `text` nullable and copy the rows** — a cleaner schema, but a multi-statement migration
+2. **The JSON in the existing `text` column, a new row told apart by its leading `{` (every earlier row starts with
+   `<b>`)** — no migration at all, so no webhook loss on a deploy without migrations and no schema check; an earlier
+   Worker after a revert would send the raw JSON as text. Pending: the issue names a migration, so the Product
+   Manager decides between this and option 1.
+3. **Rebuild `outbox` with `text` nullable and copy the rows** — a cleaner schema, but a multi-statement migration
    on every copy's live table for a constraint nothing relies on.
-3. **Convert the old rows in the migration** — SQL would have to parse HTML; the old rows are few and short-lived.
+4. **Convert the old rows in the migration** — SQL would have to parse HTML; the old rows are few and short-lived.
 
 How rows of the earlier version are sent: **as stored by Telegram, and recovered into the neutral fields for any
 other channel** (chosen; their format is fixed by `formatMessage`), against keeping them Telegram-only (they would
