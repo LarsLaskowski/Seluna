@@ -69,15 +69,16 @@ The full walk-through is in the [setup guide](docs/setup.md). Every push to `mai
 
 Change them on the setup page (`/setup`); they apply without a new deployment.
 
-| Setting                                                           | Default |
-| ----------------------------------------------------------------- | ------- |
-| Language of the notifications (English or German)                 | English |
-| Time zone                                                         | UTC     |
-| Quiet hours (notifications arrive without sound)                  | off     |
-| New pull request, pull request ready for review, review requested | on      |
-| CI failed on the default branch, CI failed in a pull request      | on      |
-| Dependabot alert, code scanning alert, secret scanning alert      | on      |
-| Notice about a new Seluna release                                 | on      |
+| Setting                                                           | Default  |
+| ----------------------------------------------------------------- | -------- |
+| Language of the notifications (English or German)                 | English  |
+| Time zone                                                         | UTC      |
+| Quiet hours (notifications arrive without sound)                  | off      |
+| New pull request, pull request ready for review, review requested | on       |
+| CI failed on the default branch, CI failed in a pull request      | on       |
+| Dependabot alert, code scanning alert, secret scanning alert      | on       |
+| Notice about a new Seluna release                                 | on       |
+| Messenger (on the start page)                                     | Telegram |
 
 ## Status
 

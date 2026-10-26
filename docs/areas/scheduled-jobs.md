@@ -31,13 +31,16 @@ the operator relies on its log entries.
    minute (60,000 ms) before the run started, oldest first (by `created_at`, then `id`). A younger row is left to its
    first send, which may still be running.
 3. Without such a row the job ends; otherwise the notification settings are read and the rows are sent one after the
-   other through the sending rules of a first send ([Notifications](notifications.md#sending-a-row)): the same bot
-   token and chat, quiet hours at each send, the button label in the language at sending, one wait after a 429, one
-   log entry per row.
+   other through the sending rules of a first send ([Notifications](notifications.md#sending-a-row)), by the active
+   delivery channel, read once for the run ([Notifications](notifications.md#delivery-channels)): its destination
+   (for Telegram the same bot token and chat), quiet hours at each send, the button label in the language at sending,
+   one wait after a 429, one log entry per row. A row of the earlier version is sent as stored by Telegram and recovered
+   for another channel; a damaged row counts a failed attempt without a send.
 4. An attempt that fails and is the row's fifth sets the row `failed` in the same update that counts it, and writes
    the log entry `{ outbox: <id>, status: "failed" }` after the row's own entry. The row is never sent again.
-5. Without a usable bot token or chat no attempt is counted and no row is marked `failed`; the rows wait for the
-   setup. A failed read of the saved bot token or the chat logs `store-failed` per row, as for a first send.
+5. While the active channel is not ready (for Telegram: no usable bot token or chat) no attempt is counted and no row
+   is marked `failed`, damaged rows included; the rows wait for the setup. A failed read of the active channel, the
+   saved bot token or the chat logs `store-failed` per row, as for a first send.
 
 - A failed statement in steps 1 to 3 (marking, reading the rows, reading the settings) ends the job and writes
   `{ job: "retry", result: "store-failed" }`.
@@ -97,11 +100,11 @@ The daily run, step by step; the first step that decides ends it with exactly on
    time) and `notified_release` set to the latest version — both only while `notified_release` still holds the value
    read in step 3 (or is still absent). When another run changed it in between, neither is written: `known`. A
    failure: `store-failed`, nothing written; the next daily run tries again.
-8. The row is sent at once through the sending rules of a first send; a failed send leaves it to the retry. Result:
+8. The row is sent at once through the sending rules of a first send, by the active delivery channel; a failed send leaves it to the retry. Result:
    `reported`.
 
 - The remembered version is never lowered: a latest release older than it (a deleted release) changes nothing.
-- Without a bot token or chat the notice is written and the version remembered; the row waits for the setup.
+- While the active channel is not ready (for Telegram: without a bot token or chat) the notice is written and the version remembered; the row waits for the setup.
 - A release published by hand without the pre-release flag is the latest before the release workflow verified it
   ([`CONTRIBUTING.md`](../CONTRIBUTING.md#versioning-and-releases)) and is reported like any other.
 
@@ -114,7 +117,7 @@ The daily run, step by step; the first step that decides ends it with exactly on
 
 - `<latest>` and `<running>` are written as `A.B.C` from the parsed numbers. The button opens
   `https://github.com/LarsLaskowski/Seluna/releases/tag/v<latest>`, built from the same numbers.
-- The text is in the notification language when the row is written; the button label follows the language at
+- The row stores the title, repository and line 2 as fixed texts of the notification language when it is written (no cleaning or cutting, no escaping: the channel renders it); the button label follows the language at
   sending, as for every row ([Notifications](notifications.md#languages)).
 
 ### Log entries
@@ -129,7 +132,7 @@ The daily run, step by step; the first step that decides ends it with exactly on
 
 ## Limits and errors
 
-- Per run of the 10-minute schedule at most 17 D1 statements and 20 Telegram requests; per daily run at most 6 D1
+- Per run of the 10-minute schedule at most 18 D1 statements (one of them reads the active channel) and 20 Telegram requests; per daily run at most 7 D1
   statements, one GitHub request and 2 Telegram requests — inside the free plan's 50 subrequests per invocation. A
   run of the retry ends within about 4 minutes (10 rows of at most two 10-second requests and a 5-second wait), well
   inside the 15 minutes a cron invocation may take.

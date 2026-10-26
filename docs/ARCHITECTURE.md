@@ -19,8 +19,8 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 | Webhook processing | Deduplication by `X-GitHub-Delivery`, the rules, the draft lookup of a CI failure in a pull request ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)), the outbox rows and the first send attempt of each row ([`areas/notifications.md`](areas/notifications.md), [decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)) |
 | GitHub API client | Calls of the GitHub API as the app: the app JWT, the installation tokens per `installation.id` cached encrypted in `token_cache`, the pull request read for the draft lookup of the webhook processing and the installations list for the status page ([`areas/github-api.md`](areas/github-api.md), [decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)) |
 | Rules | Pure functions of the event name, the payload and the settings to zero or one notification; no I/O, no clock |
-| Outbox | The D1 `outbox` table holding each message as rendered Telegram HTML, and delivery to the Telegram Bot API, with one retry after a 429 and the cron's retry |
-| Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram bot token ([decision 0036](decisions/0036-telegram-bot-token-in-the-setup-wizard.md)) and chat, the setup login, the status page with the settings, the app's installations and the reset after a changed `SELUNA_SECRET` ([decision 0018](decisions/0018-settings-and-status-page.md)) |
+| Outbox and delivery channels | The D1 `outbox` table holding each message as a channel-neutral notification (JSON in `text`, no migration), and delivery through the one active delivery channel (`src/channels/`; Telegram is the first adapter, over the shared HTTP code of `src/channels/http.ts`), which renders the notification when it sends it, with one retry after a 429 and the cron's retry ([`areas/notifications.md`](areas/notifications.md), [decision 0038](decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)) |
+| Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram bot token ([decision 0036](decisions/0036-telegram-bot-token-in-the-setup-wizard.md)) and chat, the setup login, the Messengers card that activates a delivery channel, the status page with the settings, the app's installations and the reset after a changed `SELUNA_SECRET` ([decision 0018](decisions/0018-settings-and-status-page.md)) |
 | Cron (`scheduled` handler) | Every 10 minutes: clean up D1 and retry the outbox up to the fifth attempt. Daily: check for a new Seluna release and send a notice ([`areas/scheduled-jobs.md`](areas/scheduled-jobs.md), [decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md), [decision 0030](decisions/0030-release-notice-without-credentials.md)) |
 | D1 (`src/store/`) | `settings`, `secrets` (AES-256-GCM), `deliveries`, `outbox`, `token_cache` (AES-256-GCM), `meta`; the only code that reads or writes D1 |
 
@@ -29,12 +29,13 @@ flowchart LR
   GH[GitHub App] -->|POST /webhook| W[Worker]
   W -->|signature check, dedup by X-GitHub-Delivery| R[Rules]
   R -->|notification| O[(D1 outbox)]
-  O -->|sendMessage| T[Telegram Bot API]
+  O -->|render and send| CH[Active channel]
+  CH --> T[Telegram Bot API]
   C[Cron] -->|retry, cleanup| O
   C -->|release check, no credentials| GA[GitHub API]
 ```
 
-## Webhook to Telegram
+## Webhook to the messenger
 
 1. GitHub sends an event to `POST /webhook`. The Worker verifies the `X-Hub-Signature-256` signature over the raw
    body; an invalid signature is rejected and nothing is stored. The secret is the Worker secret
@@ -53,9 +54,11 @@ flowchart LR
    from the payload alone; no part of a secret reaches a message
    ([decision 0028](decisions/0028-security-alert-rules.md)).
 4. In one D1 transaction the delivery id is recorded in `deliveries`, each notification becomes a row in the
-   `outbox` as escaped Telegram HTML ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md)) and `meta`
-   records the time of the delivery; then the Worker answers 202. Delivery to the Telegram Bot API is attempted
-   right after the answer (`waitUntil`), once more after a short 429 wait, and the cron trigger retries rows that are
+   `outbox` as a cleaned, channel-neutral JSON notification ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md),
+   [decision 0038](decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)) and `meta`
+   records the time of the delivery; then the Worker answers 202. The active delivery channel (the setting
+   `delivery_channel`, Telegram by default, read once per batch, no fallback) renders each row when it sends it; for
+   Telegram that is escaped HTML, sent to the Bot API right after the answer (`waitUntil`), once more after a short 429 wait, and the cron trigger retries rows that are
    still pending; the fifth failed attempt marks a row failed, and it is not sent again
    ([decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md)). A message sent during the owner's quiet hours is sent at once, without sound
    ([decision 0025](decisions/0025-quiet-hours-decided-at-sending.md)). The rules per step are in
@@ -100,10 +103,10 @@ Each job catches its own failures and logs only a fixed result; the rules are in
 
 | Table | Holds |
 | ----- | ----- |
-| `settings` | Instance settings (for example the chat id, the notification options) |
+| `settings` | Instance settings (for example the chat id, the active delivery channel, the notification options) |
 | `secrets` | GitHub App credentials and the Telegram bot token entered in the setup wizard, AES-256-GCM ciphertext |
 | `deliveries` | Processed `X-GitHub-Delivery` ids, for deduplication |
-| `outbox` | Notifications waiting for, or past, delivery |
+| `outbox` | Notifications waiting for, or past, delivery; `text` holds the notification as JSON (rows of earlier versions: Telegram HTML) |
 | `token_cache` | Short-lived GitHub installation tokens, AES-256-GCM ciphertext |
 | `meta` | The last notified release, the time of the last delivery, the key check value that detects a changed `SELUNA_SECRET`, the setup login's failed-attempt count and the slug of the GitHub App the setup wizard created |
 

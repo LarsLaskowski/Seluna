@@ -3,8 +3,8 @@
 ## Scope
 
 What happens to a webhook delivery after its signature was accepted: how a redelivery is recognized, how the rules
-decide on a notification, how a notification becomes an `outbox` row and a Telegram message, in which language, and
-how a row is sent, with or without sound. The owner relies on it to be told once about each case and never lose a
+decide on a notification, how a notification becomes an `outbox` row, which delivery channel renders and sends it (Telegram today), in which
+language, and how a row is sent, with or without sound. The owner relies on it to be told once about each case and never lose a
 message; GitHub relies on the status codes; the retry of the cron ([Scheduled jobs](scheduled-jobs.md#retry)) sends
 pending rows through the same sending rules.
 
@@ -24,7 +24,7 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
 4. The notification settings are read and the rules run (below); then the draft check of a notification that carries
    one is resolved ([Draft lookup](#draft-lookup)), which may drop the notification or change its title.
 5. In one transaction: the delivery (id, event, time received) is added to `deliveries`, one `outbox` row per
-   notification is added, and `meta` `last_delivery` is set to the time received. Either all of it is stored or
+   notification is added (the notification as JSON, [Message format](#message-format)), and `meta` `last_delivery` is set to the time received. Either all of it is stored or
    none of it.
 6. The answer is **202**, whether or not a rule matched. The new `outbox` rows are sent after the answer (below).
 
@@ -206,35 +206,50 @@ unknown)` (German `CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)`).
 
 ### Message format
 
-A notification is rendered once, when its row is written, and stored as the row's `text`; it is sent with
-`parse_mode` `HTML`.
+An `outbox` row holds the notification itself, not a message for one messenger. A new row's `text` is the JSON object
+`{"title":…,"repository":…,"number":…,"subject":…,"context":…}` (keys in this order; `number` is `null` when there is
+none), so it always starts with `{`; every row written by an earlier version starts with `<b>` (old-form row, below).
+No migration changes the column: it is still `text` ([Storage](storage.md)).
 
-- Line 1: the title in bold (`<b>…</b>`), then `·`, the repository and, when there is a number, ` #` and the
-  number. Line 2 and line 3 follow, each on its own line; an empty line 2 or 3 is left out. Lines are separated by a
-  single line feed.
-- Each text (title, repository, line 2, line 3) is cleaned before it enters the message:
+- Each text (title, repository, line 2 = `subject`, line 3 = `context`) is cleaned before it is stored, by
+  `storedNotificationOf`:
   1. a lone surrogate is replaced by U+FFFD;
   2. each control character (U+0000 to U+001F, U+007F to U+009F) and the line and paragraph separators U+2028 and
      U+2029 are replaced by a space;
   3. the directional formatting characters U+061C, U+200E, U+200F, U+202A to U+202E and U+2066 to U+2069 are removed;
   4. leading and trailing spaces are removed;
   5. a text longer than its limit is cut to the limit, its last kept code point replaced by `…` (U+2026). The
-     limits count code points of the decoded text, before escaping: title 64, repository 140, line 2 and line 3
-     256 each;
-  6. `&`, `<` and `>` are replaced by `&amp;`, `&lt;` and `&gt;`, in this order, so a text that already contains
-     an entity is shown as written.
+     limits count code points of the decoded text: title 64, repository 140, line 2 and line 3 256 each.
+     Nothing is escaped in the stored row. The number is stored only when it is a whole number from 1 to 2^53 − 1.
+- The button URL is stored in `button_url` only when it parses as a URL with the scheme `https`, the host
+  `github.com`, no user name or password, and at most 2,048 characters in its normalized form, which is what is stored;
+  otherwise the row has no button URL and the message is sent without a button.
+- A new row is written with `silent` 0; whether it is sent without sound is decided when it is sent
+  ([Quiet hours](#quiet-hours)). The release notice of the daily release check is a second kind of row besides the
+  rules' notifications: the title, the repository `LarsLaskowski/Seluna` and line 2 are fixed texts and the parsed version numbers,
+  stored without cleaning or cutting, and the button URL is built from the same numbers
+  ([Scheduled jobs](scheduled-jobs.md#release-message)).
+- **Telegram rendering** (`renderTelegramText`, at send time): every field is cleaned and cut again, which changes
+  nothing for a row this version wrote, and escaped. Line 1 is the title in bold (`<b>…</b>`), then `·`, the
+  repository and, when there is a number, ` #` and the number; line 2 and line 3 follow, each on its own line, an
+  empty one left out; lines are separated by a single line feed. `&`, `<` and `>` are replaced by `&amp;`, `&lt;` and
+  `&gt;`, in this order, so a text that already contains an entity is shown as written. The text is sent with
+  `parse_mode` `HTML`. It is the same text the earlier version stored when the row was written.
 - Cleaning keeps a text from breaking the three-line layout and removes the invisible characters that reorder text
   around them; it does not stop ordinary right-to-left letters in a title or repository from reordering the
   neutral characters `·` and `#` of line 1 on screen.
-- The number is shown only when it is a whole number from 1 to 2^53 − 1.
-- The button URL is stored only when it parses as a URL with the scheme `https`, the host `github.com`, no user name
-  or password, and at most 2,048 characters in its normalized form, which is what is stored; otherwise the row has
-  no button URL and the message is sent without a button.
-- A new row is written with `silent` 0; whether it is sent without sound is decided when it is sent
-  ([Quiet hours](#quiet-hours)). The release notice of the daily release check is a second kind of row besides the
-  rules' notifications: the same layout (the title in bold, `·` and the repository, line 2), built from fixed texts
-  and the parsed version numbers, which are escaped but not cleaned or cut, and a button URL built from the same
-  numbers ([Scheduled jobs](scheduled-jobs.md#release-message)).
+- **Old-form rows** (written by an earlier version, `text` starting with `<b>`) keep their Telegram HTML. Telegram
+  sends their `text` unchanged. Any other channel receives the notification recovered from it
+  (`legacyNotificationOf`): the first line must start with `<b>`, the title runs to the first `</b> · `, the rest is the
+  repository, a trailing ` #` and 1 to 16 digits (first not `0`, a safe integer) is cut off as the number, lines 2 and 3
+  are the further lines (a missing one is empty), and `&lt;`, `&gt;`, `&amp;` are decoded once, in this order. A text of
+  more than three lines or of another shape cannot be recovered; the channel then counts a failed attempt. The parsing
+  uses `startsWith` and `indexOf`, no regular expression with unbounded groups.
+- **Damaged rows**: a row whose `text` starts with `{` but is not a valid stored notification (not JSON, not an object,
+  a missing or mistyped field, a number that is not a whole number from 1 to 2^53 − 1), or whose `text` is not a
+  string, is damaged. It is never sent: the attempt is counted as `failed`, no channel is called, and the other rows
+  of the batch are still sent. A row without a decoded notification whose `text` starts with `{` is decoded or
+  marked damaged the same way when it is sent, so raw JSON never goes out as a message.
 
 ### Languages
 
@@ -252,13 +267,45 @@ A notification is rendered once, when its row is written, and stored as the row'
   language at the time the row is sent, so a row still pending when the owner switches the language keeps its text
   and gets the button in the new language.
 
+### Delivery channels
+
+Rows are sent through exactly one **delivery channel**. Telegram is the only one registered today; the registry
+(`src/channels/registry.ts`) lists the channels in display order, and the stored notification is rendered by the
+channel that sends it.
+
+- The active channel is the `settings` key `delivery_channel` ([Storage](storage.md)); a missing value or one
+  that names no registered channel (also with different case or padding) reads as `telegram`, or as the first
+  registered channel if Telegram is not registered. The owner changes it on the start page ([Setup
+  wizard](setup-wizard.md#messengers)).
+- A batch of rows (the rows of a delivery, the rows of one cron retry run, the release notice) reads the active channel
+  once and asks it for its destination once (`prepare`); the whole batch is sent through that channel, even when the
+  owner switches the channel while it runs. The next batch uses the new one. A D1 error in either step is
+  `store-failed` for every row of the batch, the rows unchanged.
+- There is no fallback: while the active channel is not ready (`no-token`, `no-chat`), no channel is called and no row
+  changes, damaged rows included; they wait. A row's `attempts` are kept across a switch and the next attempt is counted
+  on top.
+- A channel gets the row's content (the notification, or the `text` of an old-form row), the button URL and, per
+  attempt, the `silent` flag ([Quiet hours](#quiet-hours)), the button label in the notification language and the row
+  id. It answers `sent`, `rejected` (the destination refuses its credentials; logged `token-rejected`), `rate-limited`
+  or `failed`.
+- **Shared HTTP rules** (`src/channels/http.ts`, used by the Telegram client): one JSON `POST` per request with
+  `content-type: application/json`, aborted after 10 seconds; the answer is read at most 1 MiB, counted in bytes
+  before decoding, for a 2xx and for a 429 only (the body of any other status is cancelled unread); a 2xx answer that
+  is not UTF-8 JSON, or an answer above the limit, is `failed`. After a 429 whose retry hint is a whole number from 1
+  to 5 seconds the request is sent once more after that wait, within the same attempt; a rejected wait is `failed`.
+  Requests follow redirects as `fetch` does by default (`redirect: "follow"`), because Telegram's fixed host never
+  redirects; the first channel with a server address chosen by the owner must decide on this consciously. Network
+  errors and their causes are dropped, only the fixed result is kept.
+- Nothing under `src/rules/` may import a channel, the message or notification modules, the Telegram client or the
+  delivery: an ESLint rule (`no-restricted-imports`) checks it in the _Analyzer gate_.
+
 ### Sending a row
 
 - The new rows of a delivery are sent one after the other after the answer, within the time the platform grants
   after a response (about 30 seconds, according to Cloudflare's documentation); a send cut off by it leaves its row
-  pending.
-- The chat is the Worker secret `TELEGRAM_CHAT_ID` when it is a non-empty string; it must then be a chat id
-  (`^-?[1-9]\d{0,15}$`, a safe integer), and when it is not, no chat is configured — the stored chat is not used in
+  pending. Each row goes through the active channel ([Delivery channels](#delivery-channels)).
+- **Telegram.** The chat is the Worker secret `TELEGRAM_CHAT_ID` when it is a non-empty string; it must then be a chat
+  id (`^-?[1-9]\d{0,15}$`, a safe integer), and when it is not, no chat is configured — the stored chat is not used in
   its place. Without that secret it is the `settings` key `telegram_chat_id`, when it is a chat id. The bot token is
   the Worker secret `TELEGRAM_BOT_TOKEN` when it is a non-empty string, otherwise the token saved in the setup wizard
   (read from D1 and decrypted for each batch of rows), in either case only in the bot token form; a malformed Worker
@@ -266,12 +313,13 @@ A notification is rendered once, when its row is written, and stored as the row'
 - Without a usable bot token or chat, Telegram is not called and the row stays `pending` with its attempts
   unchanged: the result is `no-token` when no token is set or saved, the Worker secret is malformed, the saved token
   cannot be read with the current `SELUNA_SECRET` or its row is damaged, or there is no usable `SELUNA_SECRET`;
-  `no-chat` without a chat. A D1 error while reading the token or the chat is `store-failed`, with the row
-  unchanged.
+  `no-chat` without a chat. A D1 error while reading the channel, the token or the chat is `store-failed`, with the
+  row unchanged.
 - Otherwise one attempt is one `sendMessage` request with `chat_id`, `text`, `parse_mode` `HTML`,
   `link_preview_options` with `is_disabled` true (a link in an attacker-chosen title builds no preview card),
   `disable_notification` (true when the send is silent, [Quiet hours](#quiet-hours)) and, when the row has a button
-  URL, an inline keyboard with one button (label, URL). An attempt counts one in `attempts`, whatever its outcome:
+  URL, an inline keyboard with one button (label, URL). The request is the same as before channels existed. An
+  attempt counts one in `attempts`, whatever its outcome:
   - a successful answer (2xx and `ok` true) marks the row `sent`;
   - a 429 answer whose `parameters.retry_after` is a whole number from 1 to 5 makes the Worker wait that many
     seconds and send the same request once more, within the same attempt; the second answer decides as below,
@@ -336,13 +384,18 @@ A notification is rendered once, when its row is written, and stored as the row'
 - A database failure, a failing send and a Telegram error never reach a response or a log entry with their message;
   only the fixed decision or result above is logged.
 - The answer of Telegram is read only for a 2xx (to check `ok`) and for a 429 (for `retry_after`), at most 1 MiB,
-  counted before decoding ([HTTP routes](http-routes.md#request-body-size)).
+  counted before decoding ([HTTP routes](http-routes.md#request-body-size)); a 429 whose body is above the limit
+  counts as `failed`.
+- A stored row that cannot be read as a notification never stops the other rows ([Message format](#message-format)).
 
 ## Related decisions
 
 - [`decisions/0023-webhook-processing-and-delivery-through-the-outbox.md`](../decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)
-  — the one-transaction deduplication, the text rendered when written, the button label from
+  — the one-transaction deduplication, the text rendered when written (amended by 0038: the notification is stored and rendered when sent), the button label from
   the language at sending, the retry bound, 400 for an unprocessable signed delivery.
+- [`decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md`](../decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)
+  — the neutral notification stored as JSON in `text` without a migration, rendered by the active channel, rows of
+  the earlier version kept, no fallback.
 - [`decisions/0024-pull-request-rules.md`](../decisions/0024-pull-request-rules.md) — the three pull request rules,
   `draft` required to be `false`, silence on an unexpected shape, line 3 with author and branches.
 - [`decisions/0027-ci-failure-rules-and-the-draft-lookup.md`](../decisions/0027-ci-failure-rules-and-the-draft-lookup.md)
