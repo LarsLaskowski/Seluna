@@ -3,7 +3,7 @@ import type { DeliveryDeps } from "./delivery";
 import { fetchLatestRelease, UPSTREAM_REPOSITORY } from "./github/release";
 import type { GitHubFetch } from "./github/conversion";
 import { MESSAGE_TEXTS } from "./i18n/messages";
-import { escapeTelegramHtml } from "./message";
+import { renderTelegramText } from "./message";
 import type { OutboxMessage } from "./message";
 import type { StoredNotification } from "./notification";
 import type { Language } from "./setup/language";
@@ -31,15 +31,8 @@ export interface ReleaseCheckDeps extends DeliveryDeps {
 
 /** The release notice in `language`: its Telegram HTML text and the button URL of the release. */
 export function formatReleaseMessage(latest: Version, running: Version, language: Language): OutboxMessage {
-  const texts = MESSAGE_TEXTS[language];
-  const latestText = versionText(latest);
-  const title = `<b>${escapeTelegramHtml(texts.newSelunaRelease)}</b> · ${escapeTelegramHtml(UPSTREAM_REPOSITORY)}`;
-  const line = escapeTelegramHtml(texts.releaseAvailable(latestText, versionText(running)));
-  // The URL is built from the three numbers, never from the tag text of the answer.
-  return {
-    text: `${title}\n${line}`,
-    buttonUrl: `https://github.com/${UPSTREAM_REPOSITORY}/releases/tag/v${latestText}`,
-  };
+  const { notification, buttonUrl } = releaseNotification(latest, running, language);
+  return { text: renderTelegramText(notification), buttonUrl };
 }
 
 /** The release notice in `language` as a stored notification, with the button URL of the release. */
@@ -48,7 +41,19 @@ export function releaseNotification(
   running: Version,
   language: Language,
 ): { readonly notification: StoredNotification; readonly buttonUrl: string } {
-  throw new Error("Not implemented");
+  const texts = MESSAGE_TEXTS[language];
+  const latestText = versionText(latest);
+  return {
+    notification: {
+      title: texts.newSelunaRelease,
+      repository: UPSTREAM_REPOSITORY,
+      number: undefined,
+      subject: texts.releaseAvailable(latestText, versionText(running)),
+      context: "",
+    },
+    // The URL is built from the three numbers, never from the tag text of the answer.
+    buttonUrl: `https://github.com/${UPSTREAM_REPOSITORY}/releases/tag/v${latestText}`,
+  };
 }
 
 /** Reports the latest release once when it is newer than the running and the remembered version. Never rejects. */
@@ -91,14 +96,11 @@ async function run(startedAt: Date, deps: ReleaseCheckDeps): Promise<ReleaseChec
   if (remembered !== undefined && compareVersions(latest.version, remembered) <= 0) {
     return "known";
   }
-  const message = formatReleaseMessage(latest.version, running, settings.language);
+  const release = releaseNotification(latest.version, running, settings.language);
+  const message = { text: renderTelegramText(release.notification), buttonUrl: release.buttonUrl };
   const id = await recordReleaseNotice(
     deps.db,
-    {
-      notification: releaseNotification(latest.version, running, settings.language).notification,
-      buttonUrl: message.buttonUrl,
-      silent: false,
-    },
+    { notification: release.notification, buttonUrl: release.buttonUrl, silent: false },
     startedAt,
     versionText(latest.version),
     stored,

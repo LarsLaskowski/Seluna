@@ -1,4 +1,4 @@
-import { encodeStoredNotification } from "../notification";
+import { decodeStoredNotification, encodeStoredNotification } from "../notification";
 import type { StoredNotification } from "../notification";
 
 /** A row to be stored: the notification is written to `outbox.text` as JSON. */
@@ -90,15 +90,17 @@ export async function readDueRows(db: D1Database, writtenBefore: Date, limit: nu
     .all();
   return result.results.map((row) => {
     const { id, text, button_url: buttonUrl, silent } = row;
-    if (
-      typeof id !== "number" ||
-      typeof text !== "string" ||
-      (buttonUrl !== null && typeof buttonUrl !== "string") ||
-      typeof silent !== "number"
-    ) {
+    if (typeof id !== "number" || (buttonUrl !== null && typeof buttonUrl !== "string") || typeof silent !== "number") {
       throw new TypeError("The outbox row has an unexpected shape");
     }
-    return { id, text, buttonUrl: buttonUrl ?? undefined, silent: silent === 1 };
+    const common = { id, buttonUrl: buttonUrl ?? undefined, silent: silent === 1 };
+    if (typeof text !== "string") {
+      return { ...common, text: "", notification: "damaged" as const };
+    }
+    if (text.startsWith("{")) {
+      return { ...common, text, notification: decodeStoredNotification(text) ?? ("damaged" as const) };
+    }
+    return { ...common, text };
   });
 }
 
