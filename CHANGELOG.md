@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-27
+
 ### Added
 
 - Setup wizard: the start page has a _Messengers_ card that lists the messengers, shows which one is active and, for each, lets you set it up, activate it and remove its saved credentials; the status section names the active messenger. Telegram is the only messenger so far and stays the default.
