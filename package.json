@@ -21,13 +21,13 @@
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.4.7",
     "@eslint/js": "^10.0.1",
-    "@types/node": "^24.19.2",
-    "@vitest/coverage-v8": "^4.1.12",
+    "@types/node": "^26.6.5",
+    "@vitest/coverage-v8": "^5.0.5",
     "eslint": "^10.13.0",
     "eslint-plugin-sonarjs": "^4.2.2",
     "prettier": "^3.9.10",
     "typescript": "~6.0",
-    "typescript-eslint": "^8.71.2",
+    "typescript-eslint": "^8.72.0",
     "vitest": "^4.1.0",
     "wrangler": "^4.151.1"
   },
