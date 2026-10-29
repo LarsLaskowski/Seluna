@@ -2,6 +2,9 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import codeScanningCreated from "../test/fixtures/code_scanning_alert/created.json";
 import dependabotCreated from "../test/fixtures/dependabot_alert/created.json";
+import forkFixture from "../test/fixtures/fork/fork.json";
+import issueCommentCreated from "../test/fixtures/issue_comment/created.json";
+import issuesOpened from "../test/fixtures/issues/opened.json";
 import { body as pingBody, headers as pingHeaders } from "../test/fixtures/ping/form-delivery.json";
 import opened from "../test/fixtures/pull_request/opened.json";
 import openedDraft from "../test/fixtures/pull_request/opened-draft.json";
@@ -9,6 +12,7 @@ import readyForReview from "../test/fixtures/pull_request/ready_for_review.json"
 import reviewRequested from "../test/fixtures/pull_request/review_requested.json";
 import reviewRequestedDraft from "../test/fixtures/pull_request/review_requested-draft.json";
 import secretCreated from "../test/fixtures/secret_scanning_alert/created.json";
+import starCreated from "../test/fixtures/star/created.json";
 import failedPullRequestRun from "../test/fixtures/workflow_run/completed-failure-pull-request.json";
 import successfulDefaultBranchRun from "../test/fixtures/workflow_run/completed-success-default-branch.json";
 import type { DraftLookup } from "./draft-lookup";
@@ -703,6 +707,46 @@ async function storedMessages(): Promise<unknown[]> {
   const rows = await env.DB.prepare("SELECT text, button_url FROM outbox ORDER BY id").all();
   return rows.results.map((row) => [telegramTextOf(row.text), row.button_url]);
 }
+
+describe("processWebhook with the events of issue 108", () => {
+  it.each<{ event: string; payload: object; action: string | null }>([
+    { event: "issues", payload: issuesOpened, action: "opened" },
+    { event: "issue_comment", payload: issueCommentCreated, action: "created" },
+    { event: "fork", payload: forkFixture, action: null },
+    { event: "star", payload: starCreated, action: "created" },
+  ])("processWebhook accepts and records $event and sends nothing", async ({ event, payload, action }) => {
+    const { deps, waitUntil, telegram } = harness({ rules: RULES });
+
+    const outcome = await processWebhook(jsonDelivery(JSON.stringify(payload), { event }), deps);
+
+    expect(outcome, "outcome").toEqual({
+      status: 202,
+      decision: "no-match",
+      action,
+      repository: "example-owner/example-repo",
+    });
+    expect(await env.DB.prepare("SELECT id, event FROM deliveries").first(), "delivery row").toEqual({
+      id: DELIVERY_ID,
+      event,
+    });
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+    expect((await readLastDelivery(env.DB))?.getTime(), "last delivery").toBe(NOW.getTime());
+  });
+
+  it.each<{ event: string; payload: object }>([
+    { event: "issues", payload: issuesOpened },
+    { event: "issue_comment", payload: issueCommentCreated },
+    { event: "fork", payload: forkFixture },
+    { event: "star", payload: starCreated },
+  ])("the $event fixture has a sender other than the owner", ({ payload }) => {
+    const sender = isRecord(payload) && isRecord(payload.sender) ? payload.sender : undefined;
+
+    expect(sender?.login, "sender login").toBe("example-other-user");
+    expect(sender?.type, "sender type").toBe("User");
+  });
+});
 
 describe("processWebhook with the security alert rules", () => {
   it.each<{ event: string; payload: WebhookPayload; text: string; button: string }>([

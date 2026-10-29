@@ -640,6 +640,36 @@ describe("the review page lists", () => {
   );
 });
 
+describe("the created page recommends", () => {
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "the created page recommends Only select repositories in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+      const withLink = renderGitHubPage(language, CSRF_TOKEN, { kind: "created", slug: "octoapp" });
+      const manual = renderGitHubPage(language, CSRF_TOKEN, { kind: "created", slug: undefined });
+
+      expect(texts.githubInstallIntro, "install intro").toContain("Only select repositories");
+      expect(texts.githubInstallManual, "install manually").toContain("Only select repositories");
+      expect(texts.githubInstallIntro, "install intro").not.toContain("All repositories");
+      expect(texts.githubInstallManual, "install manually").not.toContain("All repositories");
+      expect(withLink, "page with the install link").toContain(escapeHtml(texts.githubInstallIntro));
+      expect(manual, "page without a slug").toContain(escapeHtml(texts.githubInstallManual));
+      expect(withLink, "page with the install link").not.toContain("All repositories");
+      expect(manual, "page without a slug").not.toContain("All repositories");
+    },
+  );
+
+  it("the created page tells in English that a new repository is added to the installation by hand", () => {
+    const withLink = renderGitHubPage("en", CSRF_TOKEN, { kind: "created", slug: "octoapp" });
+    const manual = renderGitHubPage("en", CSRF_TOKEN, { kind: "created", slug: undefined });
+
+    const sentence =
+      "Choosing Only select repositories is recommended: Seluna then sees only the repositories you pick, and you add a new repository to the installation by hand.";
+    expect(withLink, "install intro").toContain(sentence);
+    expect(manual, "install manually").toContain(sentence);
+  });
+});
+
 describe("renderGitHubFinishPage", () => {
   it("renderGitHubFinishPage escapes code and state and has no csrf field", () => {
     const code = 'a"><script>alert(1)</script>';

@@ -340,10 +340,10 @@ describe("TEXTS", () => {
       githubFinishButton: "Finish",
       githubCreated: "The GitHub App is saved.",
       githubInstallIntro:
-        "Now install it on your account or organization. Choosing All repositories is recommended, so that new repositories are covered too.",
+        "Now install it on your account or organization. Choosing Only select repositories is recommended: Seluna then sees only the repositories you pick, and you add a new repository to the installation by hand.",
       githubInstallLink: "Install the app on GitHub",
       githubInstallManual:
-        "Install it on GitHub: in the settings of your account or organization, open Developer settings, then GitHub Apps, choose the app and select Install App. Choosing All repositories is recommended, so that new repositories are covered too.",
+        "Install it on GitHub: in the settings of your account or organization, open Developer settings, then GitHub Apps, choose the app and select Install App. Choosing Only select repositories is recommended: Seluna then sees only the repositories you pick, and you add a new repository to the installation by hand.",
       githubBackLink: "Back to the GitHub App step",
     });
   });
