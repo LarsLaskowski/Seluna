@@ -1,11 +1,27 @@
 import type { OwnerAccount } from "../github/owner";
 
+/** The payload's `sender` as a record, or `undefined` when it has none. */
+function senderOf(payload: unknown): Record<string, unknown> | undefined {
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    return undefined;
+  }
+  const { sender } = payload as Record<string, unknown>; // narrowed to an object above
+  if (typeof sender !== "object" || sender === null || Array.isArray(sender)) {
+    return undefined;
+  }
+  return sender as Record<string, unknown>; // narrowed to an object above
+}
+
 /** Whether the payload's `sender` is the app owner, compared by account id (a renamed login still matches). */
 export function isOwnAction(payload: unknown, owner: OwnerAccount | undefined): boolean {
-  throw new Error("Not implemented");
+  if (owner === undefined) {
+    return false;
+  }
+  const sender = senderOf(payload);
+  return typeof sender?.id === "number" && sender.id === owner.id && sender.type === owner.type;
 }
 
 /** Whether the payload's `sender.type` is exactly `Bot`. */
 export function isBotSender(payload: unknown): boolean {
-  throw new Error("Not implemented");
+  return senderOf(payload)?.type === "Bot";
 }

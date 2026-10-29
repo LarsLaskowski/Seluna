@@ -230,9 +230,10 @@ const ENGLISH: SetupTexts = {
   githubAppNameLabel: "App name:",
   githubPermissionsLabel: "Permissions, all read-only:",
   githubPermissionsList:
-    "Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata",
+    "Actions, Contents, Issues, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata",
   githubEventsLabel: "Events:",
-  githubEventsList: "Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert",
+  githubEventsList:
+    "Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert, Issues, Issue comment, Fork, Star",
   githubToGitHubButton: "Continue to GitHub",
   githubFinishIntro: "GitHub has created the app. Select Finish so that Seluna fetches and saves its credentials.",
   githubFinishButton: "Finish",
@@ -448,9 +449,10 @@ const GERMAN: SetupTexts = {
   githubAppNameLabel: "App-Name:",
   githubPermissionsLabel: "Berechtigungen, alle nur lesend:",
   githubPermissionsList:
-    "Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata",
+    "Actions, Contents, Issues, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata",
   githubEventsLabel: "Ereignisse:",
-  githubEventsList: "Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert",
+  githubEventsList:
+    "Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert, Issues, Issue comment, Fork, Star",
   githubToGitHubButton: "Weiter zu GitHub",
   githubFinishIntro:
     "GitHub hat die App erstellt. Wähle Abschließen, damit Seluna ihre Zugangsdaten abruft und speichert.",
