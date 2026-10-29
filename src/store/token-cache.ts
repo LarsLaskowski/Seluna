@@ -15,7 +15,7 @@ const UPSERT_TOKEN =
 const DELETE_TOKEN = "DELETE FROM token_cache WHERE installation_id = ?1 AND iv = ?2";
 
 /** The additional data a row is bound to (the storage contract of `token_cache`). */
-function tokenContext(installationId: number, expiresAt: number): string {
+export function tokenContext(installationId: number, expiresAt: number): string {
   return `token_cache/${String(installationId)}/${String(expiresAt)}`;
 }
 

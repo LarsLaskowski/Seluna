@@ -8,8 +8,20 @@ export type GitHubReply =
   | { readonly kind: "refused"; readonly status: number }
   | { readonly kind: "failed" };
 
-/** The GitHub API request `method` `path` with the standard headers, `Authorization: Bearer <bearer>` and a timeout. */
-export function gitHubRequest(method: "GET" | "POST", path: string, version: string, bearer: string): Request {
+/**
+ * The GitHub API request `method` `path` with the standard headers, `Authorization: Bearer <bearer>` and a timeout;
+ * `jsonBody`, when given, is sent as the JSON body.
+ */
+export function gitHubRequest(
+  method: "GET" | "POST",
+  path: string,
+  version: string,
+  bearer: string,
+  jsonBody?: string,
+): Request {
+  if (jsonBody !== undefined) {
+    throw new Error("Not implemented");
+  }
   return new Request(`${GITHUB_API_ORIGIN}${path}`, {
     method,
     headers: {
