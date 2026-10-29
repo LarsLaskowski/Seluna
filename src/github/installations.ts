@@ -1,3 +1,4 @@
+import { parseGrantedAccess } from "./app-info";
 import type { GrantedAccess } from "./app-info";
 import type { GitHubFetch } from "./conversion";
 import { gitHubRequest, sendGitHub } from "./http";
@@ -42,6 +43,7 @@ function parseInstallation(entry: unknown): Installation | undefined {
     return undefined;
   }
   const { id, account, repository_selection: selection, suspended_at: suspendedAt } = entry;
+  const access = parseGrantedAccess(entry.permissions, entry.events);
   if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 1) {
     return undefined;
   }
@@ -56,7 +58,7 @@ function parseInstallation(entry: unknown): Installation | undefined {
     account: account === null ? { kind: "unknown" } : parseAccount(account),
     repositorySelection: selection,
     suspended: suspendedAt !== undefined && suspendedAt !== null,
-    access: undefined,
+    access,
   };
 }
 

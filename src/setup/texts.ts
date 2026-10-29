@@ -131,6 +131,17 @@ export interface SetupTexts {
   readonly moreInstallations: string;
   readonly installationsUnavailable: string;
   readonly keyUnusable: string;
+  readonly ownerLabel: string;
+  readonly ownerUnavailable: string;
+  readonly ownerOrganizationNotice: string;
+  readonly appMissingLabel: string;
+  readonly appUnchecked: string;
+  readonly appSettingsLink: string;
+  readonly readOnlySuffix: string;
+  readonly eventsLabel: string;
+  readonly installationMissing: string;
+  readonly installationReviewLink: string;
+  readonly accessNotChecked: string;
   readonly resetHeading: string;
   readonly resetText: string;
   readonly resetButton: string;
@@ -273,6 +284,18 @@ const ENGLISH: SetupTexts = {
   moreInstallations: "Only the first 100 installations are shown.",
   installationsUnavailable: "Cannot be loaded from GitHub right now.",
   keyUnusable: "The app's private key cannot be used.",
+  ownerLabel: "GitHub App owner:",
+  ownerUnavailable: "Cannot be read from GitHub right now.",
+  ownerOrganizationNotice:
+    "The app belongs to an organization, so Seluna cannot tell your own actions from anyone else's: activity of every account is reported, yours too.",
+  appMissingLabel: "Missing on the app:",
+  appUnchecked: "Seluna could not read the app's permissions from GitHub.",
+  appSettingsLink: "Add them in the app's settings on GitHub",
+  readOnlySuffix: "read-only",
+  eventsLabel: "events:",
+  installationMissing: "missing:",
+  installationReviewLink: "Review and accept on GitHub",
+  accessNotChecked: "access not checked",
   resetHeading: "The saved credentials cannot be read",
   resetText:
     "The saved credentials cannot be read with the current SELUNA_SECRET: it was changed, or a saved value is damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials, the installation tokens and the saved Telegram bot token; you then create the GitHub App again and enter the bot token again in the Telegram chat step. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept.",
@@ -493,6 +516,18 @@ const GERMAN: SetupTexts = {
   moreInstallations: "Nur die ersten 100 Installationen werden angezeigt.",
   installationsUnavailable: "Kann gerade nicht von GitHub geladen werden.",
   keyUnusable: "Der private Schlüssel der App ist nicht verwendbar.",
+  ownerLabel: "Besitzer der GitHub-App:",
+  ownerUnavailable: "Kann gerade nicht von GitHub gelesen werden.",
+  ownerOrganizationNotice:
+    "Die App gehört einer Organisation, deshalb kann Seluna deine eigenen Aktionen nicht von denen anderer unterscheiden: Aktivitäten aller Konten werden gemeldet, auch deine.",
+  appMissingLabel: "Fehlt der App:",
+  appUnchecked: "Seluna konnte die Berechtigungen der App nicht von GitHub lesen.",
+  appSettingsLink: "In den Einstellungen der App auf GitHub ergänzen",
+  readOnlySuffix: "nur lesend",
+  eventsLabel: "Ereignisse:",
+  installationMissing: "fehlt:",
+  installationReviewLink: "Auf GitHub prüfen und annehmen",
+  accessNotChecked: "Zugriff nicht geprüft",
   resetHeading: "Die gespeicherten Zugangsdaten sind nicht lesbar",
   resetText:
     "Die gespeicherten Zugangsdaten sind mit dem aktuellen SELUNA_SECRET nicht lesbar: Es wurde geändert, oder ein gespeicherter Wert ist beschädigt. Wenn du das frühere SELUNA_SECRET noch kennst, setze es stattdessen wieder. Andernfalls setze zurück: Seluna löscht die gespeicherten GitHub-Zugangsdaten, die Installations-Tokens und den gespeicherten Telegram-Bot-Token; du erstellst danach die GitHub-App neu und gibst den Bot-Token im Schritt Telegram-Chat erneut ein. Lösche die alte App danach auf GitHub: in den Einstellungen deines Kontos oder deiner Organisation unter Developer settings, dann GitHub Apps. Der Telegram-Chat und die Einstellungen bleiben erhalten.",
