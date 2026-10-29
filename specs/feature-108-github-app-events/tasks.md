@@ -4,7 +4,7 @@ Plan: [plan.md](plan.md) — Status: Draft
 
 | # | Group | Task | Files | Criteria | Depends on | Owner | Done |
 | - | ----- | ---- | ----- | -------- | ---------- | ----- | ---- |
-| 1 | G1 | Skeleton: `OwnerAccount`, `OwnerType`, `parseOwnerAccount`, `ConvertedApp.account`, `isOwnAction`, `isBotSender`, `GITHUB_APP_OWNER_META_KEY`, `readAppOwner`, `writeAppOwner`; manifest lists | `src/github/owner.ts`, `src/github/conversion.ts`, `src/rules/actor.ts`, `src/store/meta.ts`, `src/github/manifest.ts` | AC1, AC2, AC5 | — | Dev | [ ] |
+| 1 | G1 | Skeleton: `OwnerAccount`, `OwnerType`, `parseOwnerAccount`, `ConvertedApp.account`, `isOwnAction`, `isBotSender`, `GITHUB_APP_OWNER_META_KEY`, `readAppOwner`, `writeAppOwner`; manifest lists | `src/github/owner.ts`, `src/github/conversion.ts`, `src/rules/actor.ts`, `src/store/meta.ts`, `src/github/manifest.ts` | AC1, AC2, AC5 | — | Dev | [x] |
 | 2 | G1 | Tests first: owner narrowing, conversion account, owner row, actor helpers, manifest lists, `expectedManifestJson`, review page lists | `src/github/owner.test.ts`, `src/github/conversion.test.ts`, `src/store/meta.test.ts`, `src/rules/actor.test.ts`, `src/github/manifest.test.ts`, `src/setup/pages.test.ts`, `test/github.ts` | AC1, AC2, AC5 | 1 | Tester | [ ] |
 | 3 | G1 | Implement; `keepOwner` in the finish flow; review texts (en, de) | `src/github/owner.ts`, `src/github/conversion.ts`, `src/rules/actor.ts`, `src/store/meta.ts`, `src/github/manifest.ts`, `src/setup/github-step.ts`, `src/setup/texts.ts` | AC1, AC2, AC5 | 2 | Dev | [ ] |
 | 4 | G1 | Tests: owner stored by the finish flow | `src/setup/github-step.test.ts` | AC2 | 1 | Tester | [ ] |

@@ -11,6 +11,8 @@ export const SELUNA_HOMEPAGE = "https://github.com/LarsLaskowski/Seluna";
 export const MAX_APP_NAME_CHARACTERS = 34;
 export const APP_PERMISSIONS: Readonly<Record<string, "read">> = {
   actions: "read",
+  contents: "read",
+  issues: "read",
   pull_requests: "read",
   vulnerability_alerts: "read",
   security_events: "read",
@@ -23,6 +25,10 @@ export const APP_EVENTS: readonly string[] = [
   "dependabot_alert",
   "code_scanning_alert",
   "secret_scanning_alert",
+  "issues",
+  "issue_comment",
+  "fork",
+  "star",
 ];
 
 const ACCOUNT_NAME = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;

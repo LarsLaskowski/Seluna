@@ -1,7 +1,11 @@
+import type { OwnerAccount } from "../github/owner";
+
 /** `meta` key of the time of the last received delivery (decimal milliseconds since 1970-01-01 UTC). */
 export const LAST_DELIVERY_META_KEY = "last_delivery";
 /** `meta` key of the GitHub App slug, stored as `<appId>:<slug>`. */
 export const GITHUB_APP_SLUG_META_KEY = "github_app_slug";
+/** `meta` key of the GitHub App owner, stored as `<appId>:<ownerId>:<type>:<login>`. */
+export const GITHUB_APP_OWNER_META_KEY = "github_app_owner";
 
 const LAST_DELIVERY_FORM = /^(?:0|[1-9]\d{0,15})$/;
 const SLUG_FORM = /^(\d{1,16}):([a-z0-9-]{1,100})$/;
@@ -37,6 +41,16 @@ export async function writeAppSlug(db: D1Database, appId: number, slug: string):
     .prepare("INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value")
     .bind(GITHUB_APP_SLUG_META_KEY, `${String(appId)}:${slug}`)
     .run();
+}
+
+/** The stored owner when it belongs to `appId` and every part is valid, or `undefined`. D1 errors are not caught. */
+export function readAppOwner(db: D1Database, appId: number): Promise<OwnerAccount | undefined> {
+  throw new Error("Not implemented");
+}
+
+/** Stores `owner` for `appId`, replacing an earlier one. D1 errors are not caught. */
+export function writeAppOwner(db: D1Database, appId: number, owner: OwnerAccount): Promise<void> {
+  throw new Error("Not implemented");
 }
 
 /** Upsert of `last_delivery` with `time`, for a batch. */
