@@ -158,12 +158,21 @@ otherwise):
   stub on `globalThis.fetch`) that records every request and answers `POST /app-manifests/<code>/conversions` from
   the reference-built fixtures under `test/fixtures/github/` (written from GitHub's documentation, not captured,
   decision 0017), a status and body, or a rejection; it fails the test on any other URL. `githubApiDouble(routes)`
-  also answers `POST /app/installations/<id>/access_tokens`, `GET /app/installations?per_page=100`, `GET
+  also answers `GET /app`, `POST /app/installations/<id>/access_tokens`, `GET /app/installations?per_page=100`, `GET
   /repos/<owner>/<repo>/pulls/<number>` and `GET /repos/LarsLaskowski/Seluna/releases/latest` from
   `test/fixtures/github/` (the token and installations answers are reference-built from GitHub's OpenAPI examples,
-  the pull request and latest release answers are captured), each route an answer, a
-  sequence or a function of the request, and records every request with its `Authorization` header. The check-run
-  answers of the later API clients get their fixtures beside these.
+  the pull request, latest release and app answers are captured: `app.json` is the public app object of a check run),
+  each route an answer, a sequence or a function of the request, and records every request with its `Authorization`
+  header and its body (`RecordedGitHubRequest.body`, the text read from a clone of the request, `null` without a
+  body; `hasBody` stays). Helpers beside it: `appBody(changes)` (a copy of `app.json`), `FULL_PERMISSIONS` and
+  `FULL_EVENTS` (the manifest's eight permissions and nine events, written independently of `src/github/manifest.ts`),
+  `FIXTURE_INSTALLATION_ACCESS` and `installationWithAccess(permissions, events, changes)` (an installation entry
+  with its access), and `installationTokenBody(token, expiresAt, permissions)`, whose `permissions` default to the
+  narrow `metadata: read` and `pull_requests: read` the code requires (the documented example answers a request
+  without a `permissions` object, so its own `permissions` are replaced). `test/token-cache.ts` seeds rows without
+  `src/store/token-cache.ts`: `tokenContext` is the additional data with the permission tag,
+  `legacyTokenContext` the one of earlier versions, and `seedCachedToken(..., additionalData)` takes either. The
+  check-run answers of the later API clients get their fixtures beside these.
 - **Telegram Bot API double** — `test/telegram.ts`: a `vi.fn<TelegramFetch>()` passed as the injected `TelegramFetch`
   (not a stub on `globalThis.fetch`) that records every request and answers `getMe`, `getUpdates` and `sendMessage` from
   fixtures, a status and body (for `sendMessage` also a sequence, one answer per request, the last repeated), or a rejection (a rate limit, a server error; the 429 answer is the reference-built `send-message-too-many-requests.json`); it fails the test on any other method.
