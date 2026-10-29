@@ -3,12 +3,20 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_GITHUB_RESPONSE_BYTES } from "./conversion";
 import { installationToken, parseInstallationToken, TOKEN_RENEWAL_MARGIN_MS } from "./installation-token";
 import type { TokenDeps } from "./installation-token";
+import { INSTALLATION_TOKEN_PERMISSIONS } from "./token-permissions";
 import { applyMigrations, migrationTestDb, writeFailingDb } from "../../test/d1";
-import { FIXTURE_TOKEN, githubApiDouble, installationTokenBody, jsonAnswer, REJECTED } from "../../test/github";
+import {
+  FIXTURE_TOKEN,
+  githubApiDouble,
+  installationTokenBody,
+  jsonAnswer,
+  NARROW_TOKEN_PERMISSIONS,
+  REJECTED,
+} from "../../test/github";
 import type { GitHubAnswer, GitHubDouble } from "../../test/github";
 import { bearerOf, decodeJwt, fixtureSigningKey, jwtVerifies } from "../../test/jwt";
 import { keyFor } from "../../test/keys";
-import { seedCachedToken, tokenOfRow, tokenRowOf, tokenRows } from "../../test/token-cache";
+import { legacyTokenContext, seedCachedToken, tokenOfRow, tokenRowOf, tokenRows } from "../../test/token-cache";
 
 const SECRET = "throwaway-setup-secret-0123456789abcdef";
 const OTHER_SECRET = "another-throwaway-secret-fedcba9876543210";
@@ -46,8 +54,22 @@ function issuingDouble(token = NEW_TOKEN): GitHubDouble {
   return githubApiDouble({ installationToken: jsonAnswer(201, installationTokenBody(token, FRESH_EXPIRY)) });
 }
 
+describe("INSTALLATION_TOKEN_PERMISSIONS", () => {
+  it("INSTALLATION_TOKEN_PERMISSIONS is exactly metadata read and pull_requests read", () => {
+    const permissions = JSON.stringify(INSTALLATION_TOKEN_PERMISSIONS);
+
+    expect(permissions, "permissions").toBe('{"metadata":"read","pull_requests":"read"}');
+  });
+});
+
 describe("parseInstallationToken", () => {
   const BEFORE = new Date("2016-07-11T20:00:00Z");
+  const VALID_FIELDS = { token: FIXTURE_TOKEN, expires_at: "2016-07-11T22:14:10Z" };
+
+  /** `fields` with the `permissions` of the request Seluna sends. */
+  function narrow(fields: Record<string, unknown>): Record<string, unknown> {
+    return { ...fields, permissions: NARROW_TOKEN_PERMISSIONS };
+  }
 
   it("parseInstallationToken narrows the documented answer to its token and expiry", () => {
     const parsed = parseInstallationToken(
@@ -67,7 +89,7 @@ describe("parseInstallationToken", () => {
     { case: "a positive offset", expiresAt: "2016-07-11T22:14:10+02:00", expected: Date.parse("2016-07-11T20:14:10Z") },
     { case: "a negative offset", expiresAt: "2016-07-11T22:14:10-05:00", expected: Date.parse("2016-07-12T03:14:10Z") },
   ])("parseInstallationToken accepts an expires_at with $case", ({ expiresAt, expected }) => {
-    const parsed = parseInstallationToken({ token: FIXTURE_TOKEN, expires_at: expiresAt }, BEFORE);
+    const parsed = parseInstallationToken(narrow({ token: FIXTURE_TOKEN, expires_at: expiresAt }), BEFORE);
 
     expect(parsed?.expiresAt, "expiresAt").toBe(expected);
   });
@@ -77,35 +99,47 @@ describe("parseInstallationToken", () => {
     { case: "an array", body: [] },
     { case: "a text", body: "token" },
     { case: "a number", body: 42 },
-    { case: "an object without token", body: { expires_at: "2016-07-11T22:14:10Z" } },
-    { case: "an object without expires_at", body: { token: FIXTURE_TOKEN } },
-    { case: "an empty token", body: { token: "", expires_at: "2016-07-11T22:14:10Z" } },
-    { case: "a token that is a number", body: { token: 42, expires_at: "2016-07-11T22:14:10Z" } },
-    { case: "a token of 256 characters", body: { token: "a".repeat(256), expires_at: "2016-07-11T22:14:10Z" } },
-    { case: "a token with a hyphen", body: { token: "ghs-abc", expires_at: "2016-07-11T22:14:10Z" } },
-    { case: "a token with a line break", body: { token: "ghs_a\r\nX: y", expires_at: "2016-07-11T22:14:10Z" } },
-    { case: "an expires_at that is a number", body: { token: FIXTURE_TOKEN, expires_at: 1_468_275_250 } },
-    { case: "an expires_at that is a word", body: { token: FIXTURE_TOKEN, expires_at: "tomorrow" } },
-    { case: "an expires_at that is only a date", body: { token: FIXTURE_TOKEN, expires_at: "2016-07-11" } },
-    { case: "an expires_at without a time zone", body: { token: FIXTURE_TOKEN, expires_at: "2016-07-11T22:14:10" } },
-    { case: "an expires_at with a space for T", body: { token: FIXTURE_TOKEN, expires_at: "2016-07-11 22:14:10Z" } },
-    { case: "an expires_at with a lowercase z", body: { token: FIXTURE_TOKEN, expires_at: "2016-07-11T22:14:10z" } },
-    { case: "an expires_at that is no real time", body: { token: FIXTURE_TOKEN, expires_at: "2016-13-45T25:61:61Z" } },
+    { case: "an object without token", body: narrow({ expires_at: "2016-07-11T22:14:10Z" }) },
+    { case: "an object without expires_at", body: narrow({ token: FIXTURE_TOKEN }) },
+    { case: "an empty token", body: narrow({ token: "", expires_at: "2016-07-11T22:14:10Z" }) },
+    { case: "a token that is a number", body: narrow({ token: 42, expires_at: "2016-07-11T22:14:10Z" }) },
+    { case: "a token of 256 characters", body: narrow({ token: "a".repeat(256), expires_at: "2016-07-11T22:14:10Z" }) },
+    { case: "a token with a hyphen", body: narrow({ token: "ghs-abc", expires_at: "2016-07-11T22:14:10Z" }) },
+    { case: "a token with a line break", body: narrow({ token: "ghs_a\r\nX: y", expires_at: "2016-07-11T22:14:10Z" }) },
+    { case: "an expires_at that is a number", body: narrow({ token: FIXTURE_TOKEN, expires_at: 1_468_275_250 }) },
+    { case: "an expires_at that is a word", body: narrow({ token: FIXTURE_TOKEN, expires_at: "tomorrow" }) },
+    { case: "an expires_at that is only a date", body: narrow({ token: FIXTURE_TOKEN, expires_at: "2016-07-11" }) },
+    {
+      case: "an expires_at without a time zone",
+      body: narrow({ token: FIXTURE_TOKEN, expires_at: "2016-07-11T22:14:10" }),
+    },
+    {
+      case: "an expires_at with a space for T",
+      body: narrow({ token: FIXTURE_TOKEN, expires_at: "2016-07-11 22:14:10Z" }),
+    },
+    {
+      case: "an expires_at with a lowercase z",
+      body: narrow({ token: FIXTURE_TOKEN, expires_at: "2016-07-11T22:14:10z" }),
+    },
+    {
+      case: "an expires_at that is no real time",
+      body: narrow({ token: FIXTURE_TOKEN, expires_at: "2016-13-45T25:61:61Z" }),
+    },
     {
       case: "an expires_at with a trailing line feed",
-      body: { token: FIXTURE_TOKEN, expires_at: "2016-07-11T22:14:10Z\n" },
+      body: narrow({ token: FIXTURE_TOKEN, expires_at: "2016-07-11T22:14:10Z\n" }),
     },
     {
       case: "an expires_at that has already passed",
-      body: { token: FIXTURE_TOKEN, expires_at: "2016-07-11T19:00:00Z" },
+      body: narrow({ token: FIXTURE_TOKEN, expires_at: "2016-07-11T19:00:00Z" }),
     },
     {
       case: "an expires_at exactly 5 minutes ahead",
-      body: { token: FIXTURE_TOKEN, expires_at: "2016-07-11T20:05:00Z" },
+      body: narrow({ token: FIXTURE_TOKEN, expires_at: "2016-07-11T20:05:00Z" }),
     },
     {
       case: "an expires_at 5 minutes less one second ahead",
-      body: { token: FIXTURE_TOKEN, expires_at: "2016-07-11T20:04:59Z" },
+      body: narrow({ token: FIXTURE_TOKEN, expires_at: "2016-07-11T20:04:59Z" }),
     },
   ])("parseInstallationToken rejects $case", ({ body }) => {
     const parsed = parseInstallationToken(body, BEFORE);
@@ -113,14 +147,87 @@ describe("parseInstallationToken", () => {
     expect(parsed, "narrowed answer").toBeUndefined();
   });
 
+  it("parseInstallationToken accepts permissions of only metadata read and pull_requests read", () => {
+    const parsed = parseInstallationToken(
+      { ...VALID_FIELDS, permissions: { metadata: "read", pull_requests: "read" } },
+      BEFORE,
+    );
+
+    expect(parsed, "narrowed answer").toEqual({ token: FIXTURE_TOKEN, expiresAt: Date.parse("2016-07-11T22:14:10Z") });
+  });
+
+  it("parseInstallationToken accepts the permissions in either key order", () => {
+    const parsed = parseInstallationToken(
+      { ...VALID_FIELDS, permissions: { pull_requests: "read", metadata: "read" } },
+      BEFORE,
+    );
+
+    expect(parsed?.token, "token").toBe(FIXTURE_TOKEN);
+  });
+
+  it.each<{ case: string; permissions: unknown }>([
+    {
+      case: "contents read besides the two",
+      permissions: { metadata: "read", pull_requests: "read", contents: "read" },
+    },
+    { case: "contents read alone", permissions: { contents: "read" } },
+    {
+      case: "the documented example (issues write, contents read)",
+      permissions: { issues: "write", contents: "read" },
+    },
+    { case: "issues read besides the two", permissions: { metadata: "read", pull_requests: "read", issues: "read" } },
+    { case: "pull_requests write", permissions: { metadata: "read", pull_requests: "write" } },
+    { case: "metadata write", permissions: { metadata: "write", pull_requests: "read" } },
+    { case: "pull_requests admin", permissions: { metadata: "read", pull_requests: "admin" } },
+    { case: "a level in capitals", permissions: { metadata: "READ", pull_requests: "read" } },
+    { case: "a key in capitals", permissions: { Metadata: "read", pull_requests: "read" } },
+    { case: "a level that is not a string", permissions: { metadata: 1, pull_requests: "read" } },
+    { case: "a level that is null", permissions: { metadata: null, pull_requests: "read" } },
+    { case: "a level that is an object", permissions: { metadata: { read: true }, pull_requests: "read" } },
+    { case: "an empty key", permissions: { "": "read", metadata: "read" } },
+    { case: "permissions that are an array", permissions: [["metadata", "read"]] },
+    { case: "permissions that are an array of the two names", permissions: ["metadata", "pull_requests"] },
+    { case: "permissions that are null", permissions: null },
+    { case: "permissions that are a text", permissions: "metadata=read,pull_requests=read" },
+    { case: "permissions that are a number", permissions: 1 },
+    { case: "permissions that are true", permissions: true },
+  ])("parseInstallationToken rejects $case", ({ permissions }) => {
+    const parsed = parseInstallationToken({ ...VALID_FIELDS, permissions }, BEFORE);
+
+    expect(parsed, "narrowed answer").toBeUndefined();
+  });
+
+  it.each([
+    {
+      case: "an own __proto__ key",
+      json: '{"metadata":"read","pull_requests":"read","__proto__":{"contents":"read"}}',
+    },
+    { case: "an own __proto__ key alone", json: '{"__proto__":{"metadata":"read","pull_requests":"read"}}' },
+    { case: "a constructor key", json: '{"metadata":"read","pull_requests":"read","constructor":"read"}' },
+    { case: "a prototype key", json: '{"metadata":"read","pull_requests":"read","prototype":"read"}' },
+    { case: "a toString key", json: '{"metadata":"read","pull_requests":"read","toString":"read"}' },
+  ])("parseInstallationToken rejects permissions with $case", ({ json }) => {
+    const permissions: unknown = JSON.parse(json);
+
+    const parsed = parseInstallationToken({ ...VALID_FIELDS, permissions }, BEFORE);
+
+    expect(parsed, "narrowed answer").toBeUndefined();
+  });
+
+  it("parseInstallationToken rejects an answer without permissions", () => {
+    const parsed = parseInstallationToken(VALID_FIELDS, BEFORE);
+
+    expect(parsed, "narrowed answer").toBeUndefined();
+  });
+
   it("parseInstallationToken accepts an expires_at 5 minutes and one second ahead", () => {
-    const parsed = parseInstallationToken({ token: FIXTURE_TOKEN, expires_at: "2016-07-11T20:05:01Z" }, BEFORE);
+    const parsed = parseInstallationToken(narrow({ token: FIXTURE_TOKEN, expires_at: "2016-07-11T20:05:01Z" }), BEFORE);
 
     expect(parsed?.token, "token").toBe(FIXTURE_TOKEN);
   });
 
   it("parseInstallationToken counts the 5 minutes from the time it is given", () => {
-    const body = { token: FIXTURE_TOKEN, expires_at: "2016-07-11T20:05:01Z" };
+    const body = narrow({ token: FIXTURE_TOKEN, expires_at: "2016-07-11T20:05:01Z" });
 
     const parsed = parseInstallationToken(body, new Date("2016-07-11T20:00:02Z"));
 
@@ -199,13 +306,34 @@ describe("installationToken", () => {
     expect(rest, "further requests").toEqual([]);
     expect(request?.method, "method").toBe("POST");
     expect(request?.url, "url").toBe("https://api.github.com/app/installations/1000003/access_tokens");
-    expect(request?.hasBody, "has a body").toBe(false);
     const jwt = decodeJwt(bearerOf(request?.authorization ?? null) ?? "");
     expect(jwt, "the Bearer token is a JWT").toBeDefined();
     expect(jwt?.header, "JWT header").toEqual({ alg: "RS256", typ: "JWT" });
     const nowSeconds = NOW.getTime() / 1000;
     expect(jwt?.claims, "JWT claims").toEqual({ iat: nowSeconds - 60, exp: nowSeconds + 540, iss: APP_ID });
     expect(jwt === undefined ? false : await jwtVerifies(jwt), "JWT signature verifies").toBe(true);
+  });
+
+  it('installationToken requests the token with exactly {"permissions":{"metadata":"read","pull_requests":"read"}} as JSON', async () => {
+    const github = issuingDouble();
+
+    await installationToken(await depsFor(github), await credentials(), INSTALLATION);
+
+    const [request] = github.requests;
+    expect(request?.body, "request body").toBe('{"permissions":{"metadata":"read","pull_requests":"read"}}');
+    expect(request?.headers.get("content-type"), "Content-Type").toBe("application/json");
+  });
+
+  it("installationToken asks for no contents, no issues and no write level", async () => {
+    const github = issuingDouble();
+
+    await installationToken(await depsFor(github), await credentials(), INSTALLATION);
+
+    const text = github.requests[0]?.body ?? "";
+    expect(text, "request body").not.toContain("contents");
+    expect(text, "request body").not.toContain("issues");
+    expect(text, "request body").not.toContain("write");
+    expect(text, "request body").not.toContain("admin");
   });
 
   it("installationToken sends the standard headers, no redirect following and a timeout signal", async () => {
@@ -317,6 +445,65 @@ describe("installationToken", () => {
       answer: jsonAnswer(201, installationTokenBody(NEW_TOKEN, NOW.getTime() - HOUR_MS)),
     },
   ];
+
+  const UNCONFIRMED_ANSWERS: readonly { readonly case: string; readonly permissions: unknown }[] = [
+    { case: "carry contents", permissions: { metadata: "read", pull_requests: "read", contents: "read" } },
+    { case: "carry only contents", permissions: { contents: "read" } },
+    { case: "carry issues", permissions: { metadata: "read", pull_requests: "read", issues: "read" } },
+    { case: "give pull_requests write", permissions: { metadata: "read", pull_requests: "write" } },
+    { case: "are an array", permissions: ["metadata", "pull_requests"] },
+    { case: "are null", permissions: null },
+    { case: "have a level that is not a string", permissions: { metadata: 1, pull_requests: "read" } },
+  ];
+
+  it.each(UNCONFIRMED_ANSWERS)(
+    "installationToken gives no token and writes no token_cache row for an answer whose permissions $case",
+    async ({ permissions }) => {
+      const github = githubApiDouble({
+        installationToken: jsonAnswer(201, installationTokenBody(NEW_TOKEN, FRESH_EXPIRY, permissions)),
+      });
+
+      const issued = await installationToken(await depsFor(github), await credentials(), INSTALLATION);
+
+      expect(issued, "issued token").toBeUndefined();
+      expect(await tokenRows(env.DB), "rows").toEqual([]);
+    },
+  );
+
+  it("installationToken gives no token and writes no token_cache row for an answer without permissions", async () => {
+    const answer = installationTokenBody(NEW_TOKEN, FRESH_EXPIRY);
+    delete answer.permissions;
+    const github = githubApiDouble({ installationToken: jsonAnswer(201, answer) });
+
+    const issued = await installationToken(await depsFor(github), await credentials(), INSTALLATION);
+
+    expect(issued, "issued token").toBeUndefined();
+    expect(await tokenRows(env.DB), "rows").toEqual([]);
+  });
+
+  it("installationToken requests a new token when the cached row was written for another permission list", async () => {
+    const key = await keyFor(SECRET);
+    await seedCachedToken(
+      env.DB,
+      key,
+      INSTALLATION,
+      "ghs_old",
+      FRESH_EXPIRY,
+      legacyTokenContext(INSTALLATION, FRESH_EXPIRY),
+    );
+    const github = issuingDouble();
+
+    const issued = await installationToken(await depsFor(github), await credentials(), INSTALLATION);
+
+    expect(
+      github.requests.map((request) => request.route),
+      "routes requested",
+    ).toEqual(["installationToken"]);
+    expect(issued?.token, "issued token").toBe(NEW_TOKEN);
+    const rows = await tokenRows(env.DB);
+    expect(rows.length, "number of rows").toBe(1);
+    expect(rows[0] === undefined ? undefined : await tokenOfRow(key, rows[0]), "token of the row").toBe(NEW_TOKEN);
+  });
 
   it.each(FAILED_ANSWERS)(
     "installationToken returns undefined and caches nothing when the request $case",

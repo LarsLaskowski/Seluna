@@ -89,6 +89,8 @@ export interface RecordedGitHubRequest {
   readonly redirect: Request["redirect"];
   readonly signal: AbortSignal;
   readonly hasBody: boolean;
+  /** The request's body as text, read from a clone of the request, or `null` when it has none. */
+  readonly body: string | null;
 }
 
 /** What answers a route: one answer, a sequence (one per request, the last repeated) or a function of the request. */
@@ -181,6 +183,7 @@ export function githubApiDouble(routes: Readonly<Partial<Record<GitHubRoute, Git
   const counts = new Map<GitHubRoute, number>();
   const fetcher = vi.fn<GitHubFetch>(async (request) => {
     const matched = matchRoute(request);
+    const body = request.body === null ? null : await request.clone().text();
     const recorded: RecordedGitHubRequest = {
       method: request.method,
       url: request.url,
@@ -192,6 +195,7 @@ export function githubApiDouble(routes: Readonly<Partial<Record<GitHubRoute, Git
       redirect: request.redirect,
       signal: request.signal,
       hasBody: request.body !== null,
+      body,
     };
     requests.push(recorded);
     const routeAnswer = matched === undefined ? undefined : routes[matched.route];
@@ -283,11 +287,23 @@ export const RSA_4096_PKCS8: string = keySizesFixture.bits4096;
 /** An RSA key of 4104 bits as PKCS#8 PEM (generated with OpenSSL, grants nothing): above the limit of `importSigningKey`. */
 export const RSA_4104_PKCS8: string = keySizesFixture.bits4104;
 
-/** A fresh copy of the documented installation token answer with `token` and `expires_at` (a time) set. */
-export function installationTokenBody(token: string, expiresAt: Date | number): Record<string, unknown> {
+/** The `permissions` GitHub answers for the token request Seluna sends: exactly the two it asked for. */
+export const NARROW_TOKEN_PERMISSIONS: Readonly<Record<string, string>> = { metadata: "read", pull_requests: "read" };
+
+/**
+ * A fresh copy of the documented installation token answer with `token` and `expires_at` (a time) set. Its
+ * `permissions` are `permissions` (default: the two Seluna requests), not the documented example's, because the
+ * example answers a request without a `permissions` object; the documented fields are kept otherwise.
+ */
+export function installationTokenBody(
+  token: string,
+  expiresAt: Date | number,
+  permissions: unknown = NARROW_TOKEN_PERMISSIONS,
+): Record<string, unknown> {
   const copy: Record<string, unknown> = structuredClone(installationTokenFixture);
   copy.token = token;
   copy.expires_at = new Date(expiresAt).toISOString();
+  copy.permissions = permissions;
   return copy;
 }
 
