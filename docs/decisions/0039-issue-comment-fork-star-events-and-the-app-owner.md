@@ -1,6 +1,6 @@
 # 0039: Issue, comment, fork and star events, the app owner and narrowed installation tokens
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-29
 - **Area:** GitHub API
 - **Source:** Issue #108
