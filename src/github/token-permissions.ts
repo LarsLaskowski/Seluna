@@ -6,5 +6,8 @@ export const INSTALLATION_TOKEN_PERMISSIONS: Readonly<Record<string, "read">> = 
 
 /** The permissions as sorted `name=level` pairs joined by commas, the form bound into a cached token's additional data. */
 export function permissionsTag(permissions: Readonly<Record<string, string>>): string {
-  throw new Error("Not implemented");
+  return Object.entries(permissions)
+    .sort(([first], [second]) => (first < second ? -1 : 1))
+    .map(([name, level]) => `${name}=${level}`)
+    .join(",");
 }

@@ -1,4 +1,5 @@
 import { decrypt, encrypt } from "../crypto";
+import { INSTALLATION_TOKEN_PERMISSIONS, permissionsTag } from "../github/token-permissions";
 import { isInstallationTokenText } from "../github/token-text";
 
 export interface CachedToken {
@@ -14,9 +15,9 @@ const UPSERT_TOKEN =
   "expires_at = excluded.expires_at";
 const DELETE_TOKEN = "DELETE FROM token_cache WHERE installation_id = ?1 AND iv = ?2";
 
-/** The additional data a row is bound to (the storage contract of `token_cache`). */
+/** The additional data a row is bound to (the storage contract of `token_cache`): installation, expiry and the permission list. */
 export function tokenContext(installationId: number, expiresAt: number): string {
-  return `token_cache/${String(installationId)}/${String(expiresAt)}`;
+  return `token_cache/${String(installationId)}/${String(expiresAt)}/${permissionsTag(INSTALLATION_TOKEN_PERMISSIONS)}`;
 }
 
 /** The cached installation token of `installationId`, or `undefined` when none is stored or it does not decrypt. */

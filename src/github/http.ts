@@ -19,17 +19,19 @@ export function gitHubRequest(
   bearer: string,
   jsonBody?: string,
 ): Request {
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": GITHUB_API_VERSION,
+    "User-Agent": `seluna/${version}`,
+    Authorization: `Bearer ${bearer}`,
+  };
   if (jsonBody !== undefined) {
-    throw new Error("Not implemented");
+    headers["Content-Type"] = "application/json";
   }
   return new Request(`${GITHUB_API_ORIGIN}${path}`, {
     method,
-    headers: {
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": GITHUB_API_VERSION,
-      "User-Agent": `seluna/${version}`,
-      Authorization: `Bearer ${bearer}`,
-    },
+    headers,
+    body: jsonBody,
     redirect: "manual",
     signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
   });

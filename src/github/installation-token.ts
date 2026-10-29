@@ -3,6 +3,7 @@ import { appJwt } from "./app-jwt";
 import type { AppCredentials } from "./app-credentials";
 import type { GitHubFetch } from "./conversion";
 import { gitHubRequest, sendGitHub } from "./http";
+import { INSTALLATION_TOKEN_PERMISSIONS } from "./token-permissions";
 import { isInstallationTokenText } from "./token-text";
 
 export { isInstallationTokenText };
@@ -29,12 +30,27 @@ export interface TokenDeps {
 
 const EXPIRES_AT_FORM = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
 
+/** Whether `value` is an object whose own entries are each an entry of `INSTALLATION_TOKEN_PERMISSIONS`. */
+function hasOnlyRequestedPermissions(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  return Object.entries(value).every(([name, level]) =>
+    Object.entries(INSTALLATION_TOKEN_PERMISSIONS).some(
+      ([allowed, allowedLevel]) => name === allowed && level === allowedLevel,
+    ),
+  );
+}
+
 /** The narrowed token answer of GitHub, or `undefined` when it has another shape or expires too soon. */
 export function parseInstallationToken(body: unknown, now: Date): InstallationToken | undefined {
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
     return undefined;
   }
-  const { token, expires_at: expiresAtText } = body as Record<string, unknown>; // checked to be an object above
+  const { token, expires_at: expiresAtText, permissions } = body as Record<string, unknown>; // checked to be an object above
+  if (!hasOnlyRequestedPermissions(permissions)) {
+    return undefined;
+  }
   if (typeof token !== "string" || !isInstallationTokenText(token)) {
     return undefined;
   }
@@ -64,6 +80,7 @@ export async function installationToken(
     `/app/installations/${String(installationId)}/access_tokens`,
     deps.version,
     jwt,
+    JSON.stringify({ permissions: INSTALLATION_TOKEN_PERMISSIONS }),
   );
   const reply = await sendGitHub(deps.fetcher, request);
   const issued = reply.kind === "ok" ? parseInstallationToken(reply.body, now) : undefined;
