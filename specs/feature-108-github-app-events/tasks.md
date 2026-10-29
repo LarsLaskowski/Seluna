@@ -16,6 +16,6 @@ Plan: [plan.md](plan.md) — Status: Draft
 | 10 | G3 | Implement; status layout and texts (en, de) | `src/github/app-info.ts`, `src/github/app-links.ts`, `src/github/installations.ts`, `src/setup/status.ts`, `src/setup/pages.ts`, `src/setup/texts.ts` | AC3, AC4, AC6, AC7 | 9 | Dev | [x] |
 | 11 | G4 | Skeleton: no new API | — | AC10, AC12 | — | Dev | [x] |
 | 12 | G4 | Tests: new events recorded without a message (four fixtures with READMEs); created page recommends Only select repositories | `src/webhook.test.ts`, `test/fixtures/issues/`, `test/fixtures/issue_comment/`, `test/fixtures/fork/`, `test/fixtures/star/`, `src/setup/pages.test.ts` | AC10, AC12 | 11 | Tester | [x] |
-| 13 | G4 | Implement: created-page texts (en, de) | `src/setup/texts.ts` | AC12 | 12 | Dev | [ ] |
+| 13 | G4 | Implement: created-page texts (en, de) | `src/setup/texts.ts` | AC12 | 12 | Dev | [x] |
 | 14 | G5 | Documentation: area documents, `.squad/project.md` (security areas), `docs/setup.md`, `docs/update.md`, `README.md`, sweep hits | `docs/areas/github-api.md`, `docs/areas/setup-wizard.md`, `docs/areas/storage.md`, `docs/areas/notifications.md`, `.squad/project.md`, `docs/setup.md`, `docs/update.md`, `README.md`, `docs/ARCHITECTURE.md` | AC11, AC12 | 3, 7, 10, 13 | Dev | [ ] |
 | 15 | G5 | Test documentation: GitHub API double in `.squad/project.md` (*Test doubles*) | `.squad/project.md` | AC11 | 9 | Tester | [ ] |

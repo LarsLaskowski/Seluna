@@ -250,10 +250,10 @@ const ENGLISH: SetupTexts = {
   githubFinishButton: "Finish",
   githubCreated: "The GitHub App is saved.",
   githubInstallIntro:
-    "Now install it on your account or organization. Choosing All repositories is recommended, so that new repositories are covered too.",
+    "Now install it on your account or organization. Choosing Only select repositories is recommended: Seluna then sees only the repositories you pick, and you add a new repository to the installation by hand.",
   githubInstallLink: "Install the app on GitHub",
   githubInstallManual:
-    "Install it on GitHub: in the settings of your account or organization, open Developer settings, then GitHub Apps, choose the app and select Install App. Choosing All repositories is recommended, so that new repositories are covered too.",
+    "Install it on GitHub: in the settings of your account or organization, open Developer settings, then GitHub Apps, choose the app and select Install App. Choosing Only select repositories is recommended: Seluna then sees only the repositories you pick, and you add a new repository to the installation by hand.",
   githubBackLink: "Back to the GitHub App step",
   statusHeading: "Status",
   versionLabel: "Version:",
@@ -482,10 +482,10 @@ const GERMAN: SetupTexts = {
   githubFinishButton: "Abschließen",
   githubCreated: "Die GitHub-App ist gespeichert.",
   githubInstallIntro:
-    "Installiere sie jetzt auf deinem Konto oder deiner Organisation. Empfohlen ist die Auswahl All repositories, damit auch neue Repositories erfasst werden.",
+    "Installiere sie jetzt auf deinem Konto oder deiner Organisation. Empfohlen ist die Auswahl Only select repositories: Seluna sieht dann nur die Repositories, die du auswählst, und ein neues Repository fügst du der Installation von Hand hinzu.",
   githubInstallLink: "App auf GitHub installieren",
   githubInstallManual:
-    "Installiere sie auf GitHub: Öffne in den Einstellungen deines Kontos oder deiner Organisation Developer settings, dann GitHub Apps, wähle die App und klicke auf Install App. Empfohlen ist die Auswahl All repositories, damit auch neue Repositories erfasst werden.",
+    "Installiere sie auf GitHub: Öffne in den Einstellungen deines Kontos oder deiner Organisation Developer settings, dann GitHub Apps, wähle die App und klicke auf Install App. Empfohlen ist die Auswahl Only select repositories: Seluna sieht dann nur die Repositories, die du auswählst, und ein neues Repository fügst du der Installation von Hand hinzu.",
   githubBackLink: "Zurück zum Schritt GitHub-App",
   statusHeading: "Status",
   versionLabel: "Version:",
