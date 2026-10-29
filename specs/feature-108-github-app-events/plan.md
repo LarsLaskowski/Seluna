@@ -124,7 +124,9 @@ nothing. Missing names keep the manifest order.
   sorted by name and joined by `,` (`metadata=read,pull_requests=read`). A cached token counts only for its list, so
   any change of the list takes effect immediately (decision 0039, option 12).
 
-**Actor helpers.** As spec S9 and E5; both narrow `unknown` with a private type guard and never throw.
+**Actor helpers.** As spec S9 and E5. `isOwnAction` is `owner?.type === "User"` and `sender.id` is a number equal
+to `owner.id`; `sender.type` is not compared. `isBotSender` is `sender.type === "Bot"`. Both narrow `unknown` with a
+private type guard and never throw.
 
 **Status page layout** (inside the status card, after the _GitHub App:_ paragraph and before _Installations:_). New
 texts are given in English; the Dev writes the German ones. Permission and event names are GitHub's names in both
