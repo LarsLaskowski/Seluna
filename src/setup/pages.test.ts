@@ -18,7 +18,7 @@ import type { GitHubPageView, TelegramPageView } from "./pages";
 import { DEFAULT_SETTINGS, RULE_IDS } from "../settings";
 import type { NotificationSettings } from "../settings";
 import type { Installation } from "../github/installations";
-import type { InstallationsView, MessengerEntry, MessengersView, StatusView } from "./status";
+import type { InstallationEntry, InstallationsView, MessengerEntry, MessengersView, StatusView } from "./status";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 import type { TelegramChat } from "../telegram";
@@ -1962,6 +1962,379 @@ describe("renderStartPage installations", () => {
 
       expect(unavailableSection, "unavailable section").toBe(`<p>${label} ${escapeHtml(unavailable)}</p>\n`);
       expect(unusableSection, "key unusable section").toBe(`<p>${label} ${escapeHtml(unusable)}</p>\n`);
+    },
+  );
+});
+
+const APP_SETTINGS_URL = "https://github.com/settings/apps/seluna-demo/permissions";
+const INSTALLATION_URL = "https://github.com/settings/installations/1";
+const OCTOCAT_ACCOUNT: Installation["account"] = { kind: "login", login: "octocat", type: "User" };
+
+function ownerOf(login: string, type: "User" | "Organization"): StatusView["owner"] {
+  return { kind: "known", owner: { id: 7, login, type } };
+}
+
+function checkedApp(permissions: readonly string[], events: readonly string[]): StatusView["appAccess"] {
+  return { kind: "checked", missing: { permissions, events }, settingsUrl: APP_SETTINGS_URL };
+}
+
+/** The app check with something missing and no link to build. */
+function checkedAppWithoutLink(permissions: readonly string[]): StatusView["appAccess"] {
+  return { kind: "checked", missing: { permissions, events: [] }, settingsUrl: undefined };
+}
+
+/** The installation `octocat` with `check`, as a listed view. */
+function listedWithCheck(
+  check: InstallationEntry["check"],
+  changes: Partial<Installation> = {},
+): StatusView["installations"] {
+  return {
+    kind: "listed",
+    installations: [{ installation: installationOf(OCTOCAT_ACCOUNT, changes), check }],
+    more: false,
+  };
+}
+
+/** The status card of the start page. */
+function statusCardOf(language: Language, changes: Partial<StatusView>): string {
+  return sectionWith(startPage(language, changes), `<h2>${escapeHtml(TEXTS[language].statusHeading)}</h2>`);
+}
+
+describe("renderStartPage owner line", () => {
+  it("the status page shows the owner line for a personal account in en", () => {
+    const status = statusCardOf("en", { owner: ownerOf("octocat", "User") });
+
+    expect(status, "owner line").toContain("<p>GitHub App owner: octocat (personal account)</p>");
+    expect(status, "organization notice").not.toContain("belongs to an organization");
+  });
+
+  it("the status page shows the owner line for a personal account in de", () => {
+    const status = statusCardOf("de", { owner: ownerOf("octocat", "User") });
+
+    expect(status, "owner line").toMatch(/<p>[^<]+ octocat \(persönliches Konto\)<\/p>/);
+  });
+
+  it("the status page adds the organization notice for an organization's app in en", () => {
+    const status = statusCardOf("en", { owner: ownerOf("octo-org", "Organization") });
+
+    const notice = escapeHtml(
+      "The app belongs to an organization, so Seluna cannot tell your own actions from anyone else's: activity of every account is reported, yours too.",
+    );
+    expect(status, "owner line and notice").toContain(
+      `<p>GitHub App owner: octo-org (organization)</p>\n<p>${notice}</p>`,
+    );
+  });
+
+  it("the status page adds the organization notice for an organization's app in de", () => {
+    const status = statusCardOf("de", { owner: ownerOf("octo-org", "Organization") });
+
+    expect(status, "owner line and a notice paragraph").toMatch(
+      /<p>[^<]+ octo-org \(Organisation\)<\/p>\n<p>[^<]{40,}<\/p>/,
+    );
+  });
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "the status page escapes the owner login in $language",
+    ({ language }) => {
+      const status = statusCardOf(language, {
+        owner: { kind: "known", owner: { id: 7, login: "<b>x</b>&", type: "User" } },
+      });
+
+      expect(status, "markup").not.toContain("<b>x</b>");
+      expect(status, "escaped login").toContain("&lt;b&gt;x&lt;/b&gt;&amp;");
+    },
+  );
+
+  it("the status page shows owner unavailable in en", () => {
+    const status = statusCardOf("en", { owner: { kind: "unavailable" } });
+
+    expect(status, "owner line").toMatch(/<p>GitHub App owner: [^<]+<\/p>/);
+    expect(status, "text").toContain("Cannot be read from GitHub right now.");
+    expect(status, "organization notice").not.toContain("belongs to an organization");
+  });
+
+  it("the status page shows owner unavailable in de as one more paragraph than without an owner line", () => {
+    const hidden = statusCardOf("de", { owner: { kind: "hidden" } });
+    const unavailable = statusCardOf("de", { owner: { kind: "unavailable" } });
+
+    expect(unavailable.match(/<p>/g)?.length, "paragraphs").toBe((hidden.match(/<p>/g)?.length ?? 0) + 1);
+  });
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "the status page shows no owner line, app check or notice when both are hidden in $language",
+    ({ language }) => {
+      const status = statusCardOf(language, { owner: { kind: "hidden" }, appAccess: { kind: "hidden" } });
+
+      expect(status, "owner label").not.toContain("GitHub App owner");
+      expect(status, "organization notice").not.toContain("belongs to an organization");
+      expect(status, "missing label").not.toContain("Missing on the app");
+      expect(status.match(/<p>/g)?.length, "paragraphs of the status card").toBe(
+        statusCardOf(language, {}).match(/<p>/g)?.length,
+      );
+    },
+  );
+
+  it("the status page orders the app line, the owner line and notice, the app check, the installations and the last delivery", () => {
+    const status = statusCardOf("en", {
+      owner: ownerOf("octo-org", "Organization"),
+      appAccess: checkedApp(["issues"], []),
+      installations: listedWithCheck({ kind: "complete" }),
+    });
+
+    const order = [
+      TEXTS.en.githubAppLabel,
+      "GitHub App owner:",
+      "belongs to an organization",
+      "Missing on the app:",
+      TEXTS.en.installationsLabel,
+      TEXTS.en.lastDeliveryLabel,
+    ].map((text) => status.indexOf(escapeHtml(text)));
+    expect(Math.min(...order), "every text is on the page").toBeGreaterThanOrEqual(0);
+    expect(order, "order").toEqual([...order].sort((left, right) => left - right));
+  });
+});
+
+describe("renderStartPage app check", () => {
+  it("the status page renders the missing line and links in en", () => {
+    const status = statusCardOf("en", {
+      appAccess: checkedApp(["issues", "vulnerability_alerts"], ["issues", "star"]),
+    });
+
+    expect(status, "missing line").toContain(
+      `<p>Missing on the app: Issues (read-only), Dependabot alerts (read-only); events: Issues, Star ` +
+        `<a href="${APP_SETTINGS_URL}">${escapeHtml("Add them in the app's settings on GitHub")}</a></p>`,
+    );
+  });
+
+  it("the status page renders the missing line and links in de", () => {
+    const status = statusCardOf("de", {
+      appAccess: checkedApp(["issues", "vulnerability_alerts"], ["issues", "star"]),
+    });
+
+    expect(status, "missing line").toMatch(
+      new RegExp(
+        `<p>[^<]+ Issues \\(nur lesend\\), Dependabot alerts \\(nur lesend\\); Ereignisse: Issues, Star <a href="${escapeRegExp(APP_SETTINGS_URL)}">[^<]+</a></p>`,
+      ),
+    );
+  });
+
+  it("the status page names every permission and event by GitHub's name in manifest order", () => {
+    const status = statusCardOf("en", {
+      appAccess: checkedApp(
+        [
+          "actions",
+          "contents",
+          "issues",
+          "pull_requests",
+          "vulnerability_alerts",
+          "security_events",
+          "secret_scanning_alerts",
+          "metadata",
+        ],
+        [
+          "pull_request",
+          "workflow_run",
+          "dependabot_alert",
+          "code_scanning_alert",
+          "secret_scanning_alert",
+          "issues",
+          "issue_comment",
+          "fork",
+          "star",
+        ],
+      ),
+    });
+
+    expect(status, "list").toContain(
+      "Missing on the app: Actions (read-only), Contents (read-only), Issues (read-only), Pull requests (read-only), " +
+        "Dependabot alerts (read-only), Code scanning alerts (read-only), Secret scanning alerts (read-only), " +
+        "Metadata (read-only); events: Pull request, Workflow run, Dependabot alert, Code scanning alert, " +
+        "Secret scanning alert, Issues, Issue comment, Fork, Star ",
+    );
+  });
+
+  it.each([
+    {
+      case: "permissions only",
+      permissions: ["contents"],
+      events: [],
+      expected: "Missing on the app: Contents (read-only) <a ",
+    },
+    {
+      case: "events only",
+      permissions: [],
+      events: ["fork", "star"],
+      expected: "Missing on the app: events: Fork, Star <a ",
+    },
+  ])(
+    "the status page renders the missing line for $case without a stray separator",
+    ({ permissions, events, expected }) => {
+      const status = statusCardOf("en", { appAccess: checkedApp(permissions, events) });
+
+      expect(status, "missing line").toContain(expected);
+    },
+  );
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "the status page renders a missing line without a link when no link is built in $language",
+    ({ language }) => {
+      const status = statusCardOf(language, { appAccess: checkedAppWithoutLink(["issues"]) });
+
+      expect(status, "missing line").toContain("Issues (");
+      expect(status, "link").not.toContain('<a href="https://github.com/settings');
+      expect(status.match(/<a href="/g)?.length, "links in the status card").toBe(
+        statusCardOf(language, {}).match(/<a href="/g)?.length,
+      );
+    },
+  );
+
+  it("the status page renders the missing line without a link as the bare list in en", () => {
+    const status = statusCardOf("en", { appAccess: checkedAppWithoutLink(["issues"]) });
+
+    expect(status, "missing line").toContain("<p>Missing on the app: Issues (read-only)</p>");
+  });
+
+  it("the status page says the app's permissions could not be read in en", () => {
+    const status = statusCardOf("en", { appAccess: { kind: "unchecked" } });
+
+    expect(status, "unchecked line").toContain(
+      `<p>Missing on the app: ${escapeHtml("Seluna could not read the app's permissions from GitHub.")}</p>`,
+    );
+  });
+
+  it("the status page says the app's permissions could not be read in de as one more paragraph", () => {
+    const hidden = statusCardOf("de", { appAccess: { kind: "hidden" } });
+    const unchecked = statusCardOf("de", { appAccess: { kind: "unchecked" } });
+
+    expect(unchecked.match(/<p>/g)?.length, "paragraphs").toBe((hidden.match(/<p>/g)?.length ?? 0) + 1);
+    expect(unchecked, "no link").not.toContain('<a href="https://github.com/settings');
+  });
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "the status page renders nothing extra when nothing is missing in $language",
+    ({ language }) => {
+      const status = statusCardOf(language, {
+        appAccess: checkedApp([], []),
+        installations: listedWithCheck({ kind: "complete" }),
+      });
+
+      const plain = statusCardOf(language, { installations: listedWithCheck({ kind: "app-unchecked" }) });
+      expect(status, "status card").toBe(plain);
+      expect(status, "settings link").not.toContain("https://github.com/settings");
+    },
+  );
+});
+
+describe("renderStartPage installation checks", () => {
+  it("the status page renders the missing suffix and link of an installation in en", () => {
+    const status = statusCardOf("en", {
+      installations: listedWithCheck({
+        kind: "missing",
+        missing: { permissions: ["issues"], events: ["star"] },
+        acceptUrl: INSTALLATION_URL,
+      }),
+    });
+
+    expect(status, "entry").toContain(
+      "<li>octocat (personal account), selected repositories, missing: Issues (read-only); events: Star " +
+        `<a href="${INSTALLATION_URL}">Review and accept on GitHub</a></li>`,
+    );
+  });
+
+  it("the status page renders the missing suffix and link of an installation in de", () => {
+    const status = statusCardOf("de", {
+      installations: listedWithCheck({
+        kind: "missing",
+        missing: { permissions: ["issues"], events: ["star"] },
+        acceptUrl: INSTALLATION_URL,
+      }),
+    });
+
+    expect(status, "entry").toMatch(
+      new RegExp(
+        `<li>octocat \\(persönliches Konto\\), ausgewählte Repositories, [^<]+ Issues \\(nur lesend\\); Ereignisse: Star <a href="${escapeRegExp(INSTALLATION_URL)}">[^<]+</a></li>`,
+      ),
+    );
+  });
+
+  it("the status page puts the missing suffix after the suspended text", () => {
+    const status = statusCardOf("en", {
+      installations: listedWithCheck(
+        { kind: "missing", missing: { permissions: ["issues"], events: [] }, acceptUrl: undefined },
+        { suspended: true, repositorySelection: "all" },
+      ),
+    });
+
+    expect(status, "entry").toContain(
+      "<li>octocat (personal account), all repositories, suspended, missing: Issues (read-only)</li>",
+    );
+  });
+
+  it("the status page renders the missing suffix of an installation without a link when none is built", () => {
+    const status = statusCardOf("en", {
+      installations: listedWithCheck({
+        kind: "missing",
+        missing: { permissions: ["contents"], events: [] },
+        acceptUrl: undefined,
+      }),
+    });
+
+    expect(status, "entry").toContain(
+      "<li>octocat (personal account), selected repositories, missing: Contents (read-only)</li>",
+    );
+    expect(status, "link").not.toContain("Review and accept");
+  });
+
+  it("the status page renders access not checked for an installation in en", () => {
+    const status = statusCardOf("en", { installations: listedWithCheck({ kind: "unreadable" }) });
+
+    expect(status, "entry").toContain("<li>octocat (personal account), selected repositories, access not checked</li>");
+  });
+
+  it("the status page renders a suffix after the suspended text for an installation whose access cannot be read in de", () => {
+    const status = statusCardOf("de", { installations: listedWithCheck({ kind: "unreadable" }, { suspended: true }) });
+
+    expect(status, "entry").toMatch(
+      /<li>octocat \(persönliches Konto\), ausgewählte Repositories, gesperrt, [^<]+<\/li>/,
+    );
+  });
+
+  it("the status page renders access not checked in de as a suffix", () => {
+    const status = statusCardOf("de", { installations: listedWithCheck({ kind: "unreadable" }) });
+
+    expect(status, "entry").toMatch(/<li>octocat \(persönliches Konto\), ausgewählte Repositories, [^<]+<\/li>/);
+  });
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "the status page adds nothing to an installation that is complete or whose app is unchecked in $language",
+    ({ language }) => {
+      const complete = statusCardOf(language, { installations: listedWithCheck({ kind: "complete" }) });
+      const unchecked = statusCardOf(language, { installations: listedWithCheck({ kind: "app-unchecked" }) });
+
+      expect(complete, "complete").toBe(unchecked);
+      expect(complete, "entry").toMatch(/<li>octocat \([^)]+\), [^,<]+<\/li>/);
+    },
+  );
+
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "the status page has exactly its own external addresses with the owner, the app check and an installation check in $language",
+    ({ language }) => {
+      const page = startPage(language, {
+        owner: ownerOf("octo-org", "Organization"),
+        appAccess: checkedApp(["issues"], ["star"]),
+        installations: listedWithCheck({
+          kind: "missing",
+          missing: { permissions: ["issues"], events: [] },
+          acceptUrl: INSTALLATION_URL,
+        }),
+      });
+
+      expect(
+        [...attributeValues(page, "src"), ...attributeValues(page, "href"), ...attributeValues(page, "action")].filter(
+          (value) => /^(?:https?:)?\/\//i.test(value),
+        ),
+        "external addresses in src, href and action",
+      ).toEqual([SLUG_LINK, APP_SETTINGS_URL, INSTALLATION_URL]);
     },
   );
 });

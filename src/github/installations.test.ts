@@ -3,9 +3,16 @@ import { appJwt } from "./app-jwt";
 import { MAX_GITHUB_RESPONSE_BYTES } from "./conversion";
 import { hasNextPage, listInstallations, MAX_INSTALLATIONS, parseInstallations } from "./installations";
 import type { Installation } from "./installations";
-import { githubApiDouble, installationEntry, jsonAnswer, REJECTED } from "../../test/github";
+import {
+  FIXTURE_INSTALLATION_ACCESS,
+  githubApiDouble,
+  installationEntry,
+  installationWithAccess,
+  jsonAnswer,
+  REJECTED,
+} from "../../test/github";
 import type { GitHubAnswer } from "../../test/github";
-import { bearerOf, decodeJwt, fixturePublicKey, fixtureSigningKey, jwtVerifies } from "../../test/jwt";
+import { bearerOf, decodeJwt, fixtureSigningKey, jwtVerifies } from "../../test/jwt";
 
 const VERSION = "1.2.3-test";
 const APP_ID = 12_345;
@@ -18,7 +25,7 @@ const OCTOCAT: Installation = {
   account: { kind: "login", login: "octocat", type: "User" },
   repositorySelection: "selected",
   suspended: false,
-  access: undefined,
+  access: FIXTURE_INSTALLATION_ACCESS,
 };
 
 /** `count` installations with the ids 1 to `count`. */
@@ -107,6 +114,44 @@ describe("parseInstallations", () => {
 
     expect(parsed, "installations").toEqual([{ ...OCTOCAT, ...expected }]);
   });
+
+  it("parseInstallations narrows the permissions and events of an installation into its access", () => {
+    const parsed = parseInstallations([
+      installationWithAccess({ metadata: "read", issues: "write" }, ["issues", "star"]),
+    ]);
+
+    expect(parsed?.[0]?.access, "access").toEqual({
+      permissions: { metadata: "read", issues: "write" },
+      events: ["issues", "star"],
+    });
+  });
+
+  it.each<{ case: string; permissions: unknown; events: unknown }>([
+    { case: "missing permissions", permissions: undefined, events: ["issues"] },
+    { case: "permissions that are an array", permissions: ["metadata"], events: ["issues"] },
+    { case: "permissions that are null", permissions: null, events: ["issues"] },
+    { case: "a level that is not a string", permissions: { metadata: 1 }, events: ["issues"] },
+    { case: "missing events", permissions: { metadata: "read" }, events: undefined },
+    { case: "events that are a text", permissions: { metadata: "read" }, events: "issues" },
+    { case: "an event that is not a string", permissions: { metadata: "read" }, events: ["issues", 1] },
+  ])(
+    "parseInstallations keeps an entry with unreadable permissions or events as unchecked: $case",
+    ({ permissions, events }) => {
+      const parsed = parseInstallations([
+        installationEntry({ id: 1 }),
+        installationWithAccess(permissions, events, { id: 2 }),
+        installationEntry({ id: 3 }),
+      ]);
+
+      expect(
+        parsed?.map((installation) => installation.id),
+        "ids",
+      ).toEqual([1, 2, 3]);
+      expect(parsed?.[1]?.access, "access of the unreadable entry").toBeUndefined();
+      expect(parsed?.[0]?.access, "access of the entry before").toEqual(FIXTURE_INSTALLATION_ACCESS);
+      expect(parsed?.[2]?.access, "access of the entry after").toEqual(FIXTURE_INSTALLATION_ACCESS);
+    },
+  );
 
   it.each<{ case: string; body: unknown }>([
     { case: "an object instead of a list", body: { total_count: 1, installations: [installationEntry()] } },
