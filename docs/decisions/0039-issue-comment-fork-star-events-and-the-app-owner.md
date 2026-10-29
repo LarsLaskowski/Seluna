@@ -129,6 +129,9 @@ The rules are in the area documents [`areas/github-api.md`](../areas/github-api.
   plan's 100,000 rows written a day (Cloudflare's documentation), this allows about 14,000 deliveries a day for the
   whole instance.
 - Every cached installation token is requested again once after the update.
+- An answer whose `permissions` is an empty object is accepted: such a token can read nothing, so the draft lookup
+  fails and the CI failure is reported marked _draft status unknown_ (0027). Refusing it would change nothing the
+  owner sees, so the check only refuses what grants more than the list.
 - Residual risk, volume: anyone can open issues, comment, and star and unstar on a selected public repository.
   Each of these is a delivery. When the daily D1 write budget runs out, every delivery answers 503, including
   secret scanning alerts and CI failures that GitHub does not send again, and login-attempt writes fail too. Pull
@@ -137,8 +140,8 @@ The rules are in the area documents [`areas/github-api.md`](../areas/github-api.
 - Residual risk, shapes:
   - The shapes rest on GitHub's documentation, not on captured answers to this app: the installation's
     `permissions` and `events`, the settings page URLs, and the token request's and answer's `permissions`.
-  - The app object of `GET /app` follows a real app object (`specs/feature-108-github-app-events/sample-app.json`,
-    from a check run of this repository).
+  - The app object of `GET /app` follows a real app object (`test/fixtures/github/app.json`, from a check run of
+    this repository).
   - Each deviation fails closed. The Product Manager's live check on a deployed copy confirms them before the pull
     request is marked ready: an app created with the new manifest, an older app's missing list and its acceptance,
     a draft lookup with the narrowed token (its answer's `permissions` is exactly the list), and the owner line for a personal account.
