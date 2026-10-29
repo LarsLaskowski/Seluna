@@ -1,7 +1,8 @@
 # Plan: Subscribe the GitHub App to issues, comments, forks and stars
 
 Source: Issue #108 | [spec.md](spec.md)
-Status: Draft
+Status: Revised (1)
+Plan size: a security-tier change across 15 modules whose revision must carry the Security review and Challenge answers in the plan itself.
 Tier: security — it adds two app permissions, narrows the installation tokens and changes the additional data of the encrypted `token_cache` rows: each is a security control.
 Security areas touched: Minimal GitHub App permissions (`src/github/manifest.ts`), GitHub App manifest flow (`src/setup/github-step.ts`, owner stored after the credentials), GitHub App authentication (`src/github/http.ts`, `src/github/installation-token.ts`, new `src/github/app-info.ts`, `src/github/installations.ts`), Encrypted credentials (`src/store/token-cache.ts`, additional data of `token_cache`), Setup login (`src/setup/pages.ts`, `src/setup/status.ts`: new external links on the signed-in status page), Parsing of external input (`GET /app` and installation `permissions`/`events` narrowed from `unknown`)
 
@@ -22,16 +23,17 @@ See [spec.md](spec.md), *Problem*.
 | 7 | `listInstallations` signs its own JWT per call; the status page makes exactly one GitHub request | `src/github/installations.ts` lines 109–129, `src/setup/status.ts` lines 148–174 | confirmed |
 | 8 | `statusView` does not catch D1 errors; the slug write after the manifest flow drops its failure | `src/setup/status.ts` line 177, `src/setup/github-step.ts` lines 232–242 | confirmed |
 | 9 | A GitHub App object has `id`, `slug`, `owner` (`id`, `login`, `type`), `permissions` (name to level) and `events` (array of names) | real app object `specs/feature-108-github-app-events/sample-app.json`, read from a check run of this repository (`gh api repos/larslaskowski/seluna/commits/main/check-runs`); public data, no private values | confirmed |
-| 10 | `GET /app` answers this app's object (schema of fact 9) | to verify: Product Manager's live check on a deployed copy before the PR is marked ready (basis: GitHub REST documentation; the session cannot authenticate as an app) | unverified |
-| 11 | Installation entries carry `permissions` and `events` | to verify: Product Manager's live check on a deployed copy before the PR is marked ready: an older installation shows the missing Issues and Contents (basis: OpenAPI example in `installations.json`) | unverified |
-| 12 | The token request accepts `{"permissions":{...}}`; a token with only `pull_requests: read` reads a pull request | to verify: Product Manager's live check on a deployed copy before the PR is marked ready: a CI failure in a pull request is reported without _draft status unknown_ (basis: GitHub REST documentation) | unverified |
+| 10 | `GET /app` answers this app's object (schema of fact 9) | GitHub REST documentation, confirmed by Security's plan review; the live check exercises it | confirmed |
+| 11 | Installation entries carry `permissions` and `events` | GitHub OpenAPI (`installations.json` example), confirmed by Security's plan review | confirmed |
+| 12 | The token request accepts `{"permissions":{...}}`; without it a token gets every permission the installation granted; the 201 answer carries the token's `permissions` | to verify: Product Manager's live check on a deployed copy before the PR is marked ready: a CI failure in a pull request is reported without _draft status unknown_, so the answer's `permissions` passed the check (basis: GitHub OpenAPI, quoted by Security) | unverified |
 | 14 | The four settings URLs of spec S5 and S6 | to verify: Product Manager's live check on a deployed copy before the PR is marked ready: each link opens its page (basis: `installations.json` `html_url`, GitHub's settings navigation) | unverified |
-| 15 | `fork` needs Contents, `star` Metadata, `issue_comment` Issues (Pull requests for pull request comments) | to verify: Product Manager's live check on a deployed copy before the PR is marked ready: an app from the new manifest receives each event (basis: issue #108, GitHub webhook documentation) | unverified |
+| 15 | `fork` needs Contents, `star` Metadata, `issues` and `issue_comment` Issues | GitHub webhook documentation and OpenAPI, confirmed by Security's plan review | confirmed |
 | 16 | Every fixture with a `sender` has `example-owner`, type `User` | script over `test/fixtures/*/*.json` (ids 1000 and 1000001) | confirmed |
 | 17 | `docs/setup.md` and the created-page texts recommend _All repositories_ | `docs/setup.md` line 26; `src/setup/texts.ts` lines 241, 244, 460, 463 | confirmed |
-| 18 | A delivery writes a `deliveries` row (indexed on `received_at`) and the `meta` `last_delivery` upsert, whether or not a rule matches | `docs/areas/notifications.md` *Processing a delivery* step 5; `migrations/0001_initial_schema.sql` line 18 | confirmed |
+| 18 | A delivery writes about 7 D1 rows: the `deliveries` insert with its primary-key and `received_at` indexes (3), the `meta` upsert (1), the cleanup delete 7 days later (3); D1 counts one row per index | `migrations/0001_initial_schema.sql`, `docs/areas/notifications.md` *Processing a delivery*; Security's plan review | confirmed |
 | 19 | The free plan allows 100,000 Worker requests and 100,000 D1 rows written a day | to verify: Security checks Cloudflare's published limits in step 3 | unverified |
 | 20 | The GitHub double fails a test on any request without a route and records no body | `test/github.ts` lines 91, 178–220 | confirmed |
+| 21 | GitHub's stateless installation token format (staged rollout from 2026-04-27) may fail `isInstallationTokenText` (`^\w{1,255}$`) | to verify: in the follow-up issue below; if the live check's draft lookup fails on the token form, that is the follow-up's defect, not this change's | unverified |
 
 ## Tests per criterion
 
@@ -42,7 +44,7 @@ See [spec.md](spec.md), *Problem*.
 | AC2 | `parseOwnerAccount narrows a User and an Organization owner`; `parseOwnerAccount rejects $case` (id 0, negative, fractional, string, beyond safe range; type `Bot`, `Enterprise`, missing; login failing the allow-list, 40 characters; not an object) | `src/github/owner.test.ts` |
 | AC2 | `parseConversion keeps the owner account`; `parseConversion converts with an undefined account when the owner id is missing` | `src/github/conversion.test.ts` |
 | AC2 | `finishGitHubApp stores the owner for the saved App ID`; `finishGitHubApp saves the app without an owner when the owner id is malformed`; `finishGitHubApp answers created when the owner write fails` | `src/setup/github-step.test.ts` |
-| AC2, AC3 | `writeAppOwner and readAppOwner round-trip an owner`; `readAppOwner ignores an owner of another App ID`; `readAppOwner reads $case as absent` (wrong form, unknown type, unsafe id) | `src/store/meta.test.ts` |
+| AC2, AC3 | `writeAppOwner and readAppOwner round-trip an owner`; `readAppOwner ignores an owner of another App ID`; `readAppOwner reads $case as absent` (wrong form, unknown type, unsafe id, a login failing `isAccountName`) | `src/store/meta.test.ts` |
 | AC3 | `statusView stores the owner of GET /app when none is stored`; `statusView writes nothing when the stored owner is the same`; `statusView replaces a different owner of the same App ID`; `statusView ignores an owner stored for another App ID`; `statusView answers with GitHub's owner when the owner write fails`; `statusView signs one JWT and sends GET /app and the installations list` | `src/setup/status.test.ts` |
 | AC4 | `statusView shows GitHub's owner, else the stored one, else unavailable` (table: answer ok/failed/malformed owner × stored/none); `statusView hides the owner where the installations line is hidden` | `src/setup/status.test.ts` |
 | AC4 | `the status page shows the owner line for a personal account in $language`; `the status page adds the organization notice for an organization's app`; `the status page shows owner unavailable` | `src/setup/pages.test.ts` |
@@ -51,15 +53,15 @@ See [spec.md](spec.md), *Problem*.
 | AC6 | `appPermissionsUrl builds the personal and organization page`; `installationSettingsUrl builds the user and organization page` | `src/github/app-links.test.ts` |
 | AC6 | `statusView reports what the app lacks with the settings link`; `statusView reports what an installation lacks of what the app has`; `statusView names something the app lacks only on the app`; `statusView reports nothing missing for a complete app and installations`; `statusView checks a suspended installation` | `src/setup/status.test.ts` |
 | AC6 | `the status page renders the missing line and links in $language`; `the status page renders nothing extra when nothing is missing`; `the $page page in $language has exactly its own external addresses` (adapted: the two new links) | `src/setup/pages.test.ts` |
-| AC7 | `parseAppInfo narrows the real app object`; `parseAppInfo rejects $case` (no id, permissions not an object, a level not a string, events not an array, an event not a string); `parseAppInfo keeps the answer with an undefined owner when the owner is malformed`; `parseAppInfo drops a slug outside the allow-list`; `readAppInfo sends GET /app with the given JWT`; `readAppInfo fails on $case` (401, 500, redirect, rejection, oversized, not JSON) | `src/github/app-info.test.ts` |
+| AC7 | `parseAppInfo narrows the real app object`; `parseAppInfo rejects $case` (no id, permissions not an object, a level not a string, events not an array, an event not a string); `parseAppInfo keeps the answer with an undefined owner when the owner is malformed`; `parseAppInfo drops a slug outside the allow-list`; `parseGrantedAccess copies only the answer's own entries` (an inherited entry is ignored); `readAppInfo sends GET /app with the given JWT`; `readAppInfo fails on $case` (401, 500, redirect, rejection, oversized, not JSON) | `src/github/app-info.test.ts` |
 | AC7 | `appPermissionsUrl gives no link for $case` (slug or login failing the allow-list); `installationSettingsUrl gives no link for $case` (enterprise, unknown, type other, login failing the allow-list) | `src/github/app-links.test.ts` |
 | AC7 | `parseInstallations keeps an entry with unreadable permissions or events as unchecked`; `listInstallations sends the given JWT` (adapted signature) | `src/github/installations.test.ts` |
 | AC7 | `statusView marks the app unchecked and installations without a suffix when GET /app fails`; `statusView marks an installation with unreadable access as not checked`; `statusView treats a GET /app answer of another App ID as failed`; `statusView takes the slug from the answer, else from the stored slug` | `src/setup/status.test.ts` |
 | AC7 | `the status page says the app's permissions could not be read`; `the status page renders access not checked for an installation`; `the status page renders a missing line without a link when no link is built` | `src/setup/pages.test.ts` |
-| AC8 | `installationToken requests the token with exactly {"permissions":{"pull_requests":"read"}} as JSON` (replaces the `hasBody` false assertion); `INSTALLATION_TOKEN_PERMISSIONS holds no contents, no issues and no write level` | `src/github/installation-token.test.ts` |
+| AC8 | `installationToken requests the token with exactly {"permissions":{"metadata":"read","pull_requests":"read"}} as JSON` (replaces the `hasBody` false assertion); `installationToken gives no token and writes no token_cache row for an answer whose permissions carry contents`; `installationToken gives no token for an answer without permissions`; `parseInstallationToken accepts permissions of only metadata read and pull_requests read`; `parseInstallationToken rejects $case` (contents read, issues read, pull_requests write, permissions an array, a level not a string); `INSTALLATION_TOKEN_PERMISSIONS is exactly metadata read and pull_requests read` | `src/github/installation-token.test.ts` |
 | AC8 | `gitHubRequest with a JSON body sets Content-Type application/json and the body`; `gitHubRequest without a body sends none` | `src/github/http.test.ts` |
-| AC9 | `tokenContext binds the installation, the expiry and the permission list`; `readCachedToken treats a row written under the earlier additional data as no cached token`; `permissionsTag sorts the names` | `src/store/token-cache.test.ts` |
-| AC9 | `installationToken requests a new token when the cached row was written by an earlier version` | `src/github/installation-token.test.ts` |
+| AC9 | `tokenContext binds the installation, the expiry and the permission list`; `readCachedToken treats a row written for another permission list (also the earlier additional data) as no cached token`; `permissionsTag sorts the names` | `src/store/token-cache.test.ts` |
+| AC9 | `installationToken requests a new token when the cached row was written for another permission list` | `src/github/installation-token.test.ts` |
 | AC10 | `processWebhook accepts and records $event and sends nothing` (fixtures `issues/opened.json`, `issue_comment/created.json`, `fork/fork.json`, `star/created.json`) | `src/webhook.test.ts` |
 | AC12 | `the created page recommends Only select repositories in $language` (install intro and install manually) | `src/setup/pages.test.ts` |
 
@@ -85,7 +87,7 @@ follow the same order in GitHub's names (en and de):
 of exactly `User` or `Organization`. The conversion keeps `owner` for decision 0017's check and adds `account`, parsed
 separately, so a malformed id never makes the answer _malformed_ (spec E4). After the credentials are stored,
 `keepOwner` writes the `meta` row `github_app_owner` = `<appId>:<ownerId>:<type>:<login>` and drops a failure, like
-`keepSlug`; read only for its App ID, else absent; the reset keeps it like the slug row.
+`keepSlug`. `readAppOwner` re-checks every part (App ID, safe id, type, login with `isAccountName`), else absent; the reset keeps it like the slug row.
 
 **Status page.** For an app the _GitHub App:_ line names (`worker-secrets` or `saved`), `resolveAppCredentials` runs
 as today.
@@ -106,15 +108,21 @@ as today.
   - otherwise `missingAccess(installation.access, accessToCheck(app.access))`, as `complete` or as `missing` with
     `installationSettingsUrl(account, id)`.
 
+**Granted access.** `parseGrantedAccess` copies only the answer's own entries (`Object.entries`), each level a
+string, else `undefined`.
+
 **Levels.** `read` < `write` < `admin`; a granted level satisfies every lower one, and an unknown level satisfies
 nothing. Missing names keep the manifest order.
 
 **Tokens.**
-- `INSTALLATION_TOKEN_PERMISSIONS = { pull_requests: "read" }`. The token request sends
+- `INSTALLATION_TOKEN_PERMISSIONS = { metadata: "read", pull_requests: "read" }`. The token request sends
   `JSON.stringify({ permissions: INSTALLATION_TOKEN_PERMISSIONS })` with `Content-Type: application/json`.
+- `parseInstallationToken` (same signature) also requires the answer's `permissions`: a non-array object whose own
+  entries (`Object.entries`) each equal an entry of `INSTALLATION_TOKEN_PERMISSIONS`, key and level. Anything else,
+  including no `permissions`, is `undefined`, so `installationToken` caches nothing and returns `undefined`.
 - `tokenContext` becomes `token_cache/<id>/<expires_at>/<permissionsTag>`, where the tag is `name=level` pairs
-  sorted by name and joined by `,` (today `pull_requests=read`).
-- Rows of the earlier form fail to decrypt and are replaced (decision 0039, option 12).
+  sorted by name and joined by `,` (`metadata=read,pull_requests=read`). A cached token counts only for its list, so
+  any change of the list takes effect immediately (decision 0039, option 12).
 
 **Actor helpers.** As spec S9 and E5; both narrow `unknown` with a private type guard and never throw.
 
@@ -146,8 +154,10 @@ repositories is recommended: Seluna then sees only the repositories you pick, an
 installation by hand." _install manually_ ends with the same recommendation in place of the _All repositories_
 sentence. German texts are their translation.
 
-**Load.** About 3 rows written per delivery, so roughly 30,000 deliveries a day against the free plan's D1 write
-allowance (facts 18, 19; decision 0039). No code limits it; _Only select repositories_ is the owner's control.
+**Load.** About 7 rows written per delivery, so about 14,000 deliveries a day against the free plan's D1 write
+allowance (facts 18, 19). No code limits it. On a selected public repository strangers decide the volume; when
+the budget runs out, every delivery answers 503. That residual risk is stated in decision 0039, with a follow-up
+issue below.
 
 ## Options considered
 
@@ -155,7 +165,8 @@ Each weighed in decision 0039 (options 1–18) with the reason it lost: fork pol
 requests); owner by login (breaks on rename) or entered in the wizard (wrong for organizations); owner in `settings`
 (the owner's choices); the owner learned on a delivery (a request on the webhook path, not needed yet); a token list of
 every manifest permission but Contents (unaccepted Issues breaks the draft lookup, spec E8); a migration deleting
-`token_cache` or waiting for expiry (only with migrations applied; up to 55 minutes of broad tokens); links from
+`token_cache` per list change or waiting for expiry (only with migrations applied; up to 55 minutes of failing calls
+after a list change); links from
 `html_url` (an external URL without allow-list); two JWTs in sequence (two signatures and timeouts per view).
 
 ## Affected projects and types
@@ -276,7 +287,8 @@ what changes in each is listed under *Documentation updates*. No new area.
 
 Owner: the Dev, once the code is green, against that code, unless noted.
 
-- `docs/areas/github-api.md`: *Installation tokens* (explicit list; old rows invalidated by the additional data), a new
+- `docs/areas/github-api.md`: *Installation tokens* (explicit list; the answer's `permissions` checked; a cached token
+  counts only for its list), a new
   *App read* section (`GET /app`, narrowing, App ID match, failure), *Installations list* (`permissions`, `events`,
   an unreadable entry).
 - `docs/areas/setup-wizard.md`: the manifest lists; *Status and settings* (owner line, organization text, app check,
@@ -287,7 +299,10 @@ Owner: the Dev, once the code is green, against that code, unless noted.
   `sender` sentence to the owner and bot definitions for #109.
 - `.squad/project.md`:
   - *Minimal GitHub App permissions*: the eight permissions, and why `contents` (decision 0039).
-  - *GitHub App authentication*: `app-info.ts`, `app-links.ts`, `token-permissions.ts`, the explicit token list.
+  - *GitHub App authentication*: `app-info.ts`, `app-links.ts`, `token-permissions.ts`, the explicit token list and
+    the check of the answer's `permissions`.
+  - *GitHub App manifest flow*: the owner stored after the credentials (`keepOwner`, `meta` row `github_app_owner`,
+    failure dropped).
   - *Encrypted credentials*: `token_cache` additional data with the permission tag.
   - *Test doubles*, GitHub API double: the `app` route and the recorded body. This item belongs to the Tester.
 - `docs/setup.md`:
@@ -332,3 +347,45 @@ the sweep finds a list.
 
 - Passing the owner into the rule input and the rules themselves: #109 and #110.
 - A deviation the live check finds: a new issue with the captured answer.
+- Follow-up issue for the orchestrator: "[Webhook] Do not record deliveries that no rule reads". Body: each delivery
+  costs about 7 D1 rows written even when no rule could report it (decision 0039). Strangers can drive `issues`,
+  `issue_comment` and `star` on a selected public repository until the daily write budget runs out, and then every
+  delivery, alerts included, answers 503. Skip the `deliveries` row and the `meta` write for a delivery that yields
+  no notification, if deduplication can be kept, or rate-limit per event; weigh it against the redelivery guarantee.
+- Follow-up issue for the orchestrator: "[GitHub] Accept GitHub's stateless installation token format". Body: GitHub
+  is rolling out installation tokens of the form `ghs_<APPID>_<JWT>` (staged from 2026-04-27). `isInstallationTokenText`
+  (`^\w{1,255}$`, `src/github/token-text.ts`) rejects `.` and `-` and the 255-character bound, so the draft lookup
+  would fail closed (_draft status unknown_). Check the documented form and widen the allow-list without letting a
+  token alter a header.
+
+## Challenge
+
+Two minor objections from the Devil's Advocate:
+
+- m1 (wrong reason for the permission tag): accepted. A token cached before the update cannot read code, because
+  Contents arrives only after the owner accepts it. The tag stays, for the reason that a cached token counts only
+  for its list, so a later list change takes effect immediately. Spec E9 and AC9, decision 0039 (Context, options
+  12–14), the AC9 test names and the github-api.md update are reworded.
+- m2 (drop the metadata residual risk): accepted. `INSTALLATION_TOKEN_PERMISSIONS` is `metadata: read` and
+  `pull_requests: read`, with the tag `metadata=read,pull_requests=read`. AC8 asserts exactly that object, and
+  0039's metadata point is removed. This is consistent with B1's accepted set.
+
+## Security review
+
+- B1 (the narrowing is never measured): accepted.
+  - `parseInstallationToken` accepts a token only when the answer's `permissions` is an object whose own entries
+    are each `metadata: read` or `pull_requests: read`. Anything else, or no `permissions`, gives no token and no
+    `token_cache` row (spec E13, AC8; Approach *Tokens*).
+  - New tests: an answer carrying `contents` gives no token and no row; an answer without `permissions` gives no
+    token.
+  - Fact 12's live check now also measures the narrowing.
+- N1 (rows per delivery undercounted): accepted. About 7 rows per delivery, so about 14,000 deliveries a day
+  (fact 18). Decision 0039 states the volume risk and the 503 for every delivery, and drops the claim that _Only
+  select repositories_ controls the volume; so does the spec's load NFR. A follow-up issue is described above.
+- N2: accepted. *Documentation updates* now lists `.squad/project.md` *GitHub App manifest flow*.
+- N3: accepted. `readAppOwner` re-checks the login with `isAccountName` (and the id and type), with a test in
+  `src/store/meta.test.ts`.
+- N4: accepted. `parseGrantedAccess` copies only own entries, with a test in `src/github/app-info.test.ts`.
+- N5: accepted. Decision 0039's Context now names only Issues for `issue_comment` and does not rely on Pull
+  requests; fact 15 is reworded.
+- N6: decided as a follow-up issue (described above), not part of this change; fact 21 records it for the live check.

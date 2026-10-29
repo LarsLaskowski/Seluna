@@ -75,8 +75,12 @@ which would now include `contents: read`.
   or _more installations_ behavior applies, and only listed installations are checked. Suspended ones are checked too.
 - E8: An installation that has not accepted `issues` or `contents` still gets tokens, because the list never names
   them. One that lacks a listed permission gets the existing failure result.
-- E9: A token cached by a version before this change may carry every permission of the app. It is not used after the
-  update.
+- E9: A cached token counts only for the permission list it was requested with. When the list changes (also from
+  the implicit full list of earlier versions to the explicit one), rows of the earlier list are not used, so the
+  change takes effect immediately.
+- E13: A token answer whose `permissions` holds anything other than `metadata: read` and `pull_requests: read`, or
+  that has no `permissions`, gives no token. Nothing is cached, and the draft lookup fails as for any other token
+  failure (_draft status unknown_, decision 0027).
 - E10: No link is built from a slug, login or installation id that fails its allow-list. The same holds for an
   enterprise or unknown installation account and for an unknown owner type. The _Missing_ text is still shown.
 - E11: A failed owner write (D1 error) is ignored, like the slug write after the manifest flow: 200, GitHub's owner
@@ -89,7 +93,7 @@ which would now include `contents: read`.
 
 - Security: the app stays read-only.
   - `contents: read` is only there because GitHub requires it for `fork`; `star` needs `metadata`.
-  - No token Seluna holds can read code.
+  - No token Seluna holds can read code: a token is used only when GitHub's answer confirms the narrow list (E13).
   - The new decision record gives the reasons, and `.squad/project.md` (*Security areas*) lists the permissions and
     the narrowed tokens.
 - The owner's id, login and type are public. They are stored as plain text in D1, tied to the App ID like the slug
@@ -99,9 +103,9 @@ which would now include `contents: read`.
   (decision 0026). The page never fails on them. Signed-out pages call neither GitHub nor D1.
 - Load: `star` and `issue_comment` can arrive often. Each delivery is a Worker request, a `deliveries` row and D1
   reads and writes. The plan states the expected extra load against the free plan. _Only select repositories_ (S11)
-  is the owner's way to limit it.
-- Compatibility: existing apps keep working with their old permissions. The plan decides whether E9 needs a
-  migration. New links point only to `https://github.com`.
+  limits deliveries to the chosen repositories; on a selected public repository strangers decide the volume, a
+  residual risk stated in decision 0039.
+- Compatibility: existing apps keep working with their old permissions. E9 needs no migration. New links point only to `https://github.com`.
 - All new texts exist in English and German. Nothing new is logged.
 - The shapes of `GET /app`, of the installation's `permissions` and `events`, of the settings URLs and of the token
   request's `permissions` field come from GitHub's documentation, not captured answers.
@@ -129,9 +133,11 @@ which would now include `contents: read`.
 - [ ] AC7: With `GET /app` failed, the page says the permissions could not be checked and shows no _Missing_ text or
   suffix. No link is built in E10's cases. The slug falls back to the stored one. An installation whose access
   cannot be read shows `, access not checked` (S5, E1, E10, E12).
-- [ ] AC8: Against the GitHub test double, the token request carries an explicit `permissions` object. It holds only
-  what Seluna's API calls read: no `contents`, no `issues`, no write level (S8, E8).
-- [ ] AC9: A token cached before the update is not used afterwards (E9).
+- [ ] AC8: Against the GitHub test double, the token request carries exactly `{"permissions":{"metadata":"read",
+  "pull_requests":"read"}}`: no `contents`, no `issues`, no write level. A token answer whose `permissions` holds
+  anything else, or none, gives no token and writes no `token_cache` row (S8, E8, E13).
+- [ ] AC9: A cached token written for another permission list, including one cached before the update, is not used
+  (E9).
 - [ ] AC10: As a regression guard, deliveries of `issues` (`opened`), `issue_comment` (`created`), `fork` and `star`
   (`created`) are accepted and recorded, and send nothing.
   - Each comes from its own fixture file under `test/fixtures/<event>/`; the plan names the `fork` file, which has no
@@ -195,4 +201,7 @@ which would now include `contents: read`.
 - Lead, while planning: two gaps found and closed. S4 now says when the owner line appears. The new E12, covered by
   AC7, keeps an installation whose access cannot be read from looking complete, as the NFR "never a false nothing
   missing" requires.
+- Plan revision (Security B1, N1; Devil's Advocate m1, m2): E9 now gives the real reason (a cached token counts
+  only for its list). The new E13 and AC8 check that GitHub's answer confirms the narrow list. The token list names
+  `metadata: read` as well. The load NFR no longer calls _Only select repositories_ a volume control.
 - Spec size: the revision shortened the spec to fit within `SPEC_MAX_WORDS` without dropping a scenario or criterion.

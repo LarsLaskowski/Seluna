@@ -17,8 +17,8 @@ Issue #108 prepares the rules of #109 (issues and comments) and #110 (forks and 
 `issues`, `issue_comment`, `fork` and `star`. Each event needs a permission:
 
 - `issues` needs Issues.
-- `issue_comment` needs Issues for an issue's comments; Pull requests, which the app already has, covers a pull
-  request's.
+- `issue_comment` needs Issues (GitHub's documentation names only Issues; whether Pull requests alone delivers the
+  comments of a pull request is not relied on, because the app has both).
 - `fork` needs Contents.
 - `star` needs only Metadata.
 
@@ -26,9 +26,11 @@ The rules must leave out the owner's own actions and bots, so Seluna has to know
 manifest conversion was narrowed to the owner's `login` and `type`, and no rule read `sender`. An existing app keeps
 its permissions until the owner accepts new ones on GitHub ([0006](0006-github-app-per-user-manifest-flow.md)).
 
-Installation tokens were requested without a `permissions` object, so each token carried every permission of the
-app. With Contents added, a token cached in `token_cache` could then read code. The only API call made with an
-installation token is the draft lookup, `GET /repos/{owner}/{repo}/pulls/{number}`.
+Installation tokens were requested without a `permissions` object, so each token carried every permission the
+installation had granted, and once the owner accepts Contents, every new token could read code. GitHub's
+documentation says a request without `permissions` gets all of them, and its token answer names the permissions
+the token got. The only API call made with an installation token is the draft lookup,
+`GET /repos/{owner}/{repo}/pulls/{number}`.
 
 The private key is stored encrypted and readable only with `SELUNA_SECRET` (0007). Whoever has both the database
 and `SELUNA_SECRET` can already mint tokens with every permission of the app, and Actions read already exposes logs
@@ -69,20 +71,25 @@ How an older app's owner is learned:
 
 The permission list of an installation token:
 
-10. **Only what the API calls read: `pull_requests: read`.** Every existing installation has granted it. A list that
-    names a permission an installation has not accepted yet would make GitHub refuse the token. Chosen.
+10. **Only what the API calls read: `metadata: read` and `pull_requests: read`, and a token accepted only when the
+    answer's `permissions` holds nothing else.** Every installation has both (Metadata is always granted), so naming
+    them never makes GitHub refuse the token. A list that names a permission an installation has not accepted yet
+    would. Checking the answer turns "no token can read code" from a hope into a check: a GitHub that ignored the list
+    would hand out a token with every permission, which Seluna then refuses and never caches. Chosen.
 11. **Every manifest permission except Contents.** That list includes Issues, which an existing installation has not
     accepted until the owner reviews it, so the draft lookup would fail until then. It also grants more than is read.
 
-Tokens cached by an earlier version, which carry every permission the app had when they were issued:
+Cached tokens when the permission list changes. A token cached before this update cannot read code, because an
+existing app gets Contents only after the update, when the owner accepts it. The case that matters is a later
+change of the list: if #109 or #110 widens it, a narrower cached token would fail the new calls.
 
-12. **The additional data of a `token_cache` row also names the token's permission list.** A row written without it
-    no longer decrypts, which 0026 already treats as no cached token, so it is replaced on the next call. Any later
-    change of the list invalidates the old rows the same way. No migration is needed, and it works for copies whose
-    deploy command does not apply migrations. Chosen.
-13. **A migration that deletes `token_cache`.** It runs only where the deploy applies migrations, and a later change
-    of the list would need another migration.
-14. **Accepting the old rows until they expire.** A row is reused for up to 55 minutes.
+12. **The additional data of a `token_cache` row also names the token's permission list.** A cached token then counts
+    only for the list it was issued for, so any change to the list takes effect immediately. A row of another list
+    no longer decrypts, which 0026 already treats as no cached token, so it is replaced on the next call. No migration
+    is needed. Chosen.
+13. **A migration that deletes `token_cache` on each change of the list.** It runs only where the deploy applies
+    migrations, and every change needs another one.
+14. **Accepting the old rows until they expire.** For up to 55 minutes, calls that need the new list would fail.
 
 The links to accept permissions on GitHub:
 
@@ -102,8 +109,9 @@ The status page's GitHub requests:
 The manifest adds `issues: read` and `contents: read`, and the events `issues`, `issue_comment`, `fork` and `star`.
 The app's owner is its `owner` account, identified by account id and kept in `meta` tied to the App ID. It is
 stored when the manifest flow finishes and is otherwise read from `GET /app` on the status page; an organization
-owner means no owner filter. Installation tokens are requested with the explicit list `pull_requests: read`, and a
-cached token counts only for the list it was issued for.
+owner means no owner filter. Installation tokens are requested with the explicit list `metadata: read`,
+`pull_requests: read` and accepted only when GitHub's answer grants nothing else. A cached token counts only for the
+list it was issued for.
 
 The rules are in the area documents [`areas/github-api.md`](../areas/github-api.md),
 [`areas/setup-wizard.md`](../areas/setup-wizard.md) and [`areas/storage.md`](../areas/storage.md).
@@ -113,18 +121,24 @@ The rules are in the area documents [`areas/github-api.md`](../areas/github-api.
 - Existing instances receive the new events only after the owner adds the permissions and events to the app and
   accepts them on each installation. The status page names what is missing and links to the page where it is done.
 - The setup guide and the created page now recommend _Only select repositories_. A new repository has to be added
-  to the installation by hand, and this is also how the owner limits the volume of `star` and `issue_comment`
-  deliveries.
-- Every delivery costs a Worker request, a `deliveries` row (plus its index entry) and the `meta` upsert, whether or
-  not a rule reports it. Against the free plan's daily allowance of D1 rows written (100,000 according to Cloudflare's
-  documentation), that is roughly 30,000 deliveries a day for the whole instance.
+  to the installation by hand. This limits deliveries to the chosen repositories. On a selected public repository,
+  strangers still decide the volume.
+- Every delivery costs a Worker request and D1 rows written, whether or not a rule reports it: about 3 for the
+  `deliveries` insert (the row, its primary-key index and its `received_at` index), 1 for the `meta` upsert, and
+  about 3 more when the cleanup deletes the row 7 days later. That is about 7 rows per delivery. Against the free
+  plan's 100,000 rows written a day (Cloudflare's documentation), this allows about 14,000 deliveries a day for the
+  whole instance.
 - Every cached installation token is requested again once after the update.
-- Residual risk:
-  - The shapes rest on GitHub's documentation, not on captured answers to this app: the installation's `permissions`
-    and `events`, the settings page URLs, the token request's `permissions` field, and whether a token without an
-    explicit `metadata` still reads a pull request.
+- Residual risk, volume: anyone can open issues, comment, and star and unstar on a selected public repository.
+  Each of these is a delivery. When the daily D1 write budget runs out, every delivery answers 503, including
+  secret scanning alerts and CI failures that GitHub does not send again, and login-attempt writes fail too. Pull
+  requests allowed this before; the new events make it cheaper. A follow-up issue proposes not recording
+  deliveries that no rule reads.
+- Residual risk, shapes:
+  - The shapes rest on GitHub's documentation, not on captured answers to this app: the installation's
+    `permissions` and `events`, the settings page URLs, and the token request's and answer's `permissions`.
   - The app object of `GET /app` follows a real app object (`specs/feature-108-github-app-events/sample-app.json`,
     from a check run of this repository).
   - Each deviation fails closed. The Product Manager's live check on a deployed copy confirms them before the pull
     request is marked ready: an app created with the new manifest, an older app's missing list and its acceptance,
-    a draft lookup with the narrowed token, and the owner line for a personal account.
+    a draft lookup with the narrowed token (its answer's `permissions` is exactly the list), and the owner line for a personal account.
