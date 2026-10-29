@@ -17,7 +17,7 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 | --------- | ---- |
 | Worker `fetch` handler | `POST /webhook`, `GET /health` (returns the version), `/setup` (the setup wizard), `GET /` (redirects to `/setup`) |
 | Webhook processing | Deduplication by `X-GitHub-Delivery`, the rules, the draft lookup of a CI failure in a pull request ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)), the outbox rows and the first send attempt of each row ([`areas/notifications.md`](areas/notifications.md), [decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)) |
-| GitHub API client | Calls of the GitHub API as the app: the app JWT, the installation tokens per `installation.id` cached encrypted in `token_cache`, the pull request read for the draft lookup of the webhook processing and the installations list for the status page ([`areas/github-api.md`](areas/github-api.md), [decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)) |
+| GitHub API client | Calls of the GitHub API as the app: the app JWT, the installation tokens per `installation.id` cached encrypted in `token_cache`, the pull request read for the draft lookup of the webhook processing (with tokens narrowed to the permissions of that one call), and the app read and the installations list for the status page ([`areas/github-api.md`](areas/github-api.md), [decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)) |
 | Rules | Pure functions of the event name, the payload and the settings to zero or one notification; no I/O, no clock |
 | Outbox and delivery channels | The D1 `outbox` table holding each message as a channel-neutral notification (JSON in `text`, no migration), and delivery through the one active delivery channel (`src/channels/`; Telegram is the first adapter, over the shared HTTP code of `src/channels/http.ts`), which renders the notification when it sends it, with one retry after a 429 and the cron's retry ([`areas/notifications.md`](areas/notifications.md), [decision 0038](decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)) |
 | Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram bot token ([decision 0036](decisions/0036-telegram-bot-token-in-the-setup-wizard.md)) and chat, the setup login, the Messengers card that activates a delivery channel, the status page with the settings, the app's installations and the reset after a changed `SELUNA_SECRET` ([decision 0018](decisions/0018-settings-and-status-page.md)) |
@@ -108,7 +108,7 @@ Each job catches its own failures and logs only a fixed result; the rules are in
 | `deliveries` | Processed `X-GitHub-Delivery` ids, for deduplication |
 | `outbox` | Notifications waiting for, or past, delivery; `text` holds the notification as JSON (rows of earlier versions: Telegram HTML) |
 | `token_cache` | Short-lived GitHub installation tokens, AES-256-GCM ciphertext |
-| `meta` | The last notified release, the time of the last delivery, the key check value that detects a changed `SELUNA_SECRET`, the setup login's failed-attempt count and the slug of the GitHub App the setup wizard created |
+| `meta` | The last notified release, the time of the last delivery, the key check value that detects a changed `SELUNA_SECRET`, the setup login's failed-attempt count the slug and the owner of the GitHub App the setup wizard created |
 
 All six tables come from the first migration; only the modules under `src/store/` access them. The key for the
 encrypted columns is derived from `SELUNA_SECRET` and never stored, so a reader of the database alone learns no
@@ -147,9 +147,9 @@ narrowed, and the three credentials are stored together or not at all
 check: one request to a fixed URL of the upstream repository with no credential, read bounded, narrowed to a
 `tag_name` of the strict form `vA.B.C`, and the notice built from the parsed numbers only
 ([decision 0030](decisions/0030-release-notice-without-credentials.md)). Every other GitHub call is made as the app: a JWT
-signed with the private key for each `/app/...` request, never stored, and per installation a token that is cached
+signed with the private key for each `/app/...` request, never stored, and per installation a token, requested with only the permissions the pull request read needs, that is cached
 only encrypted and dropped when GitHub refuses it; what enters a URL is allow-listed, redirects are not followed and
-every answer is read bounded and narrowed; the signed-in status page calls GitHub, and so does the webhook processing
+every answer is read bounded and narrowed; the signed-in status page calls GitHub (the app and its installations, under one JWT), and so does the webhook processing
 for the draft state of a pull request with a failed CI run, with the installation of the signed delivery
 ([decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)).
 The concrete areas are listed in [`.squad/project.md`](../.squad/project.md) (*Security areas*) and

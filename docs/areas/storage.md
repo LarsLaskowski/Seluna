@@ -97,7 +97,7 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   deleted 30 days after they were written, `deliveries` rows 7 days after they were received
   ([Scheduled jobs](scheduled-jobs.md#cleanup)).
 - `meta` holds the last notified release (`notified_release`, below), the time of the last delivery, the key check value
-  (`key_check`, below), the GitHub App's slug and the setup login's failed-attempt count (`login_attempts`, format
+  (`key_check`, below), the GitHub App's slug and owner and the setup login's failed-attempt count (`login_attempts`, format
   and rules in [Setup wizard](setup-wizard.md#failed-attempts-and-the-lock)).
 - The `meta` row `last_delivery` is the time of the last received webhook delivery, as decimal milliseconds since
   1970-01-01 UTC matching `^(0|[1-9]\d{0,15})$` and at most `8640000000000000` (the latest time a JavaScript `Date`
@@ -106,6 +106,14 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
 - The `meta` row `github_app_slug` is `<appId>:<slug>`: `<appId>` the decimal App ID, `<slug>` matching
   `^[a-z0-9-]{1,100}$`. It is plain text (a slug is public) and is written by the GitHub App step after the three
   credentials were stored; it counts only for the App ID in its value, any other value reads as absent.
+- The `meta` row `github_app_owner` is `<appId>:<ownerId>:<type>:<login>`: `<appId>` the decimal App ID, `<ownerId>`
+  the owner account's numeric id (a decimal safe integer from 1, no leading zero), `<type>` exactly `User` or
+  `Organization` and `<login>` a GitHub account name (1 to 39 characters, letters, digits and inner hyphens). It is
+  plain text (an owner is public) and counts only for the App ID in its value; a value with any other form, App ID or
+  part reads as absent. The GitHub App step writes it after the credentials were stored (a failed write is dropped and
+  the app is created anyway), and the status page replaces it when GitHub's answer for the same App ID names another
+  owner. The rules compare the owner by its numeric id, never by the login ([Notifications](notifications.md#the-sender)).
+  The reset keeps it, like the slug.
 - The `meta` row `notified_release` is the newest Seluna release the release check reported, as `A.B.C` (each part a
   whole number from 0 to 999,999,999 without leading zeros). Only the release check writes it, in one transaction
   with the notice's `outbox` row and only while it still holds the value read before, and never lowers it; a value of
@@ -136,9 +144,12 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   `seluna/setup-github/v1` ([Setup wizard](setup-wizard.md#github-app)).
 - Each value is bound to its place as additional authenticated data, the UTF-8 bytes of:
   - `secrets/<key>` for a row of `secrets`;
-  - `token_cache/<installation_id>/<expires_at>` for a row of `token_cache`, both numbers in decimal without
-    leading zeros, as JavaScript's `String()` writes an integer. Because `expires_at` is part of it, a row whose
-    expiry was changed afterwards does not decrypt and is treated like a missing token;
+  - `token_cache/<installation_id>/<expires_at>/<permissions>` for a row of `token_cache`, the two numbers in decimal
+    without leading zeros, as JavaScript's `String()` writes an integer, and `<permissions>` the permission list the
+    token was requested with as `name=level` pairs sorted by name and joined by commas
+    (`metadata=read,pull_requests=read`). Because `expires_at` and the list are part of it, a row whose expiry was
+    changed afterwards, and every row written for another list, does not decrypt and is treated like a missing
+    token ([GitHub API](github-api.md#installation-tokens));
   - `meta/key_check` for the key check value.
 
   A ciphertext copied into another row does not decrypt there.

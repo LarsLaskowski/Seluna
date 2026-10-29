@@ -36,14 +36,22 @@ wizard's status page rely on it.
   Anything else (absent, a string, `0`, negative, fractional, beyond the safe range) is a failure without a request;
   a call never uses another installation's token.
 - An installation token is requested with `POST /app/installations/<installation id>/access_tokens` and the app
-  token. A 2xx answer is accepted only with a `token` of 1 to 255 characters from `[A-Za-z0-9_]` and an `expires_at`
-  in the form `YYYY-MM-DDTHH:MM:SS`, optional fractional seconds, then `Z` or `±HH:MM`, more than 5 minutes after
-  now. Any other answer is a failure and nothing is cached.
+  token and a JSON body that names the token's permissions explicitly: `{"permissions":{"metadata":"read","pull_requests":"read"}}`
+  (`Content-Type: application/json`). That is all the only call made with an installation token, the pull request
+  read, needs, so a token never carries a permission the app was later granted (Contents, Issues). A 2xx answer is
+  accepted only with a `token` of 1 to 255 characters from `[A-Za-z0-9_]`, an `expires_at` in the form
+  `YYYY-MM-DDTHH:MM:SS`, optional fractional seconds, then `Z` or `±HH:MM`, more than 5 minutes after now, and a
+  `permissions` object that is not an array and whose own entries are each `metadata: read` or
+  `pull_requests: read` (a missing `permissions`, another name or another level is refused). Any other answer is a
+  failure and nothing is cached.
 - The token is cached encrypted in `token_cache`, one row per installation id, with the `expires_at` GitHub gave (in
   milliseconds); a new token replaces the row ([Storage](storage.md#encryption)). Without a usable `SELUNA_SECRET`
   nothing can be cached and every call fails without a request.
 - A cached token is reused while its expiry is more than 5 minutes after now; at exactly 5 minutes or less a new one
   is requested. A row that does not decrypt, or whose token does not pass the allow-list, counts as no cached token.
+- A cached token counts only for the permission list it was requested with: the list is part of the row's additional
+  data ([Storage](storage.md#encryption)), so after a change of the list every earlier row fails to decrypt and
+  counts as no cached token, and a new token is requested at once.
 - Two calls for one installation at the same time may both request a token; both succeed and one row is left.
 - A repository request answered 401 deletes the row of that installation only while it still holds the token the
   request used (same IV), whether that token came from the cache or was stored in the same call; the call fails and
@@ -59,7 +67,8 @@ wizard's status page rely on it.
 - Redirects are not followed (a 3xx answer is a failure); each request has a 10-second timeout; no request is retried.
 - Every answer is read through the bounded reader (at most 1 MiB, counted in bytes before decoding) and must be UTF-8
   JSON; the body of a non-2xx answer is not read.
-- One call of the API client sends at most one token request and one repository request.
+- One call of the API client sends at most one token request and one repository request. The status page makes two
+  requests beside each other under one app token ([App read](#app-read), [Installations list](#installations-list)).
 - Repository owner, repository name and number are checked before they enter a URL: owner
   `^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$`, name `^[A-Za-z0-9._-]{1,100}$` and neither `.` nor `..`, number a
   positive safe integer; anything else is a failure without a request.
@@ -75,6 +84,23 @@ wizard's status page rely on it.
   request read) at most 8 seconds; a call still running then counts as a failure for the caller and is not cancelled
   ([Notifications](notifications.md#draft-lookup)).
 
+### App read
+
+- `GET /app` with the app token answers the app itself. The answer must be a JSON object with a positive safe integer
+  `id`, a `permissions` object whose levels are all strings and an `events` array of strings, else the read is a
+  failure. The status page also counts an answer whose `id` is not the App ID of the credentials as failed.
+- Only the answer's own entries are copied. The `slug` is kept when it matches `^[a-z0-9-]{1,100}$`, else dropped. The
+  `owner` is narrowed to an account with a positive safe integer `id`, a `login` that is a GitHub account name (1 to
+  39 characters, letters, digits and inner hyphens) and a `type` of exactly `User` or `Organization`; any other owner
+  (an enterprise, a bot, a malformed one) is dropped and the rest of the answer is kept.
+- A permission counts as granted when the app has an own entry for its name at the wanted level or higher
+  (`read` < `write` < `admin`); an unknown level satisfies nothing. An event counts as granted when the answer's
+  `events` names it. What the manifest asks for and the app lacks is named in manifest order.
+- Links to GitHub's settings pages are built only from allow-listed parts, never from the answer's `html_url`: the
+  app's permissions page from the owner (a `User` or an `Organization` with an allow-listed login) and the slug, an
+  installation's page from a `User` or `Organization` account with an allow-listed login and the installation id.
+  When a part fails its check, no link is shown and what is missing is still named.
+
 ### Installations list
 
 - `GET /app/installations?per_page=100` with the app token: one page, never a second one. The answer must be a JSON
@@ -84,6 +110,9 @@ wizard's status page rely on it.
 - An entry's account is: its `login` (a string) with its `type` (`User`, `Organization`, any other or missing); else
   its `slug` (a string), an enterprise; else unknown (also for `null`). An entry is suspended when `suspended_at` is
   present and not `null`.
+- An entry's granted access is its `permissions` object (levels all strings) and its `events` array (strings), copied
+  from the entry's own entries; when either has another shape the entry's access is unreadable, and the entry is
+  still listed.
 - There are more installations exactly when the answer's `Link` header has a link with the parameter `rel="next"`.
 - How the status page shows the list is in [Setup wizard](setup-wizard.md#status-and-settings).
 
@@ -110,10 +139,14 @@ wizard's status page rely on it.
 - [`decisions/0007-github-app-credentials-encrypted-in-d1.md`](../decisions/0007-github-app-credentials-encrypted-in-d1.md)
   — installation tokens encrypted like the credentials, bound to their row and expiry.
 
+- [`decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md`](../decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md)
+  — the explicit token permission list, the app read and the two-request status page.
+
 ## Not here
 
 - The `token_cache` table, its columns and its encryption: [Storage](storage.md).
-- The _Installations:_ line of the status page and its texts: [Setup wizard](setup-wizard.md).
+- The owner line, the app check and the _Installations:_ line of the status page and their texts:
+  [Setup wizard](setup-wizard.md).
 - The two GitHub requests made without credentials: the manifest conversion of the setup wizard
   ([Setup wizard](setup-wizard.md#github-app)) and the daily release check
   ([Scheduled jobs](scheduled-jobs.md#release-check)).
