@@ -138,10 +138,10 @@ describe("writeAppOwner and readAppOwner", () => {
   });
 
   it.each([
-    { name: "another App ID", appId: 54_321 },
+    { name: "a different App ID", appId: 54_321 },
     { name: "an App ID that only starts the same", appId: 1234 },
     { name: "an App ID that only ends the same", appId: 2345 },
-  ])("readAppOwner ignores an owner of $name", async ({ appId }) => {
+  ])("readAppOwner ignores an owner of another App ID: $name", async ({ appId }) => {
     await putMeta(GITHUB_APP_OWNER_META_KEY, "12345:583231:User:octocat");
 
     const owner = await readAppOwner(env.DB, appId);

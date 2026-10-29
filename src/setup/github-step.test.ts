@@ -354,7 +354,7 @@ describe("finishGitHubApp", () => {
     { case: "an id of 0", owner: { id: 0, login: "github", type: "User" } },
     { case: "an id that is a string", owner: { id: "1", login: "github", type: "User" } },
     { case: "no id", owner: { login: "github", type: "User" } },
-  ])("finishGitHubApp saves the app without an owner when the owner has $case", async ({ owner }) => {
+  ])("finishGitHubApp saves the app without an owner when the owner id is malformed: $case", async ({ owner }) => {
     const github = githubDouble(jsonAnswer(201, conversionAnswer({ owner })));
 
     const result = await finish(github);

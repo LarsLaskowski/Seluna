@@ -850,21 +850,18 @@ describe("statusView owner", () => {
       workerEnv: { GITHUB_APP_ID: "12345", GITHUB_APP_PRIVATE_KEY: FIXTURE_PEM },
     },
     { case: "an app that cannot be read", prepare: () => seedAppId(OTHER_SECRET, "12345"), workerEnv: {} },
-  ])(
-    "statusView hides the owner and the app check where the installations line is hidden: $case",
-    async ({ prepare, workerEnv }) => {
-      await prepare();
-      await putMeta(GITHUB_APP_OWNER_META_KEY, OLD_OWNER_ROW);
-      const github = githubApiDouble({ app: appAnswer(), installations: jsonAnswer(200, []) });
+  ])("statusView hides the owner where the installations line is hidden: $case", async ({ prepare, workerEnv }) => {
+    await prepare();
+    await putMeta(GITHUB_APP_OWNER_META_KEY, OLD_OWNER_ROW);
+    const github = githubApiDouble({ app: appAnswer(), installations: jsonAnswer(200, []) });
 
-      const view = await viewOfApp(github, workerEnv);
+    const view = await viewOfApp(github, workerEnv);
 
-      expect(view.owner, "owner line").toEqual({ kind: "hidden" });
-      expect(view.appAccess, "app check").toEqual({ kind: "hidden" });
-      expect(view.installations, "installations").toEqual({ kind: "hidden" });
-      expect(github.requests, "GitHub requests").toEqual([]);
-    },
-  );
+    expect(view.owner, "owner line").toEqual({ kind: "hidden" });
+    expect(view.appAccess, "app check").toEqual({ kind: "hidden" });
+    expect(view.installations, "installations").toEqual({ kind: "hidden" });
+    expect(github.requests, "GitHub requests").toEqual([]);
+  });
 
   it.each<{
     case: string;
@@ -1177,7 +1174,7 @@ describe("statusView app access", () => {
     },
   );
 
-  it("statusView takes the slug from the answer", async () => {
+  it("statusView takes the slug from the answer, else from the stored slug: the answer's", async () => {
     await saveApp("12345", FIXTURE_PKCS8);
     await putMeta(GITHUB_APP_SLUG_META_KEY, "12345:stored-slug");
     const github = githubApiDouble({
@@ -1195,20 +1192,23 @@ describe("statusView app access", () => {
   it.each([
     { case: "an answer without a slug", slug: undefined },
     { case: "an answer whose slug fails the allow-list", slug: "Bad_Slug" },
-  ])("statusView takes the stored slug for $case", async ({ slug }) => {
-    await saveApp("12345", FIXTURE_PKCS8);
-    await putMeta(GITHUB_APP_SLUG_META_KEY, "12345:stored-slug");
-    const github = githubApiDouble({
-      app: appAnswer({ slug, permissions: { metadata: "read" }, events: [] }),
-      installations: jsonAnswer(200, []),
-    });
+  ])(
+    "statusView takes the slug from the answer, else from the stored slug: the stored one for $case",
+    async ({ slug }) => {
+      await saveApp("12345", FIXTURE_PKCS8);
+      await putMeta(GITHUB_APP_SLUG_META_KEY, "12345:stored-slug");
+      const github = githubApiDouble({
+        app: appAnswer({ slug, permissions: { metadata: "read" }, events: [] }),
+        installations: jsonAnswer(200, []),
+      });
 
-    const view = await viewOfApp(github, {});
+      const view = await viewOfApp(github, {});
 
-    expect(view.appAccess.kind === "checked" ? view.appAccess.settingsUrl : undefined, "settings link").toBe(
-      "https://github.com/settings/apps/stored-slug/permissions",
-    );
-  });
+      expect(view.appAccess.kind === "checked" ? view.appAccess.settingsUrl : undefined, "settings link").toBe(
+        "https://github.com/settings/apps/stored-slug/permissions",
+      );
+    },
+  );
 
   it("statusView builds no settings link without a slug but still names what the app lacks", async () => {
     const github = githubApiDouble({

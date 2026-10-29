@@ -223,7 +223,7 @@ describe("hasNextPage", () => {
 });
 
 describe("listInstallations", () => {
-  it("listInstallations sends GET /app/installations?per_page=100 with the app JWT", async () => {
+  it("listInstallations sends the given JWT with GET /app/installations?per_page=100", async () => {
     const github = githubApiDouble({ installations: jsonAnswer(200, [installationEntry()]) });
 
     await listInstallations(github.fetch, VERSION, await signedJwt());

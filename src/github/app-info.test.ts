@@ -135,7 +135,7 @@ describe("parseAppInfo", () => {
     { case: "no id (an enterprise)", owner: { slug: "acme", name: "Acme" } },
     { case: "null", owner: null },
     { case: "a text", owner: "octocat" },
-  ])("parseAppInfo keeps the answer with an undefined owner when the owner has $case", ({ owner }) => {
+  ])("parseAppInfo keeps the answer with an undefined owner when the owner is malformed: $case", ({ owner }) => {
     const app = parseAppInfo(appBody({ owner }));
 
     expect(app?.owner, "owner").toBeUndefined();

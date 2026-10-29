@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { parseOwnerAccount } from "./owner";
 
 describe("parseOwnerAccount", () => {
+  it("parseOwnerAccount narrows a User and an Organization owner", () => {
+    const user = parseOwnerAccount({ id: 583_231, login: "octocat", type: "User" });
+    const organization = parseOwnerAccount({ id: 9_919, login: "Octo-Org", type: "Organization" });
+
+    expect(user, "User").toEqual({ id: 583_231, login: "octocat", type: "User" });
+    expect(organization, "Organization").toEqual({ id: 9_919, login: "Octo-Org", type: "Organization" });
+  });
+
   it.each([
     { name: "a User", owner: { id: 583_231, login: "octocat", type: "User" }, type: "User" },
     { name: "an Organization", owner: { id: 9_919, login: "Octo-Org", type: "Organization" }, type: "Organization" },

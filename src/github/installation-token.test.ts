@@ -447,7 +447,6 @@ describe("installationToken", () => {
   ];
 
   const UNCONFIRMED_ANSWERS: readonly { readonly case: string; readonly permissions: unknown }[] = [
-    { case: "carry contents", permissions: { metadata: "read", pull_requests: "read", contents: "read" } },
     { case: "carry only contents", permissions: { contents: "read" } },
     { case: "carry issues", permissions: { metadata: "read", pull_requests: "read", issues: "read" } },
     { case: "give pull_requests write", permissions: { metadata: "read", pull_requests: "write" } },
@@ -455,6 +454,18 @@ describe("installationToken", () => {
     { case: "are null", permissions: null },
     { case: "have a level that is not a string", permissions: { metadata: 1, pull_requests: "read" } },
   ];
+
+  it("installationToken gives no token and writes no token_cache row for an answer whose permissions carry contents", async () => {
+    const permissions = { metadata: "read", pull_requests: "read", contents: "read" };
+    const github = githubApiDouble({
+      installationToken: jsonAnswer(201, installationTokenBody(NEW_TOKEN, FRESH_EXPIRY, permissions)),
+    });
+
+    const issued = await installationToken(await depsFor(github), await credentials(), INSTALLATION);
+
+    expect(issued, "issued token").toBeUndefined();
+    expect(await tokenRows(env.DB), "rows").toEqual([]);
+  });
 
   it.each(UNCONFIRMED_ANSWERS)(
     "installationToken gives no token and writes no token_cache row for an answer whose permissions $case",
@@ -470,7 +481,7 @@ describe("installationToken", () => {
     },
   );
 
-  it("installationToken gives no token and writes no token_cache row for an answer without permissions", async () => {
+  it("installationToken gives no token for an answer without permissions", async () => {
     const answer = installationTokenBody(NEW_TOKEN, FRESH_EXPIRY);
     delete answer.permissions;
     const github = githubApiDouble({ installationToken: jsonAnswer(201, answer) });
