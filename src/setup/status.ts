@@ -1,10 +1,13 @@
 import { resolveBotToken } from "../bot-token";
 import type { ChannelList } from "../channels/channel";
 import { CHANNELS, readActiveChannel } from "../channels/registry";
+import type { MissingAccess } from "../github/app-info";
 import { parseAppId, resolveAppCredentials } from "../github/app-credentials";
+import { appJwt } from "../github/app-jwt";
 import type { GitHubFetch } from "../github/conversion";
 import { listInstallations } from "../github/installations";
 import type { Installation } from "../github/installations";
+import type { OwnerAccount } from "../github/owner";
 import { workerCredentials } from "../github/worker-secrets";
 import type { NotificationSettings } from "../settings";
 import { readLastDelivery, readAppSlug } from "../store/meta";
@@ -24,9 +27,33 @@ export type AppStatus =
   | { readonly kind: "none" }
   | { readonly kind: "unreadable" };
 
+/** The owner line of the status page. */
+export type OwnerView =
+  | { readonly kind: "hidden" }
+  | { readonly kind: "known"; readonly owner: OwnerAccount }
+  | { readonly kind: "unavailable" };
+
+/** The app's own permissions and events checked against the manifest's. */
+export type AppAccessView =
+  | { readonly kind: "hidden" }
+  | { readonly kind: "unchecked" }
+  | { readonly kind: "checked"; readonly missing: MissingAccess; readonly settingsUrl: string | undefined };
+
+/** An installation's permissions and events checked against the app's. */
+export type InstallationCheck =
+  | { readonly kind: "complete" }
+  | { readonly kind: "missing"; readonly missing: MissingAccess; readonly acceptUrl: string | undefined }
+  | { readonly kind: "unreadable" }
+  | { readonly kind: "app-unchecked" };
+
+export interface InstallationEntry {
+  readonly installation: Installation;
+  readonly check: InstallationCheck;
+}
+
 export type InstallationsView =
   | { readonly kind: "hidden" }
-  | { readonly kind: "listed"; readonly installations: readonly Installation[]; readonly more: boolean }
+  | { readonly kind: "listed"; readonly installations: readonly InstallationEntry[]; readonly more: boolean }
   | { readonly kind: "unavailable" }
   | { readonly kind: "key-unusable" };
 
@@ -81,6 +108,8 @@ export interface StatusView {
   readonly resetNeeded: boolean;
   readonly settings: NotificationSettings;
   readonly installations: InstallationsView;
+  readonly owner: OwnerView;
+  readonly appAccess: AppAccessView;
   readonly messengers: MessengersView;
 }
 
@@ -162,10 +191,23 @@ async function installationsView(
     case "key-unusable":
       return { kind: "key-unusable" };
     case "ok": {
-      const listed = await listInstallations(github.fetcher, version, github.now(), resolved.credentials);
-      return listed.kind === "listed"
-        ? { kind: "listed", installations: listed.installations, more: listed.more }
-        : { kind: "unavailable" };
+      try {
+        const jwt = await appJwt(resolved.credentials.signingKey, resolved.credentials.appId, github.now());
+        const listed = await listInstallations(github.fetcher, version, jwt);
+        return listed.kind === "listed"
+          ? {
+              kind: "listed",
+              installations: listed.installations.map((installation) => ({
+                installation,
+                check: { kind: "app-unchecked" },
+              })),
+              more: listed.more,
+            }
+          : { kind: "unavailable" };
+      } catch {
+        // Signing failures carry nothing the caller can use; the cause is dropped.
+        return { kind: "unavailable" };
+      }
     }
     default: {
       const unreachable: never = resolved;
@@ -196,6 +238,8 @@ export async function statusView(
     resetNeeded: await needsReset(db, storageKey),
     settings,
     installations: await installationsView(env, db, version, github, app),
+    owner: { kind: "hidden" },
+    appAccess: { kind: "hidden" },
     messengers: await messengersView(env, db, channels),
   };
 }

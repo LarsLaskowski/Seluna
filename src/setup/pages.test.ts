@@ -700,6 +700,8 @@ function statusViewWith(changes: Partial<StatusView> = {}): StatusView {
     resetNeeded: false,
     settings: DEFAULT_SETTINGS,
     installations: { kind: "hidden" },
+    owner: { kind: "hidden" },
+    appAccess: { kind: "hidden" },
     messengers: messengersOf([entryOf()]),
     ...changes,
   };
@@ -1775,11 +1777,15 @@ describe("renderStartPage status", () => {
 
 /** The installation of an account, selected repositories, not suspended. */
 function installationOf(account: Installation["account"], changes: Partial<Installation> = {}): Installation {
-  return { id: 1, account, repositorySelection: "selected", suspended: false, ...changes };
+  return { id: 1, account, repositorySelection: "selected", suspended: false, access: undefined, ...changes };
 }
 
 function listed(installations: readonly Installation[], more = false): InstallationsView {
-  return { kind: "listed", installations, more };
+  return {
+    kind: "listed",
+    installations: installations.map((installation) => ({ installation, check: { kind: "app-unchecked" } })),
+    more,
+  };
 }
 
 /** The installations part of the status section of the start page, from its paragraph to the last delivery paragraph. */

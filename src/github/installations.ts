@@ -1,5 +1,4 @@
-import type { AppCredentials } from "./app-credentials";
-import { appJwt } from "./app-jwt";
+import type { GrantedAccess } from "./app-info";
 import type { GitHubFetch } from "./conversion";
 import { gitHubRequest, sendGitHub } from "./http";
 
@@ -15,6 +14,8 @@ export interface Installation {
   readonly account: InstallationAccount;
   readonly repositorySelection: "all" | "selected";
   readonly suspended: boolean;
+  /** What the installation was granted; `undefined` when the answer's `permissions` or `events` are unusable. */
+  readonly access: GrantedAccess | undefined;
 }
 
 export type InstallationsResult =
@@ -55,6 +56,7 @@ function parseInstallation(entry: unknown): Installation | undefined {
     account: account === null ? { kind: "unknown" } : parseAccount(account),
     repositorySelection: selection,
     suspended: suspendedAt !== undefined && suspendedAt !== null,
+    access: undefined,
   };
 }
 
@@ -106,15 +108,13 @@ export function hasNextPage(link: string | null): boolean {
   return false;
 }
 
-/** The app's first 100 installations. Never throws. */
+/** The app's first 100 installations, asked with the app JWT `jwt`. Never throws. */
 export async function listInstallations(
   fetcher: GitHubFetch,
   version: string,
-  now: Date,
-  credentials: AppCredentials,
+  jwt: string,
 ): Promise<InstallationsResult> {
   try {
-    const jwt = await appJwt(credentials.signingKey, credentials.appId, now);
     const reply = await sendGitHub(
       fetcher,
       gitHubRequest("GET", `/app/installations?per_page=${String(MAX_INSTALLATIONS)}`, version, jwt),
@@ -127,7 +127,7 @@ export async function listInstallations(
       ? FAILED
       : { kind: "listed", installations: installations.slice(0, MAX_INSTALLATIONS), more: hasNextPage(reply.link) };
   } catch {
-    // Signing failures carry nothing the caller can use; the cause is dropped.
+    // Failures carry nothing the caller can use; the cause is dropped.
     return FAILED;
   }
 }

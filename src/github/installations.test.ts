@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { appJwt } from "./app-jwt";
 import { MAX_GITHUB_RESPONSE_BYTES } from "./conversion";
 import { hasNextPage, listInstallations, MAX_INSTALLATIONS, parseInstallations } from "./installations";
 import type { Installation } from "./installations";
@@ -17,6 +18,7 @@ const OCTOCAT: Installation = {
   account: { kind: "login", login: "octocat", type: "User" },
   repositorySelection: "selected",
   suspended: false,
+  access: undefined,
 };
 
 /** `count` installations with the ids 1 to `count`. */
@@ -26,6 +28,12 @@ function entries(count: number): Record<string, unknown>[] {
 
 async function credentials(): Promise<{ readonly appId: number; readonly signingKey: CryptoKey }> {
   return { appId: APP_ID, signingKey: await fixtureSigningKey() };
+}
+
+/** The app JWT the status page signs and hands to `listInstallations`. */
+async function signedJwt(): Promise<string> {
+  const { appId, signingKey } = await credentials();
+  return appJwt(signingKey, appId, NOW);
 }
 
 describe("parseInstallations", () => {
@@ -173,7 +181,7 @@ describe("listInstallations", () => {
   it("listInstallations sends GET /app/installations?per_page=100 with the app JWT", async () => {
     const github = githubApiDouble({ installations: jsonAnswer(200, [installationEntry()]) });
 
-    await listInstallations(github.fetch, VERSION, NOW, await credentials());
+    await listInstallations(github.fetch, VERSION, await signedJwt());
 
     const [request, ...rest] = github.requests;
     expect(rest, "further requests").toEqual([]);
@@ -189,7 +197,7 @@ describe("listInstallations", () => {
   it("listInstallations sends the standard headers, no redirect following and a timeout signal", async () => {
     const github = githubApiDouble({ installations: jsonAnswer(200, []) });
 
-    await listInstallations(github.fetch, VERSION, NOW, await credentials());
+    await listInstallations(github.fetch, VERSION, await signedJwt());
 
     const [request] = github.requests;
     expect(request?.headers.get("accept"), "Accept").toBe("application/vnd.github+json");
@@ -202,7 +210,7 @@ describe("listInstallations", () => {
   it("listInstallations lists the documented answer without more", async () => {
     const github = githubApiDouble({ installations: jsonAnswer(200, [installationEntry()]) });
 
-    const result = await listInstallations(github.fetch, VERSION, NOW, await credentials());
+    const result = await listInstallations(github.fetch, VERSION, await signedJwt());
 
     expect(result, "result").toEqual({ kind: "listed", installations: [OCTOCAT], more: false });
   });
@@ -210,7 +218,7 @@ describe("listInstallations", () => {
   it("listInstallations lists an empty answer", async () => {
     const github = githubApiDouble({ installations: jsonAnswer(200, []) });
 
-    const result = await listInstallations(github.fetch, VERSION, NOW, await credentials());
+    const result = await listInstallations(github.fetch, VERSION, await signedJwt());
 
     expect(result, "result").toEqual({ kind: "listed", installations: [], more: false });
   });
@@ -218,7 +226,7 @@ describe("listInstallations", () => {
   it("listInstallations reports more when the Link header names a next page, and asks for one page only", async () => {
     const github = githubApiDouble({ installations: jsonAnswer(200, entries(100), { Link: NEXT_LINK }) });
 
-    const result = await listInstallations(github.fetch, VERSION, NOW, await credentials());
+    const result = await listInstallations(github.fetch, VERSION, await signedJwt());
 
     expect(result.kind, "result kind").toBe("listed");
     expect(result.kind === "listed" ? result.more : undefined, "more").toBe(true);
@@ -232,7 +240,7 @@ describe("listInstallations", () => {
       }),
     });
 
-    const result = await listInstallations(github.fetch, VERSION, NOW, await credentials());
+    const result = await listInstallations(github.fetch, VERSION, await signedJwt());
 
     expect(result.kind === "listed" ? result.installations.length : undefined, "number of installations").toBe(100);
     expect(result.kind === "listed" ? result.more : undefined, "more").toBe(false);
@@ -241,7 +249,7 @@ describe("listInstallations", () => {
   it("listInstallations keeps at most 100 entries, the first ones in GitHub's order", async () => {
     const github = githubApiDouble({ installations: jsonAnswer(200, entries(MAX_INSTALLATIONS + 1)) });
 
-    const result = await listInstallations(github.fetch, VERSION, NOW, await credentials());
+    const result = await listInstallations(github.fetch, VERSION, await signedJwt());
 
     const ids = result.kind === "listed" ? result.installations.map((installation) => installation.id) : [];
     expect(ids.length, "number of installations").toBe(100);
@@ -275,20 +283,8 @@ describe("listInstallations", () => {
   it.each(FAILED_ANSWERS)("listInstallations reports failed when the request $case", async ({ answer }) => {
     const github = githubApiDouble({ installations: answer });
 
-    const result = await listInstallations(github.fetch, VERSION, NOW, await credentials());
+    const result = await listInstallations(github.fetch, VERSION, await signedJwt());
 
     expect(result, "result").toEqual({ kind: "failed" });
-  });
-});
-
-describe("listInstallations with a key that cannot sign", () => {
-  it("listInstallations reports failed without a request when the key is a verify-only public key", async () => {
-    const github = githubApiDouble({ installations: jsonAnswer(200, entries(1)) });
-    const publicKey = await fixturePublicKey();
-
-    const result = await listInstallations(github.fetch, VERSION, NOW, { appId: APP_ID, signingKey: publicKey });
-
-    expect(result, "result").toEqual({ kind: "failed" });
-    expect(github.requests, "GitHub requests").toEqual([]);
   });
 });

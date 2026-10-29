@@ -7,8 +7,16 @@ import type { NotificationSettings } from "../settings";
 import { RESET_PATH, SETTINGS_PATH } from "./settings-form";
 import { CHANNEL_ACTIVATE_PATH, CHANNEL_FIELD, CHANNEL_REMOVE_PATH } from "./messengers";
 import { formatDeliveryTime } from "./status";
-import type { AppStatus, BotTokenStatus, ChatStatus, InstallationsView, MessengerEntry, StatusView } from "./status";
-import type { Installation, InstallationAccount } from "../github/installations";
+import type {
+  AppStatus,
+  BotTokenStatus,
+  ChatStatus,
+  InstallationEntry,
+  InstallationsView,
+  MessengerEntry,
+  StatusView,
+} from "./status";
+import type { InstallationAccount } from "../github/installations";
 import { TELEGRAM_TOKEN_PATH, TELEGRAM_TOKEN_REMOVE_PATH } from "./telegram-step";
 import type { ChatPart, TelegramStepView, TokenState } from "./telegram-step";
 import { TEXTS } from "./texts";
@@ -266,7 +274,7 @@ function accountHtml(language: Language, account: InstallationAccount): string {
   }
 }
 
-function installationHtml(language: Language, installation: Installation): string {
+function installationHtml(language: Language, { installation }: InstallationEntry): string {
   const texts = TEXTS[language];
   const selection = installation.repositorySelection === "all" ? texts.repositoriesAll : texts.repositoriesSelected;
   const suspended = installation.suspended ? `, ${escapeHtml(texts.installationSuspended)}` : "";

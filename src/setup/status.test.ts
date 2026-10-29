@@ -76,6 +76,7 @@ const OCTOCAT: Installation = {
   account: { kind: "login", login: "octocat", type: "User" },
   repositorySelection: "selected",
   suspended: false,
+  access: undefined,
 };
 /** Worker secrets whose key imports. */
 const USABLE_WORKER_SECRETS = { ...WORKER_SECRETS, GITHUB_APP_PRIVATE_KEY: FIXTURE_PEM };
@@ -111,6 +112,8 @@ describe("statusView", () => {
     resetNeeded: false,
     settings: DEFAULT_SETTINGS,
     installations: { kind: "hidden" },
+    owner: { kind: "hidden" },
+    appAccess: { kind: "hidden" },
     messengers: { entries: [telegramEntry()], active: telegramEntry() },
   };
 
@@ -343,12 +346,16 @@ describe("statusView installations", () => {
     expect(installations, "installations").toEqual({
       kind: "listed",
       installations: [
-        { ...OCTOCAT, id: 20, repositorySelection: "all" },
+        { installation: { ...OCTOCAT, id: 20, repositorySelection: "all" }, check: { kind: "app-unchecked" } },
         {
-          id: 10,
-          account: { kind: "login", login: "octo-org", type: "Organization" },
-          repositorySelection: "selected",
-          suspended: false,
+          installation: {
+            id: 10,
+            account: { kind: "login", login: "octo-org", type: "Organization" },
+            repositorySelection: "selected",
+            suspended: false,
+            access: undefined,
+          },
+          check: { kind: "app-unchecked" },
         },
       ],
       more: false,
@@ -389,7 +396,11 @@ describe("statusView installations", () => {
 
     const installations = await installationsOf(USABLE_WORKER_SECRETS, github.fetch);
 
-    expect(installations, "installations").toEqual({ kind: "listed", installations: [OCTOCAT], more: true });
+    expect(installations, "installations").toEqual({
+      kind: "listed",
+      installations: [{ installation: OCTOCAT, check: { kind: "app-unchecked" } }],
+      more: true,
+    });
   });
 
   const UNAVAILABLE_ANSWERS: readonly { readonly case: string; readonly answer: GitHubAnswer }[] = [
