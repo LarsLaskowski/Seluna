@@ -66,8 +66,8 @@ files or endpoints.
   and `wrangler.jsonc`, values of `[A-Za-z0-9._-]` up to 214 characters). Known: every name line with the base's value is rewritten, wherever it sits in the file, and a release that renames the package, Worker or database away from the base's name replaces the owner's name, which the owner sets again by hand (`docs/update.md`, _After the update_).
 - **GitHub App authentication:** every GitHub call except the manifest conversion and the release check (`src/github/release.ts`: fixed URL, no credential, same request rules, answer narrowed to `tag_name`) is made as the app through
   `src/github/` (`app-jwt.ts`, `http.ts`, `app-credentials.ts`, `installation-token.ts`, `token-text.ts`,
-  `installations.ts`, `api-client.ts`, `app-info.ts`, `app-links.ts`, `token-permissions.ts`): an RS256 JWT (`iat` now − 60 s, `exp` now + 540 s, `iss` the App ID) signed per request with the
-  private key resolved per credential, never stored; installation tokens per `installation.id`, allow-listed
+  `installations.ts`, `api-client.ts`, `app-info.ts`, `app-links.ts`, `token-permissions.ts`): an RS256 JWT (`iat` now − 60 s, `exp` now + 540 s, `iss` the App ID) signed per call with the
+  private key resolved per credential (the status page signs one for its `GET /app` and installations requests), never stored; installation tokens per `installation.id`, allow-listed
   (`[A-Za-z0-9_]`, 1–255 characters), requested with an explicit permission list (`INSTALLATION_TOKEN_PERMISSIONS`: `metadata` and `pull_requests` read, the one call made with a token) and accepted only when the answer's `permissions` hold nothing but those two entries (own entries checked, a missing `permissions` refused), cached only encrypted in `token_cache` (`src/store/token-cache.ts`) until 5
   minutes before expiry, the row of a token GitHub answered 401 for deleted by installation id and IV; installation id,
   owner, repository name and number allow-listed before they enter a URL; only `https://api.github.com`, no redirects
@@ -198,7 +198,9 @@ otherwise):
   delivery used to test the signature stays unaltered, because any edit breaks its signature, and is signed with a
   throwaway secret (decision 0012). The `dependabot_alert`,
   `code_scanning_alert` and `secret_scanning_alert` fixtures are reference-built from GitHub's OpenAPI webhook schemas,
-  not captured (Product Manager's decision, [decision 0028](../docs/decisions/0028-security-alert-rules.md)).
+  not captured (Product Manager's decision, [decision 0028](../docs/decisions/0028-security-alert-rules.md)). The
+  `issues/opened.json`, `issue_comment/created.json`, `fork/fork.json` and `star/created.json` fixtures are shaped
+  from GitHub's webhook documentation, not captured, until the live check ([decision 0039](../docs/decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md)).
 - **D1** — the real D1 binding the Workers test pool provides (migrations applied in a test setup), not a fake.
 
 ## Fixtures from real deliveries

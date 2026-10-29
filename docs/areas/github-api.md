@@ -4,7 +4,7 @@
 
 How Seluna calls the GitHub API as the owner's GitHub App: the app token (JWT), where App ID and private key come
 from, the installation tokens per installation and their cache, the rules every request follows, the pull request
-read and the installations list, and the one failure result its callers get. The webhook processing (the draft
+read, the app read and the installations list, and the one failure result its callers get. The webhook processing (the draft
 lookup of the CI failure rule in a pull request, [Notifications](notifications.md#draft-lookup)) and the setup
 wizard's status page rely on it.
 
@@ -28,7 +28,7 @@ wizard's status page rely on it.
 - The app token is a JWT with the header `{"alg":"RS256","typ":"JWT"}` and the claims `iat` (now − 60 s), `exp`
   (now + 540 s) and `iss` (the App ID as a number), times in whole seconds since 1970-01-01 UTC, each part base64url
   without padding, signed with the private key.
-- A new app token is made for each request to `/app/...` and is never stored.
+- A new app token is made for each call that needs one and is never stored: one per installation token request, and one per status page view, shared by its `GET /app` and installations requests.
 
 ### Installation tokens
 

@@ -108,7 +108,7 @@ Each job catches its own failures and logs only a fixed result; the rules are in
 | `deliveries` | Processed `X-GitHub-Delivery` ids, for deduplication |
 | `outbox` | Notifications waiting for, or past, delivery; `text` holds the notification as JSON (rows of earlier versions: Telegram HTML) |
 | `token_cache` | Short-lived GitHub installation tokens, AES-256-GCM ciphertext |
-| `meta` | The last notified release, the time of the last delivery, the key check value that detects a changed `SELUNA_SECRET`, the setup login's failed-attempt count the slug and the owner of the GitHub App the setup wizard created |
+| `meta` | The last notified release, the time of the last delivery, the key check value that detects a changed `SELUNA_SECRET`, the setup login's failed-attempt count, the slug of the GitHub App the setup wizard created and the owner of the GitHub App |
 
 All six tables come from the first migration; only the modules under `src/store/` access them. The key for the
 encrypted columns is derived from `SELUNA_SECRET` and never stored, so a reader of the database alone learns no
@@ -147,7 +147,7 @@ narrowed, and the three credentials are stored together or not at all
 check: one request to a fixed URL of the upstream repository with no credential, read bounded, narrowed to a
 `tag_name` of the strict form `vA.B.C`, and the notice built from the parsed numbers only
 ([decision 0030](decisions/0030-release-notice-without-credentials.md)). Every other GitHub call is made as the app: a JWT
-signed with the private key for each `/app/...` request, never stored, and per installation a token, requested with only the permissions the pull request read needs, that is cached
+signed with the private key for each call that needs one (one per status page view for both of its requests), never stored, and per installation a token, requested with only the permissions the pull request read needs, that is cached
 only encrypted and dropped when GitHub refuses it; what enters a URL is allow-listed, redirects are not followed and
 every answer is read bounded and narrowed; the signed-in status page calls GitHub (the app and its installations, under one JWT), and so does the webhook processing
 for the draft state of a pull request with a failed CI run, with the installation of the signed delivery
