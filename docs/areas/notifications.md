@@ -78,7 +78,8 @@ request triggers nothing.
   `by author · head → base` (German `von author · head → base`) from `pull_request.user.login`,
   `pull_request.head.ref` and `pull_request.base.ref`; the button URL is `pull_request.html_url`.
 - The rules read no other field: not `sender`, `requested_reviewer`, `requested_team` or `head.repo`. So there is no
-  filter by sender or reviewer, and a fork's branch is shown without its owner.
+  filter by sender or reviewer, and a fork's branch is shown without its owner. The helpers a later rule can use to
+  tell the owner's own actions and bots apart are in [The sender](#the-sender).
 - A delivery whose fields are missing or of another type (`number` not a whole number from 1 to 2^53 − 1, a text field
   not a string, `draft` not `false`) triggers nothing.
 - `ready_for_review` also requires `draft` to be `false`, although issue #13 gives no condition for it; on a genuine
@@ -182,6 +183,22 @@ not read.
   reference-built from them: no real delivery of these events was observed. The residual risk (accepted in decision 0028) is a path, a `ref` format, an action name or the presence of `alert.secret` that differs in real deliveries;
   because only an allow-list of fields is read, such a difference can shorten a line or silence an alert, never leak a
   secret.
+
+#### The sender
+
+- The GitHub App is subscribed to the events `issues`, `issue_comment`, `fork` and `star` besides the five of the
+  rules above (decision [0039](../decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md)). They are
+  accepted, recorded in `deliveries` and answered like every other event, but no rule reports them yet: they send no
+  message until the rules for issues and comments, and for forks and stars, exist.
+- Two helpers for those rules narrow the payload's `sender` and never throw (`src/rules/actor.ts`):
+  - `isOwnAction(payload, owner)` is true only when the stored owner is a `User` and `sender.id` is a number equal to
+    the owner's id; a renamed login changes nothing. A missing or non-object `sender`, a missing or non-numeric `id`,
+    an unknown owner and an organization owner are all false: the sender of a delivery is a person, and Seluna
+    cannot tell which member of an organization is its user, so for an organization's app every account's activity
+    counts as foreign (the status page says so, [Setup wizard](setup-wizard.md#status-and-settings)).
+  - `isBotSender(payload)` is true exactly when `sender.type` is the string `Bot`.
+- The owner is the one stored beside the App ID ([Storage](storage.md#tables)); the existing pull request and alert
+  rules still do not read `sender`.
 
 #### Draft lookup
 

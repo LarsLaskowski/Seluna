@@ -30,6 +30,7 @@ import { testChannel } from "../../test/channel";
 import type { TestChannel } from "../../test/channel";
 import { applyMigrations, migrationTestDb, schemaOnlyDb, unusedDb } from "../../test/d1";
 import {
+  appBody,
   conversionAnswer,
   conversionOwnedBy,
   expectedManifestJson,
@@ -39,6 +40,8 @@ import {
   FIXTURE_WEBHOOK_SECRET,
   FIXTURES as GITHUB_FIXTURES,
   FIXTURE_PEM,
+  FULL_EVENTS,
+  FULL_PERMISSIONS,
   githubApiDouble,
   githubDouble,
   installationEntry,
@@ -3664,6 +3667,7 @@ describe("handleSetup status page", () => {
     });
     expect(stored, "saving the app").toEqual({ kind: "ok" });
     const github = githubApiDouble({
+      app: githubJsonAnswer(500, { message: "Server Error" }),
       installations: githubJsonAnswer(200, [
         installationEntry({ account: { login: "octocat", type: "User" }, repository_selection: "all" }),
       ]),
@@ -3680,13 +3684,44 @@ describe("handleSetup status page", () => {
       html.indexOf(escapeHtml(TEXTS.en.githubAppLabel)),
     );
     expect(
-      github.requests.map((request) => request.url),
+      github.requests.map((request) => request.route),
       "GitHub requests",
-    ).toEqual(["https://api.github.com/app/installations?per_page=100"]);
+    ).toEqual(expect.arrayContaining(["app", "installations"]));
+    expect(github.requests.length, "number of GitHub requests").toBe(2);
+  });
+
+  it("GET /setup shows the owner of GET /app and stores it for the saved App ID", async () => {
+    const stored = await writeSecrets(env.DB, await keyFor(SECRET), {
+      github_app_id: "12345",
+      github_private_key: FIXTURE_PKCS8,
+      github_webhook_secret: "webhook-secret-text",
+    });
+    expect(stored, "saving the app").toEqual({ kind: "ok" });
+    const github = githubApiDouble({
+      app: githubJsonAnswer(
+        200,
+        appBody({
+          id: 12_345,
+          slug: "seluna-demo",
+          owner: { id: 583_231, login: "octocat", type: "User" },
+          permissions: FULL_PERMISSIONS,
+          events: FULL_EVENTS,
+        }),
+      ),
+      installations: githubJsonAnswer(200, []),
+    });
+
+    const response = await stepPage(githubDeps(github), "/setup");
+
+    expect(response.status, "status").toBe(200);
+    expect(await response.text(), "owner line").toContain("octocat (personal account)</p>");
+    const row = await env.DB.prepare("SELECT value FROM meta WHERE key = 'github_app_owner'").first();
+    expect(row?.value, "stored owner row").toBe("12345:583231:User:octocat");
   });
 
   it("GET /setup lists the installations of an app from the Worker secrets in GitHub's order", async () => {
     const github = githubApiDouble({
+      app: githubJsonAnswer(500, { message: "Server Error" }),
       installations: githubJsonAnswer(200, [
         installationEntry({ id: 1, account: { login: "octocat", type: "User" }, repository_selection: "all" }),
         installationEntry({ id: 2, account: { login: "octo-org", type: "Organization" } }),
@@ -3701,7 +3736,7 @@ describe("handleSetup status page", () => {
       `<li>octocat (${TEXTS.en.accountPersonal}), ${TEXTS.en.repositoriesAll}</li>\n` +
         `<li>octo-org (${TEXTS.en.accountOrganization}), ${TEXTS.en.repositoriesSelected}</li>`,
     );
-    expect(github.requests.length, "number of GitHub requests").toBe(1);
+    expect(github.requests.length, "number of GitHub requests").toBe(2);
   });
 
   it.each([
@@ -3712,7 +3747,10 @@ describe("handleSetup status page", () => {
   ] satisfies readonly { readonly case: string; readonly answer: GitHubAnswer }[])(
     "GET /setup answers 200 with installations unavailable when GitHub fails: $case",
     async ({ answer }) => {
-      const github = githubApiDouble({ installations: answer });
+      const github = githubApiDouble({
+        app: githubJsonAnswer(500, { message: "Server Error" }),
+        installations: answer,
+      });
       const deps = githubSecretDeps(github, { ...GITHUB_WORKER_SECRETS, GITHUB_APP_PRIVATE_KEY: FIXTURE_PEM });
 
       const response = await stepPage(deps, "/setup");

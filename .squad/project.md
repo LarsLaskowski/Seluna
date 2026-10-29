@@ -28,7 +28,7 @@ files or endpoints.
 - **Encrypted credentials:** the GitHub App ID, private key and webhook secret and the Telegram bot token entered in
   the setup wizard (`telegram_bot_token`, a `ChannelSecretName`, written alone through `writeSecret` and deleted through `deleteSecret`, also by _Remove_ of the Messengers card on the start page through `removeBotToken`) live
   in the D1 table `secrets` as AES-256-GCM ciphertext (random 96-bit nonce per value; code in `src/crypto.ts` and `src/store/secrets.ts`, the three
-  credentials of the manifest flow together through `writeSecrets`); the key comes from the Worker secret `SELUNA_SECRET`. The D1 table `token_cache` holds installation tokens encrypted the same way, each ciphertext is bound to its row (additional data), expired rows are deleted by the cleanup cron (`src/cleanup.ts`), and a key check value in `meta` reports a changed `SELUNA_SECRET`. The
+  credentials of the manifest flow together through `writeSecrets`); the key comes from the Worker secret `SELUNA_SECRET`. The D1 table `token_cache` holds installation tokens encrypted the same way, each ciphertext is bound to its row and to the permission list its token was requested with (additional data `token_cache/<id>/<expires_at>/<permissions>`), expired rows are deleted by the cleanup cron (`src/cleanup.ts`), and a key check value in `meta` reports a changed `SELUNA_SECRET`. The
   Telegram bot token is the optional Worker secret `TELEGRAM_BOT_TOKEN`, which takes precedence over the saved token
   (`resolveBotToken` in `src/bot-token.ts`; a malformed Worker secret does not fall back). Worker secrets are set
   through the deploy form (which asks only for `SELUNA_SECRET`) or Wrangler and never committed (`.gitignore` ignores `.dev.vars*` and `.env*`, the files Wrangler loads local secrets
@@ -39,9 +39,11 @@ files or endpoints.
   `token_cache` and then `secrets` only while the key check value and the `secrets` rows are the ones checked, and
   then the key check value only while it is the one checked and no `secrets` row is left (a credential written in
   between leaves everything).
-- **Minimal GitHub App permissions:** the manifest requests read-only access to exactly what the rules read (Actions,
-  Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts and Metadata, `src/github/manifest.ts`);
-  a new permission is a `security`-tier change.
+- **Minimal GitHub App permissions:** the manifest requests read-only access to exactly what the rules and the events
+  they will read need (Actions, Contents, Issues, Pull requests, Dependabot alerts, Code scanning alerts, Secret
+  scanning alerts and Metadata, `src/github/manifest.ts`); `contents` is there for the `fork` event, which
+  GitHub delivers only with Contents (decision 0039). Installation tokens are narrowed below the app's permissions
+  (see _GitHub App authentication_). A new permission is a `security`-tier change.
 - **GitHub App manifest flow:** the setup wizard hands GitHub a manifest and finishes the flow on GitHub's signed-out
   return (`src/setup/github-step.ts`, `src/setup/github-state.ts`, decision 0017). The `state` is an HMAC (key
   `seluna/setup-github/v1`) over the owner's session, the chosen account type and account, a nonce and an expiry
@@ -50,8 +52,11 @@ files or endpoints.
   `src/github/conversion.ts`) before anything is stored or an install link is shown. Account name, code and slug are
   allow-listed before they enter a URL, the conversion answer is read bounded (1 MiB) and narrowed, the private key
   is converted to PKCS#8 and must import as an RS256 key (`src/github/private-key.ts`), the three credentials are
-  written in one transaction, and the client secret is discarded. Only the review page has `form-action
-  https://github.com`.
+  written in one transaction, and the client secret is discarded. After the credentials, the finish stores the app's
+  owner in the `meta` row `github_app_owner` (`keepOwner`, `<appId>:<ownerId>:<type>:<login>`, public data; the owner
+  parsed by `parseOwnerAccount` in `src/github/owner.ts` apart from the owner check, a failed write dropped); a
+  rule compares the owner by numeric id only (`src/rules/actor.ts`, an organization owner never counts as own).
+  Only the review page has `form-action https://github.com`.
 - **Update workflow:** `.github/workflows/update.yml` (decision 0031) runs with `contents: write` as the only permission,
   no action and no code of the release; it is started only by `workflow_dispatch`, reads only the public original
   repository (the `curl` header from a mode-600 file, the release answer bounded to 1 MiB and narrowed to `tag_name`,
@@ -61,13 +66,15 @@ files or endpoints.
   and `wrangler.jsonc`, values of `[A-Za-z0-9._-]` up to 214 characters). Known: every name line with the base's value is rewritten, wherever it sits in the file, and a release that renames the package, Worker or database away from the base's name replaces the owner's name, which the owner sets again by hand (`docs/update.md`, _After the update_).
 - **GitHub App authentication:** every GitHub call except the manifest conversion and the release check (`src/github/release.ts`: fixed URL, no credential, same request rules, answer narrowed to `tag_name`) is made as the app through
   `src/github/` (`app-jwt.ts`, `http.ts`, `app-credentials.ts`, `installation-token.ts`, `token-text.ts`,
-  `installations.ts`, `api-client.ts`): an RS256 JWT (`iat` now − 60 s, `exp` now + 540 s, `iss` the App ID) signed per request with the
-  private key resolved per credential, never stored; installation tokens per `installation.id`, allow-listed
-  (`[A-Za-z0-9_]`, 1–255 characters), cached only encrypted in `token_cache` (`src/store/token-cache.ts`) until 5
+  `installations.ts`, `api-client.ts`, `app-info.ts`, `app-links.ts`, `token-permissions.ts`): an RS256 JWT (`iat` now − 60 s, `exp` now + 540 s, `iss` the App ID) signed per call with the
+  private key resolved per credential (the status page signs one for its `GET /app` and installations requests), never stored; installation tokens per `installation.id`, allow-listed
+  (`[A-Za-z0-9_]`, 1–255 characters), requested with an explicit permission list (`INSTALLATION_TOKEN_PERMISSIONS`: `metadata` and `pull_requests` read, the one call made with a token) and accepted only when the answer's `permissions` hold nothing but those two entries (own entries checked, a missing `permissions` refused), cached only encrypted in `token_cache` (`src/store/token-cache.ts`) until 5
   minutes before expiry, the row of a token GitHub answered 401 for deleted by installation id and IV; installation id,
   owner, repository name and number allow-listed before they enter a URL; only `https://api.github.com`, no redirects
-  followed, 10-second timeout, answers read bounded (1 MiB) and narrowed; no token, key or JWT in a log, page, result
-  or plain D1 (decision 0026).
+  followed, 10-second timeout, answers read bounded (1 MiB) and narrowed; the status page's `GET /app` answer is
+  narrowed (own entries only; an answer of another App ID counts as failed) and its links to GitHub's settings pages
+  are built only from allow-listed parts (`app-links.ts`), never from `html_url`; no token, key or JWT in a log, page,
+  result or plain D1 (decisions 0026 and 0039).
 - **Outbound delivery channels:** the Worker delivers through the one active channel of the registry (`src/channels/registry.ts`, `src/channels/channel.ts`; today only Telegram, `src/channels/telegram.ts`), reading its destination once per batch (`src/delivery.ts`), and every channel request goes through the shared HTTP code `src/channels/http.ts` (JSON `POST`, 10-second timeout, answer read bounded to 1 MiB, one retry after a short 429, redirects followed as `fetch` does by default, which a channel with an owner-chosen server URL must decide on). For Telegram the Worker calls only the Bot API methods `getMe` (at most once per submitted token form whose token matches the bot token form, in
   the setup wizard's Telegram step, `src/setup/telegram-step.ts`), `getUpdates` (in the same step) and `sendMessage`
   (`src/telegram.ts`); delivery reads the token from the Worker secret or from D1 (`src/channels/telegram.ts`); it never sets
@@ -151,12 +158,21 @@ otherwise):
   stub on `globalThis.fetch`) that records every request and answers `POST /app-manifests/<code>/conversions` from
   the reference-built fixtures under `test/fixtures/github/` (written from GitHub's documentation, not captured,
   decision 0017), a status and body, or a rejection; it fails the test on any other URL. `githubApiDouble(routes)`
-  also answers `POST /app/installations/<id>/access_tokens`, `GET /app/installations?per_page=100`, `GET
+  also answers `GET /app`, `POST /app/installations/<id>/access_tokens`, `GET /app/installations?per_page=100`, `GET
   /repos/<owner>/<repo>/pulls/<number>` and `GET /repos/LarsLaskowski/Seluna/releases/latest` from
   `test/fixtures/github/` (the token and installations answers are reference-built from GitHub's OpenAPI examples,
-  the pull request and latest release answers are captured), each route an answer, a
-  sequence or a function of the request, and records every request with its `Authorization` header. The check-run
-  answers of the later API clients get their fixtures beside these.
+  the pull request, latest release and app answers are captured: `app.json` is the public app object of a check run),
+  each route an answer, a sequence or a function of the request, and records every request with its `Authorization`
+  header and its body (`RecordedGitHubRequest.body`, the text read from a clone of the request, `null` without a
+  body; `hasBody` stays). Helpers beside it: `appBody(changes)` (a copy of `app.json`), `FULL_PERMISSIONS` and
+  `FULL_EVENTS` (the manifest's eight permissions and nine events, written independently of `src/github/manifest.ts`),
+  `FIXTURE_INSTALLATION_ACCESS` and `installationWithAccess(permissions, events, changes)` (an installation entry
+  with its access), and `installationTokenBody(token, expiresAt, permissions)`, whose `permissions` default to the
+  narrow `metadata: read` and `pull_requests: read` the code requires (the documented example answers a request
+  without a `permissions` object, so its own `permissions` are replaced). `test/token-cache.ts` seeds rows without
+  `src/store/token-cache.ts`: `tokenContext` is the additional data with the permission tag,
+  `legacyTokenContext` the one of earlier versions, and `seedCachedToken(..., additionalData)` takes either. The
+  check-run answers of the later API clients get their fixtures beside these.
 - **Telegram Bot API double** — `test/telegram.ts`: a `vi.fn<TelegramFetch>()` passed as the injected `TelegramFetch`
   (not a stub on `globalThis.fetch`) that records every request and answers `getMe`, `getUpdates` and `sendMessage` from
   fixtures, a status and body (for `sendMessage` also a sequence, one answer per request, the last repeated), or a rejection (a rate limit, a server error; the 429 answer is the reference-built `send-message-too-many-requests.json`); it fails the test on any other method.
@@ -182,7 +198,9 @@ otherwise):
   delivery used to test the signature stays unaltered, because any edit breaks its signature, and is signed with a
   throwaway secret (decision 0012). The `dependabot_alert`,
   `code_scanning_alert` and `secret_scanning_alert` fixtures are reference-built from GitHub's OpenAPI webhook schemas,
-  not captured (Product Manager's decision, [decision 0028](../docs/decisions/0028-security-alert-rules.md)).
+  not captured (Product Manager's decision, [decision 0028](../docs/decisions/0028-security-alert-rules.md)). The
+  `issues/opened.json`, `issue_comment/created.json`, `fork/fork.json` and `star/created.json` fixtures are shaped
+  from GitHub's webhook documentation, not captured, until the live check ([decision 0039](../docs/decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md)).
 - **D1** — the real D1 binding the Workers test pool provides (migrations applied in a test setup), not a fake.
 
 ## Fixtures from real deliveries

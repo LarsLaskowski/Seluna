@@ -27,7 +27,7 @@ Pull requests wait for a review, a build turns red, a security alert opens, and 
 - **Your messenger.** Telegram works today. ntfy, Gotify, Matrix and Discord are planned, and you will be able to switch between the ones you have set up.
 - **Free to run.** It fits the Cloudflare free plan; D1 and Telegram cost nothing either.
 - **Set up in the browser.** Click the button above, then follow the setup wizard. No command line is needed. The aim is a working setup in under 15 minutes.
-- **No upkeep for new repositories.** Install the GitHub App on all your repositories and new ones are covered automatically.
+- **You choose the repositories.** Install the GitHub App on only the repositories you pick, and add a new repository to the installation when you want it covered.
 - **Personal and team use.** Your own account or an organization, a private chat or a group chat. Messages come in English or German.
 
 ## What you get notified about

@@ -92,5 +92,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0036](0036-telegram-bot-token-in-the-setup-wizard.md) | Telegram bot token entered in the setup wizard and checked with getMe | Accepted | 2026-10-25 |
 | [0037](0037-squad-working-records-off-main.md) | Squad working records stay off main, and product PRs never change the squad | Accepted | 2026-10-25 |
 | [0038](0038-channel-neutral-outbox-and-active-delivery-channel.md) | Channel-neutral outbox and one active delivery channel | Accepted | 2026-10-26 |
+| [0039](0039-issue-comment-fork-star-events-and-the-app-owner.md) | Issue, comment, fork and star events, the app owner and narrowed installation tokens | Accepted | 2026-10-29 |
 
 <!-- project:end index -->

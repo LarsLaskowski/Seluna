@@ -8,16 +8,30 @@ export type GitHubReply =
   | { readonly kind: "refused"; readonly status: number }
   | { readonly kind: "failed" };
 
-/** The GitHub API request `method` `path` with the standard headers, `Authorization: Bearer <bearer>` and a timeout. */
-export function gitHubRequest(method: "GET" | "POST", path: string, version: string, bearer: string): Request {
+/**
+ * The GitHub API request `method` `path` with the standard headers, `Authorization: Bearer <bearer>` and a timeout;
+ * `jsonBody`, when given, is sent as the JSON body.
+ */
+export function gitHubRequest(
+  method: "GET" | "POST",
+  path: string,
+  version: string,
+  bearer: string,
+  jsonBody?: string,
+): Request {
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": GITHUB_API_VERSION,
+    "User-Agent": `seluna/${version}`,
+    Authorization: `Bearer ${bearer}`,
+  };
+  if (jsonBody !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
   return new Request(`${GITHUB_API_ORIGIN}${path}`, {
     method,
-    headers: {
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": GITHUB_API_VERSION,
-      "User-Agent": `seluna/${version}`,
-      Authorization: `Bearer ${bearer}`,
-    },
+    headers,
+    body: jsonBody,
     redirect: "manual",
     signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
   });

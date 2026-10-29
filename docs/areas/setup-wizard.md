@@ -151,12 +151,37 @@ it and add their pages behind the login.
   from GitHub:_ the time in the configured time zone as `YYYY-MM-DD HH:MM (<time zone>)` (24-hour), or _none
   received yet_ until the first delivery from GitHub is recorded ([Notifications](notifications.md)). When the runtime rejects the zone or the
   time at render, the time is written in UTC from its UTC fields, as `(UTC)`; the page never fails on it.
-- Below _GitHub App:_ the section shows _Installations:_ when that line names a usable app, that is for the _Worker
-  secrets_ text and for a saved app (and for nothing else: no line and no request for _none saved yet_, _partial
-  Worker secrets_ and _cannot be read_). The page asks GitHub for the app's installations
-  ([GitHub API](github-api.md#installations-list), one request of up to 100) and shows: a list with one entry per
+- Below _GitHub App:_ the section shows the owner line, the app check and _Installations:_ when the _GitHub App:_
+  line names a usable app, that is for the _Worker secrets_ text and for a saved app (and for nothing else: no line,
+  no owner, no check and no request for _none saved yet_, _partial Worker secrets_ and _cannot be read_). With
+  credentials that sign, the page makes one app token and asks GitHub, beside each other, for the app itself
+  ([GitHub API](github-api.md#app-read), `GET /app`) and for the app's installations
+  ([GitHub API](github-api.md#installations-list), one request of up to 100). The answer of `GET /app` counts only
+  when its `id` is the App ID of the credentials; otherwise, and when it fails or has unusable access, the app is
+  _unchecked_.
+- **Owner line:** `<p>GitHub App owner: <login> (personal account)</p>`, or `(organization)`, the login written as
+  escaped text. The owner is the one GitHub's answer names, else the one stored for the App ID
+  ([Storage](storage.md#tables)), else _owner unavailable_ ("Cannot be read from GitHub right now."). When the
+  answer names an owner that differs from the stored one, or none is stored, the page stores it; a failed write is
+  dropped and the page is still answered. Without credentials that work (_no-app_, _key unusable_, an app token that
+  cannot be signed) no request is made and the owner is the stored one or _owner unavailable_. For an
+  organization's app a paragraph follows (_organization owner_): Seluna cannot tell the owner's own actions from
+  anyone else's, so the activity of every account is reported, the owner's too.
+- **App check:** after the owner, `<p>Missing on the app: <list> <a href="…">Add them in the app's settings on
+GitHub</a></p>` when the app lacks permissions or events the manifest asks for; the link is left out when no safe
+  URL can be built (no slug from the answer or stored for the App ID, an owner or login that fails its check). When
+  the app was not read, `<p>Missing on the app: Seluna could not read the app's permissions from GitHub.</p>`; when
+  nothing is missing there is no paragraph. `<list>` is the permissions as `<Name> (read-only)` joined by `, `, then,
+  when events are missing, `events: <Name>, <Name>`, the two parts joined by `; `; names are GitHub's, as on the
+  review page, in manifest order. A `write` or `admin` level counts as granted, and permissions and events beyond
+  the manifest are not reported.
+- **Installations:** a list with one entry per
   installation in GitHub's order, `<login or slug> (<account type>), <repository selection>` with `, suspended` after
-  it for a suspended installation, the login and slug written as escaped text, never as markup or a link; _not
+  it for a suspended installation, the login and slug written as escaped text, never as markup or a link, and, when
+  the app was read, the check of the installation against what the app itself has: `, missing: <list> <a href="…">Review and accept on GitHub</a>`
+  (the link only when a URL can be built: a `User` or `Organization` account with an allow-listed login),
+  `, access not checked` when the installation's `permissions` or `events` are unusable, and nothing when it is
+  complete or the app was not read. Suspended installations are checked too. _not
   installed_ on the same line for an empty list; the _more installations_ text after the list exactly when the
   answer's `Link` header has a link with `rel="next"`; _installations unavailable_ on the same line when the request
   fails (refused, timed out, redirected, unreadable) or the Worker secret `GITHUB_APP_ID` is not a positive whole
@@ -450,9 +475,10 @@ encrypted ([Storage](storage.md)). The Worker secrets `GITHUB_APP_ID`, `GITHUB_A
 - **Manifest** (the JSON of the field `manifest`, keys in this order): `name` `seluna-<account>` cut to its first 34
   characters; `url` `https://github.com/LarsLaskowski/Seluna`; `hook_attributes` `{"url":"<origin>/webhook","active":true}`;
   `redirect_url` `<origin>/setup/github/callback`; `public` `false`; `default_permissions` read-only `actions`,
-  `pull_requests`, `vulnerability_alerts`, `security_events`, `secret_scanning_alerts` and `metadata`;
-  `default_events` `pull_request`, `workflow_run`, `dependabot_alert`, `code_scanning_alert` and
-  `secret_scanning_alert`. `<origin>` is the origin of the request. The owner can edit the app's name on GitHub's page.
+  `contents`, `issues`, `pull_requests`, `vulnerability_alerts`, `security_events`, `secret_scanning_alerts` and
+  `metadata`; `default_events` `pull_request`, `workflow_run`, `dependabot_alert`, `code_scanning_alert`,
+  `secret_scanning_alert`, `issues`, `issue_comment`, `fork` and `star` (decision
+  [0039](../decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md)). `<origin>` is the origin of the request. The owner can edit the app's name on GitHub's page.
 - **State:** `v1.<type>.<account>.<expires>.<nonce>.<mac>`: `<type>` is `personal` or `organization`, `<account>` the
   name as entered, `<expires>` the time of the request plus 3,600,000 ms in decimal, `<nonce>` 16 random bytes as
   base64url (22 characters), `<mac>` the HMAC-SHA256 (base64url without padding, 43 characters) of the ASCII text
@@ -501,7 +527,10 @@ encrypted ([Storage](storage.md)). The Worker secrets `GITHUB_APP_ID`, `GITHUB_A
       _install intro_ and a link to
       `https://github.com/apps/<slug>/installations/new`, or, when the answer has no slug that passes the allow-list,
       the _install manually_ text and no link. After the three credentials were stored, the slug is kept in `meta`
-      `github_app_slug` as `<appId>:<slug>` (only when the answer has an allow-listed slug); a failure of that write
+      `github_app_slug` as `<appId>:<slug>` (only when the answer has an allow-listed slug), and the owner in `meta`
+      `github_app_owner` as `<appId>:<ownerId>:<type>:<login>` (only when the answer's `owner` has a positive safe
+      integer `id`, a `login` that is an account name and a `type` of exactly `User` or `Organization`, parsed apart
+      from the owner check so that an unusable `id` never makes the answer _malformed_); a failure of either write
       is dropped and the page is still _created_.
 - **The conversion:** one `POST https://api.github.com/app-manifests/<code>/conversions` with `Accept:
 application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, `User-Agent: seluna/<version>`, no
@@ -585,8 +614,9 @@ nowrap` or `pre`, no width above 20rem, no fixed height, and font sizes only in 
   is animated.
 - **Style limits:** the content of the `<style>` element is one constant, the same on every page and response; no
   page has another `<style>` element, a `style=` attribute, a `<link>`, `<img>`, `<iframe>` or `xlink:href`, and
-  the only external addresses in `src`, `href` and `action` are the status section's app link, the created page's
-  install link and the review page's form action; the internal addresses of the step navigation are fixed
+  the only external addresses in `src`, `href` and `action` are the status section's app link, its app settings and
+  installation review links (`https://github.com/settings/...` and `https://github.com/organizations/...`, built
+  only from allow-listed parts), the created page's install link and the review page's form action; the internal addresses of the step navigation are fixed
   (`/setup`, `/setup/telegram`, `/setup/github`). The style loads nothing: no `url(`, no at-rule but `@media`, no
   CSS escape (`\`), none of the functions `image-set(`, `-webkit-image-set(`, `image(`, `src(`, `cross-fade(` and
   `element(`; it names only system and generic font families, is printable ASCII without `<` (so the bytes the
@@ -687,8 +717,15 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET.", "Only some of the Worker secrets GITHUB_APP_ID,
   GITHUB_APP_PRIVATE_KEY and GITHUB_WEBHOOK_SECRET are set.", "App ID" or "Cannot be read with the current
   SELUNA_SECRET."; "Last delivery from GitHub:" with "None received yet.".
+- Owner and app check (below "GitHub App:"): the label "GitHub App owner:" with the login and "(personal account)" or
+  "(organization)", or "Cannot be read from GitHub right now."; for an organization "The app belongs to an
+  organization, so Seluna cannot tell your own actions from anyone else's: activity of every account is reported,
+  yours too."; the label "Missing on the app:" with the list, the link "Add them in the app's settings on GitHub", or
+  "Seluna could not read the app's permissions from GitHub."; in the list "(read-only)" after a permission and
+  "events:" before the events.
 - Installations (below "GitHub App:"): the label "Installations:"; an entry "<login or slug> (<account type>),
-  <repository selection>" with ", suspended" for a suspended installation; the account types "personal account"
+  <repository selection>" with ", suspended" for a suspended installation, then ", missing: <list>" with the link
+  "Review and accept on GitHub" or ", access not checked"; the account types "personal account"
   (`User`), "organization" (`Organization`), "other account" (any other or a missing type) and "enterprise" (an
   account with a slug and no login); "Unknown account" in place of name and type for an account without both;
   the repository selections "all repositories" and "selected repositories"; _not installed_: "Not installed on any
@@ -749,15 +786,17 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
 - GitHub review page: "Seluna asks GitHub to create this app. On GitHub, check the details and select Create GitHub
   App; GitHub then sends you back here. Seluna saves the app only if GitHub created it for the account shown here.";
   the labels "Account:" (followed by the account and, in parentheses, the account type), "App name:", "Permissions,
-  all read-only:" with "Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts,
-  Metadata", "Events:" with "Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning
-  alert", and the button "Continue to GitHub".
+  all read-only:" with "Actions, Contents, Issues, Pull requests, Dependabot alerts, Code scanning alerts, Secret
+  scanning alerts, Metadata", "Events:" with "Pull request, Workflow run, Dependabot alert, Code scanning alert,
+  Secret scanning alert, Issues, Issue comment, Fork, Star", and the button "Continue to GitHub".
 - GitHub finish page: "GitHub has created the app. Select Finish so that Seluna fetches and saves its
   credentials." and the button "Finish". Created page: "The GitHub App is saved.", "Now install it on your account or
-  organization. Choosing All repositories is recommended, so that new repositories are covered too." with the link
+  organization. Choosing Only select repositories is recommended: Seluna then sees only the repositories you pick,
+  and you add a new repository to the installation by hand." with the link
   "Install the app on GitHub", or "Install it on GitHub: in the settings of your account or organization, open
-  Developer settings, then GitHub Apps, choose the app and select Install App. Choosing All repositories is
-  recommended, so that new repositories are covered too." The created page has no link back.
+  Developer settings, then GitHub Apps, choose the app and select Install App. Choosing Only select repositories is
+  recommended: Seluna then sees only the repositories you pick, and you add a new repository to the installation by
+  hand." The created page has no link back.
 - GitHub notice-only page (the GitHub step's answers with _unavailable_ or _form expired_, and those with _invalid
   return_, _state invalid_, _code rejected_, _answer invalid_, _owner mismatch_ or _store failed_): after the notice,
   the link "Back to the GitHub App step".
@@ -795,7 +834,7 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   tell whether an earlier attempt saved the app, so the _code rejected_ notice has the owner compare the saved App ID
   with the app's own before deleting it. GitHub's own limit of one hour for the flow, and the state's, bound the return. A session that
   expires during the detour loses the return: sign in again and start over.
-- Every signed-in start page answer makes one installations request when its status section lists installations: the
+- Every signed-in start page answer makes two requests under one app token (`GET /app` and the installations list) when its status section lists installations: the
   `GET /setup` 200, the 400 _settings invalid_ of `POST /setup/settings` and the 409 _reset not needed_ of
   `POST /setup/reset`. The request's 10-second timeout covers the wait for the answer and the reading of its body
   ([GitHub API](github-api.md#limits-and-errors)), so such a page takes at most about 10 seconds longer when GitHub is
@@ -858,6 +897,9 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
   — the 32-character minimum of `SELUNA_SECRET` and separate keys per purpose.
 - [`decisions/0026-github-app-authentication-and-installation-tokens.md`](../decisions/0026-github-app-authentication-and-installation-tokens.md)
   — the installations list on the status page, the app token and the installation tokens behind it.
+- [`decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md`](../decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md)
+  — the four new events and their permissions, the stored owner, the app check on the status page and the
+  recommendation of _Only select repositories_.
 - [`decisions/0034-setup-page-layout-checked-on-the-style.md`](../decisions/0034-setup-page-layout-checked-on-the-style.md)
   — the page layout and its colours as custom properties per mode, verified on the style and the rendered markup
   instead of in a browser.

@@ -1,10 +1,16 @@
+import { parseOwnerAccount } from "../github/owner";
+import type { OwnerAccount } from "../github/owner";
+
 /** `meta` key of the time of the last received delivery (decimal milliseconds since 1970-01-01 UTC). */
 export const LAST_DELIVERY_META_KEY = "last_delivery";
 /** `meta` key of the GitHub App slug, stored as `<appId>:<slug>`. */
 export const GITHUB_APP_SLUG_META_KEY = "github_app_slug";
+/** `meta` key of the GitHub App owner, stored as `<appId>:<ownerId>:<type>:<login>`. */
+export const GITHUB_APP_OWNER_META_KEY = "github_app_owner";
 
 const LAST_DELIVERY_FORM = /^(?:0|[1-9]\d{0,15})$/;
 const SLUG_FORM = /^(\d{1,16}):([a-z0-9-]{1,100})$/;
+const OWNER_FORM = /^(\d{1,16}):([1-9]\d{0,15}):([A-Za-z]{1,20}):([^:]{1,100})$/;
 /** The latest time a JavaScript `Date` holds, in milliseconds. */
 const MAX_TIME = 8_640_000_000_000_000;
 
@@ -36,6 +42,24 @@ export async function writeAppSlug(db: D1Database, appId: number, slug: string):
   await db
     .prepare("INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value")
     .bind(GITHUB_APP_SLUG_META_KEY, `${String(appId)}:${slug}`)
+    .run();
+}
+
+/** The stored owner when it belongs to `appId` and every part is valid, or `undefined`. D1 errors are not caught. */
+export async function readAppOwner(db: D1Database, appId: number): Promise<OwnerAccount | undefined> {
+  const stored = await readMeta(db, GITHUB_APP_OWNER_META_KEY);
+  const match = stored === undefined ? null : OWNER_FORM.exec(stored);
+  if (match?.[1] !== String(appId)) {
+    return undefined;
+  }
+  return parseOwnerAccount({ id: Number(match[2]), type: match[3], login: match[4] });
+}
+
+/** Stores `owner` for `appId`, replacing an earlier one. D1 errors are not caught. */
+export async function writeAppOwner(db: D1Database, appId: number, owner: OwnerAccount): Promise<void> {
+  await db
+    .prepare("INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value")
+    .bind(GITHUB_APP_OWNER_META_KEY, `${String(appId)}:${String(owner.id)}:${owner.type}:${owner.login}`)
     .run();
 }
 

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- GitHub App: the manifest also asks for read-only Contents and Issues and subscribes to the events `issues`, `issue_comment`, `fork` and `star`; these deliveries are accepted and recorded but send no message yet. Seluna stores the app's owner (account id, login and type) beside the App ID for the rules to come.
+- Setup wizard: the status section shows the GitHub App's owner, with a notice for an organization's app, and names the permissions and events the app or an installation still lacks, with links to add and accept them on GitHub.
+
+### Changed
+
+- Installation tokens are requested with only `metadata: read` and `pull_requests: read` and refused when GitHub's answer grants more; tokens cached by earlier versions are requested again once.
+- The setup guide and the created page recommend installing the app on _Only select repositories_ instead of _All repositories_.
+
 ## [0.7.0] - 2026-10-27
 
 ### Added

@@ -7,8 +7,21 @@ import type { NotificationSettings } from "../settings";
 import { RESET_PATH, SETTINGS_PATH } from "./settings-form";
 import { CHANNEL_ACTIVATE_PATH, CHANNEL_FIELD, CHANNEL_REMOVE_PATH } from "./messengers";
 import { formatDeliveryTime } from "./status";
-import type { AppStatus, BotTokenStatus, ChatStatus, InstallationsView, MessengerEntry, StatusView } from "./status";
-import type { Installation, InstallationAccount } from "../github/installations";
+import type {
+  AppAccessView,
+  AppStatus,
+  BotTokenStatus,
+  ChatStatus,
+  InstallationCheck,
+  InstallationEntry,
+  InstallationsView,
+  MessengerEntry,
+  OwnerView,
+  StatusView,
+} from "./status";
+import { hasMissing } from "../github/app-info";
+import type { MissingAccess } from "../github/app-info";
+import type { InstallationAccount } from "../github/installations";
 import { TELEGRAM_TOKEN_PATH, TELEGRAM_TOKEN_REMOVE_PATH } from "./telegram-step";
 import type { ChatPart, TelegramStepView, TokenState } from "./telegram-step";
 import { TEXTS } from "./texts";
@@ -266,11 +279,121 @@ function accountHtml(language: Language, account: InstallationAccount): string {
   }
 }
 
-function installationHtml(language: Language, installation: Installation): string {
+/** GitHub's names of the permissions the manifest asks for, the same in both languages. */
+const PERMISSION_NAMES: Readonly<Record<string, string>> = {
+  actions: "Actions",
+  contents: "Contents",
+  issues: "Issues",
+  pull_requests: "Pull requests",
+  vulnerability_alerts: "Dependabot alerts",
+  security_events: "Code scanning alerts",
+  secret_scanning_alerts: "Secret scanning alerts",
+  metadata: "Metadata",
+};
+
+/** GitHub's names of the events the manifest subscribes to, the same in both languages. */
+const EVENT_NAMES: Readonly<Record<string, string>> = {
+  pull_request: "Pull request",
+  workflow_run: "Workflow run",
+  dependabot_alert: "Dependabot alert",
+  code_scanning_alert: "Code scanning alert",
+  secret_scanning_alert: "Secret scanning alert",
+  issues: "Issues",
+  issue_comment: "Issue comment",
+  fork: "Fork",
+  star: "Star",
+};
+
+/** The display name of `name`: GitHub's name when known, else the name itself. */
+function displayName(names: Readonly<Record<string, string>>, name: string): string {
+  return Object.hasOwn(names, name) ? (names[name] ?? name) : name;
+}
+
+/** The escaped list of what is missing: the permissions, then the events, joined by a semicolon. */
+function missingListHtml(language: Language, missing: MissingAccess): string {
+  const texts = TEXTS[language];
+  const permissions = missing.permissions.map(
+    (name) => `${displayName(PERMISSION_NAMES, name)} (${texts.readOnlySuffix})`,
+  );
+  const parts: string[] = [];
+  if (permissions.length > 0) {
+    parts.push(permissions.join(", "));
+  }
+  if (missing.events.length > 0) {
+    parts.push(`${texts.eventsLabel} ${missing.events.map((name) => displayName(EVENT_NAMES, name)).join(", ")}`);
+  }
+  return escapeHtml(parts.join("; "));
+}
+
+/** ` <a href="url">text</a>`, or nothing when there is no URL. */
+function linkHtml(url: string | undefined, text: string): string {
+  return url === undefined ? "" : ` <a href="${escapeHtml(url)}">${escapeHtml(text)}</a>`;
+}
+
+/** What follows an installation's repository selection and suspension: its access check. */
+function installationCheckHtml(language: Language, check: InstallationCheck): string {
+  const texts = TEXTS[language];
+  switch (check.kind) {
+    case "missing":
+      return `, ${escapeHtml(texts.installationMissing)} ${missingListHtml(language, check.missing)}${linkHtml(check.acceptUrl, texts.installationReviewLink)}`;
+    case "unreadable":
+      return `, ${escapeHtml(texts.accessNotChecked)}`;
+    case "complete":
+    case "app-unchecked":
+      return "";
+    default: {
+      const unreachable: never = check;
+      return unreachable;
+    }
+  }
+}
+
+/** The _GitHub App owner:_ paragraph, with the organization notice after it; empty when hidden. */
+function ownerHtml(language: Language, owner: OwnerView): string {
+  const texts = TEXTS[language];
+  const label = escapeHtml(texts.ownerLabel);
+  switch (owner.kind) {
+    case "hidden":
+      return "";
+    case "unavailable":
+      return `<p>${label} ${escapeHtml(texts.ownerUnavailable)}</p>\n`;
+    case "known": {
+      const type = owner.owner.type === "User" ? texts.accountPersonal : texts.accountOrganization;
+      const notice = owner.owner.type === "Organization" ? `<p>${escapeHtml(texts.ownerOrganizationNotice)}</p>\n` : "";
+      return `<p>${label} ${escapeHtml(owner.owner.login)} (${escapeHtml(type)})</p>\n${notice}`;
+    }
+    default: {
+      const unreachable: never = owner;
+      return unreachable;
+    }
+  }
+}
+
+/** The _Missing on the app:_ paragraph; empty when hidden or when nothing is missing. */
+function appAccessHtml(language: Language, access: AppAccessView): string {
+  const texts = TEXTS[language];
+  const label = escapeHtml(texts.appMissingLabel);
+  switch (access.kind) {
+    case "hidden":
+      return "";
+    case "unchecked":
+      return `<p>${label} ${escapeHtml(texts.appUnchecked)}</p>\n`;
+    case "checked":
+      return hasMissing(access.missing)
+        ? `<p>${label} ${missingListHtml(language, access.missing)}${linkHtml(access.settingsUrl, texts.appSettingsLink)}</p>\n`
+        : "";
+    default: {
+      const unreachable: never = access;
+      return unreachable;
+    }
+  }
+}
+
+function installationHtml(language: Language, { installation, check }: InstallationEntry): string {
   const texts = TEXTS[language];
   const selection = installation.repositorySelection === "all" ? texts.repositoriesAll : texts.repositoriesSelected;
   const suspended = installation.suspended ? `, ${escapeHtml(texts.installationSuspended)}` : "";
-  return `<li>${accountHtml(language, installation.account)}, ${escapeHtml(selection)}${suspended}</li>`;
+  return `<li>${accountHtml(language, installation.account)}, ${escapeHtml(selection)}${suspended}${installationCheckHtml(language, check)}</li>`;
 }
 
 /** The _Installations:_ part of the status section, each line ending in a line break; empty when hidden. */
@@ -314,6 +437,8 @@ function statusHtml(language: Language, status: StatusView): string {
       `<p>${escapeHtml(texts.botTokenLabel)} ${botTokenStatusHtml(language, status.botToken)}</p>\n` +
       `<p>${escapeHtml(texts.telegramChatLabel)} ${chatStatusHtml(language, status.chat)}</p>\n` +
       `<p>${escapeHtml(texts.githubAppLabel)} ${appStatusHtml(language, status.app)}</p>\n` +
+      ownerHtml(language, status.owner) +
+      appAccessHtml(language, status.appAccess) +
       installationsHtml(language, status.installations) +
       `<p>${escapeHtml(texts.lastDeliveryLabel)} ${delivery}</p>`,
   );

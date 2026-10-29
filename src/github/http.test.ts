@@ -42,6 +42,26 @@ describe("gitHubRequest", () => {
     expect(built.body, "body").toBeNull();
   });
 
+  it("gitHubRequest with a JSON body sets Content-Type application/json and the body", async () => {
+    const jsonBody = '{"permissions":{"metadata":"read"}}';
+
+    const built = gitHubRequest("POST", "/app/installations/1000003/access_tokens", VERSION, "bearer-value", jsonBody);
+
+    expect(built.method, "method").toBe("POST");
+    expect(built.headers.get("content-type"), "Content-Type").toBe("application/json");
+    expect(await built.text(), "body").toBe(jsonBody);
+    expect(built.headers.get("authorization"), "Authorization").toBe("Bearer bearer-value");
+    expect(built.headers.get("accept"), "Accept").toBe("application/vnd.github+json");
+    expect(built.redirect, "redirect").toBe("manual");
+  });
+
+  it("gitHubRequest without a body sends none", () => {
+    const built = gitHubRequest("POST", "/app/installations/1000003/access_tokens", VERSION, "bearer-value");
+
+    expect(built.body, "body").toBeNull();
+    expect(built.headers.get("content-type"), "Content-Type").toBeNull();
+  });
+
   it("gitHubRequest does not follow redirects", () => {
     const built = request();
 
