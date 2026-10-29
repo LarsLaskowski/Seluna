@@ -40,10 +40,16 @@ beforeEach(async () => {
   await applyMigrations(env.DB);
   await env.DB.batch([
     env.DB.prepare("DROP TRIGGER IF EXISTS fail_slug_write"),
+    env.DB.prepare("DROP TRIGGER IF EXISTS fail_owner_write"),
     env.DB.prepare("DROP TRIGGER IF EXISTS ignore_secret_insert"),
   ]);
   await env.DB.batch([env.DB.prepare("DELETE FROM secrets"), env.DB.prepare("DELETE FROM meta")]);
 });
+
+async function metaValue(key: string): Promise<unknown> {
+  const row = await env.DB.prepare("SELECT value FROM meta WHERE key = ?1").bind(key).first();
+  return row?.value;
+}
 
 const storageKey = (): Promise<CryptoKey> => keyFor(SECRET);
 const stateKey = (secret: string = SECRET): Promise<CryptoKey> => signingKeyFor(secret, "setup-github");
@@ -288,7 +294,7 @@ describe("finishGitHubApp", () => {
       value: FIXTURE_WEBHOOK_SECRET,
     });
     expect(await countOf("secrets"), "number of secrets rows").toBe(SECRET_NAMES.length);
-    expect(await countOf("meta"), "number of meta rows (the key check value and the slug)").toBe(2);
+    expect(await countOf("meta"), "number of meta rows (the key check value, the slug and the owner)").toBe(3);
     const stored = await env.DB.prepare("SELECT key, iv, ciphertext FROM secrets").all();
     expect(JSON.stringify(stored.results), "stored rows").not.toContain(FIXTURE_CLIENT_SECRET);
   });
@@ -313,7 +319,7 @@ describe("finishGitHubApp", () => {
 
     expect(result, "result").toEqual({ kind: "created", slug: "octoapp" });
     expect(await readSecret(env.DB, await storageKey(), "github_app_id"), "App ID").toEqual({ kind: "ok", value: "1" });
-    expect(await countOf("meta"), "number of meta rows (the key check value only)").toBe(1);
+    expect(await countOf("meta"), "number of meta rows (the key check value and the owner)").toBe(2);
   });
 
   it("finishGitHubApp writes no slug when the answer has none", async () => {
@@ -322,7 +328,57 @@ describe("finishGitHubApp", () => {
     const result = await finish(github);
 
     expect(result, "result").toEqual({ kind: "created", slug: undefined });
-    expect(await countOf("meta"), "number of meta rows (the key check value only)").toBe(1);
+    expect(await countOf("meta"), "number of meta rows (the key check value and the owner)").toBe(2);
+    expect(await metaValue("github_app_slug"), "slug row").toBeUndefined();
+  });
+
+  it("finishGitHubApp stores the owner for the saved App ID", async () => {
+    const github = githubDouble();
+
+    const result = await finish(github);
+
+    expect(result, "result").toEqual({ kind: "created", slug: "octoapp" });
+    expect(await metaValue("github_app_owner"), "stored owner row").toBe("1:1:User:github");
+  });
+
+  it("finishGitHubApp stores an organization owner with its type", async () => {
+    const github = githubDouble(jsonAnswer(201, conversionOwnedBy("octo-org", "Organization")));
+    const state = await stateFor(await stateKey(), SESSION, { type: "organization", account: "octo-org" }, NOW);
+
+    await finish(github, { state });
+
+    expect(await metaValue("github_app_owner"), "stored owner row").toBe("1:1:Organization:octo-org");
+  });
+
+  it.each([
+    { case: "an id of 0", owner: { id: 0, login: "github", type: "User" } },
+    { case: "an id that is a string", owner: { id: "1", login: "github", type: "User" } },
+    { case: "no id", owner: { login: "github", type: "User" } },
+  ])("finishGitHubApp saves the app without an owner when the owner has $case", async ({ owner }) => {
+    const github = githubDouble(jsonAnswer(201, conversionAnswer({ owner })));
+
+    const result = await finish(github);
+
+    expect(result, "result").toEqual({ kind: "created", slug: "octoapp" });
+    expect(await readSecret(env.DB, await storageKey(), "github_app_id"), "App ID").toEqual({ kind: "ok", value: "1" });
+    expect(await countOf("secrets"), "number of secrets rows").toBe(SECRET_NAMES.length);
+    expect(await metaValue("github_app_owner"), "owner row").toBeUndefined();
+    expect(await metaValue("github_app_slug"), "slug row").toBe("1:octoapp");
+  });
+
+  it("finishGitHubApp answers created when the owner write fails", async () => {
+    const github = githubDouble();
+    await env.DB.prepare(
+      "CREATE TRIGGER fail_owner_write BEFORE INSERT ON meta WHEN NEW.key = 'github_app_owner' " +
+        "BEGIN SELECT RAISE(ABORT, 'owner write refused'); END",
+    ).run();
+
+    const result = await finish(github);
+
+    expect(result, "result").toEqual({ kind: "created", slug: "octoapp" });
+    expect(await readSecret(env.DB, await storageKey(), "github_app_id"), "App ID").toEqual({ kind: "ok", value: "1" });
+    expect(await metaValue("github_app_slug"), "slug row").toBe("1:octoapp");
+    expect(await metaValue("github_app_owner"), "owner row").toBeUndefined();
   });
 
   it("finishGitHubApp answers store-failed when the credentials are not stored and nothing throws", async () => {
@@ -413,5 +469,6 @@ describe("finishGitHubApp", () => {
     expect(result, "result").toEqual({ kind: "owner-mismatch" });
     expect(await countOf("secrets"), "number of secrets rows").toBe(0);
     expect(await countOf("meta"), "number of meta rows").toBe(0);
+    expect(await metaValue("github_app_owner"), "owner row").toBeUndefined();
   });
 });

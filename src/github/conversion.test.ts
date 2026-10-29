@@ -108,6 +108,7 @@ describe("convertManifestCode answers", () => {
       app: {
         appId: 1,
         owner: { login: "github", type: "User" },
+        account: { id: 1, login: "github", type: "User" },
         slug: "octoapp",
         pem: FIXTURE_PEM,
         webhookSecret: FIXTURE_WEBHOOK_SECRET,
@@ -246,6 +247,35 @@ describe("parseConversion", () => {
 
     expect(app?.slug, "slug").toBe(expected);
     expect(app?.appId, "the rest of the app is kept").toBe(1);
+  });
+
+  it("parseConversion keeps the owner account", () => {
+    const app = parseConversion(conversionOwnedBy("octo-org", "Organization"));
+
+    expect(app?.account, "account").toEqual({ id: 1, login: "octo-org", type: "Organization" });
+    expect(app?.owner, "owner for the owner check").toEqual({ login: "octo-org", type: "Organization" });
+  });
+
+  it("parseConversion converts with an undefined account when the owner id is missing", () => {
+    const app = parseConversion(conversionAnswer({ owner: { login: "github", type: "User" } }));
+
+    expect(app?.account, "account").toBeUndefined();
+    expect(app?.owner, "owner").toEqual({ login: "github", type: "User" });
+    expect(app?.appId, "the rest of the app is kept").toBe(1);
+  });
+
+  it.each([
+    { case: "an id of 0", owner: { id: 0, login: "github", type: "User" } },
+    { case: "a fractional id", owner: { id: 1.5, login: "github", type: "User" } },
+    { case: "an id that is a string", owner: { id: "1", login: "github", type: "User" } },
+    { case: "an id beyond the safe integers", owner: { id: 2 ** 53, login: "github", type: "User" } },
+    { case: "the type Bot", owner: { id: 1, login: "github", type: "Bot" } },
+    { case: "a login that fails the account allow-list", owner: { id: 1, login: "github-", type: "User" } },
+  ])("parseConversion converts with an undefined account for $case", ({ owner }) => {
+    const app = parseConversion(conversionAnswer({ owner }));
+
+    expect(app?.account, "account").toBeUndefined();
+    expect(app?.appId, "the answer is not malformed").toBe(1);
   });
 
   it("parseConversion leaves out a missing slug", () => {

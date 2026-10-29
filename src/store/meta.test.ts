@@ -1,19 +1,22 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  GITHUB_APP_OWNER_META_KEY,
   GITHUB_APP_SLUG_META_KEY,
   LAST_DELIVERY_META_KEY,
   lastDeliveryUpsert,
+  readAppOwner,
   readAppSlug,
   readLastDelivery,
+  writeAppOwner,
   writeAppSlug,
 } from "./meta";
 import { applyMigrations } from "../../test/d1";
 
 beforeEach(async () => {
   await applyMigrations(env.DB);
-  await env.DB.prepare("DELETE FROM meta WHERE key IN (?1, ?2)")
-    .bind(LAST_DELIVERY_META_KEY, GITHUB_APP_SLUG_META_KEY)
+  await env.DB.prepare("DELETE FROM meta WHERE key IN (?1, ?2, ?3)")
+    .bind(LAST_DELIVERY_META_KEY, GITHUB_APP_SLUG_META_KEY, GITHUB_APP_OWNER_META_KEY)
     .run();
 });
 
@@ -94,6 +97,95 @@ describe("writeAppSlug", () => {
 
     expect(await storedMeta(GITHUB_APP_SLUG_META_KEY), "stored value").toBe("2:second-app");
     expect(await readAppSlug(env.DB, 2), "slug read back").toBe("second-app");
+  });
+});
+
+describe("writeAppOwner and readAppOwner", () => {
+  it("GITHUB_APP_OWNER_META_KEY names the row github_app_owner", () => {
+    expect(GITHUB_APP_OWNER_META_KEY, "key").toBe("github_app_owner");
+  });
+
+  it("writeAppOwner and readAppOwner round-trip an owner", async () => {
+    await writeAppOwner(env.DB, 12_345, { id: 583_231, login: "octocat", type: "User" });
+
+    const owner = await readAppOwner(env.DB, 12_345);
+
+    expect(await storedMeta(GITHUB_APP_OWNER_META_KEY), "stored value").toBe("12345:583231:User:octocat");
+    expect(owner, "owner read back").toEqual({ id: 583_231, login: "octocat", type: "User" });
+  });
+
+  it("writeAppOwner and readAppOwner round-trip an organization", async () => {
+    await writeAppOwner(env.DB, 7, { id: 9, login: "Octo-Org", type: "Organization" });
+
+    const owner = await readAppOwner(env.DB, 7);
+
+    expect(await storedMeta(GITHUB_APP_OWNER_META_KEY), "stored value").toBe("7:9:Organization:Octo-Org");
+    expect(owner, "owner read back").toEqual({ id: 9, login: "Octo-Org", type: "Organization" });
+  });
+
+  it("writeAppOwner replaces an earlier owner", async () => {
+    await writeAppOwner(env.DB, 1, { id: 10, login: "first-owner", type: "User" });
+
+    await writeAppOwner(env.DB, 2, { id: 20, login: "second-owner", type: "Organization" });
+
+    expect(await storedMeta(GITHUB_APP_OWNER_META_KEY), "stored value").toBe("2:20:Organization:second-owner");
+    expect(await readAppOwner(env.DB, 1), "owner of the first App ID").toBeUndefined();
+    expect(await readAppOwner(env.DB, 2), "owner of the second App ID").toEqual({
+      id: 20,
+      login: "second-owner",
+      type: "Organization",
+    });
+  });
+
+  it.each([
+    { name: "another App ID", appId: 54_321 },
+    { name: "an App ID that only starts the same", appId: 1234 },
+    { name: "an App ID that only ends the same", appId: 2345 },
+  ])("readAppOwner ignores an owner of $name", async ({ appId }) => {
+    await putMeta(GITHUB_APP_OWNER_META_KEY, "12345:583231:User:octocat");
+
+    const owner = await readAppOwner(env.DB, appId);
+
+    expect(owner, "owner").toBeUndefined();
+  });
+
+  it.each([
+    { case: "a value without colons", stored: "octocat" },
+    { case: "a value without a login", stored: "12345:583231:User" },
+    { case: "a value with an empty login", stored: "12345:583231:User:" },
+    { case: "a value with an extra part", stored: "12345:583231:User:octocat:x" },
+    { case: "an unknown type", stored: "12345:583231:Bot:octocat" },
+    { case: "a type in lowercase", stored: "12345:583231:user:octocat" },
+    { case: "an owner id of 0", stored: "12345:0:User:octocat" },
+    { case: "a negative owner id", stored: "12345:-1:User:octocat" },
+    { case: "a fractional owner id", stored: "12345:1.5:User:octocat" },
+    { case: "an owner id with a leading zero", stored: "12345:01:User:octocat" },
+    { case: "an owner id beyond the safe integers", stored: "12345:9007199254740993:User:octocat" },
+    { case: "an owner id that is not a number", stored: "12345:abc:User:octocat" },
+    { case: "a login with a trailing hyphen", stored: "12345:583231:User:octocat-" },
+    { case: "a login with a slash", stored: "12345:583231:User:octo/cat" },
+    { case: "a login of 40 characters", stored: `12345:583231:User:${"a".repeat(40)}` },
+    { case: "a login with a trailing line feed", stored: "12345:583231:User:octocat\n" },
+  ])("readAppOwner reads $case as absent", async ({ stored }) => {
+    await putMeta(GITHUB_APP_OWNER_META_KEY, stored);
+
+    const owner = await readAppOwner(env.DB, 12_345);
+
+    expect(owner, "owner").toBeUndefined();
+  });
+
+  it("readAppOwner returns undefined when no row is stored", async () => {
+    const owner = await readAppOwner(env.DB, 12_345);
+
+    expect(owner, "owner").toBeUndefined();
+  });
+
+  it("writeAppOwner leaves the slug row alone", async () => {
+    await writeAppSlug(env.DB, 12_345, "seluna-demo");
+
+    await writeAppOwner(env.DB, 12_345, { id: 1, login: "octocat", type: "User" });
+
+    expect(await storedMeta(GITHUB_APP_SLUG_META_KEY), "slug row").toBe("12345:seluna-demo");
   });
 });
 

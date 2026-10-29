@@ -236,6 +236,8 @@ export function expectedManifestJson(origin: string, account: string): string {
     public: false,
     default_permissions: {
       actions: "read",
+      contents: "read",
+      issues: "read",
       pull_requests: "read",
       vulnerability_alerts: "read",
       security_events: "read",
@@ -248,6 +250,10 @@ export function expectedManifestJson(origin: string, account: string): string {
       "dependabot_alert",
       "code_scanning_alert",
       "secret_scanning_alert",
+      "issues",
+      "issue_comment",
+      "fork",
+      "star",
     ],
   });
 }

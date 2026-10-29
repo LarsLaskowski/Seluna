@@ -616,6 +616,30 @@ describe("renderGitHubReviewPage", () => {
   });
 });
 
+describe("the review page lists", () => {
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "the review page lists the eight permissions and nine events in $language",
+    ({ language }) => {
+      const page = renderGitHubReviewPage(
+        language,
+        { type: "personal", account: "octocat" },
+        "seluna-octocat",
+        REVIEW_ACTION,
+        "{}",
+      );
+
+      const text = plainText(page);
+
+      expect(text, "permissions").toContain(
+        "Actions, Contents, Issues, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata",
+      );
+      expect(text, "events").toContain(
+        "Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert, Issues, Issue comment, Fork, Star",
+      );
+    },
+  );
+});
+
 describe("renderGitHubFinishPage", () => {
   it("renderGitHubFinishPage escapes code and state and has no csrf field", () => {
     const code = 'a"><script>alert(1)</script>';
