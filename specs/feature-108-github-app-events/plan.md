@@ -389,3 +389,11 @@ Two minor objections from the Devil's Advocate:
 - N5: accepted. Decision 0039's Context now names only Issues for `issue_comment` and does not rely on Pull
   requests; fact 15 is reworded.
 - N6: decided as a follow-up issue (described above), not part of this change; fact 21 records it for the live check.
+
+## Security notes
+
+Security, plan review round 2 (APPROVED), non-blocking, appended verbatim:
+
+1. Facts 10, 11 and 15 are now `confirmed`, attributed to "Security's plan review". The evidence is documentation, not a captured answer. To keep the plan and the decision consistent, facts 11 and 15 should also say "the live check exercises it", as fact 10 does. Fact 15 lost its live-check note in the revision; a wrong fact 15 would only cost events, not open a security gap.
+2. Fact 19 is still `unverified`, with Security as owner in step 3. Verified against Cloudflare's docs source (`partials/workers/d1-pricing.mdx` and `docs/workers/platform/limits.mdx`): the free plan allows 100,000 rows written a day and 100,000 Worker requests a day. The Lead can mark fact 19 confirmed with that evidence.
+3. Task 6 in `tasks.md` names "token request permissions" but not the new check of the answer (no token and no row for an answer with `contents` or without `permissions`). The plan's *Tests per criterion* binds the Tester, so nothing is lost, but the task line should name it.
