@@ -1,7 +1,7 @@
 # Spec: Subscribe the GitHub App to issues, comments, forks and stars
 
 Source: Issue #108
-Status: Draft
+Status: Approved by Lead
 
 ## Problem
 
@@ -27,6 +27,7 @@ which would now include `contents: read`.
   (organization)` and the notice "The app belongs to an organization, so Seluna cannot tell your own actions from
   anyone else's: activity of every account is reported, yours too."
 - S4: Given any app, when the signed-in status page is shown, then it asks `GET /app` (on every view, for S5).
+  The owner line appears exactly when the _Installations:_ line does, that is for an app the _GitHub App:_ line names.
   - The owner line shows a successful answer's owner, else the owner stored for the current App ID, else _owner
     unavailable_.
   - A successful answer's owner is stored when none is stored for the App ID, or when it differs from the stored one.
@@ -80,6 +81,9 @@ which would now include `contents: read`.
   enterprise or unknown installation account and for an unknown owner type. The _Missing_ text is still shown.
 - E11: A failed owner write (D1 error) is ignored, like the slug write after the manifest flow: 200, GitHub's owner
   shown, a new write on the next view. Other D1 failures of the page keep their 503.
+- E12: An installation entry whose `permissions` or `events` GitHub's answer does not hold as expected ends with
+  `, access not checked` instead of a _missing_ suffix, so it is never shown as complete. The rest of the list is
+  shown as today.
 
 ## Non-functional requirements
 
@@ -123,7 +127,8 @@ which would now include `contents: read`.
   installation lacks is named on that entry with the link for its account type. Nothing missing means no _Missing_
   text and no link. `write` counts as granted, and extras are not reported (S5, S6, S7, E6, E7).
 - [ ] AC7: With `GET /app` failed, the page says the permissions could not be checked and shows no _Missing_ text or
-  suffix. No link is built in E10's cases. The slug falls back to the stored one (S5, E1, E10).
+  suffix. No link is built in E10's cases. The slug falls back to the stored one. An installation whose access
+  cannot be read shows `, access not checked` (S5, E1, E10, E12).
 - [ ] AC8: Against the GitHub test double, the token request carries an explicit `permissions` object. It holds only
   what Seluna's API calls read: no `contents`, no `issues`, no write level (S8, E8).
 - [ ] AC9: A token cached before the update is not used afterwards (E9).
@@ -187,4 +192,7 @@ which would now include `contents: read`.
 - m4 (failed owner write): accepted as E11. It is ignored like the slug write, and covered by AC3.
 - m5 (AC10 passes today): accepted. AC10 is a regression guard with one documentation-shaped fixture per event.
 - m6 (event volume): accepted as the load NFR.
+- Lead, while planning: two gaps found and closed. S4 now says when the owner line appears. The new E12, covered by
+  AC7, keeps an installation whose access cannot be read from looking complete, as the NFR "never a false nothing
+  missing" requires.
 - Spec size: the revision shortened the spec to fit within `SPEC_MAX_WORDS` without dropping a scenario or criterion.
