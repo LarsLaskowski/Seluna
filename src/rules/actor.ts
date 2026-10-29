@@ -12,13 +12,13 @@ function senderOf(payload: unknown): Record<string, unknown> | undefined {
   return sender as Record<string, unknown>; // narrowed to an object above
 }
 
-/** Whether the payload's `sender` is the app owner, compared by account id (a renamed login still matches). */
+/** Whether the payload's `sender` is the app owner (a User account only), compared by account id (a renamed login still matches). */
 export function isOwnAction(payload: unknown, owner: OwnerAccount | undefined): boolean {
-  if (owner === undefined) {
+  if (owner?.type !== "User") {
     return false;
   }
-  const sender = senderOf(payload);
-  return typeof sender?.id === "number" && sender.id === owner.id && sender.type === owner.type;
+  const id = senderOf(payload)?.id;
+  return typeof id === "number" && id === owner.id;
 }
 
 /** Whether the payload's `sender.type` is exactly `Bot`. */
