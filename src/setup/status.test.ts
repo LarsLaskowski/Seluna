@@ -604,11 +604,11 @@ async function logOwnerWrites(): Promise<void> {
   await env.DB.exec("CREATE TABLE owner_write_log (id INTEGER PRIMARY KEY AUTOINCREMENT)");
   await env.DB.prepare(
     "CREATE TRIGGER log_owner_insert BEFORE INSERT ON meta WHEN NEW.key = 'github_app_owner' " +
-      "BEGIN INSERT INTO owner_write_log DEFAULT VALUES; END",
+      "BEGIN INSERT INTO owner_write_log (id) VALUES (NULL); END",
   ).run();
   await env.DB.prepare(
     "CREATE TRIGGER log_owner_update BEFORE UPDATE ON meta WHEN NEW.key = 'github_app_owner' " +
-      "BEGIN INSERT INTO owner_write_log DEFAULT VALUES; END",
+      "BEGIN INSERT INTO owner_write_log (id) VALUES (NULL); END",
   ).run();
 }
 
