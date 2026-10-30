@@ -45,9 +45,9 @@ export const DEFAULT_SETTINGS: NotificationSettings = {
     dependabot_alert: true,
     code_scanning_alert: true,
     secret_scanning_alert: true,
-    issue_opened: false,
-    issue_comment: false,
-    pull_request_comment: false,
+    issue_opened: true,
+    issue_comment: true,
+    pull_request_comment: true,
   },
   updateNotice: true,
 };

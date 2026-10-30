@@ -1,4 +1,5 @@
 import { keyFromEnv } from "../crypto";
+import { readAppOwner } from "../store/meta";
 import { readSecret } from "../store/secrets";
 import type { SecretName, SecretReadResult } from "../store/secrets";
 import type { OwnerAccount } from "./owner";
@@ -38,14 +39,22 @@ async function savedSecret(env: object, db: D1Database, name: SecretName): Promi
   return storageKey === undefined ? { kind: "missing" } : readSecret(db, storageKey, name);
 }
 
-/** The App ID and signing key from the Worker secrets or the saved credentials. D1 errors reject. */
-export async function resolveAppCredentials(env: object, db: D1Database): Promise<AppCredentialsResult> {
+/**
+ * The App ID from the Worker secret or the saved credential, or `undefined` without a usable one.
+ * D1 errors reject.
+ */
+export async function resolveAppId(env: object, db: D1Database): Promise<number | undefined> {
   let appIdText = workerSecret(env, APP_ID_SECRET_NAME);
   if (appIdText === undefined) {
     const stored = await savedSecret(env, db, "github_app_id");
     appIdText = stored.kind === "ok" ? stored.value : undefined;
   }
-  const appId = appIdText === undefined ? undefined : parseAppId(appIdText);
+  return appIdText === undefined ? undefined : parseAppId(appIdText);
+}
+
+/** The App ID and signing key from the Worker secrets or the saved credentials. D1 errors reject. */
+export async function resolveAppCredentials(env: object, db: D1Database): Promise<AppCredentialsResult> {
+  const appId = await resolveAppId(env, db);
   if (appId === undefined) {
     return { kind: "no-app" };
   }
@@ -71,19 +80,8 @@ export async function resolveAppCredentials(env: object, db: D1Database): Promis
   return signingKey === undefined ? { kind: "key-unusable" } : { kind: "ok", credentials: { appId, signingKey } };
 }
 
-/**
- * The App ID from the Worker secret or the saved credential, or `undefined` without a usable one.
- * D1 errors reject.
- */
-export async function resolveAppId(env: object, db: D1Database): Promise<number | undefined> {
-  void env;
-  void db;
-  throw new Error("Not implemented");
-}
-
 /** The stored owner of the App `resolveAppId` names, or `undefined` without an App ID or a valid row. D1 errors reject. */
 export async function resolveAppOwner(env: object, db: D1Database): Promise<OwnerAccount | undefined> {
-  void env;
-  void db;
-  throw new Error("Not implemented");
+  const appId = await resolveAppId(env, db);
+  return appId === undefined ? undefined : readAppOwner(db, appId);
 }

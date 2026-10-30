@@ -9,7 +9,7 @@ One group: the rules, the owner and the settings are one API change that compile
 | 1 | G1 | Skeleton: the signatures of plan *Signatures* with their placeholders; adapt the existing call sites of plan *Test files* (Dev's list) | all files of plan *Affected projects and types* except the fixtures; the listed test call sites | AC1–AC11 | — | Dev | [x] |
 | 2 | G1 | Fixtures `created-pull-request.json` and `created-draft-pull-request.json`, both fixture READMEs | `test/fixtures/issue_comment/`, `test/fixtures/issues/README.md` | AC13 | 1 | Tester | [x] |
 | 3 | G1 | Tests first per plan *Tests per criterion*; adapt the rule-list expectations (Tester's list) | the test files of plan *Test files* | AC1–AC11 | 1, 2 | Tester | [x] |
-| 4 | G1 | Implementation until green and the *Coverage gate* passes | as task 1 | AC1–AC11 | 3 | Dev | [ ] |
+| 4 | G1 | Implementation until green and the *Coverage gate* passes | as task 1 | AC1–AC11 | 3 | Dev | [x] |
 | 5 | G1 | Coverage pass | test files | AC1–AC11 | 4 | Tester | [ ] |
 | 6 | G1 | Documentation updates of plan *Documentation updates* | `docs/areas/notifications.md`, `docs/areas/setup-wizard.md`, `docs/areas/storage.md`, `docs/areas/github-api.md`, `docs/ARCHITECTURE.md`, `AGENTS.md`, `.github/copilot-instructions.md`, `README.md`, `docs/setup.md`, `CHANGELOG.md`, `.squad/project.md` | AC12 | 4 | Dev | [ ] |
 | 7 | G1 | Live check on a deployed copy (fact 7 of the plan): the Product Manager copies the four payloads from *Advanced → Recent Deliveries*; the orchestrator logs where `issue.draft` and `issue.pull_request` sit and compares every read field path with the fixtures; a difference is fixed in this PR before it is marked ready | — | AC13 | PR open (step 11) | Product Manager, Orchestrator | [ ] |
