@@ -1,6 +1,6 @@
 # 0040: Issue and comment rules
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-30
 - **Area:** Notifications
 - **Source:** Issue #109
