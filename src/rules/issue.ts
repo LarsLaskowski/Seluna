@@ -62,15 +62,15 @@ function bodyField(record: Record<string, unknown>): string | undefined | false 
 
 /** The `issue` object's kind: `undefined` when `pull_request` or `draft` has a type GitHub does not send. */
 function kindOf(issue: Record<string, unknown>): IssueKind | undefined {
+  const draft = issue.draft;
+  if (draft !== undefined && typeof draft !== "boolean") {
+    return undefined;
+  }
   const pullRequest = issue.pull_request;
   if (pullRequest === undefined) {
     return { kind: "issue" };
   }
   if (!isRecord(pullRequest)) {
-    return undefined;
-  }
-  const draft = issue.draft;
-  if (draft !== undefined && typeof draft !== "boolean") {
     return undefined;
   }
   return { kind: "pull-request", draft };
