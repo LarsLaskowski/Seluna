@@ -46,6 +46,19 @@ it("MESSAGE_TEXTS holds the security alert titles in en and de", () => {
   expect(de.secretScanningAlert, "de secret scanning").toBe("Secret-Scanning-Warnung");
 });
 
+it("MESSAGE_TEXTS holds the issue and comment titles and the byAuthor prefix in en and de", () => {
+  const { en, de } = MESSAGE_TEXTS;
+
+  expect(en.issueOpened, "en issue opened").toBe("New issue");
+  expect(en.issueComment, "en issue comment").toBe("New comment on issue");
+  expect(en.pullRequestComment, "en pull request comment").toBe("New comment on pull request");
+  expect(en.byAuthor("a"), "en by author").toBe("by a");
+  expect(de.issueOpened, "de issue opened").toBe("Neues Issue");
+  expect(de.issueComment, "de issue comment").toBe("Neuer Kommentar zum Issue");
+  expect(de.pullRequestComment, "de pull request comment").toBe("Neuer Kommentar zum Pull Request");
+  expect(de.byAuthor("a"), "de by author").toBe("von a");
+});
+
 it("MESSAGE_TEXTS has the same keys in en and de", () => {
   const { en, de } = MESSAGE_TEXTS;
 

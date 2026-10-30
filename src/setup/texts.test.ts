@@ -424,7 +424,19 @@ describe("TEXTS", () => {
         dependabot_alert: "Dependabot alert",
         code_scanning_alert: "Code scanning alert",
         secret_scanning_alert: "Secret scanning alert",
+        issue_opened: "New issue",
+        issue_comment: "New comment on an issue",
+        pull_request_comment: "New comment on a pull request",
       },
     });
+  });
+
+  it("texts word the German labels of the three issue and comment switches as the spec does", () => {
+    const { de } = TEXTS;
+
+    expect(
+      [de.ruleLabels.issue_opened, de.ruleLabels.issue_comment, de.ruleLabels.pull_request_comment],
+      "German labels of the issue and comment switches",
+    ).toEqual(["Neues Issue", "Neuer Kommentar zu einem Issue", "Neuer Kommentar zu einem Pull Request"]);
   });
 });

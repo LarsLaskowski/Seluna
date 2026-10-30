@@ -42,6 +42,9 @@ describe("parseSettingsForm", () => {
         dependabot_alert: true,
         code_scanning_alert: true,
         secret_scanning_alert: true,
+        issue_opened: true,
+        issue_comment: true,
+        pull_request_comment: true,
       },
       updateNotice: true,
     });

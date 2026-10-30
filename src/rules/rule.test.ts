@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runRules } from "./rule";
 import type { Notification, Rule, WebhookPayload } from "./rule";
+import type { OwnerAccount } from "../github/owner";
 import { DEFAULT_SETTINGS } from "../settings";
 import type { NotificationSettings, RuleId } from "../settings";
 
@@ -30,14 +31,35 @@ function withRuleOff(id: RuleId): NotificationSettings {
 }
 
 describe("runRules", () => {
-  it("runRules passes the event name, the payload and the settings to every rule", () => {
+  it("runRules passes the owner to every rule and drops only a switched-off rule's notification", () => {
+    const owner: OwnerAccount = { id: 1000, login: "example-owner", type: "User" };
+    const first = ruleOf("pull_request_opened", notification("Dropped"));
+    const second = ruleOf("issue_comment", notification("Kept"));
+
+    const settings = {
+      ...withRuleOff("pull_request_opened"),
+      rules: { ...DEFAULT_SETTINGS.rules, pull_request_opened: false, issue_comment: true },
+    };
+
+    const run = runRules([first.rule, second.rule], "ping", PAYLOAD, settings, owner);
+
+    expect(first.evaluate, "first rule arguments").toHaveBeenCalledExactlyOnceWith("ping", PAYLOAD, settings, owner);
+    expect(second.evaluate, "second rule arguments").toHaveBeenCalledExactlyOnceWith("ping", PAYLOAD, settings, owner);
+    expect(run.notifications, "notifications").toEqual([notification("Kept")]);
+    expect(run.decision, "decision").toBe("reported");
+  });
+
+  it("runRules passes an undefined owner on as undefined", () => {
     const first = ruleOf("pull_request_opened", undefined);
-    const second = ruleOf("ci_failed_default_branch", undefined);
 
-    runRules([first.rule, second.rule], "ping", PAYLOAD, DEFAULT_SETTINGS, undefined);
+    runRules([first.rule], "ping", PAYLOAD, DEFAULT_SETTINGS, undefined);
 
-    expect(first.evaluate, "first rule arguments").toHaveBeenCalledExactlyOnceWith("ping", PAYLOAD, DEFAULT_SETTINGS);
-    expect(second.evaluate, "second rule arguments").toHaveBeenCalledExactlyOnceWith("ping", PAYLOAD, DEFAULT_SETTINGS);
+    expect(first.evaluate, "rule arguments").toHaveBeenCalledExactlyOnceWith(
+      "ping",
+      PAYLOAD,
+      DEFAULT_SETTINGS,
+      undefined,
+    );
   });
 
   it("runRules returns the notifications of enabled rules in rule order with decision reported", () => {
