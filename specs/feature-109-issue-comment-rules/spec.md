@@ -87,7 +87,13 @@ is `repository.full_name`; "another account" is a sender that is neither the own
 - Security: the owner is compared by account id, a bot by `sender.type` (decision 0039); a user account whose login
   ends in `[bot]` is not a bot. On a public repository anyone can trigger a message with text of their choosing; no
   rate limit exists, as for pull requests today (E10).
-- Rule tests read real, anonymized deliveries of each covered variant (*Real GitHub payloads* in `.squad/project.md`).
+- Fixtures: the rule tests read payloads built from GitHub's webhook documentation, not captured (Product Manager's
+  answer to the escalation, as for the security alert rules, decision 0028), one per variant: `issues` `opened`,
+  `issue_comment` `created` on an issue, on a pull request that is not a draft and on a draft pull request; owner and
+  bot senders are derived in the tests. Each fixture folder's README says so. The residual risk (a field path, an
+  action name or the way a comment's payload marks a draft pull request differs in real deliveries) goes into a
+  decision record; every deviation fails closed (no message). The Product Manager's live check on a deployed copy
+  confirms the three cases before the pull request is marked ready.
 
 ## Acceptance criteria
 
@@ -117,6 +123,10 @@ is `repository.full_name`; "another account" is a sender that is neither the own
 - [ ] AC12: `docs/areas/notifications.md`, `docs/areas/setup-wizard.md`, `docs/areas/storage.md`, `docs/setup.md`,
   the event table and roadmap of `README.md` and `CHANGELOG.md` describe the three rules, the sender filter, the
   volume risk of E10 and the switches (E10).
+- [ ] AC13: The fixtures `test/fixtures/issues/opened.json` and `test/fixtures/issue_comment/` (comment on an issue, on
+  a pull request, on a draft pull request) are built from GitHub's documentation and marked so in their READMEs, a
+  decision record states the residual risk and the live check, and the live check is recorded before the pull request
+  is marked ready (S1, S2, S3, E2).
 
 ## Out of scope
 
@@ -148,10 +158,9 @@ is `repository.full_name`; "another account" is a sender that is neither the own
 - Are there real deliveries for the rule tests? `test/fixtures/issues/opened.json` and
   `test/fixtures/issue_comment/created.json` are reference-built from GitHub's documentation (their READMEs), and no
   fixture of a comment on a pull request exists; issue #109 asks for real, anonymized payloads.
-  Answered: not by the code or the documentation — this spec's escalation asks the Product Manager for raw deliveries
-  (or for the confirmation to build from the documentation with the residual risk in a decision record). The behavior
-  above does not depend on the answer; the fixtures, and whether a comment's payload itself tells a draft pull request
-  apart, do.
+  Answered: by the Product Manager: build them from GitHub's documentation, as for decision 0028, with the residual
+  risk in a decision record and a live check before the pull request is marked ready (*Non-functional requirements*,
+  AC13). The Product Manager also confirmed the answers to the first two questions.
 
 ## Area documents
 
