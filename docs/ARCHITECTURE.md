@@ -2,7 +2,7 @@
 
 <!-- project:begin architecture -->
 Seluna sends a Telegram message when something in the owner's GitHub repositories needs attention: a pull
-request is ready, a review is requested, CI failed or a security alert was opened. Draft pull requests trigger
+request is ready, a review is requested, CI failed, a security alert was opened, or an issue or comment was written by someone else. Draft pull requests trigger
 nothing; the exceptions are a CI failure in a pull request whose draft state could not be read (failure or no answer within 8 seconds),
 reported marked _draft status unknown_ ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)), and a
 secret scanning alert, which is reported whatever its source, a draft pull request's branch or text included
@@ -16,9 +16,9 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 | Component | Owns |
 | --------- | ---- |
 | Worker `fetch` handler | `POST /webhook`, `GET /health` (returns the version), `/setup` (the setup wizard), `GET /` (redirects to `/setup`) |
-| Webhook processing | Deduplication by `X-GitHub-Delivery`, the rules, the draft lookup of a CI failure in a pull request ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)), the outbox rows and the first send attempt of each row ([`areas/notifications.md`](areas/notifications.md), [decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)) |
+| Webhook processing | Deduplication by `X-GitHub-Delivery`, the owner read, the rules, the draft lookup of a CI failure in a pull request ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)) or of a comment on a pull request, the outbox rows and the first send attempt of each row ([`areas/notifications.md`](areas/notifications.md), [decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)) |
 | GitHub API client | Calls of the GitHub API as the app: the app JWT, the installation tokens per `installation.id` cached encrypted in `token_cache`, the pull request read for the draft lookup of the webhook processing (with tokens narrowed to the permissions of that one call), and the app read and the installations list for the status page ([`areas/github-api.md`](areas/github-api.md), [decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)) |
-| Rules | Pure functions of the event name, the payload and the settings to zero or one notification; no I/O, no clock |
+| Rules | Pure functions of the event name, the payload, the settings and the stored app owner (read by the webhook processing) to zero or one notification; no I/O, no clock |
 | Outbox and delivery channels | The D1 `outbox` table holding each message as a channel-neutral notification (JSON in `text`, no migration), and delivery through the one active delivery channel (`src/channels/`; Telegram is the first adapter, over the shared HTTP code of `src/channels/http.ts`), which renders the notification when it sends it, with one retry after a 429 and the cron's retry ([`areas/notifications.md`](areas/notifications.md), [decision 0038](decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)) |
 | Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram bot token ([decision 0036](decisions/0036-telegram-bot-token-in-the-setup-wizard.md)) and chat, the setup login, the Messengers card that activates a delivery channel, the status page with the settings, the app's installations and the reset after a changed `SELUNA_SECRET` ([decision 0018](decisions/0018-settings-and-status-page.md)) |
 | Cron (`scheduled` handler) | Every 10 minutes: clean up D1 and retry the outbox up to the fifth attempt. Daily: check for a new Seluna release and send a notice ([`areas/scheduled-jobs.md`](areas/scheduled-jobs.md), [decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md), [decision 0030](decisions/0030-release-notice-without-credentials.md)) |
@@ -44,7 +44,7 @@ flowchart LR
    ([decision 0012](decisions/0012-webhook-signature-verification.md),
    [decision 0017](decisions/0017-github-app-manifest-flow.md)).
 2. A delivery id (`X-GitHub-Delivery`) that `deliveries` already holds is answered 200 and ignored.
-3. The payload goes through the rules, each a pure function of event name, payload and settings. A draft pull
+3. The payload goes through the rules, each a pure function of event name, payload, settings and the stored app owner (read once per delivery). A draft pull
    request, and any event no rule matches, produces nothing
    ([decision 0024](decisions/0024-pull-request-rules.md)). A failed CI run in a pull request names the pull request
    only by number, so the processing asks GitHub, as the app and within 8 seconds, whether it is a draft: a draft
@@ -53,6 +53,9 @@ flowchart LR
    New and reopened security alerts (Dependabot, code scanning on the default branch, secret scanning) are reported
    from the payload alone; no part of a secret reaches a message
    ([decision 0028](decisions/0028-security-alert-rules.md)).
+   A new issue and a comment on an issue or a pull request are reported unless the owner or a bot wrote them; a
+   comment on a draft pull request, or one whose draft state stays unknown, produces nothing
+   ([decision 0040](decisions/0040-issue-and-comment-rules.md)).
 4. In one D1 transaction the delivery id is recorded in `deliveries`, each notification becomes a row in the
    `outbox` as a cleaned, channel-neutral JSON notification ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md),
    [decision 0038](decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)) and `meta`
@@ -150,7 +153,7 @@ check: one request to a fixed URL of the upstream repository with no credential,
 signed with the private key for each call that needs one (one per status page view for both of its requests), never stored, and per installation a token, requested with only the permissions the pull request read needs, that is cached
 only encrypted and dropped when GitHub refuses it; what enters a URL is allow-listed, redirects are not followed and
 every answer is read bounded and narrowed; the signed-in status page calls GitHub (the app and its installations, under one JWT), and so does the webhook processing
-for the draft state of a pull request with a failed CI run, with the installation of the signed delivery
+for the draft state of a pull request with a failed CI run or a comment, with the installation of the signed delivery
 ([decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)).
 The concrete areas are listed in [`.squad/project.md`](../.squad/project.md) (*Security areas*) and
 [`SECURITY.md`](../SECURITY.md).

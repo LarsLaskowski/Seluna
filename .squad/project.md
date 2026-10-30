@@ -84,8 +84,8 @@ files or endpoints.
   chat is stored only after the owner typed back the code of its test message (`src/setup/chat-proof.ts`); the bot
   token appears only in the request URL, which Seluna never logs.
 - **Parsing of external input:** webhook bodies are JSON from GitHub and are narrowed from `unknown`; the body (JSON or the form field `payload`) is narrowed in `src/webhook.ts`; fields are
-  cleaned and length-limited in `src/notification.ts` (`storedNotificationOf`) before they are stored in the outbox as JSON, and cleaned again and escaped (Telegram HTML) at send time in `src/message.ts` (`renderTelegramText`) before they enter a message, because titles and branch names
-  are attacker-controlled text; the stored JSON and the text of rows written by an earlier version are parsed in `src/notification.ts` (`decodeStoredNotification`, `legacyNotificationOf`, with `startsWith`/`indexOf`, no regular expression with unbounded groups), and a row that does not decode is never sent.
+  cleaned and length-limited in `src/notification.ts` (`storedNotificationOf`) before they are stored in the outbox as JSON, and cleaned again and escaped (Telegram HTML) at send time in `src/message.ts` (`renderTelegramText`) before they enter a message, because titles and branch names,
+  issue and comment bodies and author logins are attacker-controlled text (a body is shown as an excerpt built by `bodyExcerpt` in `src/rules/issue.ts`, bounded to 257 code points); the stored JSON and the text of rows written by an earlier version are parsed in `src/notification.ts` (`decodeStoredNotification`, `legacyNotificationOf`, with `startsWith`/`indexOf`, no regular expression with unbounded groups), and a row that does not decode is never sent.
 - **Request body size:** every route that reads a request body reads it through the bounded reader in `src/body.ts` (1 MiB; a `Content-Length` above it is rejected before reading, and the body is always counted while read); a route that reads a body any other way is a `security`-tier finding.
 - **Logging of external data:** logs carry event type, delivery id, the action and repository (pattern-checked) and the decision of the processing, each sent outbox row logs its id and result (a row marked failed after its fifth attempt logs its id and status `failed`), each scheduled job logs only a fixed result (`src/scheduled.ts`: `store-failed`, `unknown`, the release check's result), and per request the method, the URL path without query string and the status (`src/router.ts`); never payload text, headers, query strings, tokens or keys.
 
@@ -198,7 +198,8 @@ otherwise):
   delivery used to test the signature stays unaltered, because any edit breaks its signature, and is signed with a
   throwaway secret (decision 0012). The `dependabot_alert`,
   `code_scanning_alert` and `secret_scanning_alert` fixtures are reference-built from GitHub's OpenAPI webhook schemas,
-  not captured (Product Manager's decision, [decision 0028](../docs/decisions/0028-security-alert-rules.md)). The
+  not captured (Product Manager's decision, [decision 0028](../docs/decisions/0028-security-alert-rules.md)). The `issue_comment/created-pull-request.json` and `issue_comment/created-draft-pull-request.json` fixtures are
+  reference-built from the OpenAPI schemas, not captured ([decision 0040](../docs/decisions/0040-issue-and-comment-rules.md)). The
   `issues/opened.json`, `issue_comment/created.json`, `fork/fork.json` and `star/created.json` fixtures are shaped
   from GitHub's webhook documentation, not captured, until the live check ([decision 0039](../docs/decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md)).
 - **D1** — the real D1 binding the Workers test pool provides (migrations applied in a test setup), not a fake.

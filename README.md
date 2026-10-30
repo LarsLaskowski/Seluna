@@ -39,9 +39,10 @@ Pull requests wait for a review, a build turns red, a security alert opens, and 
 | A review is requested                                                                                 | available |
 | CI failed on the default branch or in a pull request                                                  | available |
 | A Dependabot, code scanning or secret scanning alert is opened (code scanning: on the default branch) | available |
+| A new issue, or a comment on an issue or a pull request (not your own and not a bot's)                | available |
 | A new Seluna release is available                                                                     | available |
 
-Each message names the repository and the case, shows the title and the context (for a pull request its author and branches, for a failed CI run the branch and the first line of the commit message, for a security alert its name and severity or type) and carries a button that opens the item on GitHub. Draft pull requests trigger nothing; a leaked secret is reported even when it was pushed to a draft pull request, and the secret itself is never shown. When GitHub cannot tell in time whether a pull request with a failed CI run is a draft, the message says so. Quiet hours deliver messages without sound instead of holding them back.
+Each message names the repository and the case, shows the title and the context (for a pull request its author and branches, for a failed CI run the branch and the first line of the commit message, for a security alert its name and severity or type, for an issue or comment its author and the beginning of its text) and carries a button that opens the item on GitHub. Draft pull requests trigger nothing, and neither do comments on them; a leaked secret is reported even when it was pushed to a draft pull request, and the secret itself is never shown. When GitHub cannot tell in time whether a pull request with a failed CI run is a draft, the message says so. Quiet hours deliver messages without sound instead of holding them back.
 
 ## How it works
 
@@ -77,12 +78,13 @@ Change them on the setup page (`/setup`); they apply without a new deployment.
 | New pull request, pull request ready for review, review requested | on       |
 | CI failed on the default branch, CI failed in a pull request      | on       |
 | Dependabot alert, code scanning alert, secret scanning alert      | on       |
+| New issue, new comment on an issue, new comment on a pull request | on       |
 | Notice about a new Seluna release                                 | on       |
 | Messenger (on the start page)                                     | Telegram |
 
 ## Status
 
-Seluna is in active development and can already notify you about pull requests, failed CI runs, security alerts and new Seluna releases. The path to 1.0.0 is planned release by release:
+Seluna is in active development and can already notify you about pull requests, failed CI runs, security alerts, issues and comments and new Seluna releases. The path to 1.0.0 is planned release by release:
 
 | Release         | What it adds                                                          |
 | --------------- | --------------------------------------------------------------------- |
