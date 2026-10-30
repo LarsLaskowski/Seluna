@@ -71,7 +71,10 @@ Fixtures:
 
 Three rules `issue_opened`, `issue_comment` and `pull_request_comment` report `issues` `opened` and `issue_comment`
 `created` unless the sender is the stored `User` owner or a bot; the processing reads the owner once per delivery and
-passes it to every rule. An unknown owner counts as another account. A comment on a pull request uses `issue.draft`,
+passes it to every rule. An unknown owner counts as another account. A `sender.id` that is not a safe integer drops
+the delivery: beyond 2^53 − 1 a number loses precision, so its equality with the owner's id would prove nothing. An
+`issues` delivery that carries a `comment` key or an `issue.pull_request` is another event's payload (GitHub sends
+neither under that header) and is not reported as a new issue. A comment on a pull request uses `issue.draft`,
 falls back to the draft lookup, and drops the notification whenever the draft state stays unknown. Line 3 shows the
 body without HTML comments and with white space collapsed. The behavior is in
 [`areas/notifications.md`](../areas/notifications.md).
