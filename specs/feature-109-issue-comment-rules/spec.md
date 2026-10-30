@@ -170,3 +170,30 @@ is `repository.full_name`; "another account" is a sender that is neither the own
   and that the other rules still do not; *Rules* (order) and *Languages* name the new texts.
 - `docs/areas/setup-wizard.md`: eleven rule switches instead of eight, with their labels.
 - `docs/areas/storage.md`: the three new `rule_<id>` keys, default `on`.
+
+## Challenge notes
+
+Minor objections of the Devil's Advocate (spec mode), verbatim; the Lead answers them in mode `plan`.
+
+1. **minor: The spec doesn't say where the draft state of a commented pull request comes from.** Two passages point different ways:
+   - The *Fixtures* NFR lists "the way a comment's payload marks a draft pull request" as a residual risk, which suggests a payload field such as `issue.draft`.
+   - The *Time* NFR mentions "any GitHub request a comment on a pull request needs", which suggests the draft lookup.
+
+   The existing draft check can't express E2 as it stands: on any failure, `applyDraftChecks` keeps the notification and only swaps in `titleWhenUnknown` (src/draft-lookup.ts:53-56, notifications.md *Draft lookup*). Also, E7 doesn't list a non-boolean `issue.draft`.
+   *Instruction for the Lead:* in the plan, pick the source: payload `issue.draft`, the draft lookup, or the payload with the lookup as fallback. State that every "cannot determine" outcome drops the comment rather than relabelling it: missing or non-boolean field, lookup failure, timeout, or no usable `installation.id`. Say how that drop mode differs from the CI rule's draft check. Name the field the live check must confirm.
+
+2. **minor: The *Area documents* list leaves out three passages of docs/areas/notifications.md that this feature makes wrong.**
+   - *Rules* (line 52): "A rule is a pure function of the event name …, the payload and the notification settings … It reads no clock, no database and no network". The new rules also need the stored owner, which is read from D1 per delivery.
+   - *Processing a delivery*, step 4: it reads only the settings before running the rules.
+   - *Draft lookup*: "only the CI failure in a pull request, so at most one per delivery".
+
+   *Instruction for the Lead:* add these three passages to the notifications.md entry. Say in the plan how the owner reaches the rules (for example a new `evaluate` argument read beside the settings in step 4), so the rules stay pure.
+
+3. **minor: Issue template comments aren't addressed.** Many repositories' issue templates start with HTML comments (`<!-- Please describe … -->`), which stay raw in `issue.body`. Under E3/E6 ("Markdown is shown as written") they would be shown literally and could fill all 256 characters of line 3, crowding out the reporter's text. Seluna's own templates have none (.github/ISSUE_TEMPLATE/bug_report.md), so the fixtures won't show it.
+   *Instruction for the Lead:* decide whether `<!-- … -->` blocks are removed from the body before line 3 is built (bounded parsing, no regular expression with unbounded groups) or kept as written. Write the choice into E6 and the area document.
+
+4. **minor: A body that is neither a string nor null isn't covered.** E5 covers an empty, `null`, missing or blank body. E7 lists title, `html_url`, login and `full_name` as fields that must be strings, but not a `body` that is a number, object or array. The spec also doesn't give the logged decision for an owner or bot sender (S4, S5).
+   *Instruction for the Lead:* state whether such a body counts as E7 (no message) or as E5 (`by <author>` alone). State that an owner or bot delivery is recorded and answered 202 with decision `no-match` (not `disabled`), and cover both in AC9/AC10.
+
+5. **minor: E4 says "a title".** In the notification model, `title` is line 1 (the case name, limit 64, src/message.ts:5, `MAX_TITLE_CHARACTERS`). The issue's or pull request's title is line 2 (`subject`, limit 256).
+   *Instruction for the Lead:* reword E4 to "the issue's or pull request's title (line 2) longer than 256 code points", matching AC9.
