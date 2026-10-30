@@ -58,10 +58,10 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
 - Every rule has the id of its switch in the settings. All rules run on every delivery; a notification of a rule
   whose switch is off is dropped.
 - A notification holds: the title of the case (line 1, in the notification language, chosen by the rule), the
-  repository as `owner/repo`, the number of the pull request or alert (or none), line 2, line 3 and the URL for the
+  repository as `owner/repo`, the number of the pull request, issue or alert (or none), line 2, line 3 and the URL for the
   button (the `html_url` of the payload). A notification that may only be sent for a pull request that is not a draft
   also holds a draft check: the pull request (owner, repository name, number) and the title to use when its draft
-  state is unknown.
+  state is unknown, or none, which drops the notification when its draft state is unknown.
 - The rules run in the order of the switches in the settings. The pull request rules and the CI failure rules are
   below, then the security alert rules and the issue and comment rules.
 
@@ -261,8 +261,9 @@ triggers nothing.
   so it causes no lookup.
 - The lookup asks GitHub for the pull request's draft state as the app, with the installation of the delivery's
   `installation.id` ([GitHub API](github-api.md#pull-request-read)). A draft drops the notification; a pull request
-  that is not a draft keeps it as it is; any failure keeps it with the title `CI failed in pull request (draft status
-unknown)` (German `CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)`).
+  that is not a draft keeps it as it is; for the CI failure rule any failure keeps it with the title `CI failed in pull
+request (draft status unknown)` (German `CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)`), while a
+  comment on a pull request is dropped (below).
 - A failure is every failure result of the GitHub API client, an `installation.id` that is not a whole number from 1 to
   2^53 − 1 (then nothing is asked), and a lookup that has not finished 8 seconds after it started: GitHub ends a
   delivery not answered within 10 seconds. A lookup cut off this way may still finish in the background; its result
