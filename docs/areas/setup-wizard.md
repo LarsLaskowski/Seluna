@@ -190,7 +190,7 @@ GitHub</a></p>` when the app lacks permissions or events the manifest asks for; 
   page answers 200 in every one of these cases.
 - The settings form posts to `POST /setup/settings` with the session-bound `csrf` field and these fields:
   `notification_language` (`en` or `de`), `time_zone` (an option per name the runtime lists, plus `UTC`), the
-  checkboxes `quiet_hours`, `update_notice` and `rule_<id>` for the eight rules (each posts the value `on` when
+  checkboxes `quiet_hours`, `update_notice` and `rule_<id>` for the eleven rules (each posts the value `on` when
   checked, nothing otherwise), and the times `quiet_start` and `quiet_end` (`type=time`, no `step`, shown as `22:00`
   and `07:00` while quiet hours are off). The form shows the stored values.
 - Validation: the body is read with the 1 MiB limit (413, 400), then the CSRF token is checked (**403**, notice-only
@@ -584,7 +584,7 @@ KEY-----`, lines of 64 characters), `github_webhook_secret` the webhook secret a
   notice-only and code views, the GitHub App step page in every view, and the review, finish and created pages have
   their heading above one card with everything else, in the order their sections above give. A part that is not shown leaves no empty card or notice behind.
 - **Settings groups:** in the settings form, the quiet hours switch with its label is the legend of a framed group
-  (`<fieldset>`) holding _Start_ and _End_; "Notify me about" is the legend of a second group holding the eight rule
+  (`<fieldset>`) holding _Start_ and _End_; "Notify me about" is the legend of a second group holding the eleven rule
   switches and the release notice switch.
 - **Buttons:** _Sign out_, _Remove token_ and _Remove_ (Messengers card) are secondary buttons, _Reset and create the GitHub App again_ a danger button, and every
   other submit button (_Sign in_, _Save settings_, _Activate_, _Save token_, _Send test message_, _Save chat_, _Next_, _Continue
@@ -740,7 +740,8 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
 - Settings: the heading "Settings"; "Language of the notifications"; "Time zone"; "Quiet hours: notifications arrive
   without sound" with "Start" and "End"; "Notify me about" with "New pull request", "Pull request ready for review",
   "Review requested", "CI failed on the default branch", "CI failed in a pull request", "Dependabot alert", "Code
-  scanning alert" and "Secret scanning alert"; "Tell me when a new Seluna release is available"; the button "Save
+  scanning alert", "Secret scanning alert", "New issue", "New comment on an issue" and "New comment on a pull
+  request" (German "Neues Issue", "Neuer Kommentar zu einem Issue" and "Neuer Kommentar zu einem Pull Request"); "Tell me when a new Seluna release is available"; the button "Save
   settings".
 - _settings invalid_: "The settings were not saved. Check the values: quiet hours need a start and an end in the
   form 22:00, and the two must differ."; _reset not needed_: "The saved credentials can be read with the current

@@ -117,7 +117,7 @@ describe("writeNotificationSettings", () => {
     expect(settings, "settings").toEqual(CHANGED_SETTINGS);
   });
 
-  it("writeNotificationSettings writes the twelve settings in one batch", async () => {
+  it("writeNotificationSettings writes the fifteen settings in one batch", async () => {
     const batchSizes: number[] = [];
     const db: D1Database = {
       prepare: (query) => env.DB.prepare(query),
@@ -132,8 +132,8 @@ describe("writeNotificationSettings", () => {
 
     await writeNotificationSettings(db, CHANGED_SETTINGS);
 
-    expect(batchSizes, "batch calls and their statement counts").toEqual([12]);
-    expect(await rowCount(), "number of rows").toBe(12);
+    expect(batchSizes, "batch calls and their statement counts").toEqual([15]);
+    expect(await rowCount(), "number of rows").toBe(15);
   });
 
   it("writeNotificationSettings leaves the Telegram chat row alone", async () => {

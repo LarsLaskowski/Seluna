@@ -11,6 +11,9 @@ const ALL_RULES_OFF: NotificationSettings["rules"] = {
   dependabot_alert: false,
   code_scanning_alert: false,
   secret_scanning_alert: false,
+  issue_opened: false,
+  issue_comment: false,
+  pull_request_comment: false,
 };
 
 /** Settings that differ from the default in every field. */
@@ -41,6 +44,41 @@ describe("settingsFromStored", () => {
     const settings = settingsFromStored(new Map());
 
     expect(settings, "settings").toEqual(DEFAULT_SETTINGS);
+  });
+
+  it("settingsFromStored reads the three new switches as on without rows and keeps every stored switch", () => {
+    const rows = new Map<string, string>(RULE_IDS.map((id) => [`rule_${id}`, "off"]));
+    rows.delete("rule_issue_opened");
+    rows.delete("rule_issue_comment");
+    rows.delete("rule_pull_request_comment");
+    rows.set("rule_dependabot_alert", "on");
+
+    const settings = settingsFromStored(rows);
+
+    expect(settings.rules, "rules").toEqual({
+      ...ALL_RULES_OFF,
+      dependabot_alert: true,
+      issue_opened: true,
+      issue_comment: true,
+      pull_request_comment: true,
+    });
+  });
+
+  it("settingsFromStored lists the three new rules last, after secret_scanning_alert", () => {
+    expect(RULE_IDS.slice(-4), "last rule ids").toEqual([
+      "secret_scanning_alert",
+      "issue_opened",
+      "issue_comment",
+      "pull_request_comment",
+    ]);
+    expect(
+      [
+        DEFAULT_SETTINGS.rules.issue_opened,
+        DEFAULT_SETTINGS.rules.issue_comment,
+        DEFAULT_SETTINGS.rules.pull_request_comment,
+      ],
+      "defaults of the new rules",
+    ).toEqual([true, true, true]);
   });
 
   it("settingsFromStored reads each stored value", () => {

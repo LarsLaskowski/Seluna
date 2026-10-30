@@ -1,11 +1,13 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { parseAppId, resolveAppCredentials } from "./app-credentials";
+import { parseAppId, resolveAppCredentials, resolveAppOwner } from "./app-credentials";
 import type { AppCredentials } from "./app-credentials";
 import { applyMigrations, migrationTestDb } from "../../test/d1";
 import { FIXTURE_PEM, FIXTURE_PKCS8, RSA_4104_PKCS8 } from "../../test/github";
 import { keyFor } from "../../test/keys";
+import { GITHUB_APP_OWNER_META_KEY, writeAppOwner } from "../store/meta";
 import { writeSecret, writeSecrets } from "../store/secrets";
+import type { OwnerAccount } from "./owner";
 
 const SECRET = "throwaway-setup-secret-0123456789abcdef";
 const OTHER_SECRET = "another-throwaway-secret-fedcba9876543210";
@@ -268,6 +270,85 @@ describe("resolveAppCredentials", () => {
 
   it("resolveAppCredentials lets a D1 error reach the caller", async () => {
     const pending = resolveAppCredentials({ SELUNA_SECRET: SECRET }, migrationTestDb());
+
+    await expect(pending, "result").rejects.toThrow(/no such table/i);
+  });
+});
+
+const OWNER: OwnerAccount = { id: 583_231, login: "octocat", type: "User" };
+
+describe("resolveAppOwner", () => {
+  it("resolveAppOwner returns the owner stored for the Worker secret App ID", async () => {
+    await writeAppOwner(env.DB, 12_345, OWNER);
+
+    const owner = await resolveAppOwner({ GITHUB_APP_ID: "12345" }, env.DB);
+
+    expect(owner, "owner").toEqual(OWNER);
+  });
+
+  it("resolveAppOwner returns the owner stored for the saved App ID", async () => {
+    await saveApp("54321", FIXTURE_PKCS8);
+    await writeAppOwner(env.DB, 54_321, OWNER);
+
+    const owner = await resolveAppOwner({ SELUNA_SECRET: SECRET }, env.DB);
+
+    expect(owner, "owner").toEqual(OWNER);
+  });
+
+  it("resolveAppOwner returns an organization owner as stored", async () => {
+    const organization: OwnerAccount = { id: 9, login: "Octo-Org", type: "Organization" };
+    await writeAppOwner(env.DB, 12_345, organization);
+
+    const owner = await resolveAppOwner({ GITHUB_APP_ID: "12345" }, env.DB);
+
+    expect(owner, "owner").toEqual(organization);
+  });
+
+  it("resolveAppOwner returns undefined without an App ID", async () => {
+    await writeAppOwner(env.DB, 12_345, OWNER);
+
+    const owner = await resolveAppOwner({ SELUNA_SECRET: SECRET }, env.DB);
+
+    expect(owner, "owner").toBeUndefined();
+  });
+
+  it("resolveAppOwner returns undefined for an owner row of another App ID", async () => {
+    await writeAppOwner(env.DB, 99_999, OWNER);
+
+    const owner = await resolveAppOwner({ GITHUB_APP_ID: "12345" }, env.DB);
+
+    expect(owner, "owner").toBeUndefined();
+  });
+
+  it("resolveAppOwner returns undefined for a malformed owner row", async () => {
+    await env.DB.prepare("INSERT INTO meta (key, value) VALUES (?1, ?2)")
+      .bind(GITHUB_APP_OWNER_META_KEY, "12345:not-a-number:User:octocat")
+      .run();
+
+    const owner = await resolveAppOwner({ GITHUB_APP_ID: "12345" }, env.DB);
+
+    expect(owner, "owner").toBeUndefined();
+  });
+
+  it("resolveAppOwner returns undefined when the saved App ID cannot be read with the current SELUNA_SECRET", async () => {
+    await saveApp("54321", FIXTURE_PKCS8);
+    await writeAppOwner(env.DB, 54_321, OWNER);
+
+    const owner = await resolveAppOwner({ SELUNA_SECRET: OTHER_SECRET }, env.DB);
+
+    expect(owner, "owner").toBeUndefined();
+  });
+
+  it("resolveAppOwner returns undefined when the Worker secret App ID is not an App ID", async () => {
+    await writeAppOwner(env.DB, 12_345, OWNER);
+
+    const owner = await resolveAppOwner({ GITHUB_APP_ID: "12x45" }, env.DB);
+
+    expect(owner, "owner").toBeUndefined();
+  });
+
+  it("resolveAppOwner rejects when D1 fails", async () => {
+    const pending = resolveAppOwner({ GITHUB_APP_ID: "12345" }, migrationTestDb());
 
     await expect(pending, "result").rejects.toThrow(/no such table/i);
   });

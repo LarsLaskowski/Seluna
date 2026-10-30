@@ -23,6 +23,14 @@ export interface MessageTexts {
   readonly codeScanningAlert: string;
   /** Title of a secret scanning alert. */
   readonly secretScanningAlert: string;
+  /** Title of a new issue. */
+  readonly issueOpened: string;
+  /** Title of a new comment on an issue. */
+  readonly issueComment: string;
+  /** Title of a new comment on a pull request. */
+  readonly pullRequestComment: string;
+  /** The author part of line 3 of an issue or comment notification. */
+  readonly byAuthor: (author: string) => string;
   /** Line 3 of a pull request notification: the author and the branches. */
   readonly pullRequestContext: (author: string, head: string, base: string) => string;
   /** Title of the notice that a new Seluna release is available. */

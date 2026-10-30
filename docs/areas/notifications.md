@@ -21,7 +21,8 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
    sent or written to `meta`. A `deliveries` row is kept 7 days ([Scheduled jobs](scheduled-jobs.md#cleanup)), so a
    redelivery is recognized within that time.
 3. The body is read as the payload (below); a body that is not a JSON object answers **400**, nothing stored.
-4. The notification settings are read and the rules run (below); then the draft check of a notification that carries
+4. The notification settings and the stored owner of the app ([The sender](#the-sender)) are read and the rules run
+   (below); then the draft check of a notification that carries
    one is resolved ([Draft lookup](#draft-lookup)), which may drop the notification or change its title.
 5. In one transaction: the delivery (id, event, time received) is added to `deliveries`, one `outbox` row per
    notification is added (the notification as JSON, [Message format](#message-format)), and `meta` `last_delivery` is set to the time received. Either all of it is stored or
@@ -49,18 +50,20 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
 
 ### Rules
 
-- A rule is a pure function of the event name (`X-GitHub-Event`), the payload and the notification settings
-  ([Storage](storage.md)) that returns one notification or none. It reads no clock, no database and no network,
-  and it narrows every payload field it reads; an unexpected shape returns none.
+- A rule is a pure function of the event name (`X-GitHub-Event`), the payload, the notification settings
+  ([Storage](storage.md)) and the stored owner of the app (a value, or none when unknown) that returns one
+  notification or none. The owner is read by the processing once per delivery, beside the settings; no rule reads the
+  database. A rule reads no clock and no network, and it narrows every payload field it reads; an unexpected shape
+  returns none.
 - Every rule has the id of its switch in the settings. All rules run on every delivery; a notification of a rule
   whose switch is off is dropped.
 - A notification holds: the title of the case (line 1, in the notification language, chosen by the rule), the
-  repository as `owner/repo`, the number of the pull request or alert (or none), line 2, line 3 and the URL for the
+  repository as `owner/repo`, the number of the pull request, issue or alert (or none), line 2, line 3 and the URL for the
   button (the `html_url` of the payload). A notification that may only be sent for a pull request that is not a draft
   also holds a draft check: the pull request (owner, repository name, number) and the title to use when its draft
-  state is unknown.
+  state is unknown, or none, which drops the notification when its draft state is unknown.
 - The rules run in the order of the switches in the settings. The pull request rules and the CI failure rules are
-  below, then the security alert rules.
+  below, then the security alert rules and the issue and comment rules.
 
 #### Pull request rules
 
@@ -184,12 +187,55 @@ not read.
   because only an allow-list of fields is read, such a difference can shorten a line or silence an alert, never leak a
   secret.
 
+#### Issue and comment rules
+
+Three rules report the events `issues` and `issue_comment` (decision
+[0040](../decisions/0040-issue-and-comment-rules.md)). No new permission, event or setting beyond the three switches,
+on by default.
+
+| Switch id              | Event           | Reported `action` | Case                                                | English title                 | German title                       |
+| ---------------------- | --------------- | ----------------- | --------------------------------------------------- | ----------------------------- | ---------------------------------- |
+| `issue_opened`         | `issues`        | `opened`          | a new issue                                         | `New issue`                   | `Neues Issue`                      |
+| `issue_comment`        | `issue_comment` | `created`         | a comment on an issue (`issue.pull_request` absent) | `New comment on issue`        | `Neuer Kommentar zum Issue`        |
+| `pull_request_comment` | `issue_comment` | `created`         | a comment on a pull request's conversation          | `New comment on pull request` | `Neuer Kommentar zum Pull Request` |
+
+Every other action (`edited`, `deleted`, `closed`, `reopened`, `transferred`, `labeled`, or one GitHub adds later)
+triggers nothing.
+
+- **Lines.** Line 1 is the title, `repository.full_name` and `issue.number`; line 2 is `issue.title`; line 3 is
+  `by <author> · <excerpt>` (German `von <author> · <excerpt>`), the author being `issue.user.login` for a new issue
+  and `comment.user.login` for a comment, the excerpt the beginning of `issue.body` or `comment.body`. The button is
+  `issue.html_url` for a new issue and `comment.html_url` for a comment. Line 2 and line 3 are cut to 256 code points
+  like every field ([Message format](#message-format)).
+- **The excerpt.** HTML comments (`<!-- … -->`, as issue templates leave them) are removed first, an unterminated
+  `<!--` together with everything after it; then every run of white space becomes one space and the ends are trimmed.
+  Other Markdown is shown as written. The scan is one linear pass that stops at 257 code points (one more than line 3's
+  limit, so the store still cuts and marks it), whatever the size of the body. A body that is empty, `null`, missing,
+  blank or only comments gives line 3 `by <author>` alone; the case is still reported.
+- **Required shape.** A delivery is reported only when `issue` and `comment` (for a comment) are objects,
+  `issue.number` is a whole number from 1 to 2^53 − 1, `issue.title`, `issue.html_url`, `issue.user.login`,
+  `comment.html_url`, `comment.user.login` and `repository.full_name` are strings, each `body` is a string, `null` or
+  missing, `issue.pull_request` is missing or an object and `issue.draft` is missing or a boolean. A delivery that
+  carries a `comment` under the `issues` header is another event's payload: `issue_opened` returns nothing for it, as
+  it does when `issue.pull_request` is present. Anything else gives `no-match`.
+- **The draft pull request.** `pull_request_comment` reports a comment only on a pull request that is not a draft:
+  `issue.draft` `true` triggers nothing, `false` reports without a check, and when the field is absent the
+  notification carries a draft check ([Draft lookup](#draft-lookup)) whose unknown state drops the notification
+  instead of retitling it. A comment on a draft pull request, or on one whose draft state cannot be determined, is
+  thus never reported: neither exception to the guarantee is extended.
+- **Volume.** On a public repository anyone can open an issue or comment, so each stranger's issue or comment gives one
+  message with text of their choosing; Telegram apps still turn URLs, `@mentions` and `/commands` into tappable
+  links. No rate limit exists.
+- **Documented, not observed.** The fixtures are reference-built from GitHub's webhook documentation, not captured.
+  The residual risk (decision 0040) is a field path, an action name or the place of `issue.draft` that differs in real
+  deliveries; each such difference sends nothing. A live check on a deployed copy confirms the cases.
+
 #### The sender
 
 - The GitHub App is subscribed to the events `issues`, `issue_comment`, `fork` and `star` besides the five of the
   rules above (decision [0039](../decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md)). They are
-  accepted, recorded in `deliveries` and answered like every other event, but no rule reports them yet: they send no
-  message until the rules for issues and comments, and for forks and stars, exist.
+  accepted, recorded in `deliveries` and answered like every other event. The rules for issues and comments report
+  them ([Issue and comment rules](#issue-and-comment-rules)); `fork` and `star` send no message yet.
 - Two helpers for those rules narrow the payload's `sender` and never throw (`src/rules/actor.ts`):
   - `isOwnAction(payload, owner)` is true only when the stored owner is a `User` and `sender.id` is a number equal to
     the owner's id; a renamed login changes nothing. A missing or non-object `sender`, a missing or non-numeric `id`,
@@ -197,18 +243,28 @@ not read.
     cannot tell which member of an organization is its user, so for an organization's app every account's activity
     counts as foreign (the status page says so, [Setup wizard](setup-wizard.md#status-and-settings)).
   - `isBotSender(payload)` is true exactly when `sender.type` is the string `Bot`.
-- The owner is the one stored beside the App ID ([Storage](storage.md#tables)); the existing pull request and alert
-  rules still do not read `sender`.
+- The owner is the one stored beside the App ID ([Storage](storage.md#tables)); the processing reads it once per
+  delivery, before the rules, for the App ID the Worker secret or the saved credential names ([GitHub
+  API](github-api.md)). The three issue and comment rules read `sender`: a delivery is dropped (decision `no-match`)
+  when `sender` is not an object with an `id` that is a safe integer (a whole number no larger than 2^53 − 1 in
+  absolute value) and a string `type`, when `sender.id` is the id of a `User`
+  owner, or when `sender.type` is `Bot` (a user whose login ends in `[bot]` is not a bot). With an organization
+  owner, an owner not stored yet (an app created before this version whose status page was not viewed) or an owner row
+  that is malformed or of another App ID, the owner's own issues and comments are reported like any other account's.
+  A database failure while the owner is read answers **503** and stores nothing, as for the settings. The existing pull
+  request and alert rules still do not read `sender`.
 
 #### Draft lookup
 
-- After the rules, each notification with a draft check (only the CI failure in a pull request, so at most one per
-  delivery) is resolved before the delivery is recorded. A notification whose switch is off has been dropped by then,
+- After the rules, each notification with a draft check (the CI failure in a pull request, or a comment on a pull
+  request whose payload has no `issue.draft`; the two come from different events, so at most one per delivery) is
+  resolved before the delivery is recorded. A notification whose switch is off has been dropped by then,
   so it causes no lookup.
 - The lookup asks GitHub for the pull request's draft state as the app, with the installation of the delivery's
   `installation.id` ([GitHub API](github-api.md#pull-request-read)). A draft drops the notification; a pull request
-  that is not a draft keeps it as it is; any failure keeps it with the title `CI failed in pull request (draft status
-unknown)` (German `CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)`).
+  that is not a draft keeps it as it is; for the CI failure rule any failure keeps it with the title `CI failed in pull
+request (draft status unknown)` (German `CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)`), while a
+  comment on a pull request is dropped (below).
 - A failure is every failure result of the GitHub API client, an `installation.id` that is not a whole number from 1 to
   2^53 − 1 (then nothing is asked), and a lookup that has not finished 8 seconds after it started: GitHub ends a
   delivery not answered within 10 seconds. A lookup cut off this way may still finish in the background; its result
@@ -217,6 +273,9 @@ unknown)` (German `CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)`).
 - This is one of the two exceptions to "a draft pull request triggers no notification": a pull request whose draft
   state could not be read is reported, marked _draft status unknown_ (the other: a secret scanning alert, [Security
   alert rules](#security-alert-rules)).
+- A comment on a pull request ([Issue and comment rules](#issue-and-comment-rules)) is the second kind of check: it has
+  no title for an unknown state, so any failure, the 8-second cut-off or a missing `installation.id` drops the
+  notification instead of keeping it.
 - When the lookup drops the only notification, the decision is `no-match`.
 - A delivery whose id is already recorded on arrival causes no lookup. Two deliveries of one id processed at once may
   each make a lookup; only one of them is stored.
@@ -280,7 +339,9 @@ No migration changes the column: it is still `text` ([Storage](storage.md)).
   the titles of the CI failure rules with the draft-unknown title ([CI failure rules](#ci-failure-rules),
   [Draft lookup](#draft-lookup)), and the titles of the security alert rules
   ([Security alert rules](#security-alert-rules)): _Dependabot alert_, _Code scanning alert_, _Secret scanning alert_
-  (German _Dependabot-Warnung_, _Code-Scanning-Warnung_, _Secret-Scanning-Warnung_), and the title and line 2 of the
+  (German _Dependabot-Warnung_, _Code-Scanning-Warnung_, _Secret-Scanning-Warnung_), the titles of the issue and
+  comment rules and `by <author>` (German `von <author>`) of their line 3
+  ([Issue and comment rules](#issue-and-comment-rules)), and the title and line 2 of the
   release notice ([Scheduled jobs](scheduled-jobs.md#release-message)).
 - The button reads _Open on GitHub_ in English and _Auf GitHub öffnen_ in German. Its language is the notification
   language at the time the row is sent, so a row still pending when the owner switches the language keeps its text
@@ -424,6 +485,9 @@ channel that sends it.
 - [`decisions/0028-security-alert-rules.md`](../decisions/0028-security-alert-rules.md) — the three security alert
   rules, code scanning on the default branch only, secret scanning outside the draft guarantee, the field allow-list
   that keeps a secret out of rows, messages and logs.
+- [`decisions/0040-issue-and-comment-rules.md`](../decisions/0040-issue-and-comment-rules.md) — the three issue and
+  comment rules, the owner read by the processing and passed to the rules, an unknown owner reported, the draft state
+  from the payload with the lookup as fallback, an unknown state dropped, HTML comments removed from the excerpt.
 - [`decisions/0025-quiet-hours-decided-at-sending.md`](../decisions/0025-quiet-hours-decided-at-sending.md) — quiet
   hours applied at each send rather than when the row is written, one clock reading per row, wall-clock times.
 - [`decisions/0008-delivery-through-a-d1-outbox.md`](../decisions/0008-delivery-through-a-d1-outbox.md) — the

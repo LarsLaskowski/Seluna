@@ -23,7 +23,7 @@ const EXPECTED = {
 
 describe("CI_FAILED_PULL_REQUEST", () => {
   it("CI_FAILED_PULL_REQUEST reports the real failed pull request run with a draft check of pull request 296", () => {
-    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", prRun, DEFAULT_SETTINGS);
+    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", prRun, DEFAULT_SETTINGS, undefined);
 
     expect(CI_FAILED_PULL_REQUEST.id, "id").toBe("ci_failed_pull_request");
     expect(notification, "notification").toEqual(EXPECTED);
@@ -32,13 +32,13 @@ describe("CI_FAILED_PULL_REQUEST", () => {
   it("CI_FAILED_PULL_REQUEST reports a timed_out run like a failure", () => {
     const payload = variant(prRun, ["workflow_run", "conclusion"], "timed_out");
 
-    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS);
+    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toEqual(EXPECTED);
   });
 
   it("CI_FAILED_PULL_REQUEST reports in German, its draft check with the German title", () => {
-    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", prRun, GERMAN);
+    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", prRun, GERMAN, undefined);
 
     expect(notification, "notification").toEqual({
       ...EXPECTED,
@@ -55,7 +55,7 @@ describe("CI_FAILED_PULL_REQUEST", () => {
     (conclusion) => {
       const payload = variant(prRun, ["workflow_run", "conclusion"], conclusion);
 
-      const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS);
+      const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS, undefined);
 
       expect(notification, "notification").toBeUndefined();
     },
@@ -64,13 +64,13 @@ describe("CI_FAILED_PULL_REQUEST", () => {
   it.each(["requested", "in_progress"])("CI_FAILED_PULL_REQUEST reports nothing for the action %s", (action) => {
     const payload = variant(prRun, ["action"], action);
 
-    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS);
+    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toBeUndefined();
   });
 
   it("CI_FAILED_PULL_REQUEST reports nothing for another event name", () => {
-    const notification = CI_FAILED_PULL_REQUEST.evaluate("pull_request", prRun, DEFAULT_SETTINGS);
+    const notification = CI_FAILED_PULL_REQUEST.evaluate("pull_request", prRun, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toBeUndefined();
   });
@@ -78,7 +78,7 @@ describe("CI_FAILED_PULL_REQUEST", () => {
   it("CI_FAILED_PULL_REQUEST reports nothing for a failed run off the default branch with empty pull_requests", () => {
     const payload = variant(prRun, ["workflow_run", "pull_requests"], []);
 
-    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS);
+    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toBeUndefined();
   });
@@ -87,7 +87,7 @@ describe("CI_FAILED_PULL_REQUEST", () => {
     const entries = [{ number: 296, base: { repo: { id: 9999 } } }, { number: 7 }];
     const payload = variant(prRun, ["workflow_run", "pull_requests"], entries);
 
-    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS);
+    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toBeUndefined();
   });
@@ -99,7 +99,7 @@ describe("CI_FAILED_PULL_REQUEST", () => {
     ];
     const payload = variant(prRun, ["workflow_run", "pull_requests"], entries);
 
-    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS);
+    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS, undefined);
 
     expect(notification?.number, "number").toBe(12);
     expect(notification?.draftCheck?.pullRequest, "pull request to check").toEqual({ ...PULL_REQUEST, number: 12 });
@@ -112,7 +112,7 @@ describe("CI_FAILED_PULL_REQUEST", () => {
       [{ number: 296, base: { repo: { id: 2000 } } }],
     );
 
-    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS);
+    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toBeUndefined();
   });
@@ -120,7 +120,7 @@ describe("CI_FAILED_PULL_REQUEST", () => {
   it("CI_FAILED_PULL_REQUEST reports nothing for the same fork run from a branch named like the default branch", () => {
     const fork = variant(MAIN_FAILURE, ["workflow_run", "head_repository", "id"], 9999);
 
-    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", fork, DEFAULT_SETTINGS);
+    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", fork, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toBeUndefined();
   });
@@ -129,7 +129,7 @@ describe("CI_FAILED_PULL_REQUEST", () => {
     const fork = variant(MAIN_FAILURE, ["workflow_run", "head_repository", "id"], 9999);
     const payload = variant(fork, ["workflow_run", "pull_requests"], [{ number: 296, base: { repo: { id: 2000 } } }]);
 
-    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS);
+    const notification = CI_FAILED_PULL_REQUEST.evaluate("workflow_run", payload, DEFAULT_SETTINGS, undefined);
 
     expect(notification?.number, "number").toBe(296);
   });

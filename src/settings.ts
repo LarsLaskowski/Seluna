@@ -10,6 +10,9 @@ export const RULE_IDS = [
   "dependabot_alert",
   "code_scanning_alert",
   "secret_scanning_alert",
+  "issue_opened",
+  "issue_comment",
+  "pull_request_comment",
 ] as const;
 
 export type RuleId = (typeof RULE_IDS)[number];
@@ -42,6 +45,9 @@ export const DEFAULT_SETTINGS: NotificationSettings = {
     dependabot_alert: true,
     code_scanning_alert: true,
     secret_scanning_alert: true,
+    issue_opened: true,
+    issue_comment: true,
+    pull_request_comment: true,
   },
   updateNotice: true,
 };

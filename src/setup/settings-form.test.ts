@@ -42,9 +42,32 @@ describe("parseSettingsForm", () => {
         dependabot_alert: true,
         code_scanning_alert: true,
         secret_scanning_alert: true,
+        issue_opened: true,
+        issue_comment: true,
+        pull_request_comment: true,
       },
       updateNotice: true,
     });
+  });
+
+  it("parseSettingsForm reads the three new switches", () => {
+    const off = fieldsWith({ rule_issue_opened: undefined, rule_issue_comment: undefined });
+    const onlyComment = fieldsWith({
+      rule_issue_opened: undefined,
+      rule_issue_comment: undefined,
+      rule_pull_request_comment: undefined,
+    });
+    onlyComment.append("rule_issue_comment", "on");
+
+    const settings = parseSettingsForm(off);
+    const single = parseSettingsForm(onlyComment);
+
+    expect(settings?.rules.issue_opened, "issue_opened off").toBe(false);
+    expect(settings?.rules.issue_comment, "issue_comment off").toBe(false);
+    expect(settings?.rules.pull_request_comment, "pull_request_comment on").toBe(true);
+    expect(single?.rules.issue_opened, "issue_opened absent").toBe(false);
+    expect(single?.rules.issue_comment, "issue_comment on").toBe(true);
+    expect(single?.rules.pull_request_comment, "pull_request_comment absent").toBe(false);
   });
 
   it("parseSettingsForm reads an absent checkbox as off", () => {

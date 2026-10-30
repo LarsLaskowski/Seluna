@@ -3594,6 +3594,9 @@ const VALID_SETTINGS_FIELDS: readonly (readonly [string, string])[] = [
   ["rule_ci_failed_pull_request", "on"],
   ["rule_code_scanning_alert", "on"],
   ["rule_secret_scanning_alert", "on"],
+  ["rule_issue_opened", "on"],
+  ["rule_issue_comment", "on"],
+  ["rule_pull_request_comment", "on"],
   ["update_notice", "on"],
 ];
 

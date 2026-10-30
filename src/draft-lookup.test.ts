@@ -28,6 +28,11 @@ function checked(pullRequest: PullRequestRef = PULL_REQUEST): Notification {
   };
 }
 
+/** A notification that is sent only for a pull request that is not a draft and is dropped when that is unknown. */
+function checkedWithoutTitle(): Notification {
+  return { ...checked(), draftCheck: { pullRequest: PULL_REQUEST, titleWhenUnknown: undefined } };
+}
+
 /** A notification without a draft check. */
 function unchecked(): Notification {
   return {
@@ -146,6 +151,35 @@ describe("applyDraftChecks", () => {
 
     expect(result[0]?.title, "title").toBe(UNKNOWN_TITLE);
     expect(lookup, "lookup calls").not.toHaveBeenCalled();
+  });
+
+  it("applyDraftChecks drops a notification without titleWhenUnknown when the lookup fails", async () => {
+    const result = await applyDraftChecks([checkedWithoutTitle()], INSTALLATION_ID, answering(FAILED));
+
+    expect(result, "notifications").toEqual([]);
+  });
+
+  it("applyDraftChecks drops a notification without titleWhenUnknown when there is no installation id", async () => {
+    const lookup = answering(NOT_A_DRAFT);
+
+    const result = await applyDraftChecks([checkedWithoutTitle()], undefined, lookup);
+
+    expect(result, "notifications").toEqual([]);
+    expect(lookup, "lookup calls").not.toHaveBeenCalled();
+  });
+
+  it("applyDraftChecks keeps a notification without titleWhenUnknown when the lookup answers not a draft", async () => {
+    const notification = checkedWithoutTitle();
+
+    const result = await applyDraftChecks([notification], INSTALLATION_ID, answering(NOT_A_DRAFT));
+
+    expect(result, "notifications").toEqual([notification]);
+  });
+
+  it("applyDraftChecks drops a notification without titleWhenUnknown when the lookup answers a draft", async () => {
+    const result = await applyDraftChecks([checkedWithoutTitle()], INSTALLATION_ID, answering(A_DRAFT));
+
+    expect(result, "notifications").toEqual([]);
   });
 
   it("applyDraftChecks passes a notification without a draft check through without a lookup", async () => {

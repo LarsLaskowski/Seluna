@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- GitHub App: the manifest also asks for read-only Contents and Issues and subscribes to the events `issues`, `issue_comment`, `fork` and `star`; these deliveries are accepted and recorded but send no message yet. Seluna stores the app's owner (account id, login and type) beside the App ID for the rules to come.
+- GitHub App: the manifest also asks for read-only Contents and Issues and subscribes to the events `issues`, `issue_comment`, `fork` and `star`; these deliveries are accepted and recorded; `fork` and `star` send no message yet. Seluna stores the app's owner (account id, login and type) beside the App ID for the rules to come.
+- Notifications: three rules and switches (on by default), _New issue_, _New comment on an issue_ and _New comment on a pull request_, report a new issue and a comment by another account, with the author and the beginning of the text on line 3; issues and comments by the owner (once the status page has stored the owner, personal accounts only) and by bots are left out, as are comments on draft pull requests or on pull requests whose draft state cannot be read. On a public repository every stranger's issue or comment gives one message.
 - Setup wizard: the status section shows the GitHub App's owner, with a notice for an organization's app, and names the permissions and events the app or an installation still lacks, with links to add and accept them on GitHub.
 
 ### Changed

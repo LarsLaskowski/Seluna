@@ -3,6 +3,7 @@ import type { DeliveryLogEntry, PendingMessage } from "./delivery";
 import { applyDraftChecks } from "./draft-lookup";
 import type { DraftLookup } from "./draft-lookup";
 import { installationIdOf } from "./github/api-client";
+import type { OwnerAccount } from "./github/owner";
 import { formatMessage } from "./message";
 import { storedNotificationOf } from "./notification";
 import { runRules } from "./rules/rule";
@@ -49,6 +50,8 @@ export interface WebhookDeps {
   readonly log: (entry: DeliveryLogEntry) => void;
   /** Asks GitHub whether a pull request is a draft; never rejects. */
   readonly lookUpDraft: DraftLookup;
+  /** The stored account of the App's owner, read once per delivery; rejects when D1 fails. */
+  readonly readOwner: () => Promise<OwnerAccount | undefined>;
 }
 
 /** The payload: a JSON object from the body (or its form field `payload`), else `undefined`. Never throws. */
@@ -104,9 +107,10 @@ async function notificationsOf(
   event: string,
   payload: WebhookPayload,
   settings: NotificationSettings,
+  owner: OwnerAccount | undefined,
   deps: WebhookDeps,
 ): Promise<{ readonly decision: RuleDecision; readonly notifications: readonly Notification[] }> {
-  const run = runRules(deps.rules, event, payload, settings);
+  const run = runRules(deps.rules, event, payload, settings, owner);
   const notifications = await applyDraftChecks(run.notifications, installationIdOf(payload), deps.lookUpDraft);
   const decision = run.decision === "reported" && notifications.length === 0 ? "no-match" : run.decision;
   return { decision, notifications };
@@ -132,7 +136,8 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
   const fields = logFieldsOf(payload);
   try {
     const settings = await readNotificationSettings(deps.db);
-    const { decision, notifications } = await notificationsOf(event, payload, settings, deps);
+    const owner = await deps.readOwner();
+    const { decision, notifications } = await notificationsOf(event, payload, settings, owner, deps);
     const messages = notifications.map((notification) => formatMessage(notification));
     const rows = notifications.map((notification, index) => ({
       notification: storedNotificationOf(notification),

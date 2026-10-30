@@ -5,7 +5,7 @@
 How Seluna calls the GitHub API as the owner's GitHub App: the app token (JWT), where App ID and private key come
 from, the installation tokens per installation and their cache, the rules every request follows, the pull request
 read, the app read and the installations list, and the one failure result its callers get. The webhook processing (the draft
-lookup of the CI failure rule in a pull request, [Notifications](notifications.md#draft-lookup)) and the setup
+lookup of the CI failure rule in a pull request and of a comment on a pull request whose payload has no `draft`, [Notifications](notifications.md#draft-lookup); the App ID, resolved the same way, to read the stored owner) and the setup
 wizard's status page rely on it.
 
 ## Behavior

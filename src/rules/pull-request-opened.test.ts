@@ -17,14 +17,14 @@ const EXPECTED = {
 
 describe("PULL_REQUEST_OPENED", () => {
   it("PULL_REQUEST_OPENED reports the real opened delivery in English", () => {
-    const notification = PULL_REQUEST_OPENED.evaluate("pull_request", opened, DEFAULT_SETTINGS);
+    const notification = PULL_REQUEST_OPENED.evaluate("pull_request", opened, DEFAULT_SETTINGS, undefined);
 
     expect(PULL_REQUEST_OPENED.id, "id").toBe("pull_request_opened");
     expect(notification, "notification").toEqual(EXPECTED);
   });
 
   it("PULL_REQUEST_OPENED reports the real opened delivery in German", () => {
-    const notification = PULL_REQUEST_OPENED.evaluate("pull_request", opened, GERMAN);
+    const notification = PULL_REQUEST_OPENED.evaluate("pull_request", opened, GERMAN, undefined);
 
     expect(notification, "notification").toEqual({
       ...EXPECTED,
@@ -34,13 +34,13 @@ describe("PULL_REQUEST_OPENED", () => {
   });
 
   it("PULL_REQUEST_OPENED ignores the real draft opened delivery", () => {
-    const notification = PULL_REQUEST_OPENED.evaluate("pull_request", openedDraft, DEFAULT_SETTINGS);
+    const notification = PULL_REQUEST_OPENED.evaluate("pull_request", openedDraft, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toBeUndefined();
   });
 
   it("PULL_REQUEST_OPENED ignores a ready_for_review delivery", () => {
-    const notification = PULL_REQUEST_OPENED.evaluate("pull_request", readyForReview, DEFAULT_SETTINGS);
+    const notification = PULL_REQUEST_OPENED.evaluate("pull_request", readyForReview, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toBeUndefined();
   });

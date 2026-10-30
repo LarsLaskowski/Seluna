@@ -2,6 +2,7 @@ import { version } from "../package.json";
 import { handleRequest } from "./router";
 import { wait } from "./delivery";
 import { boundedDraftLookup, DRAFT_LOOKUP_TIMEOUT_MS } from "./draft-lookup";
+import { resolveAppOwner } from "./github/app-credentials";
 import { isPullRequestDraft } from "./github/api-client";
 import type { DeliveryLogEntry } from "./delivery";
 import { runScheduled } from "./scheduled";
@@ -48,6 +49,7 @@ export default {
             DRAFT_LOOKUP_TIMEOUT_MS,
             wait,
           ),
+          readOwner: () => resolveAppOwner(env, env.DB),
         }),
       setup: { env, db: env.DB, now: () => new Date(), fetch: outboundFetch, githubFetch: outboundFetch, version },
     });

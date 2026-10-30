@@ -1586,7 +1586,7 @@ describe("renderStartPage setting groups", () => {
   );
 
   it.each(LANGUAGES.map((language) => ({ language })))(
-    "renderStartPage puts the eight rules and the release notice in one fieldset with the rules label as legend in $language",
+    "renderStartPage puts the eleven rules and the release notice in one fieldset with the rules label as legend in $language",
     ({ language }) => {
       const texts = TEXTS[language];
 
@@ -1595,7 +1595,7 @@ describe("renderStartPage setting groups", () => {
       const rules = fieldsetsOf(page)[1];
       expect(compact(rules?.legend ?? ""), "legend").toBe(escapeHtml(texts.rulesLabel));
       const names = [...RULE_IDS.map((id) => `rule_${id}`), "update_notice"];
-      expect(RULE_IDS.length, "number of rules").toBe(8);
+      expect(RULE_IDS.length, "number of rules").toBe(11);
       const positions = names.map((name) => (rules?.content ?? "").indexOf(`name="${name}"`));
       expect(Math.min(...positions), "every switch is in the group").toBeGreaterThanOrEqual(0);
       expect(positions, "the rules come in order, then the release notice").toEqual(

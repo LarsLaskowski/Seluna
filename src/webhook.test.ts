@@ -4,6 +4,8 @@ import codeScanningCreated from "../test/fixtures/code_scanning_alert/created.js
 import dependabotCreated from "../test/fixtures/dependabot_alert/created.json";
 import forkFixture from "../test/fixtures/fork/fork.json";
 import issueCommentCreated from "../test/fixtures/issue_comment/created.json";
+import draftPullRequestComment from "../test/fixtures/issue_comment/created-draft-pull-request.json";
+import pullRequestComment from "../test/fixtures/issue_comment/created-pull-request.json";
 import issuesOpened from "../test/fixtures/issues/opened.json";
 import { body as pingBody, headers as pingHeaders } from "../test/fixtures/ping/form-delivery.json";
 import opened from "../test/fixtures/pull_request/opened.json";
@@ -26,6 +28,7 @@ import type { TelegramFetch } from "./telegram";
 import { parseWebhookPayload, processWebhook } from "./webhook";
 import type { SignedDelivery, WebhookDeps, WebhookOutcome } from "./webhook";
 import { applyMigrations, migrationTestDb } from "../test/d1";
+import { fromOwner, ORGANIZATION_OWNER, OWNER } from "../test/issue";
 import { ABSENT, variant } from "../test/pull-request";
 import { SECRET, SECRET_SCANNING_READ_PATHS, replaceStringsOutside, withFields } from "../test/security-alert";
 import { jsonAnswer, telegramDouble } from "../test/telegram";
@@ -120,6 +123,7 @@ function harness(
     sleep,
     log: () => undefined,
     lookUpDraft: vi.fn<DraftLookup>(() => Promise.resolve({ kind: "failed" })),
+    readOwner: () => Promise.resolve(undefined),
     ...overrides,
   };
   return { deps, waitUntil, telegram, sleep };
@@ -710,8 +714,6 @@ async function storedMessages(): Promise<unknown[]> {
 
 describe("processWebhook with the events of issue 108", () => {
   it.each<{ event: string; payload: object; action: string | null }>([
-    { event: "issues", payload: issuesOpened, action: "opened" },
-    { event: "issue_comment", payload: issueCommentCreated, action: "created" },
     { event: "fork", payload: forkFixture, action: null },
     { event: "star", payload: starCreated, action: "created" },
   ])("processWebhook accepts and records $event and sends nothing", async ({ event, payload, action }) => {
@@ -869,5 +871,296 @@ describe("processWebhook with the security alert rules", () => {
       JSON.stringify([stored, outcome, log.mock.calls, telegram.requests]),
       "everything stored, logged or sent",
     ).not.toContain(SECRET);
+  });
+});
+
+const ISSUE_TEXT =
+  "<b>New issue</b> · example-owner/example-repo #7\nExample issue from another user\nby example-other-user · An example issue body written by another user.";
+const ISSUE_BUTTON = "https://github.com/example-owner/example-repo/issues/7";
+const ISSUE_COMMENT_TEXT =
+  "<b>New comment on issue</b> · example-owner/example-repo #7\nExample issue from another user\nby example-other-user · An example comment written by another user.";
+const ISSUE_COMMENT_BUTTON = "https://github.com/example-owner/example-repo/issues/7#issuecomment-5000001";
+const PULL_REQUEST_COMMENT_TEXT =
+  "<b>New comment on pull request</b> · example-owner/example-repo #12\nExample pull request from another user\nby example-other-user · An example comment on a pull request written by another user.";
+const PULL_REQUEST_COMMENT_BUTTON = "https://github.com/example-owner/example-repo/pull/12#issuecomment-5000002";
+const COMMENTED_PULL_REQUEST = { owner: "example-owner", repo: "example-repo", number: 12 };
+
+/** A signed `issues` or `issue_comment` delivery whose JSON body is `payload`. */
+function issueDelivery(event: "issues" | "issue_comment", payload: object, delivery = DELIVERY_ID): SignedDelivery {
+  return jsonDelivery(JSON.stringify(payload), { event, delivery });
+}
+
+describe("processWebhook with the issue and comment rules", () => {
+  it.each<{ event: "issues" | "issue_comment"; payload: object; text: string; button: string }>([
+    { event: "issues", payload: issuesOpened, text: ISSUE_TEXT, button: ISSUE_BUTTON },
+    { event: "issue_comment", payload: issueCommentCreated, text: ISSUE_COMMENT_TEXT, button: ISSUE_COMMENT_BUTTON },
+  ])(
+    "processWebhook stores the message of the $event fixture of another account",
+    async ({ event, payload, text, button }) => {
+      const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+      const outcome = await processWebhook(issueDelivery(event, payload), deps);
+
+      expect(outcome.status, "status").toBe(202);
+      expect(outcome.decision, "decision").toBe("reported");
+      expect(await storedMessages(), "stored messages").toEqual([[text, button]]);
+    },
+  );
+
+  it("processWebhook stores one row for a comment on a pull request and none of issue_comment", async () => {
+    const lookUpDraft = lookupAnswering({ kind: "failed" });
+    const { deps } = harness({ rules: RULES, lookUpDraft, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcome = await processWebhook(issueDelivery("issue_comment", pullRequestComment), deps);
+
+    expect(outcome.decision, "decision").toBe("reported");
+    expect(await storedMessages(), "stored messages").toEqual([
+      [PULL_REQUEST_COMMENT_TEXT, PULL_REQUEST_COMMENT_BUTTON],
+    ]);
+    expect(lookUpDraft, "lookup calls").not.toHaveBeenCalled();
+  });
+
+  it("processWebhook stores nothing and makes no lookup for a comment on a draft pull request", async () => {
+    const lookUpDraft = lookupAnswering({ kind: "ok", draft: false });
+    const { deps, waitUntil } = harness({ rules: RULES, lookUpDraft, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcome = await processWebhook(issueDelivery("issue_comment", draftPullRequestComment), deps);
+
+    expect(outcome.status, "status").toBe(202);
+    expect(outcome.decision, "decision").toBe("no-match");
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(lookUpDraft, "lookup calls").not.toHaveBeenCalled();
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+  });
+
+  it("processWebhook stores the comment on a pull request without issue.draft when the lookup answers not a draft", async () => {
+    const lookUpDraft = lookupAnswering({ kind: "ok", draft: false });
+    const { deps } = harness({ rules: RULES, lookUpDraft, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcome = await processWebhook(
+      issueDelivery("issue_comment", variant(pullRequestComment, ["issue", "draft"], ABSENT)),
+      deps,
+    );
+
+    expect(outcome.decision, "decision").toBe("reported");
+    expect(lookUpDraft, "lookup calls").toHaveBeenCalledExactlyOnceWith(3000, COMMENTED_PULL_REQUEST);
+    expect(await storedMessages(), "stored messages").toEqual([
+      [PULL_REQUEST_COMMENT_TEXT, PULL_REQUEST_COMMENT_BUTTON],
+    ]);
+  });
+
+  it("processWebhook stores nothing for a comment on a pull request without issue.draft when the lookup answers a draft", async () => {
+    const { deps } = harness({
+      rules: RULES,
+      lookUpDraft: lookupAnswering({ kind: "ok", draft: true }),
+      readOwner: () => Promise.resolve(OWNER),
+    });
+
+    const outcome = await processWebhook(
+      issueDelivery("issue_comment", variant(pullRequestComment, ["issue", "draft"], ABSENT)),
+      deps,
+    );
+
+    expect(outcome.decision, "decision").toBe("no-match");
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it("processWebhook stores nothing for a comment on a pull request without issue.draft when the lookup fails", async () => {
+    const { deps, waitUntil } = harness({
+      rules: RULES,
+      lookUpDraft: lookupAnswering({ kind: "failed" }),
+      readOwner: () => Promise.resolve(OWNER),
+    });
+
+    const outcome = await processWebhook(
+      issueDelivery("issue_comment", variant(pullRequestComment, ["issue", "draft"], ABSENT)),
+      deps,
+    );
+
+    expect(outcome.status, "status").toBe(202);
+    expect(outcome.decision, "decision").toBe("no-match");
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+  });
+
+  it("processWebhook stores nothing for a comment on a pull request without issue.draft and without an installation id", async () => {
+    const lookUpDraft = lookupAnswering({ kind: "ok", draft: false });
+    const { deps } = harness({ rules: RULES, lookUpDraft, readOwner: () => Promise.resolve(OWNER) });
+    const payload = variant(variant(pullRequestComment, ["issue", "draft"], ABSENT), ["installation"], ABSENT);
+
+    const outcome = await processWebhook(issueDelivery("issue_comment", payload), deps);
+
+    expect(outcome.decision, "decision").toBe("no-match");
+    expect(lookUpDraft, "lookup calls").not.toHaveBeenCalled();
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it.each<{ event: "issues" | "issue_comment"; payload: WebhookPayload }>([
+    { event: "issues", payload: issuesOpened },
+    { event: "issue_comment", payload: issueCommentCreated },
+    { event: "issue_comment", payload: pullRequestComment },
+  ])(
+    "processWebhook answers 202 no-match and records the delivery for the owner's own $event",
+    async ({ event, payload }) => {
+      const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+      const outcome = await processWebhook(issueDelivery(event, fromOwner(payload)), deps);
+
+      expect(outcome.status, "status").toBe(202);
+      expect(outcome.decision, "decision").toBe("no-match");
+      expect(await env.DB.prepare("SELECT id, event FROM deliveries").first(), "delivery row").toEqual({
+        id: DELIVERY_ID,
+        event,
+      });
+      expect(await count("outbox"), "outbox rows").toBe(0);
+      expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+      expect(telegram.requests, "Telegram requests").toEqual([]);
+    },
+  );
+
+  it("processWebhook answers 202 no-match and records the delivery for the owner's own issue", async () => {
+    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcome = await processWebhook(issueDelivery("issues", fromOwner(issuesOpened)), deps);
+
+    expect(outcome, "outcome").toEqual({
+      status: 202,
+      decision: "no-match",
+      action: "opened",
+      repository: "example-owner/example-repo",
+    });
+    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it.each<{ case: string; owner: typeof OWNER | undefined }>([
+    { case: "an organization owner", owner: ORGANIZATION_OWNER },
+    { case: "an unknown owner", owner: undefined },
+  ])("processWebhook stores the owner's own issue as any other account's with $case", async ({ owner }) => {
+    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(owner) });
+
+    const outcome = await processWebhook(issueDelivery("issues", fromOwner(issuesOpened)), deps);
+
+    expect(outcome.decision, "decision").toBe("reported");
+    expect(await count("outbox"), "outbox rows").toBe(1);
+  });
+
+  it("processWebhook passes the owner readOwner answers to the rules, read once per delivery", async () => {
+    const evaluate = vi.fn<Rule["evaluate"]>(() => undefined);
+    const readOwner = vi.fn<WebhookDeps["readOwner"]>(() => Promise.resolve(OWNER));
+    const { deps } = harness({ rules: [{ id: "issue_opened", evaluate }], readOwner });
+
+    await processWebhook(issueDelivery("issues", issuesOpened), deps);
+
+    expect(readOwner, "owner reads").toHaveBeenCalledTimes(1);
+    expect(evaluate, "rule calls").toHaveBeenCalledTimes(1);
+    expect(evaluate.mock.calls[0]?.[3], "owner passed to the rule").toEqual(OWNER);
+  });
+
+  it("processWebhook answers 503 unavailable and stores nothing when readOwner rejects", async () => {
+    const evaluate = vi.fn<Rule["evaluate"]>(() => notificationWith("never"));
+    const { deps, waitUntil, telegram } = harness({
+      rules: [{ id: "issue_opened", evaluate }],
+      readOwner: () => Promise.reject(new Error("D1_ERROR: no such table")),
+    });
+
+    const outcome = await processWebhook(issueDelivery("issues", issuesOpened), deps);
+
+    expect(outcome.status, "status").toBe(503);
+    expect(outcome.decision, "decision").toBe("unavailable");
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(evaluate, "rule calls").not.toHaveBeenCalled();
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+  });
+
+  it.each<{ case: string; event: "issues" | "issue_comment"; payload: WebhookPayload }>([
+    { case: "an issue without the issue object", event: "issues", payload: variant(issuesOpened, ["issue"], ABSENT) },
+    {
+      case: "a comment without the comment object",
+      event: "issue_comment",
+      payload: variant(issueCommentCreated, ["comment"], ABSENT),
+    },
+    {
+      case: "a comment on a pull request with issue.draft as a string",
+      event: "issue_comment",
+      payload: variant(pullRequestComment, ["issue", "draft"], "false"),
+    },
+    {
+      case: "an issue without a sender",
+      event: "issues",
+      payload: variant(issuesOpened, ["sender"], ABSENT),
+    },
+  ])("processWebhook answers 202 no-match for malformed $case and records the delivery", async ({ event, payload }) => {
+    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcome = await processWebhook(issueDelivery(event, payload), deps);
+
+    expect(outcome.status, "status").toBe(202);
+    expect(outcome.decision, "decision").toBe("no-match");
+    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it.each<{ rule: string; event: "issues" | "issue_comment"; payload: WebhookPayload }>([
+    { rule: "issue_opened", event: "issues", payload: issuesOpened },
+    { rule: "issue_comment", event: "issue_comment", payload: issueCommentCreated },
+    { rule: "pull_request_comment", event: "issue_comment", payload: pullRequestComment },
+  ])(
+    "processWebhook decides disabled and stores no row for $event of $rule with its switch off",
+    async ({ rule, event, payload }) => {
+      await switchOff(rule);
+      const { deps, waitUntil } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+      const outcome = await processWebhook(issueDelivery(event, payload), deps);
+
+      expect(outcome.decision, "decision").toBe("disabled");
+      expect(await count("outbox"), "outbox rows").toBe(0);
+      expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+    },
+  );
+
+  it("processWebhook stores an issue with HTML, control and directional characters cleaned and cut at 256, and sends it escaped", async () => {
+    const title = "T <b>x</b> &amp; \u202E\u2066z\nline";
+    const body = "<!-- hidden -->Body\u0007<i>x</i> &amp; \u202E" + "y".repeat(400);
+    const payload = variant(variant(issuesOpened, ["issue", "title"], title), ["issue", "body"], body);
+    const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    await processWebhook(issueDelivery("issues", payload), deps);
+    await settled(waitUntil);
+
+    expect(title.includes("\u202E"), "the input keeps the directional character").toBe(true);
+    expect(body.includes("\u0007"), "the input keeps the control character").toBe(true);
+    const row = await env.DB.prepare("SELECT text FROM outbox").first();
+    const stored = typeof row?.text === "string" ? decodeStoredNotification(row.text) : undefined;
+    expect(stored?.subject, "stored line 2").toBe("T <b>x</b> &amp; z line");
+    expect(stored?.context, "stored line 3").toBe(`by example-other-user · Body <i>x</i> &amp; ${"y".repeat(211)}…`);
+    expect(Array.from(stored?.context ?? "").length, "code points of line 3").toBe(256);
+    expect(sentBody(telegram.requests[0]).text, "sent text").toBe(
+      "<b>New issue</b> · example-owner/example-repo #7\n" +
+        "T &lt;b&gt;x&lt;/b&gt; &amp;amp; z line\n" +
+        `by example-other-user · Body &lt;i&gt;x&lt;/i&gt; &amp;amp; ${"y".repeat(211)}…`,
+    );
+  });
+
+  it("processWebhook cuts a 300-character title and a 1 MiB body of an issue to 256 code points each", async () => {
+    const payload = variant(
+      variant(issuesOpened, ["issue", "title"], "t".repeat(300)),
+      ["issue", "body"],
+      "word ".repeat(209_716),
+    );
+    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    await processWebhook(issueDelivery("issues", payload), deps);
+
+    const row = await env.DB.prepare("SELECT text FROM outbox").first();
+    const stored = typeof row?.text === "string" ? decodeStoredNotification(row.text) : undefined;
+    expect(stored?.subject, "stored line 2").toBe(`${"t".repeat(255)}…`);
+    const context = stored?.context ?? "";
+    expect(Array.from(context).length, "code points of line 3").toBe(256);
+    expect(context.endsWith("…"), "line 3 ends with the ellipsis").toBe(true);
   });
 });
