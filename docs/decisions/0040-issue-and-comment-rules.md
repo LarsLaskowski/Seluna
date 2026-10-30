@@ -79,6 +79,8 @@ body without HTML comments and with white space collapsed. The behavior is in
 ## Consequences
 
 - Every delivery reads the owner; a D1 failure there answers 503 like a failing settings read.
+- The body excerpt is built in one linear pass and capped at one code point more than line 3's limit, so a stranger's
+  1 MiB body costs no more downstream than a short one.
 - Residual risk, shapes: the fixtures follow GitHub's documentation, not captured deliveries — the field paths, the
   `pull_request` marker and `issue.draft`. Each deviation sends nothing. The Product Manager's live check on a deployed
   copy confirms an issue, a comment on an issue, and comments on a ready and a draft pull request (including whether

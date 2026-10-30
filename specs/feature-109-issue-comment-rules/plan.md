@@ -1,7 +1,7 @@
 # Plan: Issue and comment rules
 
 Source: Issue #109 | [spec.md](spec.md)
-Status: Draft
+Status: Revised (1)
 Tier: standard — three new rules and the owner passed to them change behavior; no security control is created, changed or removed (the owner and bot filter only keeps noise out, escaping and the outbox cleaning stay as they are).
 Security areas touched: Parsing of external input (`src/rules/issue.ts` narrows new payload fields and scans issue and comment bodies); Encrypted credentials (the webhook processing now reads the saved App ID through `readSecret`, `resolveAppId` in `src/github/app-credentials.ts`; storage and encryption unchanged); GitHub App authentication (`src/github/app-credentials.ts` refactored; the draft lookup is also used for a comment on a pull request whose payload has no `issue.draft`)
 
@@ -53,6 +53,7 @@ Feature: see [spec.md](spec.md) (S1–S9, E1–E10, AC1–AC13).
 | AC8 | `applyDraftChecks drops a notification without titleWhenUnknown when the lookup fails, and without an installation id`; `applyDraftChecks keeps it when the lookup answers not a draft` | `src/draft-lookup.test.ts` |
 | AC8 | `processWebhook stores nothing for a comment on a pull request without issue.draft when the lookup fails` | `src/webhook.test.ts` |
 | AC9 | `bodyExcerpt removes HTML comments and an unterminated one with the rest, collapses white space, and returns "" for undefined, blank and comment-only bodies` | `src/rules/issue.test.ts` |
+| AC9 | `bodyExcerpt returns at most 257 code points for a 1 MiB body` (count-based, per adversarial body: plain text, one unterminated opener then text, repeated openers without a closer, repeated opener-closer pairs, alternating openers and white space, one long white-space run then text; each excerpt also equals the expected prefix) | `src/rules/issue.test.ts` |
 | AC9 | `<RULE> writes line 3 as the author alone for an empty, null, missing or blank body` | the three rule test files |
 | AC9 | `processWebhook stores an issue with HTML, control and directional characters cleaned and cut at 256, and sends it escaped` | `src/webhook.test.ts` |
 | AC10 | `issueOf and commentOf return undefined for each malformed shape of E7` (table); `isForeignSender is false for each sender of E8` (table) | `src/rules/issue.test.ts` |
@@ -69,9 +70,13 @@ Only AC12 and AC13 have no unit test; every other criterion is tested above.
 
 - AC12: the Reviewer reads the documents of *Documentation updates* against the code in step 8.
 - AC13: the Reviewer checks in step 8 that the four fixtures exist, that their READMEs say "reference-built from
-  GitHub's webhook payload documentation, not captured", and that 0040 states the residual risk. The Product
-  Manager's live check (fact 7) runs on the draft pull request in step 11; the orchestrator records its outcome in the
-  working record before the pull request is marked ready.
+  GitHub's webhook payload documentation, not captured", and that 0040 states the residual risk. The live check
+  (fact 7) runs on the draft pull request in step 11: the Product Manager creates an issue, a comment on it, and
+  comments on a ready and on a draft pull request, and copies the four payloads from the app's *Advanced → Recent
+  Deliveries* (kept outside the repository). The orchestrator records in `log.md` whether `issue.draft` and
+  `issue.pull_request` are present and where they sit, and compares every field path `issueOf`, `commentOf` and
+  `isForeignSender` read against the fixtures; any difference is fixed in this pull request (fixture, rule or
+  documentation, through steps 6–8) before it is marked ready.
 
 ## Approach
 
@@ -85,6 +90,9 @@ Worker secret first, else the saved credential; a secret read other than `ok`, o
 
 **Shared narrowing, `src/rules/issue.ts`** (fail closed: any mismatch is `undefined` or `false`):
 
+All three readers are built on `isRecord`, `stringField` and `recordField` of `src/rules/pull-request.ts:27-40`; no
+new narrowing helpers.
+
 - `isForeignSender(payload, owner)`: `sender` must be an object with a `number` `id` and a `string` `type` (E8); then
   true unless `isOwnAction(payload, owner)` or `isBotSender(payload)`.
 - `issueOf(payload)`: `issue` an object; `number` a whole number 1 to 2^53 − 1; `title`, `html_url`, `user.login` and
@@ -93,12 +101,18 @@ Worker secret first, else the saved credential; a secret read other than `ok`, o
   `draft` is `issue.draft` when boolean, `undefined` when absent, and any other `draft` fails; a `pull_request` of
   another type fails.
 - `commentOf(payload)`: `comment` an object with `html_url` and `user.login` strings and `body` as above.
-- `bodyExcerpt(body)`: scan with `indexOf` for `<!--`, then for `-->` from 4 characters after it; drop each comment, and
-  everything from an unterminated `<!--`; then replace every `/\s+/gu` run by one space and trim. Linear in the body;
-  no regular expression with groups. Bodies are bounded by the 1 MiB request limit; the cut to 256 stays in
-  `storedNotificationOf`.
-- `authorContext(texts, author, body)`: `texts.byAuthor(author)`, followed by ` · ` and the excerpt when it is not
-  empty.
+- `bodyExcerpt(body)`: one forward pass by code point with an index `i`, building the output and stopping as soon
+  as it holds `EXCERPT_MAX_CHARACTERS` (257, one more than the 256 of line 3, so the store still cuts and adds `…`)
+  code points. The opener is `COMMENT_OPEN` (less-than sign, `!`, two hyphens) and the closer `COMMENT_CLOSE` (two
+  hyphens, greater-than sign), named as constants. At `i` where the opener starts: `j = body.indexOf(COMMENT_CLOSE,
+  i + 4)`; `j < 0` ends the scan
+  (an unterminated comment drops the rest), else `i = j + 3`. A white-space code point (`/^\s$/u` on that one code
+  point) only marks a pending space, written as one space before the next kept code point when the output is not
+  empty (so runs collapse and the result is trimmed). Every search starts after the previous comment, so the pass is
+  linear in the body, and no derived string (excerpt, line 3, the stored and rendered text) exceeds the line limit by
+  more than the author and separator, whatever the body's size.
+- `authorContext(texts, author, body)`: `joinContext([texts.byAuthor(author), bodyExcerpt(body)])` from
+  `src/rules/security-alert.ts:75-84` (joins with ` · `, leaves out an empty excerpt: E5).
 
 **Rules** (`src/rules/issue-opened.ts`, `issue-comment.ts`, `pull-request-comment.ts`): each first checks the event
 name and `action` (`issues`/`opened`, `issue_comment`/`created`), then the shapes, then `isForeignSender`.
@@ -176,6 +190,9 @@ export interface CommentFields { readonly url: string; readonly author: string; 
 export function isForeignSender(payload: WebhookPayload, owner: OwnerAccount | undefined): boolean;
 export function issueOf(payload: WebhookPayload): IssueFields | undefined;
 export function commentOf(payload: WebhookPayload): CommentFields | undefined;
+/** Longest excerpt, in code points: one more than line 3's limit, so the store still cuts it. */
+export const EXCERPT_MAX_CHARACTERS = 257;
+/** The body without HTML comments, white-space runs as one space, trimmed, at most EXCERPT_MAX_CHARACTERS code points. */
 export function bodyExcerpt(body: string | undefined): string;
 export function authorContext(texts: MessageTexts, author: string, body: string | undefined): string;
 
@@ -266,7 +283,9 @@ Dev, once the code is green; found by a sweep for "eight", the rule id list and 
 - `CHANGELOG.md` `[Unreleased]`: *Added* entry for the three rules and switches; the #108 entry "send no message yet"
   narrowed to forks and stars.
 - `.squad/project.md` *Test doubles* (*Real GitHub payloads*): the two new `issue_comment` fixtures, reference-built
-  (decision 0040).
+  (decision 0040); *Security areas*, *Parsing of external input*: the sentence "titles and branch names are
+  attacker-controlled text" also names issue and comment bodies and author logins, and the body excerpt
+  (`bodyExcerpt` in `src/rules/issue.ts`, bounded to 257 code points).
 - Tester: the two fixture READMEs.
 
 ## Architecture check
@@ -280,7 +299,8 @@ Dev, once the code is green; found by a sweep for "eight", the rule id list and 
 
 ## Security considerations
 
-- [ ] Limits: the body excerpt is bounded by the 1 MiB request body limit (bytes before decoding); line 2 and line 3
+- [ ] Limits: the body is read within the 1 MiB request body limit (bytes before decoding); `bodyExcerpt` reads it in
+  one linear pass and returns at most 257 code points of the decoded text (count-based test, AC9); line 2 and line 3
   are cut at 256 code points after decoding and cleaning, in `storedNotificationOf` and `renderTelegramText`.
 - [ ] Exceptions: none reach a user-visible text; a rejecting `readOwner` (D1) answers 503 with no body, logged only
   as `unavailable`.
@@ -288,6 +308,29 @@ Dev, once the code is green; found by a sweep for "eight", the rule id list and 
 ## Decision records
 
 - `docs/decisions/0040-issue-and-comment-rules.md` (Proposed, indexed).
+
+## Challenge
+
+Plan challenge: 0 major, 2 minor, both accepted.
+
+1. Reuse the existing helpers — accepted: the readers use `isRecord`, `stringField` and `recordField`, and
+   `authorContext` is `joinContext` (*Approach*).
+2. Keep the real payloads of the live check — accepted: the four payloads are copied, the presence and place of
+   `issue.draft` and `issue.pull_request` logged, every read field path compared with the fixtures, and any difference
+   fixed in this pull request before it is marked ready (*Verification without tests*, AC13; `tasks.md` task 7).
+
+## Security review
+
+1. Blocking — the excerpt's resource bound was claimed but not pinned. Resolved by capping: `bodyExcerpt` stops once
+   its output holds 257 code points (`EXCERPT_MAX_CHARACTERS`), so every derived string stays at the line limit
+   whatever the body's size; each closer search starts after the previous comment and an unterminated opener ends the
+   pass, so it is linear. Pinned by the count-based test `bodyExcerpt returns at most 257 code points for a 1 MiB body`
+   over the adversarial bodies Security named (AC9 row, *Signatures*); no time-ratio test is needed.
+2. Non-blocking — `.squad/project.md` *Parsing of external input*: taken, the sentence names bodies and author logins
+   (*Documentation updates*).
+3. Non-blocking — the storage key is derived twice per delivery without a `GITHUB_APP_ID` Worker secret: not taken.
+   One HKDF derivation is microseconds of Web Crypto; passing the key from `webhook-secret.ts` to the owner read would
+   couple the signature check to the rules' inputs, and `resolveAppCredentials` already derives it per call.
 
 ## Out of scope / follow-ups
 
