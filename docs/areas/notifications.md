@@ -246,7 +246,8 @@ triggers nothing.
 - The owner is the one stored beside the App ID ([Storage](storage.md#tables)); the processing reads it once per
   delivery, before the rules, for the App ID the Worker secret or the saved credential names ([GitHub
   API](github-api.md)). The three issue and comment rules read `sender`: a delivery is dropped (decision `no-match`)
-  when `sender` is not an object with a numeric `id` and a string `type`, when `sender.id` is the id of a `User`
+  when `sender` is not an object with an `id` that is a safe integer (a whole number no larger than 2^53 − 1 in
+  absolute value) and a string `type`, when `sender.id` is the id of a `User`
   owner, or when `sender.type` is `Bot` (a user whose login ends in `[bot]` is not a bot). With an organization
   owner, an owner not stored yet (an app created before this version whose status page was not viewed) or an owner row
   that is malformed or of another App ID, the owner's own issues and comments are reported like any other account's.

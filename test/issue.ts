@@ -36,6 +36,13 @@ export const MALFORMED_SENDERS: readonly MalformedField[] = [
   { field: "sender.id", label: "a string", path: ["sender", "id"], value: "1000002" },
   { field: "sender.id", label: "null", path: ["sender", "id"], value: null },
   { field: "sender.id", label: "NaN", path: ["sender", "id"], value: Number.NaN },
+  { field: "sender.id", label: "a fraction", path: ["sender", "id"], value: 1.5 },
+  {
+    field: "sender.id",
+    label: "beyond the safe range",
+    path: ["sender", "id"],
+    value: Number.MAX_SAFE_INTEGER + 1,
+  },
   { field: "sender.type", label: "missing", path: ["sender", "type"], value: ABSENT },
   { field: "sender.type", label: "a number", path: ["sender", "type"], value: 1 },
   { field: "sender.type", label: "an object", path: ["sender", "type"], value: { name: "User" } },
