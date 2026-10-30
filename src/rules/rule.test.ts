@@ -34,7 +34,7 @@ describe("runRules", () => {
     const first = ruleOf("pull_request_opened", undefined);
     const second = ruleOf("ci_failed_default_branch", undefined);
 
-    runRules([first.rule, second.rule], "ping", PAYLOAD, DEFAULT_SETTINGS);
+    runRules([first.rule, second.rule], "ping", PAYLOAD, DEFAULT_SETTINGS, undefined);
 
     expect(first.evaluate, "first rule arguments").toHaveBeenCalledExactlyOnceWith("ping", PAYLOAD, DEFAULT_SETTINGS);
     expect(second.evaluate, "second rule arguments").toHaveBeenCalledExactlyOnceWith("ping", PAYLOAD, DEFAULT_SETTINGS);
@@ -45,7 +45,7 @@ describe("runRules", () => {
     const none = ruleOf("pull_request_ready_for_review", undefined);
     const third = ruleOf("dependabot_alert", notification("Third"));
 
-    const run = runRules([first.rule, none.rule, third.rule], "ping", PAYLOAD, DEFAULT_SETTINGS);
+    const run = runRules([first.rule, none.rule, third.rule], "ping", PAYLOAD, DEFAULT_SETTINGS, undefined);
 
     expect(run.notifications, "notifications").toEqual([notification("First"), notification("Third")]);
     expect(run.decision, "decision").toBe("reported");
@@ -54,7 +54,7 @@ describe("runRules", () => {
   it("runRules drops the notification of a disabled rule and returns decision disabled", () => {
     const disabled = ruleOf("pull_request_opened", notification("Dropped"));
 
-    const run = runRules([disabled.rule], "ping", PAYLOAD, withRuleOff("pull_request_opened"));
+    const run = runRules([disabled.rule], "ping", PAYLOAD, withRuleOff("pull_request_opened"), undefined);
 
     expect(run.notifications, "notifications").toEqual([]);
     expect(run.decision, "decision").toBe("disabled");
@@ -64,7 +64,7 @@ describe("runRules", () => {
     const disabled = ruleOf("pull_request_opened", notification("Dropped"));
     const enabled = ruleOf("dependabot_alert", notification("Kept"));
 
-    const run = runRules([disabled.rule, enabled.rule], "ping", PAYLOAD, withRuleOff("pull_request_opened"));
+    const run = runRules([disabled.rule, enabled.rule], "ping", PAYLOAD, withRuleOff("pull_request_opened"), undefined);
 
     expect(run.notifications, "notifications").toEqual([notification("Kept")]);
     expect(run.decision, "decision").toBe("reported");
@@ -74,7 +74,7 @@ describe("runRules", () => {
     const first = ruleOf("pull_request_opened", undefined);
     const second = ruleOf("dependabot_alert", undefined);
 
-    const run = runRules([first.rule, second.rule], "ping", PAYLOAD, DEFAULT_SETTINGS);
+    const run = runRules([first.rule, second.rule], "ping", PAYLOAD, DEFAULT_SETTINGS, undefined);
 
     expect(run.notifications, "notifications").toEqual([]);
     expect(run.decision, "decision").toBe("no-match");

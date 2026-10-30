@@ -29,7 +29,7 @@ export function boundedDraftLookup(
 }
 
 /**
- * The notifications after their draft checks: drafts dropped, unknown states titled `titleWhenUnknown`.
+ * The notifications after their draft checks: drafts dropped, unknown states titled `titleWhenUnknown`, or dropped without one.
  * The checks run concurrently and keep the order of `notifications`; each lookup is bounded by
  * `boundedDraftLookup`, so the total stays within one lookup's budget however many checks there are.
  */
@@ -46,7 +46,7 @@ export async function applyDraftChecks(
       }
       const result = installationId === undefined ? FAILED : await lookup(installationId, check.pullRequest);
       if (result.kind === "failed") {
-        return { ...notification, title: check.titleWhenUnknown };
+        return check.titleWhenUnknown === undefined ? undefined : { ...notification, title: check.titleWhenUnknown };
       }
       return result.draft ? undefined : notification;
     }),

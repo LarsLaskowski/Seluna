@@ -318,6 +318,9 @@ const ENGLISH: SetupTexts = {
     dependabot_alert: "Dependabot alert",
     code_scanning_alert: "Code scanning alert",
     secret_scanning_alert: "Secret scanning alert",
+    issue_opened: "",
+    issue_comment: "",
+    pull_request_comment: "",
   },
   notConfiguredHeading: "SELUNA_SECRET is not set",
   notConfiguredParagraphs: [
@@ -550,6 +553,9 @@ const GERMAN: SetupTexts = {
     dependabot_alert: "Dependabot-Warnung",
     code_scanning_alert: "Code-Scanning-Warnung",
     secret_scanning_alert: "Secret-Scanning-Warnung",
+    issue_opened: "",
+    issue_comment: "",
+    pull_request_comment: "",
   },
   notConfiguredHeading: "SELUNA_SECRET ist nicht gesetzt",
   notConfiguredParagraphs: [

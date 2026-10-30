@@ -1,4 +1,5 @@
 import type { PullRequestRef } from "../github/api-client";
+import type { OwnerAccount } from "../github/owner";
 import type { NotificationSettings, RuleId } from "../settings";
 
 /** A webhook payload: a JSON object, its fields still unknown. */
@@ -7,8 +8,8 @@ export type WebhookPayload = Readonly<Record<string, unknown>>;
 /** The pull request whose draft state decides whether a notification is sent. */
 export interface DraftCheck {
   readonly pullRequest: PullRequestRef;
-  /** Line 1 title used instead of `title` when the draft state cannot be read. */
-  readonly titleWhenUnknown: string;
+  /** Line 1 title when the draft state is unknown; without one the notification is dropped. */
+  readonly titleWhenUnknown: string | undefined;
 }
 
 export interface Notification {
@@ -34,6 +35,7 @@ export interface Rule {
     event: string,
     payload: WebhookPayload,
     settings: NotificationSettings,
+    owner: OwnerAccount | undefined,
   ) => Notification | undefined;
 }
 
@@ -44,17 +46,18 @@ export interface RuleRun {
   readonly decision: RuleDecision;
 }
 
-/** Evaluates every rule; only the notifications of enabled rules are returned. */
+/** Evaluates every rule, giving each the stored `owner`; only the notifications of enabled rules are returned. */
 export function runRules(
   rules: readonly Rule[],
   event: string,
   payload: WebhookPayload,
   settings: NotificationSettings,
+  owner: OwnerAccount | undefined,
 ): RuleRun {
   const notifications: Notification[] = [];
   let droppedAny = false;
   for (const rule of rules) {
-    const notification = rule.evaluate(event, payload, settings);
+    const notification = rule.evaluate(event, payload, settings, owner);
     if (notification === undefined) {
       continue;
     }

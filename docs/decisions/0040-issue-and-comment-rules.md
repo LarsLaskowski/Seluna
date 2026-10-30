@@ -13,7 +13,7 @@ Issue #109 asks for three rules on the events #108 subscribed to: a new issue, a
 pull request's conversation, each left out when the owner or a bot wrote it. A rule is a pure function of the event,
 the payload and the settings ([0023](0023-webhook-processing-and-delivery-through-the-outbox.md)), but the owner is a
 `meta` row tied to the App ID (0039), and the App ID is a Worker secret or an encrypted D1 credential. The guarantee "a
-draft pull request triggers no notification" (`.squad/project.md`, *Guarantees*) covers comments on pull requests.
+draft pull request triggers no notification" (`.squad/project.md`, _Guarantees_) covers comments on pull requests.
 GitHub's OpenAPI schema lists `draft` on the `issue` object of these webhooks as an optional boolean. Issue bodies
 often start with the HTML comments of an issue template, which GitHub does not show. No real delivery of these events
 was captured.

@@ -120,6 +120,7 @@ function harness(
     sleep,
     log: () => undefined,
     lookUpDraft: vi.fn<DraftLookup>(() => Promise.resolve({ kind: "failed" })),
+    readOwner: () => Promise.resolve(undefined),
     ...overrides,
   };
   return { deps, waitUntil, telegram, sleep };

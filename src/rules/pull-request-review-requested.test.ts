@@ -18,14 +18,19 @@ const EXPECTED = {
 
 describe("PULL_REQUEST_REVIEW_REQUESTED", () => {
   it("PULL_REQUEST_REVIEW_REQUESTED reports the real review_requested delivery in English", () => {
-    const notification = PULL_REQUEST_REVIEW_REQUESTED.evaluate("pull_request", reviewRequested, DEFAULT_SETTINGS);
+    const notification = PULL_REQUEST_REVIEW_REQUESTED.evaluate(
+      "pull_request",
+      reviewRequested,
+      DEFAULT_SETTINGS,
+      undefined,
+    );
 
     expect(PULL_REQUEST_REVIEW_REQUESTED.id, "id").toBe("pull_request_review_requested");
     expect(notification, "notification").toEqual(EXPECTED);
   });
 
   it("PULL_REQUEST_REVIEW_REQUESTED reports the real review_requested delivery in German", () => {
-    const notification = PULL_REQUEST_REVIEW_REQUESTED.evaluate("pull_request", reviewRequested, GERMAN);
+    const notification = PULL_REQUEST_REVIEW_REQUESTED.evaluate("pull_request", reviewRequested, GERMAN, undefined);
 
     expect(notification, "notification").toEqual({
       ...EXPECTED,
@@ -37,19 +42,24 @@ describe("PULL_REQUEST_REVIEW_REQUESTED", () => {
   it("PULL_REQUEST_REVIEW_REQUESTED does not read the requested reviewer", () => {
     const payload = variant(reviewRequested, ["requested_reviewer"], ABSENT);
 
-    const notification = PULL_REQUEST_REVIEW_REQUESTED.evaluate("pull_request", payload, DEFAULT_SETTINGS);
+    const notification = PULL_REQUEST_REVIEW_REQUESTED.evaluate("pull_request", payload, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toEqual(EXPECTED);
   });
 
   it("PULL_REQUEST_REVIEW_REQUESTED ignores the real review_requested delivery on a draft", () => {
-    const notification = PULL_REQUEST_REVIEW_REQUESTED.evaluate("pull_request", reviewRequestedDraft, DEFAULT_SETTINGS);
+    const notification = PULL_REQUEST_REVIEW_REQUESTED.evaluate(
+      "pull_request",
+      reviewRequestedDraft,
+      DEFAULT_SETTINGS,
+      undefined,
+    );
 
     expect(notification, "notification").toBeUndefined();
   });
 
   it("PULL_REQUEST_REVIEW_REQUESTED ignores an opened delivery", () => {
-    const notification = PULL_REQUEST_REVIEW_REQUESTED.evaluate("pull_request", opened, DEFAULT_SETTINGS);
+    const notification = PULL_REQUEST_REVIEW_REQUESTED.evaluate("pull_request", opened, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toBeUndefined();
   });

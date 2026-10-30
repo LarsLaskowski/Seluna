@@ -11,6 +11,9 @@ const ALL_RULES_OFF: NotificationSettings["rules"] = {
   dependabot_alert: false,
   code_scanning_alert: false,
   secret_scanning_alert: false,
+  issue_opened: false,
+  issue_comment: false,
+  pull_request_comment: false,
 };
 
 /** Settings that differ from the default in every field. */

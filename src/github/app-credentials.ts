@@ -1,6 +1,7 @@
 import { keyFromEnv } from "../crypto";
 import { readSecret } from "../store/secrets";
 import type { SecretName, SecretReadResult } from "../store/secrets";
+import type { OwnerAccount } from "./owner";
 import { importSigningKey } from "./private-key";
 import { APP_ID_SECRET_NAME, PRIVATE_KEY_SECRET_NAME } from "./worker-secrets";
 
@@ -68,4 +69,21 @@ export async function resolveAppCredentials(env: object, db: D1Database): Promis
   }
   const signingKey = await importSigningKey(pem);
   return signingKey === undefined ? { kind: "key-unusable" } : { kind: "ok", credentials: { appId, signingKey } };
+}
+
+/**
+ * The App ID from the Worker secret or the saved credential, or `undefined` without a usable one.
+ * D1 errors reject.
+ */
+export async function resolveAppId(env: object, db: D1Database): Promise<number | undefined> {
+  void env;
+  void db;
+  throw new Error("Not implemented");
+}
+
+/** The stored owner of the App `resolveAppId` names, or `undefined` without an App ID or a valid row. D1 errors reject. */
+export async function resolveAppOwner(env: object, db: D1Database): Promise<OwnerAccount | undefined> {
+  void env;
+  void db;
+  throw new Error("Not implemented");
 }
