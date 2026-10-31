@@ -27,3 +27,4 @@ are quoted in full.
 | 2026-10-31 19:49 | 9 PR approval | Orchestrator | approved by checklist: delta review clean, gates pass on head, main not moved, plan docs in diff, no open decisions; 0043 set Accepted, decision-check PASS |
 | 2026-10-31 19:50 | 9 CHANGELOG entry (continued) | squad-dev | Unreleased Changed bullet for #121 added to CHANGELOG.md (sonnet/medium · 2,290 tokens · 3 tool uses · 8 s · continued from 6 Implement G1) |
 | 2026-10-31 19:50 | 9 Review delta 2 (continued) | squad-reviewer | BLOCKING 1: CHANGELOG bullet said 'no longer stored in D1' (last_delivery still written) and omitted the recorded unstar (opus/medium · 3,430 tokens · 2 tool uses · 22 s · continued from 8 Review round 1) |
+| 2026-10-31 19:50 | 9 Fix round 2 changelog (continued) | squad-dev | CHANGELOG bullet reworded per reviewer (sonnet/medium · 1,500 tokens · 2 tool uses · 7 s · continued from 6 Implement G1) |
