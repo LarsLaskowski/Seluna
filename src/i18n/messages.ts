@@ -57,8 +57,4 @@ export interface MessageTexts {
 
 export const MESSAGE_TEXTS: Readonly<Record<Language, MessageTexts>> = { en: EN, de: DE };
 
-/** `value` in decimal with `separator` between the groups of three digits. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- skeleton
-export function groupDigits(value: number, separator: string): string {
-  throw new Error("not implemented");
-}
+export { groupDigits } from "./digits";

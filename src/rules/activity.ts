@@ -1,5 +1,6 @@
-/* eslint-disable @typescript-eslint/no-unused-vars -- skeleton: the bodies arrive with the implementation */
 import type { OwnerAccount } from "../github/owner";
+import { isForeignSender } from "./issue";
+import { recordField, stringField } from "./pull-request";
 import type { WebhookPayload } from "./rule";
 
 /** The foreign account behind a star or a fork. */
@@ -13,7 +14,13 @@ export interface ActivityActor {
  * string login; otherwise `undefined`.
  */
 export function foreignActorOf(payload: WebhookPayload, owner: OwnerAccount | undefined): ActivityActor | undefined {
-  throw new Error("not implemented");
+  const sender = recordField(payload, "sender");
+  const login = sender === undefined ? undefined : stringField(sender, "login");
+  const id = sender?.id;
+  if (login === undefined || typeof id !== "number" || !isForeignSender(payload, owner)) {
+    return undefined;
+  }
+  return { id, login };
 }
 
 /** The repository a star or a fork happened in. */
@@ -28,5 +35,19 @@ export interface ActivityRepository {
 
 /** The repository of `payload` when it has a safe-integer `id` and a string `full_name`; otherwise `undefined`. */
 export function activityRepositoryOf(payload: WebhookPayload): ActivityRepository | undefined {
-  throw new Error("not implemented");
+  const repository = recordField(payload, "repository");
+  if (repository === undefined) {
+    return undefined;
+  }
+  const { id, stargazers_count: count } = repository;
+  const fullName = stringField(repository, "full_name");
+  if (typeof id !== "number" || !Number.isSafeInteger(id) || fullName === undefined) {
+    return undefined;
+  }
+  return {
+    id,
+    fullName,
+    url: stringField(repository, "html_url") ?? "",
+    starCount: typeof count === "number" && Number.isSafeInteger(count) && count >= 0 ? count : undefined,
+  };
 }

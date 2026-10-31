@@ -1,4 +1,8 @@
+import { groupDigits } from "./digits";
 import type { MessageTexts } from "./messages";
+
+/** The separator between groups of three digits. */
+const SEPARATOR = ".";
 
 export const DE: MessageTexts = {
   openOnGitHub: "Auf GitHub öffnen",
@@ -19,21 +23,14 @@ export const DE: MessageTexts = {
   repositoryStarred: "Neuer Stern",
   repositoryForked: "Neuer Fork",
   activityDigestTitle: "Neue Sterne und Forks",
-  starsNow: () => {
-    throw new Error("not implemented");
+  starsNow: (count) => `jetzt ${groupDigits(count, SEPARATOR)} ${count === 1 ? "Stern" : "Sterne"}`,
+  digestStars: (added, total) => {
+    const gained = `+${groupDigits(added, SEPARATOR)} ⭐`;
+    return total === undefined ? gained : `${gained} (jetzt ${groupDigits(total, SEPARATOR)})`;
   },
-  digestStars: () => {
-    throw new Error("not implemented");
-  },
-  digestForks: () => {
-    throw new Error("not implemented");
-  },
-  moreNames: () => {
-    throw new Error("not implemented");
-  },
-  moreRepositories: () => {
-    throw new Error("not implemented");
-  },
+  digestForks: (added) => `+${groupDigits(added, SEPARATOR)} ${added === 1 ? "Fork" : "Forks"}`,
+  moreNames: (count) => `und ${groupDigits(count, SEPARATOR)} weitere`,
+  moreRepositories: (count) => `und ${groupDigits(count, SEPARATOR)} weitere Repositories`,
   newSelunaRelease: "Neue Seluna-Version",
   releaseAvailable: (latest, running) => `Version ${latest} ist verfügbar; diese Instanz läuft mit ${running}.`,
 };
