@@ -1,4 +1,4 @@
-import type { RuleId } from "../settings";
+import type { ActivityDigest, RuleId } from "../settings";
 import type { Language } from "./language";
 
 export type Notice =
@@ -154,6 +154,12 @@ export interface SetupTexts {
   readonly rulesLabel: string;
   readonly updateNoticeLabel: string;
   readonly saveSettingsButton: string;
+  /** The label of the stars and forks interval field. */
+  readonly activityDigestLabel: string;
+  /** The label of each interval option. */
+  readonly activityDigestOptions: Readonly<Record<ActivityDigest["kind"], string>>;
+  /** The label of the daily digest time field. */
+  readonly digestTimeLabel: string;
   readonly ruleLabels: Readonly<Record<RuleId, string>>;
   readonly notConfiguredHeading: string;
   readonly notConfiguredParagraphs: readonly string[];
@@ -309,6 +315,9 @@ const ENGLISH: SetupTexts = {
   rulesLabel: "Notify me about",
   updateNoticeLabel: "Tell me when a new Seluna release is available",
   saveSettingsButton: "Save settings",
+  activityDigestLabel: "Stars and forks",
+  activityDigestOptions: { immediate: "Immediately", hourly: "Hourly", daily: "Daily at" },
+  digestTimeLabel: "Time",
   ruleLabels: {
     pull_request_opened: "New pull request",
     pull_request_ready_for_review: "Pull request ready for review",
@@ -321,6 +330,8 @@ const ENGLISH: SetupTexts = {
     issue_opened: "New issue",
     issue_comment: "New comment on an issue",
     pull_request_comment: "New comment on a pull request",
+    repository_starred: "New star on a repository",
+    repository_forked: "New fork of a repository",
   },
   notConfiguredHeading: "SELUNA_SECRET is not set",
   notConfiguredParagraphs: [
@@ -544,6 +555,9 @@ const GERMAN: SetupTexts = {
   rulesLabel: "Benachrichtige mich über",
   updateNoticeLabel: "Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist",
   saveSettingsButton: "Einstellungen speichern",
+  activityDigestLabel: "Sterne und Forks",
+  activityDigestOptions: { immediate: "Sofort", hourly: "Stündlich", daily: "Täglich um" },
+  digestTimeLabel: "Uhrzeit",
   ruleLabels: {
     pull_request_opened: "Neuer Pull Request",
     pull_request_ready_for_review: "Pull Request bereit zum Review",
@@ -556,6 +570,8 @@ const GERMAN: SetupTexts = {
     issue_opened: "Neues Issue",
     issue_comment: "Neuer Kommentar zu einem Issue",
     pull_request_comment: "Neuer Kommentar zu einem Pull Request",
+    repository_starred: "Neuer Stern für ein Repository",
+    repository_forked: "Neuer Fork eines Repositorys",
   },
   notConfiguredHeading: "SELUNA_SECRET ist nicht gesetzt",
   notConfiguredParagraphs: [

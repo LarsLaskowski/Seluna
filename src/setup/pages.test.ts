@@ -2538,6 +2538,7 @@ describe("renderStartPage settings form", () => {
       quietHours: { start: "21:30", end: "06:15" },
       rules: { ...DEFAULT_SETTINGS.rules, dependabot_alert: false },
       updateNotice: false,
+      activityDigest: { kind: "immediate" },
     };
 
     const page = startPage("en", { settings });

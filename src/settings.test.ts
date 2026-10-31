@@ -14,6 +14,8 @@ const ALL_RULES_OFF: NotificationSettings["rules"] = {
   issue_opened: false,
   issue_comment: false,
   pull_request_comment: false,
+  repository_starred: false,
+  repository_forked: false,
 };
 
 /** Settings that differ from the default in every field. */
@@ -21,6 +23,7 @@ const NON_DEFAULT: NotificationSettings = {
   language: "de",
   timeZone: "Europe/Berlin",
   quietHours: { start: "22:00", end: "07:00" },
+  activityDigest: { kind: "immediate" },
   rules: ALL_RULES_OFF,
   updateNotice: false,
 };

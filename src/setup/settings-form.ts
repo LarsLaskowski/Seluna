@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, isClockTime, isTimeZone, RULE_IDS } from "../settings";
+import { DEFAULT_ACTIVITY_DIGEST, DEFAULT_SETTINGS, isClockTime, isTimeZone, RULE_IDS } from "../settings";
 import type { NotificationSettings, QuietHours } from "../settings";
 
 /** Path of the settings form's `POST`. */
@@ -62,5 +62,12 @@ export function parseSettingsForm(fields: URLSearchParams): NotificationSettings
     }
     rules[id] = enabled;
   }
-  return { language, timeZone, quietHours: quietHours ?? undefined, rules, updateNotice };
+  return {
+    language,
+    timeZone,
+    quietHours: quietHours ?? undefined,
+    rules,
+    updateNotice,
+    activityDigest: DEFAULT_ACTIVITY_DIGEST,
+  };
 }

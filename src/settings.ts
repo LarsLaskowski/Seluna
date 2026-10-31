@@ -13,6 +13,8 @@ export const RULE_IDS = [
   "issue_opened",
   "issue_comment",
   "pull_request_comment",
+  "repository_starred",
+  "repository_forked",
 ] as const;
 
 export type RuleId = (typeof RULE_IDS)[number];
@@ -23,13 +25,24 @@ export interface QuietHours {
   readonly end: string;
 }
 
+/**
+ * How stars and forks are reported: `immediate` sends one message per event, `hourly` and `daily` collect them
+ * into a digest (`time` is the `HH:MM` wall clock time in the settings' time zone).
+ */
+export type ActivityDigest =
+  { readonly kind: "immediate" } | { readonly kind: "hourly" } | { readonly kind: "daily"; readonly time: string };
+
 export interface NotificationSettings {
   readonly language: Language;
   readonly timeZone: string;
   readonly quietHours: QuietHours | undefined;
   readonly rules: Readonly<Record<RuleId, boolean>>;
   readonly updateNotice: boolean;
+  readonly activityDigest: ActivityDigest;
 }
+
+/** The digest interval of an instance whose owner changed nothing: daily at 18:00. */
+export const DEFAULT_ACTIVITY_DIGEST: ActivityDigest = { kind: "daily", time: "18:00" };
 
 /** The settings of an instance whose owner changed nothing. */
 export const DEFAULT_SETTINGS: NotificationSettings = {
@@ -48,8 +61,11 @@ export const DEFAULT_SETTINGS: NotificationSettings = {
     issue_opened: true,
     issue_comment: true,
     pull_request_comment: true,
+    repository_starred: false,
+    repository_forked: false,
   },
   updateNotice: true,
+  activityDigest: DEFAULT_ACTIVITY_DIGEST,
 };
 
 const LANGUAGE_KEY = "notification_language";
@@ -127,7 +143,18 @@ export function settingsFromStored(stored: ReadonlyMap<string, string>): Notific
     quietHours: quietHoursFromStored(stored.get(QUIET_HOURS_KEY)),
     rules,
     updateNotice: switchFromStored(stored.get(UPDATE_NOTICE_KEY), DEFAULT_SETTINGS.updateNotice),
+    activityDigest: DEFAULT_ACTIVITY_DIGEST,
   };
+}
+
+/** The activity digest of a stored `settings` value; an absent or invalid value reads as the default. */
+export function activityDigestFromStored(value: string | undefined): ActivityDigest {
+  throw new Error(`not implemented: ${value ?? "absent"}`);
+}
+
+/** The `settings` value that stores `digest`. */
+export function activityDigestToStored(digest: ActivityDigest): string {
+  throw new Error(`not implemented: ${digest.kind}`);
 }
 
 function switchText(on: boolean): string {

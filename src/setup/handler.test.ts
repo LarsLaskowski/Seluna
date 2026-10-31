@@ -3607,6 +3607,7 @@ const SUBMITTED_SETTINGS: NotificationSettings = {
   quietHours: { start: "22:00", end: "07:00" },
   rules: { ...DEFAULT_SETTINGS.rules, dependabot_alert: false },
   updateNotice: true,
+  activityDigest: { kind: "immediate" },
 };
 
 /** The fields of a settings form with a valid session-bound token and `extra` appended to the valid fields. */

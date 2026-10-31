@@ -89,6 +89,7 @@ const CHANGED_SETTINGS: NotificationSettings = {
   quietHours: { start: "22:00", end: "07:00" },
   rules: { ...DEFAULT_SETTINGS.rules, dependabot_alert: false, ci_failed_pull_request: false },
   updateNotice: false,
+  activityDigest: { kind: "immediate" },
 };
 
 describe("readNotificationSettings", () => {
