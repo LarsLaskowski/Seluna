@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Installation tokens are requested with only `metadata: read` and `pull_requests: read` and refused when GitHub's answer grants more; tokens cached by earlier versions are requested again once.
 - The setup guide and the created page recommend installing the app on _Only select repositories_ instead of _All repositories_.
 - Setup wizard: the time zone setting accepts every named zone the runtime knows, also an alias such as `Asia/Kolkata`, a letter-case variant such as `europe/berlin` and a zone the list does not offer such as `Etc/GMT+5`, instead of answering 400 or falling back to UTC; fixed offsets are still rejected. The time zone select shows a configured zone missing from the list as an extra selected first option, and the status page shows the runtime's name of the zone.
-- Webhook: a delivery that leads to neither a message nor a collected star or fork (a ping, an owner's own issue or comment, an event whose switch is off) is no longer stored in D1, so strangers cannot spend the free plan's D1 write budget with such events; its redelivery is evaluated again, and the status line's last delivery time may lag by up to a minute.
+- Webhook: a delivery that leads to no message, no collected star or fork and no removal of a star (a ping, an owner's own issue or comment, an event whose switch is off) is no longer recorded in D1; only the time of the last delivery is still written, at most once a minute, so strangers can no longer use up the free plan's D1 write budget with such events. Its redelivery is evaluated again, and the status page's last delivery time may lag by up to a minute.
 
 ## [0.7.0] - 2026-10-27
 
