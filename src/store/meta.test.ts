@@ -6,11 +6,13 @@ import {
   GITHUB_APP_OWNER_META_KEY,
   GITHUB_APP_SLUG_META_KEY,
   LAST_DELIVERY_META_KEY,
+  LAST_DELIVERY_REFRESH_MS,
   lastDeliveryUpsert,
   readAppOwner,
   readAppSlug,
   readDigestRun,
   readLastDelivery,
+  refreshLastDelivery,
   writeAppOwner,
   writeAppSlug,
 } from "./meta";
@@ -201,6 +203,68 @@ describe("lastDeliveryUpsert", () => {
 
     expect(await storedMeta(LAST_DELIVERY_META_KEY), "stored text").toBe("1792240440000");
     expect((await readLastDelivery(env.DB))?.getTime(), "time read back").toBe(1_792_240_440_000);
+  });
+});
+
+describe("refreshLastDelivery", () => {
+  const now = 1_792_240_440_000;
+
+  it("refreshLastDelivery sets the time when no row is stored", async () => {
+    await refreshLastDelivery(env.DB, new Date(now));
+
+    expect(await storedMeta(LAST_DELIVERY_META_KEY), "stored last_delivery").toBe(String(now));
+  });
+
+  it.each([
+    {
+      case: "59,999 ms before",
+      stored: now - (LAST_DELIVERY_REFRESH_MS - 1),
+      expected: now - (LAST_DELIVERY_REFRESH_MS - 1),
+    },
+    { case: "exactly 60,000 ms before", stored: now - LAST_DELIVERY_REFRESH_MS, expected: now },
+    {
+      case: "59,999 ms after",
+      stored: now + (LAST_DELIVERY_REFRESH_MS - 1),
+      expected: now + (LAST_DELIVERY_REFRESH_MS - 1),
+    },
+    { case: "exactly 60,000 ms after", stored: now + LAST_DELIVERY_REFRESH_MS, expected: now },
+    { case: "the same time", stored: now, expected: now },
+    { case: "a time far before", stored: 0, expected: now },
+    { case: "a time far after", stored: now + 86_400_000, expected: now },
+  ])("refreshLastDelivery with a stored time $case stores $expected", async ({ stored, expected }) => {
+    await putMeta(LAST_DELIVERY_META_KEY, String(stored));
+
+    await refreshLastDelivery(env.DB, new Date(now));
+
+    expect(await storedMeta(LAST_DELIVERY_META_KEY), "stored last_delivery").toBe(String(expected));
+  });
+
+  it.each([
+    { case: "the empty text", stored: "", time: 1000 },
+    { case: "a text that is not a number", stored: "abc", time: 1000 },
+    { case: "a number with a leading zero", stored: "01", time: 1000 },
+    { case: "a negative number", stored: "-5", time: 1000 },
+    { case: "a decimal number", stored: "1.5", time: 1000 },
+    { case: "a number with a leading space", stored: " 5", time: 1000 },
+    { case: "a 17-digit number", stored: "12345678901234567", time: 1000 },
+    { case: "a time above the latest a Date holds", stored: "8640000000000001", time: 8_640_000_000_000_000 },
+    { case: "a time with an embedded NUL", stored: `${String(now)}\u0000x`, time: now },
+  ])("refreshLastDelivery replaces a stored value that is $case", async ({ stored, time }) => {
+    await putMeta(LAST_DELIVERY_META_KEY, stored);
+
+    await refreshLastDelivery(env.DB, new Date(time));
+
+    expect(await storedMeta(LAST_DELIVERY_META_KEY), "stored last_delivery").toBe(String(time));
+    expect((await readLastDelivery(env.DB))?.getTime(), "time read back").toBe(time);
+  });
+
+  it("refreshLastDelivery leaves the github_app_slug row untouched", async () => {
+    await putMeta(GITHUB_APP_SLUG_META_KEY, "123:seluna");
+
+    await refreshLastDelivery(env.DB, new Date(now));
+
+    expect(await storedMeta(GITHUB_APP_SLUG_META_KEY), "stored slug").toBe("123:seluna");
+    expect(await storedMeta(LAST_DELIVERY_META_KEY), "stored last_delivery").toBe(String(now));
   });
 });
 
