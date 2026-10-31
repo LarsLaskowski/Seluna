@@ -5,10 +5,10 @@ Status: Draft
 
 ## Problem
 
-Seluna tells the owner nothing about new forks and stars: since #108 the app receives `fork` and `star`, which are
-recorded but send no message (`docs/areas/notifications.md`, *The sender*). A
-popular repository can get dozens of stars in an hour, so one message per star would flood the chat. The owner
-wants to hear about them either at once or collected into one digest per hour or per day.
+Seluna tells the owner nothing about new forks and stars. Since #108 the app receives `fork` and `star`, which are
+recorded but send no message (`docs/areas/notifications.md`, *The sender*). A popular repository can get dozens of
+stars in an hour, so one message per star would flood the chat. The owner wants them either at once or collected
+into one digest per hour or per day.
 
 Checked at `1094ce3`: `isOwnAction`/`isBotSender` exist (`src/rules/actor.ts`). The owner is kept in `meta`
 `github_app_owner` (decision 0039) and read once per delivery. The manifest has `fork` and `star`. `runScheduled`
@@ -18,168 +18,172 @@ Refuted: the fork and star fixtures are reference-built, not real, and `star/del
 
 ## Scenarios
 
-Texts are English, with the German in brackets. Line 1 is the title in bold, then `·` and the repository, as for
-every message.
+Texts are English, with the German in brackets. *New star* and *New fork* are the two new switches. An *account*
+is identified by `sender.id`, and a repository by `repository.id`.
 
-- S1: The default, daily digest. Given *Stars and forks* is *Daily at 18:00*, the time zone is `Europe/Berlin` and
-  the switch *New star* is on, when another user stars `example-owner/example-repo` at 10:12, then no message is sent
-  at 10:12. At the first cron run at or after 18:00 Berlin time, one digest arrives:
-  **New stars and forks** (**Neue Sterne und Forks**), followed by the line
+- S1: Daily digest (the default). Given *Daily at 18:00*, time zone `Europe/Berlin` and *New star* on, when another
+  account stars `example-owner/example-repo` at 10:12, then nothing is sent at 10:12. The first cron run at or after
+  18:00 Berlin time sends one digest. Line 1 is the bold title **New stars and forks** (**Neue Sterne und Forks**)
+  alone, with no repository and no number. It is followed by
   `example-owner/example-repo: +1 ⭐ (now 1,234) · example-other-user` (`(jetzt 1.234)`).
-- S2: Immediate star. Given *Stars and forks* is *Immediately* and *New star* is on, when another user stars a
-  repository, then one message arrives within seconds: **New star** · `owner/repo` (**Neuer Stern**), line 2
-  `by <login>` (`von <login>`), line 3 `1,234 stars now` (`jetzt 1.234 Sterne`; `1 star now`, `jetzt 1 Stern`).
-  Its button _Open on GitHub_ opens the repository.
-- S3: Immediate fork. Given *Immediately* and *New fork* on, when another user forks a repository, then one message
-  arrives: **New fork** · `owner/repo` (**Neuer Fork**), line 2 the fork's full name (`forkee.full_name`), line 3
-  `by <forkee.owner.login>` (`von …`). The button opens the fork (`forkee.html_url`).
-- S4: Hourly digest under load. Given *Hourly*, when 50 accounts star `a/x` and 2 accounts fork it within one hour,
-  then the first cron run after the next full hour sends exactly one message. Its line reads
-  `a/x: +50 ⭐ (now 1,284), +2 forks · u1, u2, u3, u4, u5 and 47 more` (German `+2 Forks`, `und 47 weitere`;
-  `+1 fork`, `+1 Fork`). Names are distinct accounts in the order they arrived, at most 5 per repository. The star
-  count is the one GitHub sent with the newest collected star of that repository. A repository with only forks has
-  no star part, and one with only stars has no fork part.
-- S5: Several repositories. Given a digest covers stars or forks on more than one repository, then each repository
-  has its own line, busiest first (new stars plus forks, ties by repository name). At most 10 lines are shown, then
-  `and N more repositories` (`und N weitere Repositories`). With one repository the button opens it; with several
-  there is no button.
-- S6: Star and unstar. Given a digest interval, when an account stars a repository and removes the star before the
-  digest is sent, then that star is in no digest. If it was the only collected event, no digest is sent.
-- S7: Nothing collected. Given a digest interval, when its time comes and nothing was collected, then nothing is
-  sent.
-- S8: Own and bot activity. Given any value of *Stars and forks*, when the owner (a `User` owner, matched by account
-  id) or a bot (`sender.type` `Bot`) stars or forks, then no message is sent and nothing is collected. This also
-  holds for an unstar by them.
-- S9: Changing the setting. Given events were collected under *Hourly* or *Daily*, when the owner saves
-  *Immediately*, then the next cron run (within 10 minutes) sends them as one digest, and later events are sent one
-  by one. When the owner switches between *Hourly* and *Daily*, or changes the time or the time zone, the collected
-  events wait for the next digest time under the new value. When the owner turns a switch off, the events collected
-  before stay in the next digest.
-- S10: Settings form. Given the signed-in start page, then the settings form shows the switches *New star on a
-  repository* and *New fork of a repository* (*Neuer Stern für ein Repository*, *Neuer Fork eines Repositorys*),
-  both off on an instance that never saved them (*New star* and *New fork* above). It also shows the field *Stars and forks* (*Sterne und Forks*)
-  with the choices *Immediately*, *Hourly* and *Daily at* plus a time (*Sofort*, *Stündlich*, *Täglich um*), set
-  to *Daily at 18:00* until it is saved. Saving keeps every other setting as it was. With *Immediately* or *Hourly*
-  the time is not stored, so the form shows 18:00 again the next time *Daily at* is chosen.
-- S11: Quiet hours. Given quiet hours 17:00–08:00, when a digest is sent at 18:00, then it arrives without sound
-  (decision 0025).
+- S2: Immediate star. Given *Immediately* and *New star* on, when another account stars a repository, then one
+  message arrives: **New star** · `owner/repo` (**Neuer Stern**), line 2 `by <sender.login>` (`von …`), line 3
+  `1,234 stars now` (`jetzt 1.234 Sterne`; `1 star now`, `jetzt 1 Stern`). The button opens the repository.
+- S3: Immediate fork. Given *Immediately* and *New fork* on, when another account forks a repository, then one
+  message arrives: **New fork** · `owner/repo` (**Neuer Fork**), line 2 `forkee.full_name`, line 3
+  `by <sender.login>`. The button opens `forkee.html_url`.
+- S4: Hourly digest under load. Given *Hourly*, when 50 accounts star `a/x` and 2 fork it within one hour, then the
+  first run after the next full hour sends exactly one message, with the line
+  `a/x: +50 ⭐ (now 1,284), +2 forks · u1, u2, u3, u4, u5 and 46 more` (German `+2 Forks`, `und 46 weitere`;
+  `+1 fork`, `+1 Fork`). The counts are events. Names are the distinct accounts (`sender.login`, for forks too),
+  in order of their first event, at most 5. `N` counts the remaining distinct accounts, so an account that starred
+  and forked counts once (here one did). The count is that of the newest collected star of that repository. An
+  empty star or fork part is left out.
+- S5: Several repositories. Each repository gets its own line, busiest first (stars plus forks, ties by name), at
+  most 10 lines, then `and N more repositories` (`und N weitere Repositories`). One repository: the button opens it.
+  Several: no button.
+- S6: Star and unstar. Given *New star* on, when an account unstars a repository, then its earlier collected, unsent
+  stars on that repository are removed, under any interval. A digest left empty is not sent. An unstar never sends
+  a message. A star that arrives after its unstar is collected.
+- S7: Nothing collected. When a digest time comes and nothing is collected, nothing is sent. An event that arrives
+  afterwards waits for the next digest time.
+- S8: Own and bot activity. A star, fork or unstar by the owner (a `User` owner, matched by id) or a bot
+  (`sender.type` `Bot`) sends and collects nothing.
+- S9: Changing the setting. Under *Immediately* every run sends what is still collected as one digest. When the
+  owner switches between *Hourly* and *Daily*, or changes the time or time zone, collected events wait for the
+  next digest time under the new value. Turning a switch off removes nothing: collected events are sent once a
+  switch is on, unless the cleanup removes them first (E11).
+- S10: Settings form. The form shows *New star on a repository* and *New fork of a repository* (*Neuer Stern für
+  ein Repository*, *Neuer Fork eines Repositorys*), both off until saved. It also shows *Stars and forks* (*Sterne
+  und Forks*) with *Immediately*, *Hourly*, *Daily at* plus a time (*Sofort*, *Stündlich*, *Täglich um*), set to
+  *Daily at 18:00* until saved. Saving keeps every other setting. With *Immediately* or *Hourly* the time is not
+  stored, and *Daily at* shows 18:00 again.
+- S11: Quiet hours. A digest sent at 18:00 inside quiet hours 17:00–08:00 arrives without sound (decision 0025).
+- S12: Switch off. Under any interval, a star or fork whose switch is off sends and collects nothing, and the
+  request log shows `disabled`.
 
 ## Errors and edge cases
 
-- E1: A payload of the wrong shape sends nothing and collects nothing: no `forkee` object, a missing string
-  `forkee.full_name`, `forkee.html_url`, `forkee.owner.login` or `repository.full_name`, a `sender` without a safe
-  integer `id` and a string `type` (as in decision 0040), or a `star` action other than `created` or `deleted`. A
-  button URL that is not `https://github.com/…` gives a message without a button, as for every row.
-- E2: A `repository.stargazers_count` that is not a whole number from 0 to 2^53 − 1 leaves out line 3 of S2, or
-  ` (now …)` of a digest line. The star still counts.
-- E3: Hostile text in a login or a repository name (markup, control or direction characters, very long text) is
-  cleaned, escaped and cut like every message field (`docs/areas/notifications.md`, *Message format*). A digest line
-  is cut at 256 code points and ends in `…`. The digest never exceeds title plus 11 lines.
-- E4: An unstar that matches no collected star, an unstar under *Immediately*, and an unstar after the digest was
-  sent all send nothing. There is no unstar message.
-- E5: Collecting fails (D1 error): the delivery answers 503 and nothing is stored, as for every delivery. The owner
-  can redeliver it from GitHub.
-- E6: The digest run fails (D1 error while reading, writing or deleting): nothing is sent, the collected events are
-  kept for the next run, and the cleanup and the retry of the same run still run. The log gets one fixed entry.
-- E7: The digest cannot be delivered (Telegram down, no token or chat): it waits and is retried like every pending
-  message, up to the fifth attempt. Its events are not collected again, so no second digest repeats them.
-- E8: A late or skipped cron run: the digest is sent by the first run after its time. Each hour (*Hourly*) or day
-  (*Daily*) of the configured time zone gets at most one digest, also after catching up.
-- E9: Daylight saving time: on a day where the daily time does not exist, the digest is sent by the first run after
-  the change. On a day where it occurs twice, it is sent once.
-- E10: A redelivered `fork` or `star` delivery (same `X-GitHub-Delivery`) collects nothing and sends nothing.
-- E11: Collected events older than 7 days are deleted by the cleanup without being sent, for example when the
-  digest run kept failing.
-- E12: The copy was deployed without its migrations, so the new table is missing: a fork or star that would be
-  collected answers 503 and is lost unless redelivered. Every other delivery, *Immediately*, the retry and the
-  cleanup work as before, and the digest run logs its fixed failure. The switches are off by default, so an
-  instance is affected only once the owner turns one on.
-- E13: A stored *Stars and forks* value that is not `immediate`, `hourly` or `daily@HH:MM` (`00:00`–`23:59`) reads as
-  *Daily at 18:00*. A form with a missing or repeated field, an unknown choice, or *Daily at* without a valid time
-  answers 400 with the *settings invalid* notice, which names the digest time too, and stores nothing.
-- E14: An organization owner or an owner not stored yet: everyone's stars and forks count as foreign, as for issues
-  (decision 0040).
-- E15: Two cron runs at the same moment may send the same digest twice, but never lose an event. This is the
-  retry's accepted risk (`docs/areas/scheduled-jobs.md`).
-- E16: Very many events (for example 10,000 stars between two digests): the counts are complete and the digest is
-  still one message. The cron run stays within the platform's per-invocation limits.
+- E1: A wrong shape sends and collects nothing (`no-match`). That covers a missing `forkee` object, a missing string
+  `forkee.full_name` or `forkee.html_url`, `repository.full_name`, `sender.login`, an `id` (sender, repository)
+  that is not a safe integer, a non-string `sender.type`, or another `star` action. A button URL that is not
+  `https://github.com/…` gives no button.
+- E2: A `stargazers_count` that is not a whole number from 0 to 2^53 − 1 leaves out line 3 of S2 or ` (now …)`.
+- E3: Hostile logins or names are cleaned, escaped and cut like every field (*Message format*). Each digest line is
+  cut at 256 code points with `…`. A digest has at most a title and 11 lines.
+- E4: An event collected while a digest is being built is not lost. The digest removes exactly the events it
+  counted, and later ones wait for the next digest.
+- E5: A failed write while collecting or unstarring answers 503 and stores nothing. The delivery can be redelivered
+  from GitHub.
+- E6: A failing digest job (D1) sends nothing and keeps the events. Cleanup and retry still run, and the job logs
+  one fixed entry.
+- E7: An undeliverable digest (channel down, no token or chat) is retried like any pending row, and its events are
+  never put into a second digest.
+- E8: Digest times. *Hourly* is every instant at which the wall clock of the configured time zone shows minute 00.
+  The hour repeated on the fall-back day gives two digest times, and the skipped spring hour adds none. *Daily at
+  HH:MM* is the first instant of each local day at or after HH:MM. When the time is skipped, that is the first
+  instant after it. When it repeats, only the first occurrence counts. A digest is due at a run when a digest time
+  lies after the previous run of the job and at or before this run. A late or skipped run therefore catches up
+  once. The first run after the update counts nothing as due.
+- E9: A redelivered delivery (same `X-GitHub-Delivery`) collects and sends nothing.
+- E10: Very many events (10,000 stars): the counts are exact, and still only one message is sent.
+- E11: Collected events older than 7 days are deleted by the cleanup, unsent.
+- E12: Missing migration (`npm run deploy` not used). With both switches off nothing touches the new table. With a
+  switch on, star, fork and unstar deliveries answer 503 and are lost unless redelivered. The digest job also logs
+  its failure every run, about 144 entries a day. Everything else works.
+- E13: An invalid stored value reads as *Daily at 18:00*. A form with a missing or repeated field, an unknown choice,
+  or *Daily at* without a valid `HH:MM` answers 400 with the *settings invalid* notice, which names the digest time
+  too. Nothing is stored.
+- E14: With an organization owner or an owner not stored yet, everyone counts as foreign (decision 0040).
+- E15: Two runs at the same moment may send one digest twice and never lose an event. This is the retry's accepted
+  risk.
 
 ## Non-functional requirements
 
-- Configuration: the settings row `activity_digest` holds `immediate`, `hourly` or `daily@HH:MM`, with the default
-  `daily@18:00`. Two new switches, `repository_forked` and `repository_starred`, default to off. Existing rows keep
-  their values.
-- Storage: a new D1 table, created by migration `0002` and listed in `SCHEMA_TABLES`. An event is collected in the
-  same transaction as its `deliveries` row, and a digest enters the outbox in the transaction that deletes its
-  events.
-- Time and limits: a digest is sent at most 10 minutes after its time, by the existing 10-minute cron with no new
-  expression. A run stays within 50 subrequests and 15 minutes.
-- Security: logins, repository names and URLs come from strangers. They are cleaned and length-limited before they
-  are stored and again when rendered (*Parsing of external input*). No new permission or event is needed.
-- Logs: a collected delivery has its own request-log decision, distinct from `reported`. The digest job logs only
-  fixed results. No entry holds a login, a repository name or other payload text.
-- Language: the digest text uses the notification language when it is built. The button label and quiet hours
-  follow the moment of sending (decision 0025).
+- Configuration: `activity_digest` = `immediate` | `hourly` | `daily@HH:MM`, default `daily@18:00`. The switches
+  `repository_forked` and `repository_starred` default to off. Existing rows keep their values.
+- Storage: a new table, created by migration `0002` and listed in `SCHEMA_TABLES`, holds per event the kind,
+  `sender.id`, `sender.login`, `repository.id`, the repository name, the URL, the star count and the time. An event
+  is collected in its `deliveries` transaction. One transaction writes the digest's outbox row, deletes its events
+  and stores the job's run time in `meta`. A run without a due digest stores only the run time.
+- Cron: the digest job runs in the 10-minute run after cleanup and retry, with its own failure handling. It sends
+  its row itself through the first-send path, as the release check does. The retry skips rows younger than 60 s,
+  so the row is not sent twice. While both switches are off, the job only stores its run time. It uses at most 8
+  D1 statements and 2 Telegram requests, so the run stays within 50 subrequests. Counts are made in SQL, and at
+  most 5 names are read for each of at most 10 repositories.
+- Security: stranger text is cleaned and length-limited when it is stored and when it is rendered (*Parsing of
+  external input*). No new permission is needed.
+- Logs: a collected delivery gets its own decision, distinct from `reported`. The job logs only fixed results. No
+  entry holds payload text.
+- Language: the digest text uses the language at build time. The button and quiet hours follow the sending.
 
 ## Acceptance criteria
 
-- [ ] AC1: Under *Immediately*, a star (`created`) or a fork by another account sends one message with the title,
-  lines and button of S2 and S3, in English and German. By the owner or a bot it sends nothing, and an unknown or
-  organization owner counts as another account (S2, S3, S8, E14).
-- [ ] AC2: A payload of the wrong shape or with an unusable star count behaves as E1 and E2. Hostile text is
-  cleaned and escaped as in E3 (E1, E2, E3).
-- [ ] AC3: Under *Hourly* or *Daily*, a star or fork by another account sends no message and is collected in the
-  same transaction as its delivery. A redelivery collects nothing, and a failed write answers 503 with nothing
-  stored (S1, E5, E10).
-- [ ] AC4: With *Hourly*, 50 stars and 2 forks within one hour give exactly one message at the next full hour, with
-  the line of S4. With *Immediately*, 50 stars give 50 messages (S4).
-- [ ] AC5: The digest has the layout of S4 and S5: title, at most 10 repository lines in the stated order, the
-  "more repositories" line, at most 5 names and "and N more", lines cut at 256 code points, the button only for a
-  single repository, and English and German texts (S1, S4, S5, E3, E16).
-- [ ] AC6: An unstar removes the not yet sent star of the same account on the same repository. Star and unstar
-  before the digest sends nothing, and an unstar never sends a message (S6, E4).
-- [ ] AC7: With an injected clock, the cron sends at most one digest per hour or per day of the configured time zone,
-  at the first run at or after its time, including late runs and daylight saving days. It sends none when nothing was
-  collected, and the digest is sent with the quiet hours of its sending (S1, S7, S11, E8, E9).
-- [ ] AC8: Changing the interval, the time, the time zone or a switch loses no collected event. A change to
-  *Immediately* sends the collected events as one digest at the next run (S9).
-- [ ] AC9: A failing digest run sends nothing, keeps the events and lets cleanup and retry run. A digest that cannot
-  be delivered is retried as an outbox row and never rebuilt. The cleanup deletes collected events older than 7 days
-  (E6, E7, E11, E15).
-- [ ] AC10: The settings form shows and saves the two switches (default off) and *Stars and forks* (default
-  *Daily at 18:00*) as in S10. Invalid stored values and invalid forms behave as in E13. Settings stored before the
-  update keep their values (S10, E13).
-- [ ] AC11: Migration `0002` creates the new table, `SCHEMA_TABLES` lists it, and without it the instance behaves as
-  in E12 (E12).
-- [ ] AC12: A decision record explains the digest instead of a rate limit. `docs/ARCHITECTURE.md` (cron, D1 tables),
-  the area documents below, `docs/setup.md`, the README event and settings tables and `CHANGELOG.md` describe the
-  behavior.
+- [ ] AC1: Under *Immediately*, a star or fork by another account sends the message of S2 or S3 in English and
+  German. One by the owner or a bot sends nothing, and an unknown or organization owner counts as foreign (S2, S3,
+  S8, E14).
+- [ ] AC2: Wrong shapes, unusable counts and hostile text behave as E1–E3 (E1, E2, E3).
+- [ ] AC3: Under *Hourly* or *Daily*, a star or fork by another account is collected in its delivery's transaction
+  and sends nothing. With its switch off, nothing is collected (`disabled`). A redelivery collects nothing, and a
+  failed write answers 503 with nothing stored (S1, S12, E5, E9).
+- [ ] AC4: With *Hourly*, 50 stars and 2 forks in one hour give exactly one message with the line of S4. With
+  *Immediately*, 50 stars give 50 messages (S4).
+- [ ] AC5: The digest has the line 1, lines, order, bounds, button and en/de texts of S1, S4 and S5, also for
+  10,000 events (S1, S4, S5, E3, E10).
+- [ ] AC6: An unstar removes the account's unsent stars on that repository under any interval and never sends.
+  Star then unstar sends nothing, and unstar then star collects the star (S6).
+- [ ] AC7: With an injected clock, digests follow E8 exactly for hourly and daily, late runs and both daylight
+  saving days, and the first run after the update sends nothing. Nothing collected at a digest time sends nothing, and an
+  event after it gives no digest before the next digest time. The digest uses the quiet hours of its sending (S1,
+  S7, S11, E8).
+- [ ] AC8: Changes of interval, time, time zone or switch lose no collected event and follow S9 (S9).
+- [ ] AC9: An event inserted between the job's read and its transaction stays collected for the next digest (E4).
+- [ ] AC10: A failing job keeps the events and lets cleanup and retry run. The digest row is sent by the job and
+  retried as an outbox row, and its events are never counted again. The cleanup deletes events older than 7 days
+  (E6, E7, E11).
+- [ ] AC11: The form and stored values behave as in S10 and E13, and older settings keep their values (S10, E13).
+- [ ] AC12: Migration `0002` creates the table, `SCHEMA_TABLES` lists it, and without it the instance behaves as in
+  E12 (E12).
+- [ ] AC13: A decision record (a digest instead of a rate limit) is written. `docs/ARCHITECTURE.md`, the area
+  documents below, `docs/setup.md`, the README and `CHANGELOG.md` describe the behavior.
 
 ## Out of scope
 
-- Digests for other rules (issues, comments, pull requests, alerts).
-- `watch` events, unstar messages, and star counts per period beyond the digest.
-- A schema check on the start page for a missing migration (E12). The _migrations missing_ notice still appears
-  only after a failed sign-in (decision 0021).
-- Preventing a duplicate digest from two overlapping cron runs (E15).
+- Digests for other rules; `watch` events, unstar messages, star counts per period.
+- A start-page check for a missing migration (E12). Decision 0021's notice covers a failed sign-in only.
+- Preventing a duplicate digest from overlapping runs (E15).
 
 ## Open questions
 
-- Does *Hourly* mean the clock hour or one hour after the last digest? Answered: the clock hour in the configured
-  time zone, like *Daily at HH:MM*, which gives the owner a predictable time.
-- Does an empty due time move the next one? Answered: no. Nothing is sent, and later events wait for the next time
-  (S7, "Nothing collected → nothing sent").
-- Are events collected while a switch was on still sent after it is turned off? Answered: yes (S9). A rule decides
-  when a delivery is processed, as with a pending outbox row today.
-- Which fixtures? Answered: decided in the plan (*Fixtures from real deliveries*, `.squad/project.md`), as in
-  decision 0040. The answer does not change this spec.
+- Which fixtures? Answered: escalated to the Product Manager with this revision. The choice is between captured,
+  anonymized `fork`, `star` `created` and `star` `deleted` deliveries, and reference-built ones with a live check
+  as in decision 0040. The plan names the answer, and it changes no scenario.
 
 ## Area documents
 
-- `notifications.md`: a *Fork and star rules* section (events, conditions, titles, lines, button, shape). *The
-  sender* no longer says that forks and stars send nothing. A *Digest* section covers collecting, the unstar, the
-  layout and bounds, the extended message format and the new log decision.
-- `scheduled-jobs.md`: the digest job (when it is due, time zone, daylight saving, catching up, failures, log), the
-  7-day cleanup of collected events and the per-run limits.
-- `storage.md`: the new table, migration `0002`, and the three new settings rows with formats and defaults.
-- `setup-wizard.md`: the new form fields, their validation and the *settings invalid* notice.
+- `notifications.md`: *Fork and star rules* and a *Digest* section (collecting, unstar, layout, bounds, message
+  format, log decision). *The sender* is updated.
+- `scheduled-jobs.md`: the digest job (digest times, catching up, failures, budget) and the cleanup of events.
+- `storage.md`: the new table, migration `0002`, the three settings rows.
+- `setup-wizard.md`: the form fields, the validation and the notice.
+
+## Challenge
+
+- M1: Accepted. E8 now defines the digest times for *Hourly* and *Daily* in the time zone. A digest is due when a
+  time passed since the job's previous run, and `meta` stores that run time on every run, whether or not anything
+  was sent. A first run sends nothing. Interval, time and time-zone changes fall out of the same rule. AC7 adds the
+  empty-time and first-run cases.
+- M2: Accepted. E4 and AC9 are added: the digest deletes exactly the events it counted, and the test inserts an
+  event between the read and the transaction.
+- m1: Accepted as an escalation (*Open questions*).
+- m2: Accepted. Events store `sender.id` and `repository.id`. An unstar matches on both, under any interval while
+  *New star* is on. Unstar before star is in S6. The count comes from the newest star.
+- m3: Accepted. `N` counts distinct accounts. Fork names and S3 line 3 use `sender.login`, the person who forked:
+  for a fork into an organization, line 2 already shows that organization.
+- m4: Accepted. Line 1 of the digest is the title alone (S1).
+- m5: Accepted. S12 is added and AC3 extended.
+- m6: Accepted. The order, the sending through the first-send path and the 60 s grace are under *Non-functional
+  requirements*, *Cron*.
+- m7: Accepted: 8 D1 statements and 2 Telegram requests, counts in SQL, names bounded.
+- m8: Accepted, both. With both switches off nothing touches the table, and E12 states the remaining log noise.
+- m9: Accepted. E8 covers both daylight saving days for *Hourly*.
