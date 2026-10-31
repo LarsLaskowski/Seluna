@@ -106,3 +106,63 @@ export function batchRecordingDb(db: D1Database, batchSizes: number[]): D1Databa
     withSession: (constraintOrBookmark) => db.withSession(constraintOrBookmark),
   };
 }
+
+/**
+ * A `D1Database` that behaves like `db` and runs `hook` once, just before the first `batch` it is asked to run:
+ * an event that arrives between a job's reads and its commit.
+ */
+export function hookedBatchDb(db: D1Database, hook: () => Promise<void>): D1Database {
+  let hooked = false;
+  return {
+    prepare: (query: string) => db.prepare(query),
+    batch: async <T = unknown>(statements: D1PreparedStatement[]) => {
+      if (!hooked) {
+        hooked = true;
+        await hook();
+      }
+      return db.batch<T>(statements);
+    },
+    exec: (query: string) => db.exec(query),
+    dump: () => Promise.reject(new Error("dump is deprecated and not forwarded")),
+    withSession: (constraintOrBookmark) => db.withSession(constraintOrBookmark),
+  };
+}
+
+/** The counts of `Intl` work done while `countIntl` is active. */
+export interface IntlCounts {
+  /** The number of `Intl.DateTimeFormat` objects built. */
+  formatters(): number;
+  /** The number of `formatToParts` calls. */
+  conversions(): number;
+  /** Puts the original `Intl.DateTimeFormat` back; call it in a `finally` block or `onTestFinished`. */
+  restore(): void;
+}
+
+/**
+ * Counts the `Intl.DateTimeFormat` objects built and their `formatToParts` calls from now on. The counting
+ * constructor extends the original, so every behavior stays the same.
+ */
+export function countIntl(): IntlCounts {
+  const Original = Intl.DateTimeFormat;
+  let built = 0;
+  let converted = 0;
+  class Counting extends Original {
+    constructor(...args: ConstructorParameters<typeof Original>) {
+      super(...args);
+      built += 1;
+    }
+
+    override formatToParts(date?: Date | number): Intl.DateTimeFormatPart[] {
+      converted += 1;
+      return super.formatToParts(date);
+    }
+  }
+  Object.defineProperty(Intl, "DateTimeFormat", { value: Counting, configurable: true, writable: true });
+  return {
+    formatters: () => built,
+    conversions: () => converted,
+    restore: () => {
+      Object.defineProperty(Intl, "DateTimeFormat", { value: Original, configurable: true, writable: true });
+    },
+  };
+}

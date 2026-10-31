@@ -431,3 +431,62 @@ describe("retryPendingRows through the active channel", () => {
     expect(log, "log entries").toEqual([{ outbox: id, result: "no-chat" }]);
   });
 });
+
+describe("retryPendingRows (the number of attempted rows)", () => {
+  it("retryPendingRows counts 0 attempted rows when none is due", async () => {
+    const { deps } = harness();
+
+    const outcome = await retryPendingRows(STARTED_AT, deps);
+
+    expect(outcome, "outcome").toEqual({ result: "done", attempted: 0 });
+  });
+
+  it("retryPendingRows counts the rows it handed to the channel", async () => {
+    await insertRows(3, (index) => ({ ageMs: (2 + index) * MINUTE_MS }));
+    const { deps } = harness({ sendMessage: ACCEPTED });
+
+    const outcome = await retryPendingRows(STARTED_AT, deps);
+
+    expect(outcome, "outcome").toEqual({ result: "done", attempted: 3 });
+  });
+
+  it("retryPendingRows counts at most 10 attempted rows when more are due", async () => {
+    await insertRows(12, (index) => ({ ageMs: (2 + index) * MINUTE_MS }));
+    const { deps } = harness({ sendMessage: ACCEPTED });
+
+    const outcome = await retryPendingRows(STARTED_AT, deps);
+
+    expect(outcome, "outcome").toEqual({ result: "done", attempted: RETRY_BATCH_SIZE });
+  });
+
+  it("retryPendingRows counts the rows even when the channel answers with an error", async () => {
+    await insertRows(2, () => ({}));
+    const { deps } = harness({ sendMessage: SERVER_ERROR });
+
+    const outcome = await retryPendingRows(STARTED_AT, deps);
+
+    expect(outcome, "outcome").toEqual({ result: "done", attempted: 2 });
+  });
+
+  it("retryPendingRows counts the rows when no token is set", async () => {
+    await insertRows(2, () => ({}));
+    const { deps } = harness({}, {});
+
+    const outcome = await retryPendingRows(STARTED_AT, deps);
+
+    expect(outcome, "outcome").toEqual({ result: "done", attempted: 2 });
+  });
+
+  it.each([
+    { case: "the exhausted rows cannot be marked", failing: /UPDATE outbox SET status = 'failed'/ },
+    { case: "the due rows cannot be read", failing: /SELECT id, text/ },
+    { case: "the settings cannot be read", failing: /FROM settings/ },
+  ])("retryPendingRows counts 0 attempted rows when $case", async ({ failing }) => {
+    await insertRows(2, () => ({}));
+    const { deps } = harness({}, READY_ENV, dbFailingFor(env.DB, failing));
+
+    const outcome = await retryPendingRows(STARTED_AT, deps);
+
+    expect(outcome, "outcome").toEqual({ result: "store-failed", attempted: 0 });
+  });
+});
