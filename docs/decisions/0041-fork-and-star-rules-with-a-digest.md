@@ -67,9 +67,25 @@ What a digest deletes:
 Where events older than 7 days are deleted:
 
 14. **In the digest job, only while a switch is on.** A copy without migration `0002` keeps a working cleanup, and
-    nothing touches the table while both switches are off. Chosen.
+    nothing touches the table while both switches are off. Chosen. A due digest also leaves stale events out of its
+    reads, and its commit deletes them unsent, so _Immediately_ needs no extra statement.
 15. **In the cleanup batch.** A missing table would make the whole batch fail, and then `deliveries`, `outbox`
     and `token_cache` would no longer be cleaned up.
+
+How the digest fits the run's 50 subrequests. The run already budgets 18 D1 statements and 20 Telegram requests
+for the retry, and a digest with its own send would add 12 and 2, which makes 52. A refused `markSent` after a
+successful send would send the digest twice.
+
+16. **The digest sends its row only when the retry handed fewer than 10 rows to the sender.** Otherwise the row waits
+    `pending` for the next run's retry. The worst case is 49, at the price of a digest up to 20 minutes late during
+    a backlog. Chosen.
+17. **The digest row joins the retry's send.** This saves the channel and token reads, but the retry would have to
+    build the digest inside its batch, which couples the two jobs.
+18. **A retry batch one row smaller whenever a digest is due.** It costs retry throughput on every due run.
+
+Length against Telegram's 4,096 characters: **`digestNotification` drops repository lines into `and N more
+repositories` beyond 4,000 UTF-16 code units** (chosen). A bound on lines and code points alone allows up to about
+5,760 units when the text has astral characters.
 
 Who a fork is reported as from: **`sender.login`, the account that forked** (chosen), rather than
 `forkee.owner.login`. For a fork into an organization, line 2 already names that organization.
@@ -95,6 +111,10 @@ rules are in [`areas/notifications.md`](../areas/notifications.md),
 - Each star or fork costs a few more D1 rows written (the `activity` row and its indexes). Under a digest, a
   stranger's repeated star and unstar sends nothing.
 - The digest job writes the `meta` run time every 10 minutes, about 144 writes a day.
+- A digest arrives at most 10 minutes after its digest time, or 20 minutes when that run's retry sent a full
+  batch.
+- The due check builds one `Intl.DateTimeFormat` per call and makes at most 50 conversions. Gaps beyond 120
+  minutes (hourly) or 1,500 minutes (daily) count as due without one, to stay inside the free plan's CPU time.
 - Without migration `0002` and with a switch on, digest-mode forks and stars and every unstar answer 503, and the
   job logs `store-failed` every run.
 - Two overlapping cron runs may send the same digest twice. The retry already accepts this risk.

@@ -70,7 +70,8 @@ is identified by `sender.id`, and a repository by `repository.id`.
   `https://github.com/…` gives no button.
 - E2: A `stargazers_count` that is not a whole number from 0 to 2^53 − 1 leaves out line 3 of S2 or ` (now …)`.
 - E3: Hostile logins or names are cleaned, escaped and cut like every field (*Message format*). Each digest line is
-  cut at 256 code points with `…`. A digest has at most a title and 11 lines.
+  cut at 256 code points with `…`. A digest has at most a title and 11 lines, and at most 4,000 UTF-16 code units:
+  further repository lines are counted into `and N more repositories`.
 - E4: An event collected while a digest is being built is not lost. The digest removes exactly the events it
   counted, and later ones wait for the next digest.
 - E5: A failed write while collecting or unstarring answers 503 and stores nothing. The delivery can be redelivered
@@ -108,9 +109,9 @@ is identified by `sender.id`, and a repository by `repository.id`.
   and stores the job's run time in `meta`. A run without a due digest stores only the run time.
 - Cron: the digest job runs in the 10-minute run after cleanup and retry, with its own failure handling. It sends
   its row itself through the first-send path, as the release check does. The retry skips rows younger than 60 s,
-  so the row is not sent twice. While both switches are off, the job only stores its run time. Its statements and
-  requests are bounded (`plan.md`). If the run hits a platform limit, the digest waits for a later run and no event
-  is lost. Counts are made in SQL, and at most 5 names are read for each of at most 10 repositories.
+  so the row is not sent twice. While both switches are off, the job only stores its run time. It sends its row only
+  when the run's retry sent fewer than 10 rows. Otherwise the row waits for the next run's retry, so the digest
+  arrives at most 20 instead of 10 minutes after its time, and the run stays at 49 of its 50 subrequests. Counts are made in SQL, and at most 5 names are read for each of at most 10 repositories.
 - Security: stranger text is cleaned and length-limited when it is stored and when it is rendered (*Parsing of
   external input*). No new permission is needed.
 - Logs: a collected delivery gets its own decision, distinct from `reported`. The job logs only fixed results. No
