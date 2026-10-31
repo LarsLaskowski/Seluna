@@ -1,3 +1,6 @@
+import type { StoredNotification } from "./notification";
+import type { Language } from "./setup/language";
+
 /** One repository's line of the activity digest. */
 export interface DigestRepository {
   readonly repositoryId: number;
@@ -26,3 +29,14 @@ export interface DigestSummary {
 export const DIGEST_MAX_REPOSITORIES = 10;
 /** The most account names a repository line lists. */
 export const DIGEST_MAX_NAMES = 5;
+
+/**
+ * The activity digest of `summary` in `language`, and the button URL (the repository's `buttonUrl` for exactly one
+ * repository, otherwise `undefined`).
+ */
+export function digestNotification(
+  summary: DigestSummary,
+  language: Language,
+): { readonly notification: StoredNotification; readonly buttonUrl: string | undefined } {
+  throw new Error(`not implemented: ${String(summary.maxId)} ${language}`);
+}

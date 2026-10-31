@@ -11,7 +11,15 @@ export interface StoredNotification {
   readonly number: number | undefined;
   readonly subject: string;
   readonly context: string;
+  /**
+   * Further lines after `context`, at most `MAX_EXTRA_LINES`; used by the activity digest, absent for every other
+   * notification.
+   */
+  readonly lines?: readonly string[];
 }
+
+/** The most entries `StoredNotification.lines` holds: ten repository lines and `and N more repositories`. */
+export const MAX_EXTRA_LINES = 11;
 
 /** `number` when it is a safe integer of at least 1, otherwise `undefined`. */
 function validNumber(number: number | undefined): number | undefined {
