@@ -306,7 +306,8 @@ decides when it is built and sent).
 
 - The GitHub App is subscribed to the events `issues`, `issue_comment`, `fork` and `star` besides the five of the
   rules above (decision [0039](../decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md)). They are
-  accepted, recorded in `deliveries` and answered like every other event. The rules for issues and comments report
+  accepted and answered like every other event, and recorded in `deliveries` only when they lead to a message or an
+  `activity` change ([Processing a delivery](#processing-a-delivery)). The rules for issues and comments report
   them ([Issue and comment rules](#issue-and-comment-rules)); the rules for `fork` and `star` are in
   [Stars and forks](#stars-and-forks).
 - Two helpers for those rules narrow the payload's `sender` and never throw (`src/rules/actor.ts`):
@@ -351,7 +352,7 @@ request (draft status unknown)` (German `CI im Pull Request fehlgeschlagen (Draf
   notification instead of keeping it.
 - When the lookup drops the only notification, the decision is `no-match`.
 - A delivery whose id is already recorded on arrival causes no lookup. Two deliveries of one id processed at once may
-  each make a lookup; only one of them is stored.
+  each make a lookup; at most one of them is stored.
 
 ### Message format
 

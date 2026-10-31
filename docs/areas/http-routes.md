@@ -11,17 +11,17 @@ does the setup wizard under `/setup`.
 
 ### Routes
 
-| Method and path      | Status                              | Body                                                                                                              |
-| -------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `GET /health`        | 200                                 | JSON `{"status":"ok","version":"<version>"}`, `Content-Type: application/json`                                    |
-| `POST /webhook`      | 202                                 | empty (valid signature, delivery recorded, [Notifications](notifications.md))                                     |
-| `POST /webhook`      | 200                                 | empty (valid signature, delivery id already recorded)                                                             |
-| `POST /webhook`      | 400                                 | empty (valid signature, delivery that cannot be processed)                                                        |
-| `POST /webhook`      | 401                                 | empty (missing or wrong signature)                                                                                |
-| `POST /webhook`      | 503                                 | empty (no webhook secret usable, or reading it failed; database failure while processing)                         |
-| `/setup`, `/setup/…` | see [Setup wizard](setup-wizard.md) | see [Setup wizard](setup-wizard.md)                                                                               |
-| `GET /`, `HEAD /`    | 302                                 | empty, `Location: /setup`, the security headers of the [Setup wizard](setup-wizard.md#pages-and-response-headers) |
-| anything else        | 404                                 | empty                                                                                                             |
+| Method and path      | Status                              | Body                                                                                                                                          |
+| -------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`        | 200                                 | JSON `{"status":"ok","version":"<version>"}`, `Content-Type: application/json`                                                                |
+| `POST /webhook`      | 202                                 | empty (valid signature, delivery accepted; recorded only when it led to a message or an `activity` change, [Notifications](notifications.md)) |
+| `POST /webhook`      | 200                                 | empty (valid signature, delivery id already recorded)                                                                                         |
+| `POST /webhook`      | 400                                 | empty (valid signature, delivery that cannot be processed)                                                                                    |
+| `POST /webhook`      | 401                                 | empty (missing or wrong signature)                                                                                                            |
+| `POST /webhook`      | 503                                 | empty (no webhook secret usable, or reading it failed; database failure while processing)                                                     |
+| `/setup`, `/setup/…` | see [Setup wizard](setup-wizard.md) | see [Setup wizard](setup-wizard.md)                                                                                                           |
+| `GET /`, `HEAD /`    | 302                                 | empty, `Location: /setup`, the security headers of the [Setup wizard](setup-wizard.md#pages-and-response-headers)                             |
+| anything else        | 404                                 | empty                                                                                                                                         |
 
 - A route matches on the exact method and the exact path; the query string is ignored. `HEAD /health`,
   `POST /health`, `GET /webhook`, `/health/` and `/HEALTH` are "anything else".
@@ -52,7 +52,7 @@ does the setup wizard under `/setup`.
   secret) and decrypts the secret before the signature is checked. These reads count against the account's D1 read
   allowance. With the Worker secret set no D1 access happens. The secret is not cached; a cache would need its own
   decision.
-- A 202 means the delivery was recorded; what happens next is described in [Notifications](notifications.md).
+- A 202 means the delivery was accepted; whether it was recorded and what happens next is described in [Notifications](notifications.md).
 
 ### Request body size
 
