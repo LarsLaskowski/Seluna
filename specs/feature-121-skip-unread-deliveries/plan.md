@@ -161,3 +161,16 @@ Minor objections of the Devil's Advocate (plan challenge, one round), appended v
 3. **minor — fact 7 and `tasks.md` disagree on when the no-op upsert is measured.** Why: the Dev could skip the measurement.
    - Evidence: plan.md fact 7 says "in step 5"; `tasks.md` row 3 puts it in task 3 (the conditional upsert in `src/store/meta.ts`).
    - Instruction: the Dev measures `meta.changes` and `meta.rows_written` of the no-op upsert while doing task 3. The result is reported in the hand-back and noted in 0043.
+
+## Security notes
+
+Non-blocking findings of Security (plan review, verdict APPROVED), appended verbatim.
+
+1. Non-blocking. The plan's `<fits>` does not match `readLastDelivery` for a value with an embedded NUL.
+   - Evidence: in the same probe I compared the plan's `<fits>` expression with `LAST_DELIVERY_FORM` plus `MAX_TIME` over these values: "", "0", "00", "01", "-5", "+5", "1.5", " 5", "5 ", "5\n", "\n5", "abc", "1e5", "0x10", Arabic and full-width digits, 16 and 17 digits, 8640000000000000/…001, 9999999999999999, and values containing U+0000.
+   - Only the NUL values differ: SQLite says they fit, JS says they do not, because `GLOB` stops at the NUL.
+   - Effect: a stored "1700000000000\u0000x" is kept by the upsert while the status page shows _None received yet_. This contradicts plan line 46 and AC4 ("does not fit its form → set").
+   - It cannot be exploited (only the Worker writes `meta`, always `String(time)`) and it heals itself once the time is 60 s past the prefix. Hence non-blocking.
+   - I tried `length(CAST(value AS BLOB)) <= 16`; it does not fix it.
+   - Suggested fix: add a canonical round-trip check such as `CAST(CAST(meta.value AS INTEGER) AS TEXT) = meta.value`, which compares the full length, alongside the existing `[1-9]*`/`'0'` checks. Then add a NUL-embedded value to the AC4 unfit list in `src/store/meta.test.ts` so the test pins it. I have not run that exact expression.
+2. Non-blocking. Mark fact 7 as confirmed using the measurement above (first insert: changes 1, rows_written 2; ±30 s: changes 0, rows_written 0; exactly +60,000 ms: changes 1, rows_written 1; +59,999 ms: changes 0, rows_written 0). The Dev can still report `meta.changes` and `meta.rows_written` from the real `refreshLastDelivery` in step 5, as the plan says.
