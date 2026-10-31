@@ -15,7 +15,7 @@ batch with its `outbox` rows and `meta` `last_delivery`. Since the events of
 public repository, most of which no rule reports. Each one writes a `deliveries` row with two indexes, the `meta`
 upsert and, a week later, the cleanup delete; enough of them spend the free plan's daily D1 write budget, after which
 every delivery, alerts and CI failures included, is answered 503 and GitHub does not redeliver it on its own. The
-guarantee "a delivery is processed once" (`.squad/project.md`, *Guarantees*) exists so a redelivery produces no second
+guarantee "a delivery is processed once" (`.squad/project.md`, _Guarantees_) exists so a redelivery produces no second
 message, and the status page's _Last delivery from GitHub:_ is how the owner sees that GitHub reaches the Worker.
 
 ## Options considered
