@@ -67,3 +67,42 @@ export const STAR_COUNTS: readonly StarCountCase[] = [
 
 /** The actions of the `star` event other than `created`, and for the removal other than `deleted`. */
 export const OTHER_STAR_ACTIONS: readonly string[] = ["edited", "some_new_action", "", "Created", "Deleted"];
+
+/**
+ * A `D1Database` that behaves like `db` except that the table `activity` does not exist: every statement that
+ * names `activity` runs against a table that is missing, as on an instance whose migration `0002` has not run.
+ */
+export function withoutActivityTable(db: D1Database): D1Database {
+  return {
+    prepare: (query: string) => db.prepare(query.replaceAll(/\bactivity\b/g, "activity_missing")),
+    batch: <T = unknown>(statements: D1PreparedStatement[]) => db.batch<T>(statements),
+    exec: (query: string) => db.exec(query),
+    dump: () => Promise.reject(new Error("dump is deprecated and not forwarded")),
+    withSession: (constraintOrBookmark) => db.withSession(constraintOrBookmark),
+  };
+}
+
+/** A `D1Database` that behaves like `db` except that every `batch` rejects. */
+export function failingBatchDb(db: D1Database): D1Database {
+  return {
+    prepare: (query: string) => db.prepare(query),
+    batch: () => Promise.reject(new Error("The batch failed")),
+    exec: (query: string) => db.exec(query),
+    dump: () => Promise.reject(new Error("dump is deprecated and not forwarded")),
+    withSession: (constraintOrBookmark) => db.withSession(constraintOrBookmark),
+  };
+}
+
+/** A `D1Database` that behaves like `db` and appends the statement count of every `batch` to `batchSizes`. */
+export function batchRecordingDb(db: D1Database, batchSizes: number[]): D1Database {
+  return {
+    prepare: (query: string) => db.prepare(query),
+    batch: <T = unknown>(statements: D1PreparedStatement[]) => {
+      batchSizes.push(statements.length);
+      return db.batch<T>(statements);
+    },
+    exec: (query: string) => db.exec(query),
+    dump: () => Promise.reject(new Error("dump is deprecated and not forwarded")),
+    withSession: (constraintOrBookmark) => db.withSession(constraintOrBookmark),
+  };
+}
