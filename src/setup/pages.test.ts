@@ -1566,7 +1566,7 @@ describe("renderStartPage setting groups", () => {
 
       const page = startPage(language);
 
-      expect(page.match(/<fieldset/g)?.length, "number of fieldsets").toBe(2);
+      expect(page.match(/<fieldset/g)?.length, "number of fieldsets").toBe(3);
       const [quiet] = fieldsetsOf(page);
       expect(compact(quiet?.legend ?? ""), "legend").toBe(
         `<label><input type="checkbox" name="quiet_hours" value="on"> ${escapeHtml(texts.quietHoursLabel)}</label>`,
@@ -2551,7 +2551,8 @@ describe("renderStartPage settings form", () => {
       expect(page.indexOf('name="activity_digest"'), "after the rules").toBeGreaterThan(
         page.indexOf('name="update_notice"'),
       );
-      const afterGroups = page.slice(page.lastIndexOf("</fieldset>"));
+      const settings = sectionWith(page, `<h2>${escapeHtml(texts.settingsHeading)}</h2>`);
+      const afterGroups = settings.slice(settings.lastIndexOf("</fieldset>"));
       expect(buttonClasses(afterGroups), "save button after the groups").toEqual(["primary"]);
     },
   );
