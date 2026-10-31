@@ -233,7 +233,7 @@ describe("processWebhook", () => {
 
   it("processWebhook leaves last_delivery unchanged for a known delivery id", async () => {
     let clock = NOW;
-    const { deps } = harness({ now: () => clock });
+    const { deps } = harness({ rules: [testRule()], now: () => clock });
     await processWebhook(pingDelivery(), deps);
     clock = LATER;
 
@@ -1386,7 +1386,7 @@ describe("processWebhook with the star and fork rules in digest mode", () => {
     expect(outcome.decision, "decision").toBe("disabled");
     expect(await activityCount(), "activity rows").toBe(0);
     expect(await count("outbox"), "outbox rows").toBe(0);
-    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
     expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
   });
 

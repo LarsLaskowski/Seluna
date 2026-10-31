@@ -115,7 +115,7 @@ async function withEmptyDeliveries(): Promise<void> {
   onTestFinished(empty);
 }
 
-it("POST /webhook through the Worker answers 202 to the real ping delivery and 200 to its redelivery", async () => {
+it("POST /webhook through the Worker answers 202 to the real ping delivery and again to its redelivery, storing nothing", async () => {
   await withEmptyDeliveries();
 
   const first = await exports.default.fetch("https://example.com/webhook", { method: "POST", body, headers });
@@ -123,8 +123,9 @@ it("POST /webhook through the Worker answers 202 to the real ping delivery and 2
 
   expect(first.status, "status of the delivery").toBe(202);
   expect(await first.text(), "body of the delivery").toBe("");
-  expect(second.status, "status of the redelivery").toBe(200);
+  expect(second.status, "status of the redelivery").toBe(202);
   expect(await second.text(), "body of the redelivery").toBe("");
+  expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM deliveries").first("n"), "deliveries rows").toBe(0);
 });
 
 /** `sha256=<hex>` of the HMAC-SHA256 of `text` under the throwaway secret of the real delivery. */
@@ -167,6 +168,39 @@ it("POST /webhook through the Worker sends the message of a matching rule to Tel
     status: "sent",
     attempts: 1,
   });
+});
+
+it("POST /webhook through the Worker answers 200 to the redelivery of a recorded delivery", async () => {
+  await withEmptyDeliveries();
+  const telegram = telegramDouble();
+  vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => telegram.fetch(new Request(input, init)));
+  const workerEnv = { ...env, TELEGRAM_BOT_TOKEN: BOT_TOKEN, TELEGRAM_CHAT_ID: "5001001" };
+  const text = JSON.stringify({ zen: WIRING_ZEN, repository: { full_name: "octo/repo" } });
+  const send = async (): Promise<Response> => {
+    const ctx = createExecutionContext();
+    const response = await worker.fetch(
+      new Request("https://example.com/webhook", {
+        method: "POST",
+        body: text,
+        headers: {
+          "content-type": "application/json",
+          "x-github-event": "ping",
+          "x-github-delivery": "wiring-test-redelivery",
+          "x-hub-signature-256": await signatureOf(text),
+        },
+      }),
+      workerEnv,
+      ctx,
+    );
+    await waitOnExecutionContext(ctx);
+    return response;
+  };
+
+  const first = await send();
+  const second = await send();
+
+  expect([first.status, second.status], "statuses").toEqual([202, 200]);
+  expect(telegram.methods(), "Bot API methods called").toEqual(["sendMessage"]);
 });
 
 it("the Worker resolves a draft check through the GitHub API client and, without a GitHub App, sends the draft-status-unknown title", async () => {
