@@ -28,3 +28,5 @@ are quoted in full.
 | 2026-10-31 19:50 | 9 CHANGELOG entry (continued) | squad-dev | Unreleased Changed bullet for #121 added to CHANGELOG.md (sonnet/medium · 2,290 tokens · 3 tool uses · 8 s · continued from 6 Implement G1) |
 | 2026-10-31 19:50 | 9 Review delta 2 (continued) | squad-reviewer | BLOCKING 1: CHANGELOG bullet said 'no longer stored in D1' (last_delivery still written) and omitted the recorded unstar (opus/medium · 3,430 tokens · 2 tool uses · 22 s · continued from 8 Review round 1) |
 | 2026-10-31 19:50 | 9 Fix round 2 changelog (continued) | squad-dev | CHANGELOG bullet reworded per reviewer (sonnet/medium · 1,500 tokens · 2 tool uses · 7 s · continued from 6 Implement G1) |
+| 2026-10-31 19:51 | 9 Review delta 3 (continued) | squad-reviewer | APPROVE; CHANGELOG bullet accurate (opus/medium · usage pending) |
+| 2026-10-31 19:51 | 9 PR approval (re-check) | Orchestrator | approved by checklist: delta 3 clean on head 9d9fa61; no open decisions |
