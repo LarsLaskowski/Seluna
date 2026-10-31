@@ -16,3 +16,5 @@ are quoted in full.
 | 2026-10-31 17:02 | 6 Implement | squad-dev | canonicalTimeZone implemented, used in settingsFromStored/parseSettingsForm, extra select option, isTimeZone removed, docs written; npm test green (6287) (sonnet/medium · 75,590 tokens · 12 tool uses · 134 s) |
 | 2026-10-31 17:06 | 7 Code check | Orchestrator | Format, typecheck, lint, analyzer (0 findings), scope, decision-check, coverage gate (100% new, 96.7% overall) PASS; Sonar branch analysis uploaded, results NOT CHECKED (re-check on PR); main unchanged |
 | 2026-10-31 17:07 | 8 Review (diff) | squad-security | APPROVED, no findings (code SHA dbeba99) (opus/medium · 30,549 tokens · 5 tool uses · 32 s) |
+| 2026-10-31 17:08 | 8 Review | squad-reviewer | Round 1: BLOCKING 0, NON-BLOCKING 1 (verbatim doc fix: 0042 Supersedes should name 0025; Context misreports 0025) (opus/medium · 59,044 tokens · 11 tool uses · 91 s) |
+| 2026-10-31 17:08 | 8 Review | Orchestrator | Applied reviewer's verbatim doc fix to decision 0042 (Supersedes names 0025; Context reworded); decision-check PASS; no delta round (verbatim) |

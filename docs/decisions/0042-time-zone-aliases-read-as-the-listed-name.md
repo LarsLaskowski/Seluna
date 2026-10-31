@@ -4,8 +4,7 @@
 - **Date:** 2026-10-31
 - **Area:** Setup wizard
 - **Source:** Issue #129
-- **Supersedes:** 0018 (amends only its choice of accepted time zones, options 3 and 4, and its consequence that a
-  stored zone the runtime stops listing reads as `UTC`; the rest of 0018 stands)
+- **Supersedes:** 0018 (amends only its choice of accepted time zones, options 3 and 4, and its consequence that a stored zone the runtime stops listing reads as `UTC`; the rest of 0018 stands) and 0025 (amends only its consequence that the settings accept only zones the runtime lists; the rest of 0025 stands)
 
 ## Context
 
@@ -16,8 +15,7 @@ Workers runtime of the tests (workerd 1.20261019.1, measured) `Asia/Calcutta`, `
 listed while `Asia/Kolkata`, `Europe/Kyiv` and `Asia/Ho_Chi_Minh` are not, though `Intl.DateTimeFormat` accepts them
 and resolves them to the listed name. Only listed names can be saved, so no instance holds another one today; but a
 runtime update that changed the list would turn every saved zone it no longer lists into UTC without notice, moving
-quiet hours and digest times ([0025](0025-quiet-hours-decided-at-sending.md) assumed the list never changes under a
-saved zone). ECMA-402 is expected to make exactly that change (TC39 proposal-canonical-tz, folded into Temporal; not
+quiet hours and digest times (a case [0025](0025-quiet-hours-decided-at-sending.md) left to a runtime whose list changed). ECMA-402 is expected to make exactly that change (TC39 proposal-canonical-tz, folded into Temporal; not
 yet in any runtime measured): the list moves to IANA primary names and `resolvedOptions().timeZone` stops
 canonicalizing, so a saved `Asia/Calcutta` would resolve to itself and be unlisted.
 
