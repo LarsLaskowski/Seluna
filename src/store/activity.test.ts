@@ -411,7 +411,8 @@ describe("readDigestSummary", () => {
       ["octo/r1", 5000, 0, 5000, 5],
     ]);
     expect(summary?.repositories[1]?.names, "first accounts of the repository").toEqual(["u1", "u3", "u5", "u7", "u9"]);
-    expect(summary?.maxId, "largest id").toBe(10_000);
+    const largest = await env.DB.prepare("SELECT MAX(id) AS id FROM activity").first();
+    expect(summary?.maxId, "largest id").toBe(largest?.id);
   });
 
   it("readDigestSummary rejects when the table is missing", async () => {
