@@ -113,7 +113,7 @@ reads — largest id, repositories, names — and a batch of 3), plus 5 for its 
 - r ≤ 9 with a send: at most 17 + 18 + 13 + 2 = 50.
 - r = 10 without a send: 38 + 8 = 46.
 
-Both stay within 50 (zero headroom in the first case; 48 when a D1 batch counts as one), so no statement or request of the run is refused. A digest is then sent at most 10 minutes
+Both stay within 50 (zero headroom in the first case), so no statement or request of the run is refused. A digest is then sent at most 10 minutes
 after its digest time, or 20 minutes when that run's retry was full. Option (a) of the challenge; the other two
 options are in 0041.
 

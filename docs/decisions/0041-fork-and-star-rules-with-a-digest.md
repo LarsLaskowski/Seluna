@@ -77,7 +77,7 @@ for the retry, and a digest with its own send would add 13 and 2, which makes 53
 successful send would send the digest twice.
 
 16. **The digest sends its row only when the retry handed fewer than 10 rows to the sender.** Otherwise the row waits
-    `pending` for the next run's retry. The worst case is 50, with no headroom (48 if a D1 batch counted as one subrequest), at the price of a digest up to 20 minutes late during
+    `pending` for the next run's retry. The worst case is 50, with no headroom, at the price of a digest up to 20 minutes late during
     a backlog. Chosen.
 17. **The digest row joins the retry's send.** This saves the channel and token reads, but the retry would have to
     build the digest inside its batch, which couples the two jobs.
