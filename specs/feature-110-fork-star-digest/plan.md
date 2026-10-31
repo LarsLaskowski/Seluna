@@ -2,7 +2,7 @@
 
 Source: Issue #110 | [spec.md](spec.md)
 Status: Draft
-Tier: standard — a behavior change with a new table, migration and cron job that creates, changes or removes no security control: stranger text goes through the existing `cleanField` and `escapeTelegramHtml`, and no permission, session, CSRF or credential path changes.
+Tier: security — raised from standard by Security's plan review: the plan rewrites `renderTelegramText`, the output-escaping guard (`.squad/routing.md`, *Tiers*); a Security diff review runs in step 8.
 Security areas touched: Parsing of external input (`src/notification.ts` `decodeStoredNotification`/`encodeStoredNotification` with the new `lines`, `renderTelegramText` in `src/message.ts`, new payload fields stored by `src/store/activity.ts`, digest lines built in `src/digest.ts`); Logging of external data (new request-log decision `collected`, new scheduled log entry `{ job: "digest", result: "store-failed" }`); Setup login (the settings form in `src/setup/`, with its session and CSRF unchanged)
 
 ## Problem / root cause
