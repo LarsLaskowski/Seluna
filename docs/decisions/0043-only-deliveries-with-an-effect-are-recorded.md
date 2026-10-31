@@ -1,6 +1,6 @@
 # 0043: Only deliveries with an effect are recorded
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-31
 - **Area:** Notifications
 - **Source:** Issue #121
