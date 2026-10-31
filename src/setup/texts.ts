@@ -413,7 +413,7 @@ const ENGLISH: SetupTexts = {
     "github-store-failed":
       "GitHub created the app, but saving its credentials failed, so nothing was saved. Delete the app on GitHub and start again.",
     "settings-invalid":
-      "The settings were not saved. Check the values: quiet hours need a start and an end in the form 22:00, and the two must differ.",
+      "The settings were not saved. Check the values: quiet hours need a start and an end in the form 22:00, and the two must differ; a daily digest of stars and forks needs a time in the form 18:00.",
     "reset-not-needed": "The saved credentials can be read with the current SELUNA_SECRET, so nothing was reset.",
   },
 };
@@ -656,7 +656,7 @@ const GERMAN: SetupTexts = {
     "github-store-failed":
       "GitHub hat die App erstellt, aber das Speichern ihrer Zugangsdaten ist fehlgeschlagen, daher wurde nichts gespeichert. Lösche die App auf GitHub und beginne erneut.",
     "settings-invalid":
-      "Die Einstellungen wurden nicht gespeichert. Prüfe die Werte: Ruhezeiten brauchen einen Beginn und ein Ende in der Form 22:00, und beide müssen sich unterscheiden.",
+      "Die Einstellungen wurden nicht gespeichert. Prüfe die Werte: Ruhezeiten brauchen einen Beginn und ein Ende in der Form 22:00, und beide müssen sich unterscheiden; ein täglicher Überblick über Sterne und Forks braucht eine Uhrzeit in der Form 18:00.",
     "reset-not-needed":
       "Die gespeicherten Zugangsdaten sind mit dem aktuellen SELUNA_SECRET lesbar, daher wurde nichts zurückgesetzt.",
   },

@@ -1,5 +1,5 @@
-import { DEFAULT_ACTIVITY_DIGEST, DEFAULT_SETTINGS, isClockTime, isTimeZone, RULE_IDS } from "../settings";
-import type { NotificationSettings, QuietHours } from "../settings";
+import { DEFAULT_SETTINGS, isClockTime, isTimeZone, RULE_IDS } from "../settings";
+import type { ActivityDigest, NotificationSettings, QuietHours } from "../settings";
 
 /** Path of the settings form's `POST`. */
 export const SETTINGS_PATH = "/setup/settings";
@@ -39,18 +39,30 @@ function quietHoursOf(fields: URLSearchParams): QuietHours | null | undefined {
     : undefined;
 }
 
+/** The digest of the form: `immediate` and `hourly` ignore a posted time, `daily` needs a valid one. */
+function activityDigestOf(fields: URLSearchParams): ActivityDigest | undefined {
+  const kind = single(fields, "activity_digest");
+  if (kind === "immediate" || kind === "hourly") {
+    return { kind };
+  }
+  const time = single(fields, "digest_time");
+  return kind === "daily" && time !== undefined && isClockTime(time) ? { kind, time } : undefined;
+}
+
 /** The settings of a submitted settings form, or `undefined` when any field is invalid. */
 export function parseSettingsForm(fields: URLSearchParams): NotificationSettings | undefined {
   const language = single(fields, "notification_language");
   const timeZone = single(fields, "time_zone");
   const quietHours = quietHoursOf(fields);
   const updateNotice = checkbox(fields, "update_notice");
+  const activityDigest = activityDigestOf(fields);
   if (
     (language !== "en" && language !== "de") ||
     timeZone === undefined ||
     !isTimeZone(timeZone) ||
     quietHours === undefined ||
-    updateNotice === undefined
+    updateNotice === undefined ||
+    activityDigest === undefined
   ) {
     return undefined;
   }
@@ -68,6 +80,6 @@ export function parseSettingsForm(fields: URLSearchParams): NotificationSettings
     quietHours: quietHours ?? undefined,
     rules,
     updateNotice,
-    activityDigest: DEFAULT_ACTIVITY_DIGEST,
+    activityDigest,
   };
 }

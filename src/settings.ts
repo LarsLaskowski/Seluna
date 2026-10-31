@@ -72,9 +72,11 @@ const LANGUAGE_KEY = "notification_language";
 const TIME_ZONE_KEY = "time_zone";
 const QUIET_HOURS_KEY = "quiet_hours";
 const UPDATE_NOTICE_KEY = "update_notice";
+const ACTIVITY_DIGEST_KEY = "activity_digest";
 const QUIET_HOURS_OFF = "off";
 const SWITCH_ON = "on";
 const SWITCH_OFF = "off";
+const DAILY_PREFIX = "daily@";
 const CLOCK_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 /** The `settings` key of a rule's switch. */
@@ -89,6 +91,7 @@ export const SETTING_KEYS: readonly string[] = [
   QUIET_HOURS_KEY,
   ...RULE_IDS.map((id) => ruleKey(id)),
   UPDATE_NOTICE_KEY,
+  ACTIVITY_DIGEST_KEY,
 ];
 
 /** The time zone names the runtime lists, with `UTC` added when missing. */
@@ -143,18 +146,27 @@ export function settingsFromStored(stored: ReadonlyMap<string, string>): Notific
     quietHours: quietHoursFromStored(stored.get(QUIET_HOURS_KEY)),
     rules,
     updateNotice: switchFromStored(stored.get(UPDATE_NOTICE_KEY), DEFAULT_SETTINGS.updateNotice),
-    activityDigest: DEFAULT_ACTIVITY_DIGEST,
+    activityDigest: activityDigestFromStored(stored.get(ACTIVITY_DIGEST_KEY)),
   };
 }
 
 /** The activity digest of a stored `settings` value; an absent or invalid value reads as the default. */
 export function activityDigestFromStored(value: string | undefined): ActivityDigest {
-  throw new Error(`not implemented: ${value ?? "absent"}`);
+  if (value === "immediate" || value === "hourly") {
+    return { kind: value };
+  }
+  if (value?.startsWith(DAILY_PREFIX) === true) {
+    const time = value.slice(DAILY_PREFIX.length);
+    if (isClockTime(time)) {
+      return { kind: "daily", time };
+    }
+  }
+  return DEFAULT_ACTIVITY_DIGEST;
 }
 
 /** The `settings` value that stores `digest`. */
 export function activityDigestToStored(digest: ActivityDigest): string {
-  throw new Error(`not implemented: ${digest.kind}`);
+  return digest.kind === "daily" ? `${DAILY_PREFIX}${digest.time}` : digest.kind;
 }
 
 function switchText(on: boolean): string {
@@ -170,5 +182,6 @@ export function settingsToStored(settings: NotificationSettings): readonly (read
     [QUIET_HOURS_KEY, quietHours === undefined ? QUIET_HOURS_OFF : `${quietHours.start}-${quietHours.end}`],
     ...RULE_IDS.map((id): readonly [string, string] => [ruleKey(id), switchText(settings.rules[id])]),
     [UPDATE_NOTICE_KEY, switchText(settings.updateNotice)],
+    [ACTIVITY_DIGEST_KEY, activityDigestToStored(settings.activityDigest)],
   ];
 }

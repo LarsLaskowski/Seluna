@@ -2,8 +2,8 @@ import type { AccountChoice } from "../github/manifest";
 import type { Language } from "./language";
 import type { TelegramChat } from "../telegram";
 import type { GitHubStepView } from "./github-step";
-import { RULE_IDS, timeZones } from "../settings";
-import type { NotificationSettings } from "../settings";
+import { DEFAULT_ACTIVITY_DIGEST, RULE_IDS, timeZones } from "../settings";
+import type { ActivityDigest, NotificationSettings } from "../settings";
 import { RESET_PATH, SETTINGS_PATH } from "./settings-form";
 import { CHANNEL_ACTIVATE_PATH, CHANNEL_FIELD, CHANNEL_REMOVE_PATH } from "./messengers";
 import { formatDeliveryTime } from "./status";
@@ -28,6 +28,10 @@ import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 
 const DEFAULT_QUIET_START = "22:00";
+/** The options of the digest select, in display order. */
+const DIGEST_KINDS: readonly ActivityDigest["kind"][] = ["immediate", "hourly", "daily"];
+/** The time the field shows when the stored digest is not a daily one. */
+const DEFAULT_ACTIVITY_DIGEST_TIME = DEFAULT_ACTIVITY_DIGEST.kind === "daily" ? DEFAULT_ACTIVITY_DIGEST.time : "18:00";
 const DEFAULT_QUIET_END = "07:00";
 
 /** The content of every page's single `<style>` element. */
@@ -512,6 +516,11 @@ function settingsFormHtml(language: Language, csrfToken: string, settings: Notif
   const { quietHours } = settings;
   const zones = timeZones().map((zone) => optionHtml(zone, zone, zone === settings.timeZone));
   const rules = RULE_IDS.map((id) => checkboxHtml(`rule_${id}`, texts.ruleLabels[id], settings.rules[id]));
+  const { activityDigest } = settings;
+  const digestTime = activityDigest.kind === "daily" ? activityDigest.time : DEFAULT_ACTIVITY_DIGEST_TIME;
+  const digestOptions = DIGEST_KINDS.map((kind) =>
+    optionHtml(kind, texts.activityDigestOptions[kind], kind === activityDigest.kind),
+  );
   return card(
     `<h2>${escapeHtml(texts.settingsHeading)}</h2>\n<form method="post" action="${SETTINGS_PATH}">\n${csrfInput(csrfToken)}\n` +
       `<label for="notification_language">${escapeHtml(texts.notificationLanguageLabel)}</label>\n` +
@@ -526,6 +535,10 @@ function settingsFormHtml(language: Language, csrfToken: string, settings: Notif
       `<input id="quiet_end" type="time" name="quiet_end" value="${quietHours?.end ?? DEFAULT_QUIET_END}">\n</fieldset>\n` +
       `<fieldset class="group">\n<legend>${escapeHtml(texts.rulesLabel)}</legend>\n${rules.join("\n")}\n` +
       `${checkboxHtml("update_notice", texts.updateNoticeLabel, settings.updateNotice)}\n</fieldset>\n` +
+      `<fieldset class="group">\n<legend>${escapeHtml(texts.activityDigestLabel)}</legend>\n` +
+      `<select id="activity_digest" name="activity_digest" aria-label="${escapeHtml(texts.activityDigestLabel)}">\n${digestOptions.join("\n")}\n</select>\n` +
+      `<label for="digest_time">${escapeHtml(texts.digestTimeLabel)}</label>\n` +
+      `<input id="digest_time" type="time" name="digest_time" value="${escapeHtml(digestTime)}">\n</fieldset>\n` +
       `<button type="submit" class="primary">${escapeHtml(texts.saveSettingsButton)}</button>\n</form>`,
   );
 }
