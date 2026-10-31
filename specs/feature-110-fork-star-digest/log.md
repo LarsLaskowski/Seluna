@@ -7,3 +7,4 @@ are quoted in full.
 | ---- | ---- | ------ | ------ |
 | 2026-10-31 09:42 | 1 Intake | Orchestrator | Issue #110 read (open, labels enhancement/rules/storage, feature); branch claude/busy-davinci-gzw0va off main 1094ce3; work folder created |
 | 2026-10-31 09:48 | 2a Spec | squad-lead | RESULT: DONE; spec.md written, plan-check --spec PASS. Open: fixtures are reference-built (no star/deleted), Product Manager choice deferred to plan; next free migration 0002 (opus/medium · 141,692 tokens · 44 tool uses · 390 s) |
+| 2026-10-31 09:51 | 2a Spec challenge | squad-devils-advocate | OBJECTIONS 2 major (M1 due-slot semantics and first run, M2 race between digest read and delete), 9 minor (m1-m9); routed to Lead in mode revise (opus/medium · usage pending) |
