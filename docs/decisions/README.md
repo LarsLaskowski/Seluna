@@ -96,5 +96,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0040](0040-issue-and-comment-rules.md) | Issue and comment rules | Accepted | 2026-10-30 |
 | [0041](0041-fork-and-star-rules-with-a-digest.md) | Fork and star rules with a digest | Accepted | 2026-10-31 |
 | [0042](0042-time-zone-aliases-read-as-the-listed-name.md) | Time zone aliases read as the listed name of their zone, other zone names as the runtime's name | Accepted | 2026-10-31 |
+| [0043](0043-only-deliveries-with-an-effect-are-recorded.md) | Only deliveries with an effect are recorded | Proposed | 2026-10-31 |
 
 <!-- project:end index -->
