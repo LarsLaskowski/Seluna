@@ -1,4 +1,5 @@
 import type { ActivityEvent, StarRemoval } from "../rules/rule";
+import { activityInsert, starRemovalDelete } from "./activity";
 import { lastDeliveryUpsert } from "./meta";
 import { outboxInsert } from "./outbox";
 import type { NewOutboxRow } from "./outbox";
@@ -41,16 +42,17 @@ export async function recordDelivery(
   messages: readonly NewOutboxRow[],
   activity?: ActivityChanges,
 ): Promise<RecordDeliveryResult> {
-  if (activity !== undefined) {
-    throw new Error("not implemented");
-  }
   const insertDelivery = db
     .prepare("INSERT INTO deliveries (id, event, received_at) VALUES (?1, ?2, ?3)")
     .bind(delivery.id, delivery.event, delivery.receivedAt.getTime());
   const inserts = messages.map((message) => outboxInsert(db, message, delivery.receivedAt));
+  const collected = [
+    ...(activity?.inserts ?? []).map((event) => activityInsert(db, event, delivery.receivedAt)),
+    ...(activity?.removals ?? []).map((removal) => starRemovalDelete(db, removal)),
+  ];
   let results: D1Result<Record<string, unknown>>[];
   try {
-    results = await db.batch([insertDelivery, ...inserts, lastDeliveryUpsert(db, delivery.receivedAt)]);
+    results = await db.batch([insertDelivery, ...inserts, ...collected, lastDeliveryUpsert(db, delivery.receivedAt)]);
   } catch (error) {
     // A plain insert conflicts on a known id and the whole batch rolls back; any other failure is rethrown.
     if (await isKnownDelivery(db, delivery.id)) {
