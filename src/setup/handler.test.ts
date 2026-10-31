@@ -14,7 +14,7 @@ import {
 import type { ChannelList } from "../channels/channel";
 import { TELEGRAM_CHANNEL } from "../channels/telegram";
 import { MAX_TELEGRAM_RESPONSE_BYTES } from "../telegram";
-import { DEFAULT_SETTINGS } from "../settings";
+import { DEFAULT_SETTINGS, timeZones } from "../settings";
 import type { NotificationSettings } from "../settings";
 import { CSRF_COOKIE, csrfTokenFor, sessionCsrfTokenFor } from "./csrf";
 import { createChatProof } from "./chat-proof";
@@ -27,6 +27,7 @@ import { RESET_PATH, SETTINGS_PATH } from "./settings-form";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 import { testChannel } from "../../test/channel";
+import { assertKeptUnlisted, spellingsOf } from "../../test/time-zones";
 import type { TestChannel } from "../../test/channel";
 import { applyMigrations, migrationTestDb, schemaOnlyDb, unusedDb } from "../../test/d1";
 import {
@@ -3819,6 +3820,37 @@ describe("handleSetup status page", () => {
     expect(inputTagOf(html, "rule_ci_failed_pull_request"), "enabled rule").toMatch(/\bchecked\b/);
     expect(html, "digest interval").toContain('<option value="daily" selected>');
     expect(inputTagOf(html, "digest_time"), "digest time").toContain('value="06:45"');
+  });
+
+  it("GET /setup selects and shows the listed name of a stored time zone alias", async () => {
+    const { listed, alias } = spellingsOf(["Asia/Kolkata", "Asia/Calcutta"]);
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('time_zone', ?1)").bind(alias).run();
+    await putMeta("last_delivery", "1792240440000");
+
+    const response = await stepPage(depsAt(), "/setup");
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    const select = /<select id="time_zone"[^>]*>([\s\S]*?)<\/select>/.exec(html)?.[1] ?? "";
+    expect(select, "listed spelling selected").toContain(`<option value="${listed}" selected>`);
+    expect(select.match(/<option\b/g), "no option besides the listed ones").toHaveLength(timeZones().length);
+    expect(select.match(/ selected>/g), "one selected option").toHaveLength(1);
+    expect(html, "last delivery").toContain(`2026-10-17 18:04 (${listed})`);
+  });
+
+  it("GET /setup selects and shows a stored unlisted time zone", async () => {
+    assertKeptUnlisted("Etc/GMT+5");
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('time_zone', 'Etc/GMT+5')").run();
+    await putMeta("last_delivery", "1792240440000");
+
+    const response = await stepPage(depsAt(), "/setup");
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    const select = /<select id="time_zone"[^>]*>([\s\S]*?)<\/select>/.exec(html)?.[1] ?? "";
+    expect(select.match(/<option\b[^>]*>/g)?.[0], "first option").toBe('<option value="Etc/GMT+5" selected>');
+    expect(select.match(/ selected>/g), "only the unlisted zone is selected").toHaveLength(1);
+    expect(html, "last delivery").toContain("2026-10-17 07:34 (Etc/GMT+5)");
   });
 
   it("GET /setup shows the default digest and unchecked star and fork switches without saved settings", async () => {

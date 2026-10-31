@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   activityDigestFromStored,
+  canonicalTimeZone,
   activityDigestToStored,
   DEFAULT_ACTIVITY_DIGEST,
   DEFAULT_SETTINGS,
-  isTimeZone,
   RULE_IDS,
   SETTING_KEYS,
   settingsFromStored,
@@ -12,6 +12,7 @@ import {
   timeZones,
 } from "./settings";
 import type { ActivityDigest, NotificationSettings } from "./settings";
+import { assertKeptUnlisted, spellingsOf, ZONE_PAIRS } from "../test/time-zones";
 
 const ALL_RULES_OFF: NotificationSettings["rules"] = {
   pull_request_opened: false,
@@ -136,7 +137,8 @@ describe("settingsFromStored", () => {
 
   it.each([
     { key: "notification_language", value: "fr", expected: { ...NON_DEFAULT, language: "en" } },
-    { key: "time_zone", value: "europe/berlin", expected: { ...NON_DEFAULT, timeZone: "UTC" } },
+    { key: "time_zone", value: "Mars/Base", expected: { ...NON_DEFAULT, timeZone: "UTC" } },
+    { key: "time_zone", value: "+01:00", expected: { ...NON_DEFAULT, timeZone: "UTC" } },
     { key: "quiet_hours", value: "25:00-07:00", expected: { ...NON_DEFAULT, quietHours: undefined } },
     { key: "quiet_hours", value: "07:00-07:00", expected: { ...NON_DEFAULT, quietHours: undefined } },
     {
@@ -156,6 +158,51 @@ describe("settingsFromStored", () => {
 
     expect(settings, "only the invalid key reads as its default").toEqual(expected);
   });
+});
+
+describe("settingsFromStored time zones", () => {
+  it.each(
+    ZONE_PAIRS.flatMap(
+      ({ pair, names }) =>
+        [
+          { pair, names, use: "listed" },
+          { pair, names, use: "alias" },
+        ] as const,
+    ),
+  )("settingsFromStored reads the $use spelling of $pair as the listed one", ({ names, use }) => {
+    const spellings = spellingsOf(names);
+    const rows = nonDefaultRows();
+    rows.set("time_zone", spellings[use]);
+
+    const settings = settingsFromStored(rows);
+
+    expect(settings.timeZone, "time zone").toBe(spellings.listed);
+  });
+
+  it.each([{ zone: "+0100" }, { zone: "-05:00" }, { zone: "" }, { zone: " Europe/Berlin" }])(
+    "settingsFromStored reads the rejected value '$zone' as UTC",
+    ({ zone }) => {
+      const rows = nonDefaultRows();
+      rows.set("time_zone", zone);
+
+      const settings = settingsFromStored(rows);
+
+      expect(settings.timeZone, "time zone").toBe("UTC");
+    },
+  );
+
+  it.each([{ zone: "Etc/GMT+5" }, { zone: "Etc/GMT-14" }])(
+    "settingsFromStored reads the unlisted zone $zone as itself",
+    ({ zone }) => {
+      assertKeptUnlisted(zone);
+      const rows = nonDefaultRows();
+      rows.set("time_zone", zone);
+
+      const settings = settingsFromStored(rows);
+
+      expect(settings.timeZone, "time zone").toBe(zone);
+    },
+  );
 });
 
 describe("activityDigestFromStored", () => {
@@ -236,54 +283,89 @@ describe("settingsToStored", () => {
   });
 });
 
-describe("isTimeZone", () => {
-  it.each([{ zone: "UTC" }, { zone: "Europe/Berlin" }, { zone: "America/New_York" }])(
-    "isTimeZone accepts $zone",
-    ({ zone }) => {
-      const result = isTimeZone(zone);
+describe("canonicalTimeZone", () => {
+  it.each(ZONE_PAIRS)("canonicalTimeZone gives the listed name for both spellings of $pair", ({ names }) => {
+    const { listed, alias } = spellingsOf(names);
 
-      expect(result, "result").toBe(true);
-    },
-  );
+    const results = [canonicalTimeZone(listed), canonicalTimeZone(alias)];
+
+    expect(results, "listed name for the listed spelling and for the alias").toEqual([listed, listed]);
+  });
+
+  it("canonicalTimeZone returns every listed name unchanged", () => {
+    const zones = timeZones();
+
+    const results = zones.map((zone) => canonicalTimeZone(zone));
+
+    expect(results, "canonical names of the listed names").toEqual([...zones]);
+    expect(zones, "UTC is listed").toContain("UTC");
+  });
 
   it.each([
-    { case: "a lower-case name", zone: "europe/berlin" },
-    { case: "an upper-case name", zone: "EUROPE/BERLIN" },
     { case: "a positive UTC offset", zone: "+01:00" },
+    { case: "a positive UTC offset without a colon", zone: "+0100" },
     { case: "a negative UTC offset", zone: "-05:00" },
     { case: "a leading space", zone: " Europe/Berlin" },
     { case: "a trailing space", zone: "Europe/Berlin " },
     { case: "the empty text", zone: "" },
     { case: "an unknown name", zone: "Mars/Base" },
-  ])("isTimeZone rejects $case", ({ zone }) => {
-    const result = isTimeZone(zone);
+  ])("canonicalTimeZone rejects $case", ({ zone }) => {
+    const result = canonicalTimeZone(zone);
 
-    expect(result, "result").toBe(false);
+    expect(result, "result").toBeUndefined();
   });
 
-  it("isTimeZone rejects a name followed by a NUL character", () => {
+  it("canonicalTimeZone rejects the offset written with a minus sign", () => {
+    // One backslash in the source: the first character is the minus sign U+2212, not a hyphen.
+    const zone = "\u221201:00";
+    expect(zone.charCodeAt(0), "first code unit of the input: the backslash of the escape was kept in the source").toBe(
+      0x2212,
+    );
+
+    const result = canonicalTimeZone(zone);
+
+    expect(result, "result").toBeUndefined();
+  });
+
+  it("canonicalTimeZone rejects a name followed by a NUL character", () => {
     // One backslash in the source: the text holds a real NUL, so it has 14 characters.
     const zone = "Europe/Berlin\u0000";
     expect(zone.length, "length of the input: the backslash of the escape was kept in the source").toBe(14);
 
-    const result = isTimeZone(zone);
+    const result = canonicalTimeZone(zone);
 
-    expect(result, "result").toBe(false);
+    expect(result, "result").toBeUndefined();
   });
+
+  it.each([{ zone: "europe/berlin" }, { zone: "EUROPE/BERLIN" }])(
+    "canonicalTimeZone gives Europe/Berlin for the letter-case variant $zone",
+    ({ zone }) => {
+      const result = canonicalTimeZone(zone);
+
+      expect(result, "result").toBe("Europe/Berlin");
+    },
+  );
+
+  it.each([{ zone: "Etc/GMT+5" }, { zone: "Etc/GMT-14" }])(
+    "canonicalTimeZone keeps the unlisted zone $zone",
+    ({ zone }) => {
+      assertKeptUnlisted(zone);
+
+      const result = canonicalTimeZone(zone);
+
+      expect(result, "result").toBe(zone);
+    },
+  );
 });
 
 describe("timeZones", () => {
-  it("timeZones lists UTC once and only names isTimeZone accepts", () => {
+  it("timeZones lists UTC once and a well-known zone", () => {
     const zones = timeZones();
 
     expect(
       zones.filter((zone) => zone === "UTC"),
       "occurrences of UTC",
     ).toHaveLength(1);
-    expect(
-      zones.filter((zone) => !isTimeZone(zone)),
-      "listed names isTimeZone rejects",
-    ).toEqual([]);
     expect(zones, "a well-known zone").toContain("Europe/Berlin");
   });
 });

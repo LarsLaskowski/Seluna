@@ -15,7 +15,7 @@ import {
   STYLE,
 } from "./pages";
 import type { GitHubPageView, TelegramPageView } from "./pages";
-import { DEFAULT_SETTINGS, RULE_IDS } from "../settings";
+import { DEFAULT_SETTINGS, RULE_IDS, timeZones } from "../settings";
 import type { NotificationSettings } from "../settings";
 import type { Installation } from "../github/installations";
 import type { InstallationEntry, InstallationsView, MessengerEntry, MessengersView, StatusView } from "./status";
@@ -23,6 +23,7 @@ import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 import type { TelegramChat } from "../telegram";
 import type { ChatPart, TokenState } from "./telegram-step";
+import { assertKeptUnlisted } from "../../test/time-zones";
 
 const LANGUAGES: readonly Language[] = ["en", "de"];
 const NOTICES: readonly Notice[] = [
@@ -2615,6 +2616,20 @@ describe("renderStartPage settings form", () => {
     expect(inputTag(page, "update_notice"), "update notice off").not.toMatch(/\bchecked\b/);
     expect(page, "daily selected").toContain('<option value="daily" selected>');
     expect(inputTag(page, "digest_time"), "digest time").toContain('value="07:15"');
+  });
+
+  it("renderStartPage offers an unlisted configured time zone as the first, selected option", () => {
+    assertKeptUnlisted("Etc/GMT+5");
+    const settings: NotificationSettings = { ...DEFAULT_SETTINGS, timeZone: "Etc/GMT+5" };
+
+    const page = startPage("en", { settings });
+
+    const select = /<select id="time_zone"[^>]*>([\s\S]*?)<\/select>/.exec(page)?.[1] ?? "";
+    const options = select.match(/<option\b[^>]*>/g);
+    expect(options, "options of the time zone select").toEqual([
+      '<option value="Etc/GMT+5" selected>',
+      ...timeZones().map((zone) => `<option value="${escapeHtml(zone)}">`),
+    ]);
   });
 
   it("renderStartPage puts the session-bound token into the settings form", () => {

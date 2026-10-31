@@ -12,3 +12,4 @@ are quoted in full.
 | 2026-10-31 16:55 | 2 Plan revise | squad-lead | Revised: all 3 objections accepted; non-listed named zones kept as runtime name, offsets rejected; AC7 added; select gets extra option; 0042 rewritten; plan-check PASS; Security re-confirmation required (opus/medium · 69,199 tokens · 28 tool uses · 319 s) |
 | 2026-10-31 16:56 | 3 Plan security review (round 2) | squad-security | APPROVED, no findings (opus/medium · 15,207 tokens · 6 tool uses · 68 s · continued) |
 | 2026-10-31 16:57 | 4 Skeleton | squad-dev | canonicalTimeZone stub + OFFSET_FORM export; typecheck passes (sonnet/medium · 63,152 tokens · 9 tool uses · 21 s) |
+| 2026-10-31 17:00 | 5 Tests first | squad-tester | Tests written (+ test/time-zones.ts helper); confirmed 22 fail on skeleton, 2604 pass; no deferred tests (sonnet/medium · 111,828 tokens · 14 tool uses · 136 s) |
