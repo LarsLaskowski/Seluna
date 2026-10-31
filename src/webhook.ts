@@ -30,7 +30,9 @@ export interface SignedDelivery {
   readonly body: Uint8Array;
 }
 
-export type WebhookDecision = "reported" | "no-match" | "disabled" | "duplicate" | "invalid" | "unavailable";
+/** What the processing did; `collected` means the delivery's stars or forks went into the activity digest. */
+export type WebhookDecision =
+  "reported" | "collected" | "no-match" | "disabled" | "duplicate" | "invalid" | "unavailable";
 
 export interface WebhookOutcome {
   readonly status: 200 | 202 | 400 | 503;
