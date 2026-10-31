@@ -81,10 +81,26 @@ export function lastDeliveryUpsert(db: D1Database, time: Date): D1PreparedStatem
 export const LAST_DELIVERY_REFRESH_MS = 60_000;
 
 /** Refreshes `last_delivery` with `time` unless the stored value is within `LAST_DELIVERY_REFRESH_MS`. D1 errors are not caught. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- skeleton: the implementation uses both parameters
 export async function refreshLastDelivery(db: D1Database, time: Date): Promise<void> {
-  await Promise.resolve();
-  throw new Error("Not implemented");
+  const milliseconds = time.getTime();
+  await db
+    .prepare(
+      `INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value
+       WHERE NOT (
+         (meta.value = '0' OR (meta.value GLOB '[1-9]*' AND meta.value NOT GLOB '*[^0-9]*' AND length(meta.value) <= 16))
+         AND CAST(CAST(meta.value AS INTEGER) AS TEXT) = meta.value
+         AND CAST(meta.value AS INTEGER) <= ${String(MAX_TIME)}
+         AND CAST(meta.value AS INTEGER) > ?3
+         AND CAST(meta.value AS INTEGER) < ?4
+       )`,
+    )
+    .bind(
+      LAST_DELIVERY_META_KEY,
+      String(milliseconds),
+      milliseconds - LAST_DELIVERY_REFRESH_MS,
+      milliseconds + LAST_DELIVERY_REFRESH_MS,
+    )
+    .run();
 }
 
 /** The time of the last activity digest run, or `undefined` when absent or not a valid time. D1 errors are not caught. */
