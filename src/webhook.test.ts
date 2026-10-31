@@ -1514,6 +1514,7 @@ describe("processWebhook with an unstar", () => {
 
     expect(outcome.decision, "decision").toBe("no-match");
     expect(await activityCount(), "activity rows").toBe(1);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
   });
 
   it.each<{ case: string; payload: WebhookPayload; owner: typeof OWNER | undefined; remaining: number }>([

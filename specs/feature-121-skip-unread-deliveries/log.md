@@ -22,3 +22,4 @@ are quoted in full.
 | 2026-10-31 19:44 | 8 Review round 1 (diff) | squad-security | APPROVED; no blocking findings (code be1f118) (opus/medium · 29,716 tokens · 5 tool uses · 47 s) |
 | 2026-10-31 19:45 | 8 Review round 1 | squad-reviewer | BLOCKING 2 (3 doc statements: http-routes.md x2, notifications.md The sender) \| NON-BLOCKING 3 (Draft lookup wording, README wording, unstar test assertion) (opus/medium · 75,156 tokens · 16 tool uses · 117 s) |
 | 2026-10-31 19:46 | 8 Fix round 1 docs (continued) | squad-dev | 3 blocking doc statements fixed (http-routes.md x2, notifications.md sender) + Draft lookup and README wording (sonnet/medium · 2,205 tokens · 3 tool uses · 11 s · continued from 6 Implement G1) |
+| 2026-10-31 19:49 | 8 Fix round 1 test (continued) | squad-tester | deliveries=0 assertion added to the unstar-switch-off test; suite 6313 pass; Coverage gate PASS (sonnet/medium · 1,591 tokens · 3 tool uses · 99 s · continued from 5 Tests first G1) |
