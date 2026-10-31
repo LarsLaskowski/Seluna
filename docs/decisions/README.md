@@ -94,6 +94,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0038](0038-channel-neutral-outbox-and-active-delivery-channel.md) | Channel-neutral outbox and one active delivery channel | Accepted | 2026-10-26 |
 | [0039](0039-issue-comment-fork-star-events-and-the-app-owner.md) | Issue, comment, fork and star events, the app owner and narrowed installation tokens | Accepted | 2026-10-29 |
 | [0040](0040-issue-and-comment-rules.md) | Issue and comment rules | Accepted | 2026-10-30 |
-| [0041](0041-fork-and-star-rules-with-a-digest.md) | Fork and star rules with a digest | Proposed | 2026-10-31 |
+| [0041](0041-fork-and-star-rules-with-a-digest.md) | Fork and star rules with a digest | Accepted | 2026-10-31 |
 
 <!-- project:end index -->

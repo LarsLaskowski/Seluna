@@ -1,6 +1,6 @@
 # 0041: Fork and star rules with a digest
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-31
 - **Area:** Notifications
 - **Source:** Issue #110
