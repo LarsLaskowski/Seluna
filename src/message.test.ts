@@ -322,7 +322,7 @@ describe("renderTelegramText with lines and an empty repository", () => {
   it.each([
     { case: "an empty repository", repository: "" },
     { case: "a repository of white space", repository: "  \t " },
-    { case: "a repository of directional characters", repository: "‮‏" },
+    { case: "a repository of directional characters", repository: "\u202e\u200f" },
   ])("renderTelegramText leaves out the separator and the repository for $case", ({ repository }) => {
     const text = renderTelegramText({ ...DIGEST, repository, lines: undefined });
 
@@ -330,7 +330,7 @@ describe("renderTelegramText with lines and an empty repository", () => {
   });
 
   it("renderTelegramText skips empty lines and lines that are empty after cleaning", () => {
-    const text = renderTelegramText({ ...DIGEST, lines: ["", "a", "  ", "‮", "b"] });
+    const text = renderTelegramText({ ...DIGEST, lines: ["", "a", "  ", "\u202e", "b"] });
 
     expect(text, "rendered text").toBe("<b>New stars and forks</b>\na\nb");
   });
@@ -343,7 +343,7 @@ describe("renderTelegramText with lines and an empty repository", () => {
 
   it("renderTelegramText cleans a line again: control and directional characters and a lone surrogate", () => {
     // One backslash in the source: the text holds the real characters.
-    const text = renderTelegramText({ ...DIGEST, lines: ["a‮b\nc\u0000d \uD800e"] });
+    const text = renderTelegramText({ ...DIGEST, lines: ["a\u202eb\nc\u0000d \uD800e"] });
 
     expect(text, "rendered text").toBe("<b>New stars and forks</b>\nab c d �e");
   });

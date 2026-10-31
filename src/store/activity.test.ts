@@ -145,7 +145,7 @@ describe("activityInsert", () => {
     // One backslash in the source: the text holds a real U+202E and a real line feed.
     await activityInsert(
       env.DB,
-      eventWith({ senderLogin: "ev‮il\nname", repository: "o/‮r\u0007x" }),
+      eventWith({ senderLogin: "ev\u202eil\nname", repository: "o/\u202er\u0007x" }),
       new Date(NOW),
     ).run();
 

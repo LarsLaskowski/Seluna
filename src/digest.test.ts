@@ -295,7 +295,7 @@ describe("digestNotification button", () => {
 describe("digestNotification with hostile text", () => {
   it("digestNotification removes directional characters and turns control characters into spaces", () => {
     // One backslash in the source: the texts hold the real characters.
-    const repository = repositoryWith({ repository: "o/‮r\nx", names: ["al‮ice", "b\u0000ob"], accounts: 2 });
+    const repository = repositoryWith({ repository: "o/\u202er\nx", names: ["al\u202eice", "b\u0000ob"], accounts: 2 });
 
     const { notification } = digestNotification(summaryOf([repository]), "en");
 
