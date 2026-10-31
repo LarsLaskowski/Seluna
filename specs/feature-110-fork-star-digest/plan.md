@@ -410,3 +410,7 @@ expressions are unchanged.
 - 5: accepted. One formatter per `isDigestDue` call (`wallClockReader`).
 - 6: accepted. Both reads leave out rows older than 7 days, and the commit deletes them, so no extra statement is
   needed. The digest-length sentence is in `notifications.md` (N1).
+
+## Security notes
+
+- Have the skeleton's doc comment on `RetryOutcome.attempted` say what it counts: the rows handed to `deliverMessages`, and 0 when the retry fails before that. The budget's correctness rests on this, and today it can only be inferred from the code. (squad-security, plan round 2, non-blocking)
