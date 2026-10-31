@@ -18,10 +18,10 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 | Worker `fetch` handler | `POST /webhook`, `GET /health` (returns the version), `/setup` (the setup wizard), `GET /` (redirects to `/setup`) |
 | Webhook processing | Deduplication by `X-GitHub-Delivery`, the owner read, the rules, the draft lookup of a CI failure in a pull request ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)) or of a comment on a pull request, the outbox rows and the first send attempt of each row ([`areas/notifications.md`](areas/notifications.md), [decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)) |
 | GitHub API client | Calls of the GitHub API as the app: the app JWT, the installation tokens per `installation.id` cached encrypted in `token_cache`, the pull request read for the draft lookup of the webhook processing (with tokens narrowed to the permissions of that one call), and the app read and the installations list for the status page ([`areas/github-api.md`](areas/github-api.md), [decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)) |
-| Rules | Pure functions of the event name, the payload, the settings and the stored app owner (read by the webhook processing) to zero or one notification; no I/O, no clock |
+| Rules | Pure functions of the event name, the payload, the settings and the stored app owner (read by the webhook processing) to zero or one notification (stars and forks included, which the processing sends or collects by the interval setting); no I/O, no clock |
 | Outbox and delivery channels | The D1 `outbox` table holding each message as a channel-neutral notification (JSON in `text`, no migration), and delivery through the one active delivery channel (`src/channels/`; Telegram is the first adapter, over the shared HTTP code of `src/channels/http.ts`), which renders the notification when it sends it, with one retry after a 429 and the cron's retry ([`areas/notifications.md`](areas/notifications.md), [decision 0038](decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)) |
 | Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram bot token ([decision 0036](decisions/0036-telegram-bot-token-in-the-setup-wizard.md)) and chat, the setup login, the Messengers card that activates a delivery channel, the status page with the settings, the app's installations and the reset after a changed `SELUNA_SECRET` ([decision 0018](decisions/0018-settings-and-status-page.md)) |
-| Cron (`scheduled` handler) | Every 10 minutes: clean up D1 and retry the outbox up to the fifth attempt. Daily: check for a new Seluna release and send a notice ([`areas/scheduled-jobs.md`](areas/scheduled-jobs.md), [decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md), [decision 0030](decisions/0030-release-notice-without-credentials.md)) |
+| Cron (`scheduled` handler) | Every 10 minutes: clean up D1, retry the outbox up to the fifth attempt and build the digest of stars and forks. Daily: check for a new Seluna release and send a notice ([`areas/scheduled-jobs.md`](areas/scheduled-jobs.md), [decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md), [decision 0030](decisions/0030-release-notice-without-credentials.md)) |
 | D1 (`src/store/`) | `settings`, `secrets` (AES-256-GCM), `deliveries`, `outbox`, `token_cache` (AES-256-GCM), `meta`; the only code that reads or writes D1 |
 
 ```mermaid
@@ -31,7 +31,7 @@ flowchart LR
   R -->|notification| O[(D1 outbox)]
   O -->|render and send| CH[Active channel]
   CH --> T[Telegram Bot API]
-  C[Cron] -->|retry, cleanup| O
+  C[Cron] -->|retry, clean up, digest| O
   C -->|release check, no credentials| GA[GitHub API]
 ```
 
@@ -56,8 +56,11 @@ flowchart LR
    A new issue and a comment on an issue or a pull request are reported unless the owner or a bot wrote them; a
    comment on a draft pull request, or one whose draft state stays unknown, produces nothing
    ([decision 0040](decisions/0040-issue-and-comment-rules.md)).
+   A star or fork by another account (not the owner, not a bot; both switches off by default) is reported at once or,
+   by the setting _Stars and forks_ (daily at 18:00 by default), collected in the `activity` table and sent by the
+   cron as one digest; an unstar removes the star again ([decision 0041](decisions/0041-fork-and-star-rules-with-a-digest.md)).
 4. In one D1 transaction the delivery id is recorded in `deliveries`, each notification becomes a row in the
-   `outbox` as a cleaned, channel-neutral JSON notification ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md),
+   `outbox` (a collected star or fork becomes a row of `activity` instead) as a cleaned, channel-neutral JSON notification ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md),
    [decision 0038](decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)) and `meta`
    records the time of the delivery; then the Worker answers 202. The active delivery channel (the setting
    `delivery_channel`, Telegram by default, read once per batch, no fallback) renders each row when it sends it; for
@@ -96,7 +99,7 @@ only. The rules are in [`areas/http-routes.md`](areas/http-routes.md)
 
 | Schedule | Job |
 | -------- | --- |
-| every 10 minutes | Delete `deliveries` rows older than 7 days, `sent` and `failed` `outbox` rows older than 30 days and expired `token_cache` rows; then resend up to 10 `pending` `outbox` rows and mark a row `failed` after its fifth attempt ([decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md)) |
+| every 10 minutes | Delete `deliveries` rows older than 7 days, `sent` and `failed` `outbox` rows older than 30 days and expired `token_cache` rows; then resend up to 10 `pending` `outbox` rows and mark a row `failed` after its fifth attempt ([decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md)); then, while a star or fork switch is on and a digest time has passed since the previous run, turn the collected `activity` rows into one digest row and send it ([decision 0041](decisions/0041-fork-and-star-rules-with-a-digest.md)) |
 | daily | Unless the update notice is off, read the latest Seluna release without credentials and, when it is newer than the running and the remembered version, write and send a notice and remember the version in `meta` ([decision 0030](decisions/0030-release-notice-without-credentials.md)) |
 
 Each job catches its own failures and logs only a fixed result; the rules are in
@@ -111,9 +114,10 @@ Each job catches its own failures and logs only a fixed result; the rules are in
 | `deliveries` | Processed `X-GitHub-Delivery` ids, for deduplication |
 | `outbox` | Notifications waiting for, or past, delivery; `text` holds the notification as JSON (rows of earlier versions: Telegram HTML) |
 | `token_cache` | Short-lived GitHub installation tokens, AES-256-GCM ciphertext |
-| `meta` | The last notified release, the time of the last delivery, the key check value that detects a changed `SELUNA_SECRET`, the setup login's failed-attempt count, the slug of the GitHub App the setup wizard created and the owner of the GitHub App |
+| `activity` | Stars and forks collected for the digest, with the account, the repository and the time ([decision 0041](decisions/0041-fork-and-star-rules-with-a-digest.md)) |
+| `meta` | The time of the last digest run, the last notified release, the time of the last delivery, the key check value that detects a changed `SELUNA_SECRET`, the setup login's failed-attempt count, the slug of the GitHub App the setup wizard created and the owner of the GitHub App |
 
-All six tables come from the first migration; only the modules under `src/store/` access them. The key for the
+All seven tables come from the migrations (`activity` from `0002`); only the modules under `src/store/` access them. The key for the
 encrypted columns is derived from `SELUNA_SECRET` and never stored, so a reader of the database alone learns no
 credential. Columns, formats and the key check are in [`areas/storage.md`](areas/storage.md)
 ([decision 0007](decisions/0007-github-app-credentials-encrypted-in-d1.md),

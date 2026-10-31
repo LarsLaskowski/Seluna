@@ -25,8 +25,10 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
    (below); then the draft check of a notification that carries
    one is resolved ([Draft lookup](#draft-lookup)), which may drop the notification or change its title.
 5. In one transaction: the delivery (id, event, time received) is added to `deliveries`, one `outbox` row per
-   notification is added (the notification as JSON, [Message format](#message-format)), and `meta` `last_delivery` is set to the time received. Either all of it is stored or
-   none of it.
+   notification is added (the notification as JSON, [Message format](#message-format)), the `activity` changes of
+   the delivery are made ([Stars and forks](#stars-and-forks): the collected events and the removal of a star), and
+   `meta` `last_delivery` is set to the time received. Either all of it is stored or none of it. A delivery with no
+   `activity` change does not touch the `activity` table.
 6. The answer is **202**, whether or not a rule matched. The new `outbox` rows are sent after the answer (below).
 
 - When the transaction fails because the delivery id was stored in the meantime (two deliveries of one id at once),
@@ -230,12 +232,78 @@ triggers nothing.
   The residual risk (decision 0040) is a field path, an action name or the place of `issue.draft` that differs in real
   deliveries; each such difference sends nothing. A live check on a deployed copy confirms the cases.
 
+#### Stars and forks
+
+Two rules report the events `star` and `fork` (decision
+[0041](../decisions/0041-fork-and-star-rules-with-a-digest.md)). Their switches are **off** by default, and a third
+setting, _Stars and forks_, decides whether each event is sent at once or collected into a digest.
+
+| Switch id            | Event  | Reported `action`           | Case                            | English title | German title  |
+| -------------------- | ------ | --------------------------- | ------------------------------- | ------------- | ------------- |
+| `repository_starred` | `star` | `created`                   | an account starred a repository | `New star`    | `Neuer Stern` |
+| `repository_forked`  | `fork` | none (the payload has none) | an account forked a repository  | `New fork`    | `Neuer Fork`  |
+
+Every other action of `star` (and a `fork` delivery with an `action` key) triggers nothing.
+
+- **Lines.** A star: line 1 is the title and `repository.full_name`, line 2 is `by <author>` (German `von <author>`)
+  with `sender.login`, line 3 is `<n> stars now` (`1 star now`; German `jetzt <n> Sterne`, `jetzt 1 Stern`) from
+  `repository.stargazers_count`, with digits grouped by thousands (`1,234`; German `1.234`). The count 0 is valid. A
+  count that is not a whole number from 0 to 2^53 − 1 leaves line 3 empty. A fork: line 1 is the title and
+  `repository.full_name` (the repository that was forked), line 2 is `forkee.full_name`, line 3 is `by <author>`.
+  The button is `repository.html_url` for a star and `forkee.html_url` for a fork.
+- **Required shape.** A star is reported only when `repository` is an object with a safe-integer `id` and a string
+  `full_name`, and `sender` is a foreign account ([The sender](#the-sender)) with a string `login`. `repository.html_url`
+  that is not a string gives an empty URL, which sends no button. A fork also needs `forkee.full_name` and
+  `forkee.html_url` to be strings. Anything else gives `no-match`.
+- **Whose stars count.** The owner's own star or fork and a bot's are left out. With an organization owner or an
+  owner not stored yet every account counts as foreign (decision 0040).
+- **Collecting.** Under the interval _Hourly_ or _Daily at_ a star or fork is not written to the `outbox`: the
+  processing stores it as a row of the `activity` table in the delivery's transaction ([Storage](storage.md#tables)),
+  with the account id, the login and the repository name cleaned like the fields of a stored notification
+  ([Message format](#message-format)), the repository's button URL (only when it passes the button URL rule), the
+  star count (stars only) and the time received. The decision is `collected` when a delivery wrote only such rows.
+  Under _Immediately_ both rules write an `outbox` row per event like every other rule. A switch that is off collects
+  nothing, whatever the interval.
+- **Unstar.** A `star` delivery with the action `deleted` removes the collected star rows of that account on that
+  repository, in the delivery's transaction, in every interval, while _New star_ is on and the sender is foreign. It
+  sends nothing and alone it is `no-match`. A star that was already sent in a digest or message is not taken back.
+  A star that was never collected is a removal that deletes nothing.
+- **Redelivery.** A redelivered delivery collects nothing a second time (step 2 of
+  [Processing a delivery](#processing-a-delivery)).
+- **The table is missing.** Where the migration `0002` was not applied, a delivery that has to collect an event or
+  remove a star answers **503** and stores nothing, like any database failure; every other delivery is unaffected.
+- **Documented, not observed.** The `fork/fork.json` and `star/created.json` fixtures are shaped from GitHub's
+  webhook documentation, and `star/deleted.json` is reference-built from it, none captured. The residual risk is a
+  field path that differs in real deliveries, which would send or collect nothing.
+
+#### The digest
+
+The digest collects the stars and forks of the interval into one message ([Scheduled jobs](scheduled-jobs.md#digest)
+decides when it is built and sent).
+
+- **Content.** The title alone on line 1, bold: `New stars and forks` (German `Neue Sterne und Forks`), with no
+  repository. Then one line per repository, busiest first (stars plus forks, ties by repository name in binary
+  order), at most 10:
+  `<repository>: <star part>, <fork part> · <names>`. The star part is `+<n> ⭐` and, when the newest collected star
+  carries a count, ` (now <total>)` (German ` (jetzt <total>)`); the fork part is `+<n> fork` or `+<n> forks` (German
+  `Fork`, `Forks`). A part with no events is left out with its `, `. `<names>` are the logins of the first at most 5
+  accounts, in the order of their first event, then ` and <k> more` (German ` und <k> weitere`) for the accounts left
+  out; an account counts once however many events it caused. Digits are grouped by thousands. With more than 10
+  repositories the last line is `and <n> more repositories` (German `und <n> weitere Repositories`).
+- **The repository's name and URL** are those of its newest collected event, so a renamed repository shows its new name.
+- **Button.** The repository's URL when the digest names exactly one repository, otherwise none.
+- **Counting.** All counts are exact (made in SQL), whatever the number of events; only collected events of the last
+  7 days are counted. An event collected while a digest is built stays for the next digest.
+- **Settings.** The digest is written in the notification language at the time it is built; the button language and
+  the quiet hours follow the sending ([Quiet hours](#quiet-hours)).
+
 #### The sender
 
 - The GitHub App is subscribed to the events `issues`, `issue_comment`, `fork` and `star` besides the five of the
   rules above (decision [0039](../decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md)). They are
   accepted, recorded in `deliveries` and answered like every other event. The rules for issues and comments report
-  them ([Issue and comment rules](#issue-and-comment-rules)); `fork` and `star` send no message yet.
+  them ([Issue and comment rules](#issue-and-comment-rules)); the rules for `fork` and `star` are in
+  [Stars and forks](#stars-and-forks).
 - Two helpers for those rules narrow the payload's `sender` and never throw (`src/rules/actor.ts`):
   - `isOwnAction(payload, owner)` is true only when the stored owner is a `User` and `sender.id` is a number equal to
     the owner's id; a renamed login changes nothing. A missing or non-object `sender`, a missing or non-numeric `id`,
@@ -287,6 +355,20 @@ An `outbox` row holds the notification itself, not a message for one messenger. 
 none), so it always starts with `{`; every row written by an earlier version starts with `<b>` (old-form row, below).
 No migration changes the column: it is still `text` ([Storage](storage.md)).
 
+- **Further lines.** A notification may also hold `lines`, at most 11 texts that follow line 3 (the activity digest
+  uses them, [The digest](#the-digest)). The key `lines` comes after `context` and is written only for a non-empty
+  list. `lines` that is not an array of at most 11 strings makes the row damaged (below). When it is rendered, each
+  line is cleaned and cut to 256 code points, escaped in this order, and an empty one is left out. A row without `lines`
+  is as before, and an older version decodes the row without the key and so sends a digest as its title alone.
+- **The length of a digest.** Telegram accepts 4,096 characters after its entities are parsed. The digest builder
+  keeps the title, the lines and the line feeds between them within 4,000 UTF-16 code units: it drops repository
+  lines from the end, counting them into `and <n> more repositories`, until they fit. The uncapped worst case is the
+  title (64 code points) and 11 lines of 256 code points, which is 2,880 code points and up to 5,760 UTF-16 code
+  units with astral characters. With ASCII logins and repository names the cap is never reached (about 2,900). The
+  bold tags add 7 characters; escaping `&`, `<` and `>` can add more, so a text of nothing but such characters could
+  still exceed Telegram's limit, which then answers an error and counts as a failed attempt (the cap is measured on
+  the stored text, not the escaped one).
+
 - Each text (title, repository, line 2 = `subject`, line 3 = `context`) is cleaned before it is stored, by
   `storedNotificationOf`:
   1. a lone surrogate is replaced by U+FFFD;
@@ -308,7 +390,8 @@ No migration changes the column: it is still `text` ([Storage](storage.md)).
 - **Telegram rendering** (`renderTelegramText`, at send time): every field is cleaned and cut again, which changes
   nothing for a row this version wrote, and escaped. Line 1 is the title in bold (`<b>…</b>`), then `·`, the
   repository and, when there is a number, ` #` and the number; line 2 and line 3 follow, each on its own line, an
-  empty one left out; lines are separated by a single line feed. `&`, `<` and `>` are replaced by `&amp;`, `&lt;` and
+  empty one left out; then each further line of the notification (`lines`, below) the same way; lines are separated by
+  a single line feed. When the cleaned repository is empty, line 1 is the title alone, without `·`. `&`, `<` and `>` are replaced by `&amp;`, `&lt;` and
   `&gt;`, in this order, so a text that already contains an entity is shown as written. The text is sent with
   `parse_mode` `HTML`. It is the same text the earlier version stored when the row was written.
 - Cleaning keeps a text from breaking the three-line layout and removes the invisible characters that reorder text
@@ -324,8 +407,8 @@ No migration changes the column: it is still `text` ([Storage](storage.md)).
   affected: it sends the old text unchanged. The parsing
   uses `startsWith` and `indexOf`, no regular expression with unbounded groups.
 - **Damaged rows**: a row whose `text` starts with `{` but is not a valid stored notification (not JSON, not an object,
-  a missing or mistyped field, a number that is not a whole number from 1 to 2^53 − 1), or whose `text` is not a
-  string, is damaged. It is never sent: the attempt is counted as `failed`, no channel is called, and the other rows
+  a missing or mistyped field, a number that is not a whole number from 1 to 2^53 − 1, `lines` that is not an array of
+  at most 11 strings), or whose `text` is not a string, is damaged. It is never sent: the attempt is counted as `failed`, no channel is called, and the other rows
   of the batch are still sent. A row without a decoded notification whose `text` starts with `{` is decoded or
   marked damaged the same way when it is sent, so raw JSON never goes out as a message.
 
@@ -341,7 +424,9 @@ No migration changes the column: it is still `text` ([Storage](storage.md)).
   ([Security alert rules](#security-alert-rules)): _Dependabot alert_, _Code scanning alert_, _Secret scanning alert_
   (German _Dependabot-Warnung_, _Code-Scanning-Warnung_, _Secret-Scanning-Warnung_), the titles of the issue and
   comment rules and `by <author>` (German `von <author>`) of their line 3
-  ([Issue and comment rules](#issue-and-comment-rules)), and the title and line 2 of the
+  ([Issue and comment rules](#issue-and-comment-rules)), the titles of the star and fork rules, `<n> stars now`, and
+  the digest's title and its star, fork and `and <k> more` parts ([Stars and forks](#stars-and-forks),
+  [The digest](#the-digest)), and the title and line 2 of the
   release notice ([Scheduled jobs](scheduled-jobs.md#release-message)).
 - The button reads _Open on GitHub_ in English and _Auf GitHub öffnen_ in German. Its language is the notification
   language at the time the row is sent, so a row still pending when the owner switches the language keeps its text
@@ -441,7 +526,7 @@ channel that sends it.
 - The request's log entry ([HTTP routes](http-routes.md#logging)) carries, besides delivery id and event, the
   payload's `action` when it matches `^[a-z_]{1,64}$`, the repository when `repository.full_name` matches
   `^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$`, each `null` otherwise, and the decision: `reported` (at least one
-  row written), `no-match` (no rule returned a notification, or the draft lookup dropped it), `disabled` (only rules whose switch is off did),
+  row written), `collected` (only `activity` rows written, [Stars and forks](#stars-and-forks)), `no-match` (no rule returned a notification, or the draft lookup dropped it), `disabled` (only rules whose switch is off did),
   `duplicate` (a known delivery id), `invalid` (a 400 of this processing) or `unavailable` (a 503 of this
   processing).
 - Each row sent writes one log entry with exactly two fields: the row id and the result — `sent`, `rate-limited`,
@@ -488,6 +573,9 @@ channel that sends it.
 - [`decisions/0040-issue-and-comment-rules.md`](../decisions/0040-issue-and-comment-rules.md) — the three issue and
   comment rules, the owner read by the processing and passed to the rules, an unknown owner reported, the draft state
   from the payload with the lookup as fallback, an unknown state dropped, HTML comments removed from the excerpt.
+- [`decisions/0041-fork-and-star-rules-with-a-digest.md`](../decisions/0041-fork-and-star-rules-with-a-digest.md) —
+  the star and fork rules, the `activity` table, the digest as further lines of a stored notification, digest times
+  after the previous run.
 - [`decisions/0025-quiet-hours-decided-at-sending.md`](../decisions/0025-quiet-hours-decided-at-sending.md) — quiet
   hours applied at each send rather than when the row is written, one clock reading per row, wall-clock times.
 - [`decisions/0008-delivery-through-a-d1-outbox.md`](../decisions/0008-delivery-through-a-d1-outbox.md) — the

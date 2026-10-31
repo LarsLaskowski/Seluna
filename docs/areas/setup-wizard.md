@@ -190,14 +190,19 @@ GitHub</a></p>` when the app lacks permissions or events the manifest asks for; 
   page answers 200 in every one of these cases.
 - The settings form posts to `POST /setup/settings` with the session-bound `csrf` field and these fields:
   `notification_language` (`en` or `de`), `time_zone` (an option per name the runtime lists, plus `UTC`), the
-  checkboxes `quiet_hours`, `update_notice` and `rule_<id>` for the eleven rules (each posts the value `on` when
-  checked, nothing otherwise), and the times `quiet_start` and `quiet_end` (`type=time`, no `step`, shown as `22:00`
-  and `07:00` while quiet hours are off). The form shows the stored values.
+  checkboxes `quiet_hours`, `update_notice` and `rule_<id>` for the thirteen rules, among them _New star on a
+  repository_ and _New fork of a repository_ (each posts the value `on` when checked, nothing otherwise), the times
+  `quiet_start` and `quiet_end` (`type=time`, no `step`, shown as `22:00` and `07:00` while quiet hours are off), and the
+  digest of stars and forks: the select `activity_digest` (`immediate`, `hourly` or `daily`, labelled _Immediately_,
+  _Hourly_ and _Daily at_) with the time `digest_time` (`type=time`, shown as the stored time, or `18:00`). The form
+  shows the stored values.
 - Validation: the body is read with the 1 MiB limit (413, 400), then the CSRF token is checked (**403**, notice-only
   start page, _form expired_). `notification_language` and `time_zone` must occur once, the language `en` or `de`,
   the time zone exactly a listed name; a checkbox is absent (off) or occurs once with the value `on`; with
   `quiet_hours` on, `quiet_start` and `quiet_end` occur once each, are `HH:MM` from `00:00` to `23:59` and differ,
-  with it off they are ignored. Anything else answers **400** with the status page, the stored settings and the
+  with it off they are ignored; `activity_digest` occurs once and is one of the three choices, and with `daily` the
+  single `digest_time` is `HH:MM` from `00:00` to `23:59` (with `immediate` or `hourly` a posted time is ignored; a
+  form without `activity_digest` is invalid). Anything else answers **400** with the status page, the stored settings and the
   _settings invalid_ notice, and stores nothing. Valid settings are written in one batch and answer **303** with
   `Location: /setup`; they apply to the next read, nothing is cached. A D1 failure answers **503** with the
   notice-only start page and _unavailable_.
@@ -584,8 +589,9 @@ KEY-----`, lines of 64 characters), `github_webhook_secret` the webhook secret a
   notice-only and code views, the GitHub App step page in every view, and the review, finish and created pages have
   their heading above one card with everything else, in the order their sections above give. A part that is not shown leaves no empty card or notice behind.
 - **Settings groups:** in the settings form, the quiet hours switch with its label is the legend of a framed group
-  (`<fieldset>`) holding _Start_ and _End_; "Notify me about" is the legend of a second group holding the eleven rule
-  switches and the release notice switch.
+  (`<fieldset>`) holding _Start_ and _End_; "Notify me about" is the legend of a second group holding the thirteen rule
+  switches and the release notice switch; _Stars and forks_ is the legend of a third group, after the second and
+  before the save button, holding the interval select and the time field.
 - **Buttons:** _Sign out_, _Remove token_ and _Remove_ (Messengers card) are secondary buttons, _Reset and create the GitHub App again_ a danger button, and every
   other submit button (_Sign in_, _Save settings_, _Activate_, _Save token_, _Send test message_, _Save chat_, _Next_, _Continue
   to GitHub_, _Finish_) a primary button. Buttons are at least 2.75rem high.
@@ -740,11 +746,12 @@ The notices, the Telegram step, the GitHub App step and the _not configured_ pag
 - Settings: the heading "Settings"; "Language of the notifications"; "Time zone"; "Quiet hours: notifications arrive
   without sound" with "Start" and "End"; "Notify me about" with "New pull request", "Pull request ready for review",
   "Review requested", "CI failed on the default branch", "CI failed in a pull request", "Dependabot alert", "Code
-  scanning alert", "Secret scanning alert", "New issue", "New comment on an issue" and "New comment on a pull
-  request" (German "Neues Issue", "Neuer Kommentar zu einem Issue" and "Neuer Kommentar zu einem Pull Request"); "Tell me when a new Seluna release is available"; the button "Save
+  scanning alert", "Secret scanning alert", "New issue", "New comment on an issue", "New comment on a pull
+  request", "New star on a repository" and "New fork of a repository" (German "Neues Issue", "Neuer Kommentar zu einem Issue" and "Neuer Kommentar zu einem Pull Request", "Neuer Stern für ein Repository" and "Neuer Fork eines Repositorys"); "Stars and forks" (German "Sterne und Forks") with the options "Immediately", "Hourly" and "Daily at" (German "Sofort", "Stündlich" and "Täglich um") and the field "Time" (German "Uhrzeit"); "Tell me when a new Seluna release is available"; the button "Save
   settings".
 - _settings invalid_: "The settings were not saved. Check the values: quiet hours need a start and an end in the
-  form 22:00, and the two must differ."; _reset not needed_: "The saved credentials can be read with the current
+  form 22:00, and the two must differ; a daily digest of stars and forks needs a time in the form 18:00."; _reset not
+  needed_: "The saved credentials can be read with the current
   SELUNA_SECRET, so nothing was reset."
 - Telegram step token card: the heading "Bot token"; _token intro_ "Seluna sends its notifications through your own
   Telegram bot. In Telegram, send /newbot to @BotFather and enter the token it returns here. Seluna checks the token
