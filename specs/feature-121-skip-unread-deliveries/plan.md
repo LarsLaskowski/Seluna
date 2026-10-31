@@ -147,3 +147,17 @@ As in the spec. Proposed follow-up issue — title: "[Webhook] Bound the D1 writ
 strangers"; body: "#121 stops deliveries without effect from writing D1. A stranger who opens issues or comments on a
 public repository still causes one recorded delivery and one message each; consider a per-sender or per-event bound
 so these cannot spend the D1 write budget either. See decision 0043."
+
+## Challenge notes
+
+Minor objections of the Devil's Advocate (plan challenge, one round), appended verbatim.
+
+1. **minor — star churn with the star switch on is still fully recorded, and the follow-up issue does not name it.** Why: the issue's own abuse example ("starring and unstarring repeatedly") still writes a `deliveries` row per delivery whenever `repository_starred` is on.
+   - Evidence: a star is `reported` under Immediately or `collected` under a digest (`src/webhook.ts:146-152`). `activityInsert` (`src/store/activity.ts`) inserts a fresh row per star, with no per-sender dedupe. Every unstar with the switch on carries a removal and is recorded (E5), even under Immediately when its `DELETE` usually matches nothing.
+   - Instruction: the Lead extends the proposed follow-up issue's body to say "a stranger starring and unstarring with the star switch on still causes one recorded delivery per star and per unstar (and one `activity` row per star under a digest)". The decision record 0043 *Consequences* bullet on reported deliveries names the same. No code change in this plan.
+2. **minor — E3 and AC5 assume D1 still serves reads once the daily write budget is spent; nothing verifies that.** Why: if Cloudflare rejects all queries at the limit, `isKnownDelivery` (`src/webhook.ts:129`) already fails and answers 503, and the documentation would promise more than the code delivers.
+   - Evidence: the AC5 double `writeFailingDb` (`test/d1.ts:75-85`) fails only non-SELECT statements. Fact 8 and decision 0043 note that real D1 billing is out of reach from the session.
+   - Instruction: in the `notifications.md` / `storage.md` updates, the Dev writes only that a failed `last_delivery` write is ignored and the answer stays 202. Do not write that unrecorded deliveries keep working once the D1 budget is spent. Name the unverified read behaviour as a residual in 0043's *Consequences*.
+3. **minor — fact 7 and `tasks.md` disagree on when the no-op upsert is measured.** Why: the Dev could skip the measurement.
+   - Evidence: plan.md fact 7 says "in step 5"; `tasks.md` row 3 puts it in task 3 (the conditional upsert in `src/store/meta.ts`).
+   - Instruction: the Dev measures `meta.changes` and `meta.rows_written` of the no-op upsert while doing task 3. The result is reported in the hand-back and noted in 0043.
