@@ -13,6 +13,7 @@ export const RELEASE_SCHEDULE = "17 5 * * *";
 
 export type ScheduledLogEntry =
   | { readonly job: "retry" | "cleanup"; readonly result: "store-failed" }
+  | { readonly job: "digest"; readonly result: "store-failed" }
   | { readonly job: "release-check"; readonly result: ReleaseCheckResult }
   | { readonly job: "schedule"; readonly result: "unknown" };
 
@@ -43,7 +44,7 @@ async function runRetryAndCleanup(startedAt: Date, deps: ScheduledDeps): Promise
     // The error is dropped: only the fixed result reaches the log.
     safeLog(deps, { job: "cleanup", result: "store-failed" });
   }
-  const result = await retryPendingRows(startedAt, {
+  const { result } = await retryPendingRows(startedAt, {
     env: deps.env,
     db: deps.db,
     fetch: deps.telegramFetch,

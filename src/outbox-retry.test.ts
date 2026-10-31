@@ -110,7 +110,7 @@ describe("retryPendingRows (AC1: which rows are sent)", () => {
     const tied = await insertRow({ text: "tied", ageMs: 12 * MINUTE_MS });
     const { deps, telegram } = harness({ sendMessage: ACCEPTED });
 
-    const result = await retryPendingRows(STARTED_AT, deps);
+    const { result } = await retryPendingRows(STARTED_AT, deps);
 
     expect(result, "result").toBe("done");
     expect(telegram.requests.length, "number of requests").toBe(RETRY_BATCH_SIZE);
@@ -139,7 +139,7 @@ describe("retryPendingRows (AC1: which rows are sent)", () => {
     const id = await insertRow({ ageMs: RETRY_GRACE_MS + 1 });
     const { deps, telegram } = harness({ sendMessage: ACCEPTED });
 
-    const result = await retryPendingRows(STARTED_AT, deps);
+    const { result } = await retryPendingRows(STARTED_AT, deps);
 
     expect(result, "result").toBe("done");
     expect(telegram.requests.length, "number of requests").toBe(1);
@@ -150,7 +150,7 @@ describe("retryPendingRows (AC1: which rows are sent)", () => {
     const id = await insertRow({ ageMs: RETRY_GRACE_MS });
     const { deps, log, telegram } = harness({ sendMessage: ACCEPTED });
 
-    const result = await retryPendingRows(STARTED_AT, deps);
+    const { result } = await retryPendingRows(STARTED_AT, deps);
 
     expect(result, "result").toBe("done");
     expect(telegram.requests.length, "number of requests").toBe(0);
@@ -194,7 +194,7 @@ describe("retryPendingRows (AC1: which rows are sent)", () => {
   it("retryPendingRows returns done and sends nothing when no row is due", async () => {
     const { deps, telegram } = harness();
 
-    const result = await retryPendingRows(STARTED_AT, deps);
+    const { result } = await retryPendingRows(STARTED_AT, deps);
 
     expect(result, "result").toBe("done");
     expect(telegram.requests.length, "number of requests").toBe(0);
@@ -206,7 +206,7 @@ describe("retryPendingRows (AC2: the fifth attempt)", () => {
     const id = await insertRow({ attempts: 5 });
     const { deps, log, telegram } = harness({ sendMessage: ACCEPTED });
 
-    const result = await retryPendingRows(STARTED_AT, deps);
+    const { result } = await retryPendingRows(STARTED_AT, deps);
 
     expect(result, "result").toBe("done");
     expect(await stateOf(id), "row").toEqual({ status: "failed", attempts: 5 });
@@ -246,7 +246,7 @@ describe("retryPendingRows (AC2: the fifth attempt)", () => {
     const id = await insertRow();
     const { deps, telegram } = harness({}, READY_ENV, dbFailingFor(env.DB, /UPDATE outbox SET status = 'failed'/));
 
-    const result = await retryPendingRows(STARTED_AT, deps);
+    const { result } = await retryPendingRows(STARTED_AT, deps);
 
     expect(result, "result").toBe("store-failed");
     expect(telegram.requests.length, "number of requests").toBe(0);
@@ -257,7 +257,7 @@ describe("retryPendingRows (AC2: the fifth attempt)", () => {
     const id = await insertRow();
     const { deps, telegram } = harness({}, READY_ENV, dbFailingFor(env.DB, /SELECT id, text/));
 
-    const result = await retryPendingRows(STARTED_AT, deps);
+    const { result } = await retryPendingRows(STARTED_AT, deps);
 
     expect(result, "result").toBe("store-failed");
     expect(telegram.requests.length, "number of requests").toBe(0);
@@ -268,7 +268,7 @@ describe("retryPendingRows (AC2: the fifth attempt)", () => {
     const id = await insertRow();
     const { deps, telegram } = harness({}, READY_ENV, dbFailingFor(env.DB, /FROM settings/));
 
-    const result = await retryPendingRows(STARTED_AT, deps);
+    const { result } = await retryPendingRows(STARTED_AT, deps);
 
     expect(result, "result").toBe("store-failed");
     expect(telegram.requests.length, "number of requests").toBe(0);
@@ -306,7 +306,7 @@ describe("retryPendingRows (AC3: an outage and missing credentials)", () => {
       const id = await insertRow({ attempts: 4 });
       const { deps, log, telegram } = harness({}, retryEnv);
 
-      const outcome = await retryPendingRows(STARTED_AT, deps);
+      const { result: outcome } = await retryPendingRows(STARTED_AT, deps);
 
       expect(outcome, "result").toBe("done");
       expect(await stateOf(id), "row").toEqual({ status: "pending", attempts: 4 });
@@ -323,7 +323,7 @@ describe("retryPendingRows (AC3: an outage and missing credentials)", () => {
       dbFailingFor(env.DB, /SET status = 'sent'/),
     );
 
-    const result = await retryPendingRows(STARTED_AT, deps);
+    const { result } = await retryPendingRows(STARTED_AT, deps);
 
     expect(result, "result").toBe("done");
     expect(telegram.requests.length, "the message was sent once").toBe(1);
@@ -342,7 +342,7 @@ describe("retryPendingRows through the active channel", () => {
     const { deps, log, telegram } = harness({ sendMessage: ACCEPTED });
     await writeSetting(env.DB, DELIVERY_CHANNEL_SETTING, "test");
 
-    const result = await retryPendingRows(STARTED_AT, { ...deps, channels: [TELEGRAM_CHANNEL, channel] });
+    const { result } = await retryPendingRows(STARTED_AT, { ...deps, channels: [TELEGRAM_CHANNEL, channel] });
 
     expect(result, "result").toBe("done");
     expect(telegram.requests.length, "Telegram requests").toBe(0);
@@ -404,7 +404,7 @@ describe("retryPendingRows through the active channel", () => {
     const good = await insertRow({ text: "<b>T</b> · o/r #7" });
     const { deps, log, telegram } = harness({ sendMessage: ACCEPTED });
 
-    const result = await retryPendingRows(STARTED_AT, deps);
+    const { result } = await retryPendingRows(STARTED_AT, deps);
 
     expect(result, "result").toBe("done");
     expect(telegram.requests.length, "Telegram requests: only the readable row").toBe(1);
