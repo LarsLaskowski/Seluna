@@ -431,15 +431,15 @@ describe("runActivityDigest and changes of the settings (S9)", () => {
   });
 
   it("runActivityDigest follows a changed time zone", async () => {
-    await configure({ activityDigest: { kind: "daily", time: "18:00" }, timeZone: "Asia/Kolkata" });
-    await storeRun(new Date("2026-10-21T12:20:00Z"));
+    await configure({ activityDigest: { kind: "daily", time: "18:00" }, timeZone: "America/New_York" });
+    await storeRun(new Date("2026-10-21T21:50:00Z"));
     await addDigestEvents();
-    const now = new Date("2026-10-21T12:30:00Z");
+    const now = new Date("2026-10-21T22:00:00Z");
     const { deps } = harness({ now });
 
     const result = await runActivityDigest(now, deps, true);
 
-    expect(result, "18:00 in Asia/Kolkata is 12:30 UTC").toBe("sent");
+    expect(result, "18:00 in America/New_York is 22:00 UTC").toBe("sent");
   });
 
   it("runActivityDigest sends the leftover rows at the next run once the interval is Immediately", async () => {
