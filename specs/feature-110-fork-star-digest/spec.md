@@ -1,7 +1,7 @@
 # Spec: Fork and star rules with a digest
 
 Source: Issue #110
-Status: Draft
+Status: Approved by Product Manager
 
 ## Problem
 
@@ -87,10 +87,10 @@ is identified by `sender.id`, and a repository by `repository.id`.
   once. The first run after the update counts nothing as due.
 - E9: A redelivered delivery (same `X-GitHub-Delivery`) collects and sends nothing.
 - E10: Very many events (10,000 stars): the counts are exact, and still only one message is sent.
-- E11: Collected events older than 7 days are deleted by the cleanup, unsent.
+- E11: While a switch is on, collected events older than 7 days are deleted by the digest job, unsent.
 - E12: Missing migration (`npm run deploy` not used). With both switches off nothing touches the new table. With a
-  switch on, star, fork and unstar deliveries answer 503 and are lost unless redelivered. The digest job also logs
-  its failure every run, about 144 entries a day. Everything else works.
+  switch on, fork and star deliveries under *Hourly* or *Daily* and every unstar answer 503 and are lost unless
+  redelivered. The digest job also logs its failure every run, about 144 entries a day. Everything else works.
 - E13: An invalid stored value reads as *Daily at 18:00*. A form with a missing or repeated field, an unknown choice,
   or *Daily at* without a valid `HH:MM` answers 400 with the *settings invalid* notice, which names the digest time
   too. Nothing is stored.
@@ -108,9 +108,9 @@ is identified by `sender.id`, and a repository by `repository.id`.
   and stores the job's run time in `meta`. A run without a due digest stores only the run time.
 - Cron: the digest job runs in the 10-minute run after cleanup and retry, with its own failure handling. It sends
   its row itself through the first-send path, as the release check does. The retry skips rows younger than 60 s,
-  so the row is not sent twice. While both switches are off, the job only stores its run time. It uses at most 8
-  D1 statements and 2 Telegram requests, so the run stays within 50 subrequests. Counts are made in SQL, and at
-  most 5 names are read for each of at most 10 repositories.
+  so the row is not sent twice. While both switches are off, the job only stores its run time. Its statements and
+  requests are bounded (`plan.md`). If the run hits a platform limit, the digest waits for a later run and no event
+  is lost. Counts are made in SQL, and at most 5 names are read for each of at most 10 repositories.
 - Security: stranger text is cleaned and length-limited when it is stored and when it is rendered (*Parsing of
   external input*). No new permission is needed.
 - Logs: a collected delivery gets its own decision, distinct from `reported`. The job logs only fixed results. No
@@ -139,8 +139,8 @@ is identified by `sender.id`, and a repository by `repository.id`.
 - [ ] AC8: Changes of interval, time, time zone or switch lose no collected event and follow S9 (S9).
 - [ ] AC9: An event inserted between the job's read and its transaction stays collected for the next digest (E4).
 - [ ] AC10: A failing job keeps the events and lets cleanup and retry run. The digest row is sent by the job and
-  retried as an outbox row, and its events are never counted again. The cleanup deletes events older than 7 days
-  (E6, E7, E11).
+  retried as an outbox row, and its events are never counted again. While a switch is on, events older than 7
+  days are deleted (E6, E7, E11).
 - [ ] AC11: The form and stored values behave as in S10 and E13, and older settings keep their values (S10, E13).
 - [ ] AC12: Migration `0002` creates the table, `SCHEMA_TABLES` lists it, and without it the instance behaves as in
   E12 (E12).
@@ -155,9 +155,9 @@ is identified by `sender.id`, and a repository by `repository.id`.
 
 ## Open questions
 
-- Which fixtures? Answered: escalated to the Product Manager with this revision. The choice is between captured,
-  anonymized `fork`, `star` `created` and `star` `deleted` deliveries, and reference-built ones with a live check
-  as in decision 0040. The plan names the answer, and it changes no scenario.
+- Which fixtures? Answered: by the Product Manager, reference-built from GitHub's webhook documentation, including
+  a new `test/fixtures/star/deleted.json`, with the READMEs updated and a live check on a deployed copy before the
+  pull request is marked ready, as in decision 0040.
 
 ## Area documents
 
