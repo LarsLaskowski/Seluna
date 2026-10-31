@@ -19,7 +19,7 @@ Documentation is the last group.
 | 10 | G4 | Skeleton: `lines` on `StoredNotification`, `MAX_EXTRA_LINES`; `digestNotification` | `src/notification.ts`, `src/message.ts`, `src/digest.ts` | AC5 | 9 | Dev | [x] |
 | 11 | G4 | Tests: encode, decode and damaged `lines`; rendering with an empty repository; the digest layout, bounds, button and languages; hostile text | `src/notification.test.ts`, `src/message.test.ts`, `src/digest.test.ts` | AC2, AC5 | 10 | Tester | [x] |
 | 12 | G4 | Implement `lines`, the rendering and `digestNotification` | `src/notification.ts`, `src/message.ts`, `src/digest.ts` | AC2, AC5 | 11 | Dev | [x] |
-| 13 | G5 | Skeleton: `WebhookDecision` gains `collected`; no other new API | `src/webhook.ts` | AC1, AC3 | 12 | Dev | [ ] |
+| 13 | G5 | Skeleton: `WebhookDecision` gains `collected`; no other new API | `src/webhook.ts` | AC1, AC3 | 12 | Dev | [x] |
 | 14 | G5 | Tests: *Immediately* reports, digest mode collects, switch off, redelivery, failed batch, unstar in every mode, 50 stars give 50 rows, missing table | `src/webhook.test.ts` | AC1, AC3, AC4, AC6, AC12 | 13 | Tester | [ ] |
 | 15 | G5 | Implement the split, the removal and the decision in `processWebhook` | `src/webhook.ts` | AC1, AC3, AC4, AC6, AC12 | 14 | Dev | [ ] |
 | 16 | G6 | Skeleton: `WallClock`, `wallClockReader`, `isDigestDue`, `DigestJobResult`, `runActivityDigest` (with `sendNow`); `RetryOutcome`, `retryPendingRows`; `ScheduledLogEntry` gains `digest` | `src/wall-clock.ts`, `src/digest-schedule.ts`, `src/activity-digest.ts`, `src/outbox-retry.ts`, `src/scheduled.ts`, `src/quiet-hours.ts` | AC4, AC7, AC8, AC9, AC10 | 15 | Dev | [ ] |
