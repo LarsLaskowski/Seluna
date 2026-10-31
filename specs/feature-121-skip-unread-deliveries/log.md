@@ -25,4 +25,4 @@ are quoted in full.
 | 2026-10-31 19:49 | 8 Fix round 1 test (continued) | squad-tester | deliveries=0 assertion added to the unstar-switch-off test; suite 6313 pass; Coverage gate PASS (sonnet/medium · 1,591 tokens · 3 tool uses · 99 s · continued from 5 Tests first G1) |
 | 2026-10-31 19:49 | 8 Review delta (continued) | squad-reviewer | APPROVE; all 6 round-1 findings resolved, nothing new (opus/medium · 3,966 tokens · 2 tool uses · 14 s · continued from 8 Review round 1) |
 | 2026-10-31 19:49 | 9 PR approval | Orchestrator | approved by checklist: delta review clean, gates pass on head, main not moved, plan docs in diff, no open decisions; 0043 set Accepted, decision-check PASS |
-| 2026-10-31 19:50 | 9 CHANGELOG entry (continued) | squad-dev | Unreleased Changed bullet for #121 added to CHANGELOG.md (sonnet/medium · usage pending) |
+| 2026-10-31 19:50 | 9 CHANGELOG entry (continued) | squad-dev | Unreleased Changed bullet for #121 added to CHANGELOG.md (sonnet/medium · 2,290 tokens · 3 tool uses · 8 s · continued from 6 Implement G1) |
