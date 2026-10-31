@@ -77,6 +77,16 @@ export function lastDeliveryUpsert(db: D1Database, time: Date): D1PreparedStatem
     .bind(LAST_DELIVERY_META_KEY, String(time.getTime()));
 }
 
+/** Minimum distance, in milliseconds, between the stored `last_delivery` and a time before the stored value is refreshed. */
+export const LAST_DELIVERY_REFRESH_MS = 60_000;
+
+/** Refreshes `last_delivery` with `time` unless the stored value is within `LAST_DELIVERY_REFRESH_MS`. D1 errors are not caught. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- skeleton: the implementation uses both parameters
+export async function refreshLastDelivery(db: D1Database, time: Date): Promise<void> {
+  await Promise.resolve();
+  throw new Error("Not implemented");
+}
+
 /** The time of the last activity digest run, or `undefined` when absent or not a valid time. D1 errors are not caught. */
 export async function readDigestRun(db: D1Database): Promise<Date | undefined> {
   return timeOf(await readMeta(db, DIGEST_RUN_META_KEY));
