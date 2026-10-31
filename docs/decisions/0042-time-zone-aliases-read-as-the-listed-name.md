@@ -1,6 +1,6 @@
 # 0042: Time zone aliases read as the listed name of their zone, other zone names as the runtime's name
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-31
 - **Area:** Setup wizard
 - **Source:** Issue #129
