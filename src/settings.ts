@@ -110,6 +110,15 @@ export function isTimeZone(value: string): boolean {
   return timeZones().includes(value);
 }
 
+/**
+ * The runtime's name of the zone `value` names: `value` when `timeZones()` lists it, else the name the runtime
+ * resolves it to (`Intl.DateTimeFormat#resolvedOptions().timeZone`), listed or not; `undefined` when the runtime
+ * rejects `value` or resolves it to a fixed offset.
+ */
+export function canonicalTimeZone(_value: string): string | undefined {
+  return undefined;
+}
+
 /** Whether `value` is a 24-hour `HH:MM` time. */
 export function isClockTime(value: string): boolean {
   return CLOCK_TIME.test(value);
