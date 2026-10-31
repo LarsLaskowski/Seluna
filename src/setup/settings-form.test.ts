@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { RULE_IDS } from "../settings";
 import { parseSettingsForm } from "./settings-form";
+import { assertKeptUnlisted, spellingsOf, ZONE_PAIRS } from "../../test/time-zones";
 
 type Changes = Readonly<Record<string, string | readonly string[] | undefined>>;
 
@@ -117,6 +118,31 @@ describe("parseSettingsForm", () => {
     expect(single?.rules.pull_request_comment, "pull_request_comment absent").toBe(false);
   });
 
+  it.each(ZONE_PAIRS)("parseSettingsForm returns the listed name for a posted alias of $pair", ({ names }) => {
+    const { listed, alias } = spellingsOf(names);
+
+    const settings = parseSettingsForm(fieldsWith({ time_zone: alias }));
+
+    expect(settings?.timeZone, "time zone").toBe(listed);
+  });
+
+  it("parseSettingsForm returns Europe/Berlin for a time zone in lower case", () => {
+    const settings = parseSettingsForm(fieldsWith({ time_zone: "europe/berlin" }));
+
+    expect(settings?.timeZone, "time zone").toBe("Europe/Berlin");
+  });
+
+  it.each([{ zone: "Etc/GMT+5" }, { zone: "Etc/GMT-14" }])(
+    "parseSettingsForm accepts the posted unlisted zone $zone",
+    ({ zone }) => {
+      assertKeptUnlisted(zone);
+
+      const settings = parseSettingsForm(fieldsWith({ time_zone: zone }));
+
+      expect(settings?.timeZone, "time zone").toBe(zone);
+    },
+  );
+
   it("parseSettingsForm reads an absent checkbox as off", () => {
     const fields = fieldsWith({ quiet_hours: undefined, rule_dependabot_alert: undefined, update_notice: undefined });
 
@@ -148,7 +174,7 @@ describe("parseSettingsForm", () => {
     { case: "a repeated time_zone", changes: { time_zone: ["Europe/Berlin", "Europe/Berlin"] } },
     { case: "a missing time_zone", changes: { time_zone: undefined } },
     { case: "the unknown time zone Mars/Base", changes: { time_zone: "Mars/Base" } },
-    { case: "a time zone in lower case", changes: { time_zone: "europe/berlin" } },
+    { case: "the offset +01:00 as time zone", changes: { time_zone: "+01:00" } },
     { case: "the checkbox value 1", changes: { update_notice: "1" } },
     { case: "the checkbox value 1 of quiet_hours", changes: { quiet_hours: "1" } },
     { case: "a repeated rule checkbox", changes: { rule_ci_failed_pull_request: ["on", "on"] } },

@@ -8,7 +8,8 @@ export interface WallClock {
 
 const MINUTES_PER_HOUR = 60;
 const FALLBACK_ZONE = "UTC";
-const OFFSET_FORM = /^[+-]/;
+/** A resolved time zone in this form (`+01:00`, `-05:00`) is a fixed offset, not a zone name. */
+export const OFFSET_FORM = /^[+-]/;
 
 function formatterOf(timeZone: string): Intl.DateTimeFormat {
   const options: Intl.DateTimeFormatOptions = {

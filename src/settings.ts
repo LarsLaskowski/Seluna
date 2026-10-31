@@ -1,4 +1,5 @@
 import type { Language } from "./setup/language";
+import { OFFSET_FORM } from "./wall-clock";
 
 /** The ids of the notification rules, in the order of the settings form. */
 export const RULE_IDS = [
@@ -105,9 +106,22 @@ export function timeZones(): readonly string[] {
   return listed.includes("UTC") ? listed : ["UTC", ...listed];
 }
 
-/** Whether `value` is exactly a member of `timeZones()`. */
-export function isTimeZone(value: string): boolean {
-  return timeZones().includes(value);
+/**
+ * The runtime's name of the zone `value` names: `value` when `timeZones()` lists it, else the name the runtime
+ * resolves it to (`Intl.DateTimeFormat#resolvedOptions().timeZone`), listed or not; `undefined` when the runtime
+ * rejects `value` or resolves it to a fixed offset.
+ */
+export function canonicalTimeZone(value: string): string | undefined {
+  if (timeZones().includes(value)) {
+    return value;
+  }
+  try {
+    const resolved = new Intl.DateTimeFormat("en", { timeZone: value }).resolvedOptions().timeZone;
+    return OFFSET_FORM.test(resolved) ? undefined : resolved;
+  } catch {
+    // The runtime rejects the value.
+    return undefined;
+  }
 }
 
 /** Whether `value` is a 24-hour `HH:MM` time. */
@@ -142,7 +156,7 @@ export function settingsFromStored(stored: ReadonlyMap<string, string>): Notific
   }
   return {
     language: language === "en" || language === "de" ? language : DEFAULT_SETTINGS.language,
-    timeZone: timeZone !== undefined && isTimeZone(timeZone) ? timeZone : DEFAULT_SETTINGS.timeZone,
+    timeZone: (timeZone === undefined ? undefined : canonicalTimeZone(timeZone)) ?? DEFAULT_SETTINGS.timeZone,
     quietHours: quietHoursFromStored(stored.get(QUIET_HOURS_KEY)),
     rules,
     updateNotice: switchFromStored(stored.get(UPDATE_NOTICE_KEY), DEFAULT_SETTINGS.updateNotice),

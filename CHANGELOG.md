@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Installation tokens are requested with only `metadata: read` and `pull_requests: read` and refused when GitHub's answer grants more; tokens cached by earlier versions are requested again once.
 - The setup guide and the created page recommend installing the app on _Only select repositories_ instead of _All repositories_.
+- Setup wizard: the time zone setting accepts every named zone the runtime knows, also an alias such as `Asia/Kolkata`, a letter-case variant such as `europe/berlin` and a zone the list does not offer such as `Etc/GMT+5`, instead of answering 400 or falling back to UTC; fixed offsets are still rejected. The time zone select shows a configured zone missing from the list as an extra selected first option, and the status page shows the runtime's name of the zone.
 
 ## [0.7.0] - 2026-10-27
 

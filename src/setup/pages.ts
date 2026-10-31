@@ -514,7 +514,11 @@ function checkboxHtml(name: string, label: string, checked: boolean): string {
 function settingsFormHtml(language: Language, csrfToken: string, settings: NotificationSettings): string {
   const texts = TEXTS[language];
   const { quietHours } = settings;
-  const zones = timeZones().map((zone) => optionHtml(zone, zone, zone === settings.timeZone));
+  const listedZones = timeZones();
+  const zones = listedZones.map((zone) => optionHtml(zone, zone, zone === settings.timeZone));
+  if (!listedZones.includes(settings.timeZone)) {
+    zones.unshift(optionHtml(settings.timeZone, settings.timeZone, true));
+  }
   const rules = RULE_IDS.map((id) => checkboxHtml(`rule_${id}`, texts.ruleLabels[id], settings.rules[id]));
   const { activityDigest } = settings;
   const digestTime = activityDigest.kind === "daily" ? activityDigest.time : DEFAULT_ACTIVITY_DIGEST_TIME;

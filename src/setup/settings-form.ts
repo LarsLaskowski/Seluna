@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, isClockTime, isTimeZone, RULE_IDS } from "../settings";
+import { DEFAULT_SETTINGS, canonicalTimeZone, isClockTime, RULE_IDS } from "../settings";
 import type { ActivityDigest, NotificationSettings, QuietHours } from "../settings";
 
 /** Path of the settings form's `POST`. */
@@ -52,14 +52,14 @@ function activityDigestOf(fields: URLSearchParams): ActivityDigest | undefined {
 /** The settings of a submitted settings form, or `undefined` when any field is invalid. */
 export function parseSettingsForm(fields: URLSearchParams): NotificationSettings | undefined {
   const language = single(fields, "notification_language");
-  const timeZone = single(fields, "time_zone");
+  const postedZone = single(fields, "time_zone");
+  const timeZone = postedZone === undefined ? undefined : canonicalTimeZone(postedZone);
   const quietHours = quietHoursOf(fields);
   const updateNotice = checkbox(fields, "update_notice");
   const activityDigest = activityDigestOf(fields);
   if (
     (language !== "en" && language !== "de") ||
     timeZone === undefined ||
-    !isTimeZone(timeZone) ||
     quietHours === undefined ||
     updateNotice === undefined ||
     activityDigest === undefined
