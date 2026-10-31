@@ -1,6 +1,7 @@
+import { runActivityDigest } from "./activity-digest";
 import { cleanUpRows } from "./cleanup";
-import type { DeliveryLogEntry } from "./delivery";
-import { retryPendingRows } from "./outbox-retry";
+import type { DeliveryDeps, DeliveryLogEntry } from "./delivery";
+import { RETRY_BATCH_SIZE, retryPendingRows } from "./outbox-retry";
 import { checkForRelease } from "./release-check";
 import type { GitHubFetch } from "./github/conversion";
 import type { ReleaseCheckResult } from "./release-check";
@@ -44,7 +45,7 @@ async function runRetryAndCleanup(startedAt: Date, deps: ScheduledDeps): Promise
     // The error is dropped: only the fixed result reaches the log.
     safeLog(deps, { job: "cleanup", result: "store-failed" });
   }
-  const { result } = await retryPendingRows(startedAt, {
+  const deliveryDeps: DeliveryDeps = {
     env: deps.env,
     db: deps.db,
     fetch: deps.telegramFetch,
@@ -53,9 +54,15 @@ async function runRetryAndCleanup(startedAt: Date, deps: ScheduledDeps): Promise
       safeLog(deps, entry);
     },
     now: deps.now,
-  });
+  };
+  const { result, attempted } = await retryPendingRows(startedAt, deliveryDeps);
   if (result === "store-failed") {
     safeLog(deps, { job: "retry", result });
+  }
+  // A full retry leaves no room in the run's subrequest budget: the digest row then waits for the next retry.
+  const digest = await runActivityDigest(startedAt, deliveryDeps, attempted < RETRY_BATCH_SIZE);
+  if (digest === "store-failed") {
+    safeLog(deps, { job: "digest", result: digest });
   }
 }
 
