@@ -10,9 +10,12 @@ import { PULL_REQUEST_OPENED } from "./pull-request-opened";
 import { PULL_REQUEST_READY_FOR_REVIEW } from "./pull-request-ready-for-review";
 import { PULL_REQUEST_REVIEW_REQUESTED } from "./pull-request-review-requested";
 import { RULES } from "./registry";
+import { REPOSITORY_FORKED } from "./repository-forked";
+import { REPOSITORY_STARRED } from "./repository-starred";
+import { RULE_IDS } from "../settings";
 import { SECRET_SCANNING_ALERT } from "./secret-scanning-alert";
 
-it("RULES lists every rule in settings order, the issue and comment rules last", () => {
+it("RULES lists every rule in settings order, the issue and comment rules and then the star and fork rules last", () => {
   expect(RULES, "rules").toEqual([
     PULL_REQUEST_OPENED,
     PULL_REQUEST_READY_FOR_REVIEW,
@@ -25,6 +28,8 @@ it("RULES lists every rule in settings order, the issue and comment rules last",
     ISSUE_OPENED,
     ISSUE_COMMENT,
     PULL_REQUEST_COMMENT,
+    REPOSITORY_STARRED,
+    REPOSITORY_FORKED,
   ]);
   expect(
     RULES.map((rule) => rule.id),
@@ -41,5 +46,11 @@ it("RULES lists every rule in settings order, the issue and comment rules last",
     "issue_opened",
     "issue_comment",
     "pull_request_comment",
+    "repository_starred",
+    "repository_forked",
   ]);
+  expect(
+    RULES.map((rule) => rule.id),
+    "ids equal the settings' rule ids",
+  ).toEqual([...RULE_IDS]);
 });

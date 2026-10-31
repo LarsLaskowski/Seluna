@@ -1,8 +1,9 @@
 # Fork fixtures
 
 `fork.json` is **reference-built from GitHub's webhook payload documentation, not captured**: no real `fork` delivery of this
-repository exists yet. It is shaped like the documented `fork` payload (issue #108) and only documents that the delivery
-is accepted and recorded without a message. The live check on a deployed copy before the pull request is ready may
+repository exists yet. It is shaped like the documented `fork` payload (issue #108) and is the input of the fork rule tests (issue #110),
+which read only `sender`, `forkee.full_name`, `forkee.html_url`, `repository.id`, `repository.full_name` and
+`repository.html_url`; a real delivery may differ in the rest. The live check on a deployed copy before the pull request is ready may
 replace it with a captured delivery (secrets and personal data removed); #109 and #110 replace it with real deliveries
 for their rule tests.
 
