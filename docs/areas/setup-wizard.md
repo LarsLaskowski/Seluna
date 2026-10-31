@@ -148,7 +148,7 @@ it and add their pages behind the login.
   _GitHub App:_ a link `https://github.com/apps/<slug>` with the slug as text and `(App ID <id>)` when the `meta` slug
   row belongs to the saved App ID, the App ID alone otherwise, the _Worker secrets_ or _partial Worker secrets_ text
   when those are set (no value shown), _none saved yet_, or _cannot be read_ when the saved App ID cannot be read with the current `SELUNA_SECRET` (a reset can also be needed while the App ID is still shown, when another saved credential does not decrypt); _Last delivery
-  from GitHub:_ the time in the configured time zone as `YYYY-MM-DD HH:MM (<time zone>)` (24-hour), or _none
+  from GitHub:_ the time in the configured time zone as `YYYY-MM-DD HH:MM (<time zone>)` (24-hour; the zone is the runtime's name of the configured one), or _none
   received yet_ until the first delivery from GitHub is recorded ([Notifications](notifications.md)). When the runtime rejects the zone or the
   time at render, the time is written in UTC from its UTC fields, as `(UTC)`; the page never fails on it.
 - Below _GitHub App:_ the section shows the owner line, the app check and _Installations:_ when the _GitHub App:_
@@ -189,7 +189,7 @@ GitHub</a></p>` when the app lacks permissions or events the manifest asks for; 
   when the private key cannot sign (not an RSA key, more than 4096 bits, or a saved key that does not decrypt). The
   page answers 200 in every one of these cases.
 - The settings form posts to `POST /setup/settings` with the session-bound `csrf` field and these fields:
-  `notification_language` (`en` or `de`), `time_zone` (an option per name the runtime lists, plus `UTC`), the
+  `notification_language` (`en` or `de`), `time_zone` (an option per name the runtime lists, plus `UTC`, preceded by the configured zone as a selected option when the runtime does not list it), the
   checkboxes `quiet_hours`, `update_notice` and `rule_<id>` for the thirteen rules, among them _New star on a
   repository_ and _New fork of a repository_ (each posts the value `on` when checked, nothing otherwise), the times
   `quiet_start` and `quiet_end` (`type=time`, no `step`, shown as `22:00` and `07:00` while quiet hours are off), and the
@@ -198,7 +198,7 @@ GitHub</a></p>` when the app lacks permissions or events the manifest asks for; 
   shows the stored values.
 - Validation: the body is read with the 1 MiB limit (413, 400), then the CSRF token is checked (**403**, notice-only
   start page, _form expired_). `notification_language` and `time_zone` must occur once, the language `en` or `de`,
-  the time zone exactly a listed name; a checkbox is absent (off) or occurs once with the value `on`; with
+  the time zone a zone name the runtime accepts (no offset), stored as the runtime's name of it ([0042](../decisions/0042-time-zone-aliases-read-as-the-listed-name.md)); a checkbox is absent (off) or occurs once with the value `on`; with
   `quiet_hours` on, `quiet_start` and `quiet_end` occur once each, are `HH:MM` from `00:00` to `23:59` and differ,
   with it off they are ignored; `activity_digest` occurs once and is one of the three choices, and with `daily` the
   single `digest_time` is `HH:MM` from `00:00` to `23:59` (with `immediate` or `hourly` a posted time is ignored; a

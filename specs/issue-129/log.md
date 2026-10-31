@@ -13,3 +13,4 @@ are quoted in full.
 | 2026-10-31 16:56 | 3 Plan security review (round 2) | squad-security | APPROVED, no findings (opus/medium · 15,207 tokens · 6 tool uses · 68 s · continued) |
 | 2026-10-31 16:57 | 4 Skeleton | squad-dev | canonicalTimeZone stub + OFFSET_FORM export; typecheck passes (sonnet/medium · 63,152 tokens · 9 tool uses · 21 s) |
 | 2026-10-31 17:00 | 5 Tests first | squad-tester | Tests written (+ test/time-zones.ts helper); confirmed 22 fail on skeleton, 2604 pass; no deferred tests (sonnet/medium · 111,828 tokens · 14 tool uses · 136 s) |
+| 2026-10-31 17:02 | 6 Implement | squad-dev | canonicalTimeZone implemented, used in settingsFromStored/parseSettingsForm, extra select option, isTimeZone removed, docs written; npm test green (6287) (sonnet/medium · 75,590 tokens · 12 tool uses · 134 s) |
