@@ -19,3 +19,4 @@ are quoted in full.
 | 2026-10-31 17:08 | 8 Review | squad-reviewer | Round 1: BLOCKING 0, NON-BLOCKING 1 (verbatim doc fix: 0042 Supersedes should name 0025; Context misreports 0025) (opus/medium · 59,044 tokens · 11 tool uses · 91 s) |
 | 2026-10-31 17:08 | 8 Review | Orchestrator | Applied reviewer's verbatim doc fix to decision 0042 (Supersedes names 0025; Context reworded); decision-check PASS; no delta round (verbatim) |
 | 2026-10-31 17:08 | 9 PR approval | Orchestrator | Approved by checklist: review clean, gates pass, documentation in diff; decision 0042 Accepted |
+| 2026-10-31 17:08 | 10 Pull request | Orchestrator | Working record posted to the issue; specs/issue-129 removed; draft PR opened |
