@@ -190,7 +190,7 @@ The daily run, step by step; the first step that decides ends it with exactly on
     10 oldest rows (about 1,440 entries a day); the backlog arrives oldest first once the setup is fixed.
   - A release published by hand without the pre-release flag can be reported before its checks ran.
   - The release reader rests on one captured answer; a different answer fails closed (no notice, one log entry).
-  - A `deliveries` row is deleted after 7 days, so the guarantee that a delivery is processed once holds within that
+  - A `deliveries` row is deleted after 7 days, so the guarantee that a recorded delivery is processed once holds within that
     time ([Notifications](notifications.md#processing-a-delivery)). GitHub redelivers only within 3 days, but a
     captured, validly signed delivery replayed later (the signature carries no time) is processed again and can send
     one duplicate message. Nothing else is written and no data leaves the instance.

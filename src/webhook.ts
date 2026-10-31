@@ -10,6 +10,7 @@ import { starRemovalOf } from "./rules/repository-starred";
 import { runRules } from "./rules/rule";
 import type { Notification, Rule, RuleDecision, WebhookPayload } from "./rules/rule";
 import { recordDelivery, isKnownDelivery } from "./store/deliveries";
+import { refreshLastDelivery } from "./store/meta";
 import { readNotificationSettings } from "./store/settings";
 import type { NotificationSettings } from "./settings";
 import type { TelegramFetch } from "./telegram";
@@ -119,6 +120,15 @@ async function notificationsOf(
   return { decision, notifications };
 }
 
+/** Refreshes `last_delivery` for a delivery without any effect, which is not recorded; a failure is ignored. */
+async function refreshLastDeliveryQuietly(db: D1Database, time: Date): Promise<void> {
+  try {
+    await refreshLastDelivery(db, time);
+  } catch {
+    // The status page then shows an older time; the answer stays 202.
+  }
+}
+
 /** Records a signed delivery, evaluates the rules, stores the messages and hands their sending to `waitUntil`. */
 export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps): Promise<WebhookOutcome> {
   const { delivery: id, event } = delivery;
@@ -157,9 +167,14 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
       silent: false,
     }));
     const touchesActivity = changes.inserts.length > 0 || changes.removals.length > 0;
+    const receivedAt = deps.now();
+    if (rows.length === 0 && !touchesActivity) {
+      await refreshLastDeliveryQuietly(deps.db, receivedAt);
+      return outcomeOf(202, decision, fields);
+    }
     const recorded = await recordDelivery(
       deps.db,
-      { id, event, receivedAt: deps.now() },
+      { id, event, receivedAt },
       rows,
       touchesActivity ? changes : undefined,
     );

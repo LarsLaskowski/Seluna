@@ -23,12 +23,12 @@ import { renderTelegramText } from "./message";
 import { decodeStoredNotification } from "./notification";
 import { RULES } from "./rules/registry";
 import type { Notification, Rule, WebhookPayload } from "./rules/rule";
-import { readLastDelivery } from "./store/meta";
+import { LAST_DELIVERY_META_KEY, readLastDelivery } from "./store/meta";
 import { writeSetting } from "./store/settings";
 import type { TelegramFetch } from "./telegram";
 import { parseWebhookPayload, processWebhook } from "./webhook";
 import type { SignedDelivery, WebhookDeps, WebhookOutcome } from "./webhook";
-import { applyMigrations, migrationTestDb } from "../test/d1";
+import { applyMigrations, migrationTestDb, writeFailingDb } from "../test/d1";
 import { batchRecordingDb, failingBatchDb, withoutActivityTable } from "../test/activity";
 import { fromBot, fromOwner, ORGANIZATION_OWNER, OWNER } from "../test/issue";
 import { ABSENT, variant } from "../test/pull-request";
@@ -233,7 +233,7 @@ describe("processWebhook", () => {
 
   it("processWebhook leaves last_delivery unchanged for a known delivery id", async () => {
     let clock = NOW;
-    const { deps } = harness({ now: () => clock });
+    const { deps } = harness({ rules: [testRule()], now: () => clock });
     await processWebhook(pingDelivery(), deps);
     clock = LATER;
 
@@ -277,7 +277,7 @@ describe("processWebhook", () => {
     expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
   });
 
-  it("processWebhook records the real ping delivery with event ping, answers 202 and writes no outbox row", async () => {
+  it("processWebhook answers 202 no-match for the real ping and writes no deliveries, outbox or activity row", async () => {
     const { deps } = harness({ rules: RULES });
 
     const outcome = await processWebhook(pingDelivery(), deps);
@@ -288,11 +288,9 @@ describe("processWebhook", () => {
       action: null,
       repository: "LarsLaskowski/test",
     });
-    expect(await env.DB.prepare("SELECT id, event FROM deliveries").first(), "delivery row").toEqual({
-      id: DELIVERY_ID,
-      event: "ping",
-    });
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
     expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(await activityCount(), "activity rows").toBe(0);
   });
 
   it("processWebhook writes no outbox row for a disabled rule and returns decision disabled", async () => {
@@ -552,7 +550,7 @@ describe("processWebhook with the CI failure rules", () => {
     expect(outcome.status, "status").toBe(202);
     expect(outcome.decision, "decision").toBe("no-match");
     expect(await count("outbox"), "outbox rows").toBe(0);
-    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
     expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
   });
 
@@ -725,7 +723,7 @@ describe("processWebhook with the events of issue 108", () => {
     { event: "fork", payload: forkFixture, action: null },
     { event: "star", payload: starCreated, action: "created" },
   ])(
-    "processWebhook accepts and records $event with its switch off, sends nothing and collects nothing",
+    "processWebhook accepts $event with its switch off, writes no deliveries row, sends nothing and collects nothing",
     async ({ event, payload, action }) => {
       const { deps, waitUntil, telegram } = harness({ rules: RULES });
 
@@ -737,10 +735,7 @@ describe("processWebhook with the events of issue 108", () => {
         action,
         repository: "example-owner/example-repo",
       });
-      expect(await env.DB.prepare("SELECT id, event FROM deliveries").first(), "delivery row").toEqual({
-        id: DELIVERY_ID,
-        event,
-      });
+      expect(await count("deliveries"), "deliveries rows").toBe(0);
       expect(await count("outbox"), "outbox rows").toBe(0);
       expect(await activityCount(), "activity rows").toBe(0);
       expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
@@ -941,7 +936,7 @@ describe("processWebhook with the issue and comment rules", () => {
     expect(outcome.status, "status").toBe(202);
     expect(outcome.decision, "decision").toBe("no-match");
     expect(await count("outbox"), "outbox rows").toBe(0);
-    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
     expect(lookUpDraft, "lookup calls").not.toHaveBeenCalled();
     expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
   });
@@ -993,7 +988,7 @@ describe("processWebhook with the issue and comment rules", () => {
     expect(outcome.status, "status").toBe(202);
     expect(outcome.decision, "decision").toBe("no-match");
     expect(await count("outbox"), "outbox rows").toBe(0);
-    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
     expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
   });
 
@@ -1014,7 +1009,7 @@ describe("processWebhook with the issue and comment rules", () => {
     { event: "issue_comment", payload: issueCommentCreated },
     { event: "issue_comment", payload: pullRequestComment },
   ])(
-    "processWebhook answers 202 no-match and records the delivery for the owner's own $event",
+    "processWebhook answers 202 no-match and writes no deliveries row for the owner's own $event",
     async ({ event, payload }) => {
       const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
 
@@ -1022,17 +1017,14 @@ describe("processWebhook with the issue and comment rules", () => {
 
       expect(outcome.status, "status").toBe(202);
       expect(outcome.decision, "decision").toBe("no-match");
-      expect(await env.DB.prepare("SELECT id, event FROM deliveries").first(), "delivery row").toEqual({
-        id: DELIVERY_ID,
-        event,
-      });
+      expect(await count("deliveries"), "deliveries rows").toBe(0);
       expect(await count("outbox"), "outbox rows").toBe(0);
       expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
       expect(telegram.requests, "Telegram requests").toEqual([]);
     },
   );
 
-  it("processWebhook answers 202 no-match and records the delivery for the owner's own issue", async () => {
+  it("processWebhook answers 202 no-match and writes no deliveries row for the owner's own issue", async () => {
     const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
 
     const outcome = await processWebhook(issueDelivery("issues", fromOwner(issuesOpened)), deps);
@@ -1043,7 +1035,7 @@ describe("processWebhook with the issue and comment rules", () => {
       action: "opened",
       repository: "example-owner/example-repo",
     });
-    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
     expect(await count("outbox"), "outbox rows").toBe(0);
   });
 
@@ -1106,16 +1098,19 @@ describe("processWebhook with the issue and comment rules", () => {
       event: "issues",
       payload: variant(issuesOpened, ["sender"], ABSENT),
     },
-  ])("processWebhook answers 202 no-match for malformed $case and records the delivery", async ({ event, payload }) => {
-    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+  ])(
+    "processWebhook answers 202 no-match for malformed $case and writes no deliveries row",
+    async ({ event, payload }) => {
+      const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
 
-    const outcome = await processWebhook(issueDelivery(event, payload), deps);
+      const outcome = await processWebhook(issueDelivery(event, payload), deps);
 
-    expect(outcome.status, "status").toBe(202);
-    expect(outcome.decision, "decision").toBe("no-match");
-    expect(await count("deliveries"), "deliveries rows").toBe(1);
-    expect(await count("outbox"), "outbox rows").toBe(0);
-  });
+      expect(outcome.status, "status").toBe(202);
+      expect(outcome.decision, "decision").toBe("no-match");
+      expect(await count("deliveries"), "deliveries rows").toBe(0);
+      expect(await count("outbox"), "outbox rows").toBe(0);
+    },
+  );
 
   it.each<{ rule: string; event: "issues" | "issue_comment"; payload: WebhookPayload }>([
     { rule: "issue_opened", event: "issues", payload: issuesOpened },
@@ -1391,7 +1386,7 @@ describe("processWebhook with the star and fork rules in digest mode", () => {
     expect(outcome.decision, "decision").toBe("disabled");
     expect(await activityCount(), "activity rows").toBe(0);
     expect(await count("outbox"), "outbox rows").toBe(0);
-    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
     expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
   });
 
@@ -1519,6 +1514,7 @@ describe("processWebhook with an unstar", () => {
 
     expect(outcome.decision, "decision").toBe("no-match");
     expect(await activityCount(), "activity rows").toBe(1);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
   });
 
   it.each<{ case: string; payload: WebhookPayload; owner: typeof OWNER | undefined; remaining: number }>([
@@ -1631,5 +1627,112 @@ describe("processWebhook without the activity table", () => {
 
     expect(outcome.status, "status").toBe(202);
     expect(outcome.decision, "decision").toBe("reported");
+  });
+});
+
+describe("processWebhook with deliveries without an effect", () => {
+  const FIRST = new Date(1_792_240_440_000);
+  const THIRTY_SECONDS_LATER = new Date(FIRST.getTime() + 30_000);
+
+  async function storedLastDelivery(): Promise<unknown> {
+    const row = await env.DB.prepare("SELECT value FROM meta WHERE key = ?1").bind(LAST_DELIVERY_META_KEY).first();
+    return row?.value;
+  }
+
+  it("processWebhook answers 202 disabled for a star with its switch off and runs no batch", async () => {
+    const batchSizes: number[] = [];
+    const { deps } = harness({ rules: RULES, db: batchRecordingDb(env.DB, batchSizes) });
+
+    const outcome = await processWebhook(activityDelivery("star", starCreated, "off-1"), deps);
+
+    expect(outcome.status, "status").toBe(202);
+    expect(outcome.decision, "decision").toBe("disabled");
+    expect(batchSizes, "batch sizes").toEqual([]);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+  });
+
+  it("processWebhook answers 202 to two concurrent copies of an unrecorded ping and stores nothing", async () => {
+    const { deps } = harness({ rules: RULES });
+
+    const outcomes = await Promise.all([processWebhook(pingDelivery(), deps), processWebhook(pingDelivery(), deps)]);
+
+    expect(
+      outcomes.map((outcome) => [outcome.status, outcome.decision]),
+      "statuses and decisions",
+    ).toEqual([
+      [202, "no-match"],
+      [202, "no-match"],
+    ]);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it("processWebhook reports an unrecorded delivery redelivered after its switch was turned on, with one outbox row and one deliveries row", async () => {
+    await setDigest("immediate");
+    const { deps, waitUntil } = harness({ rules: RULES });
+    const first = await processWebhook(activityDelivery("star", starCreated, "redeliver-1"), deps);
+    await switchOn("repository_starred");
+
+    const second = await processWebhook(activityDelivery("star", starCreated, "redeliver-1"), deps);
+    await settled(waitUntil);
+
+    expect([first.status, first.decision], "first").toEqual([202, "disabled"]);
+    expect([second.status, second.decision], "second").toEqual([202, "reported"]);
+    expect(await count("outbox"), "outbox rows").toBe(1);
+    expect(await count("deliveries"), "deliveries rows").toBe(1);
+  });
+
+  it("processWebhook sets last_delivery for an unrecorded ping and keeps it for a second one 30 seconds later", async () => {
+    let clock = FIRST;
+    const { deps } = harness({ rules: RULES, now: () => clock });
+    await processWebhook(pingDelivery(), deps);
+    const afterFirst = await storedLastDelivery();
+    clock = THIRTY_SECONDS_LATER;
+
+    await processWebhook(pingDelivery({ delivery: "other-id" }), deps);
+
+    expect(afterFirst, "after the first").toBe(String(FIRST.getTime()));
+    expect(await storedLastDelivery(), "after the second").toBe(String(FIRST.getTime()));
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+  });
+
+  it("processWebhook leaves last_delivery at one of their times for two concurrent unrecorded deliveries", async () => {
+    const { deps } = harness({ rules: RULES, now: () => FIRST });
+    const later = harness({ rules: RULES, now: () => THIRTY_SECONDS_LATER });
+
+    await Promise.all([
+      processWebhook(pingDelivery({ delivery: "c-1" }), deps),
+      processWebhook(pingDelivery({ delivery: "c-2" }), later.deps),
+    ]);
+
+    expect([String(FIRST.getTime()), String(THIRTY_SECONDS_LATER.getTime())], "candidate times").toContain(
+      await storedLastDelivery(),
+    );
+  });
+
+  it("processWebhook answers 202 no-match when the last_delivery write fails", async () => {
+    const { deps } = harness({ rules: RULES, db: writeFailingDb(env.DB) });
+
+    const outcome = await processWebhook(pingDelivery(), deps);
+
+    expect(outcome, "outcome").toEqual({
+      status: 202,
+      decision: "no-match",
+      action: null,
+      repository: "LarsLaskowski/test",
+    });
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+  });
+
+  it("processWebhook answers 503 unavailable and stores nothing when the batch of a reported ping fails", async () => {
+    const { deps, waitUntil } = harness({ rules: [testRule()], db: failingBatchDb(env.DB) });
+
+    const outcome = await processWebhook(pingDelivery(), deps);
+
+    expect(outcome.status, "status").toBe(503);
+    expect(outcome.decision, "decision").toBe("unavailable");
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
   });
 });

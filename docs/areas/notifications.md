@@ -18,18 +18,23 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
 1. The `X-GitHub-Delivery` value must match `^[0-9A-Za-z-]{1,64}$` and the `X-GitHub-Event` value
    `^[a-z_]{1,64}$`; otherwise **400**, nothing stored.
 2. A delivery id that `deliveries` already holds answers **200** and has no other effect: nothing is parsed, stored,
-   sent or written to `meta`. A `deliveries` row is kept 7 days ([Scheduled jobs](scheduled-jobs.md#cleanup)), so a
-   redelivery is recognized within that time.
+   sent or written to `meta`. Only a recorded delivery (step 5) has such a row; it is kept 7 days
+   ([Scheduled jobs](scheduled-jobs.md#cleanup)), so a redelivery of it is recognized within that time.
 3. The body is read as the payload (below); a body that is not a JSON object answers **400**, nothing stored.
 4. The notification settings and the stored owner of the app ([The sender](#the-sender)) are read and the rules run
    (below); then the draft check of a notification that carries
    one is resolved ([Draft lookup](#draft-lookup)), which may drop the notification or change its title.
-5. In one transaction: the delivery (id, event, time received) is added to `deliveries`, one `outbox` row per
+5. A delivery with at least one `outbox` row or one `activity` change (the collected events or the removal of a
+   star) is recorded. In one transaction: the delivery (id, event, time received) is added to `deliveries`, one `outbox` row per
    notification is added (the notification as JSON, [Message format](#message-format)), the `activity` changes of
    the delivery are made ([Stars and forks](#stars-and-forks): the collected events and the removal of a star), and
    `meta` `last_delivery` is set to the time received. Either all of it is stored or none of it. A delivery with no
    `activity` change does not touch the `activity` table.
-6. The answer is **202**, whether or not a rule matched. The new `outbox` rows are sent after the answer (below).
+6. Any other delivery (no row and no `activity` change) is not recorded: nothing is added to `deliveries`, `outbox`
+   or `activity`, and `meta` `last_delivery` is set only as [Storage](storage.md#tables) says, by one
+   conditional statement. A failure of that write is ignored and the answer stays 202. Nothing else changes: a
+   draft lookup of such a delivery may still refresh the installation-token cache, as before.
+7. The answer is **202**, whether or not a rule matched. The new `outbox` rows are sent after the answer (below).
 
 - When the transaction fails because the delivery id was stored in the meantime (two deliveries of one id at once),
   the answer is **200** and nothing of this delivery is stored. Any other database failure in steps 2 to 5 answers
@@ -301,7 +306,8 @@ decides when it is built and sent).
 
 - The GitHub App is subscribed to the events `issues`, `issue_comment`, `fork` and `star` besides the five of the
   rules above (decision [0039](../decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md)). They are
-  accepted, recorded in `deliveries` and answered like every other event. The rules for issues and comments report
+  accepted and answered like every other event, and recorded in `deliveries` only when they lead to a message or an
+  `activity` change ([Processing a delivery](#processing-a-delivery)). The rules for issues and comments report
   them ([Issue and comment rules](#issue-and-comment-rules)); the rules for `fork` and `star` are in
   [Stars and forks](#stars-and-forks).
 - Two helpers for those rules narrow the payload's `sender` and never throw (`src/rules/actor.ts`):
@@ -346,7 +352,7 @@ request (draft status unknown)` (German `CI im Pull Request fehlgeschlagen (Draf
   notification instead of keeping it.
 - When the lookup drops the only notification, the decision is `no-match`.
 - A delivery whose id is already recorded on arrival causes no lookup. Two deliveries of one id processed at once may
-  each make a lookup; only one of them is stored.
+  each make a lookup; at most one of them is stored.
 
 ### Message format
 
@@ -524,8 +530,8 @@ channel that sends it.
   payload's `action` when it matches `^[a-z_]{1,64}$`, the repository when `repository.full_name` matches
   `^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$`, each `null` otherwise, and the decision: `reported` (at least one
   row written), `collected` (only `activity` rows written, [Stars and forks](#stars-and-forks)), `no-match` (no rule returned a notification, or the draft lookup dropped it), `disabled` (only rules whose switch is off did),
-  `duplicate` (a known delivery id), `invalid` (a 400 of this processing) or `unavailable` (a 503 of this
-  processing).
+  `duplicate` (a known delivery id; only a recorded delivery is known), `invalid` (a 400 of this processing) or `unavailable` (a 503 of this
+  processing). A `no-match` or `disabled` delivery is not recorded unless it removes a star.
 - Each row sent writes one log entry with exactly two fields: the row id and the result — `sent`, `rate-limited`,
   `token-rejected`, `failed`, `no-token`, `no-chat` or `store-failed` (the database could not be read or the row
   could not be updated). When that send was the row's fifth failed attempt and marked it `failed`, a second entry
@@ -538,6 +544,8 @@ channel that sends it.
 - A delivery answered 400 or 503 stores nothing and GitHub does not send it again on its own; the owner can redeliver
   it from the GitHub App's delivery list, which works because its id was not recorded. This is accepted: the
   "never lose a message" goal covers rows already in the `outbox`, not deliveries that were never recorded.
+- A delivery that was not recorded (step 6) is evaluated again when GitHub or the owner redelivers it, against the
+  settings and draft state of then; it can report then, once. A redelivery of a recorded delivery answers 200.
 - A throwing rule or formatter answers 503 `unavailable` and stores nothing, like a database failure.
 - The signature covers the body only, not `X-GitHub-Delivery` or `X-GitHub-Event`. Residual risk, inherent to
   GitHub's webhook design: someone holding a captured signed body can replay it with a new delivery id and cause a
@@ -581,6 +589,9 @@ channel that sends it.
   — the fifth failed attempt marks a row `failed` in the update that counts it.
 - [`decisions/0016-telegram-chat-in-the-setup-wizard.md`](../decisions/0016-telegram-chat-in-the-setup-wizard.md)
   — the chat, `TELEGRAM_CHAT_ID` and the Bot API client built from the reference.
+
+- [`decisions/0043-only-deliveries-with-an-effect-are-recorded.md`](../decisions/0043-only-deliveries-with-an-effect-are-recorded.md)
+  — only a delivery with an `outbox` row or an `activity` change is recorded; `last_delivery` is kept by a bounded write.
 
 ## Not here
 
