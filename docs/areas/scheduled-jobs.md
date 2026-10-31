@@ -174,10 +174,10 @@ The daily run, step by step; the first step that decides ends it with exactly on
 ## Limits and errors
 
 - Per run of the 10-minute schedule at most 18 D1 statements (one of them reads the active channel) and 20 Telegram requests
-  for the retry. A retry that sends r rows uses at most 8 + r statements and 2r requests. The digest's due path adds 7
-  statements (settings, run time, two summary reads, a batch of three) and, with its send, 5 more statements and 2
-  requests. With r up to 9 and a send that is at most 17 + 18 + 12 + 2 = 49 of the 50 subrequests; with r = 10 the
-  digest is left to the next retry (`sendNow` false) and the run uses 38 + 7 = 45. Per daily run at most 7 D1
+  for the retry. A retry that sends r rows uses at most 8 + r statements and 2r requests. The digest's due path adds 8
+  statements (settings, run time, three summary reads — the largest `activity` id, the repositories, the names — and a batch of three) and, with its send, 5 more statements and 2
+  requests. With r up to 9 and a send that is at most 17 + 18 + 13 + 2 = 50 of the 50 subrequests; with r = 10 the
+  digest is left to the next retry (`sendNow` false) and the run uses 38 + 8 = 46. Per daily run at most 7 D1
   statements, one GitHub request and 2 Telegram requests — inside the free plan's 50 subrequests per invocation. A
   run of the retry ends within about 4 minutes (10 rows of at most two 10-second requests and a 5-second wait), well
   inside the 15 minutes a cron invocation may take.

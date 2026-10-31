@@ -364,10 +364,7 @@ No migration changes the column: it is still `text` ([Storage](storage.md)).
   keeps the title, the lines and the line feeds between them within 4,000 UTF-16 code units: it drops repository
   lines from the end, counting them into `and <n> more repositories`, until they fit. The uncapped worst case is the
   title (64 code points) and 11 lines of 256 code points, which is 2,880 code points and up to 5,760 UTF-16 code
-  units with astral characters. With ASCII logins and repository names the cap is never reached (about 2,900). The
-  bold tags add 7 characters; escaping `&`, `<` and `>` can add more, so a text of nothing but such characters could
-  still exceed Telegram's limit, which then answers an error and counts as a failed attempt (the cap is measured on
-  the stored text, not the escaped one).
+  units with astral characters. With ASCII logins and repository names the cap is never reached (about 2,900). Telegram counts the text after parsing its entities, so the bold tags and the escaping of `&`, `<` and `>` do not count toward its limit; that unescaped text is exactly what the cap measures.
 
 - Each text (title, repository, line 2 = `subject`, line 3 = `context`) is cleaned before it is stored, by
   `storedNotificationOf`:
