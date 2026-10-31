@@ -28,7 +28,7 @@ The first migration (`migrations/0001_initial_schema.sql`) creates the first six
 | `secrets`     | `key`             | TEXT    | Primary key: `github_app_id`, `github_private_key`, `github_webhook_secret` or `telegram_bot_token`                                                                                  |
 |               | `iv`              | TEXT    | Base64 of the 12-byte IV; the table rejects any value that is not 16 characters long                                                                                                 |
 |               | `ciphertext`      | TEXT    | Base64 of the AES-256-GCM ciphertext with its 16-byte tag                                                                                                                            |
-| `deliveries`  | `id`              | TEXT    | Primary key: the `X-GitHub-Delivery` value                                                                                                                                           |
+| `deliveries`  | `id`              | TEXT    | Primary key: the `X-GitHub-Delivery` value of a recorded delivery (one with an `outbox` row or an `activity` change)                                                                 |
 |               | `event`           | TEXT    | The `X-GitHub-Event` value                                                                                                                                                           |
 |               | `received_at`     | INTEGER | When the delivery was received (indexed)                                                                                                                                             |
 | `outbox`      | `id`              | INTEGER | Primary key, assigned by the database                                                                                                                                                |
@@ -112,8 +112,11 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   and rules in [Setup wizard](setup-wizard.md#failed-attempts-and-the-lock)).
 - The `meta` row `last_delivery` is the time of the last received webhook delivery, as decimal milliseconds since
   1970-01-01 UTC matching `^(0|[1-9]\d{0,15})$` and at most `8640000000000000` (the latest time a JavaScript `Date`
-  holds); a value that does not fit counts as no delivery. The webhook processing writes it, in the same transaction as the `deliveries` and `outbox` rows
-  of a new delivery ([Notifications](notifications.md#processing-a-delivery)); the setup wizard only reads it.
+  holds); a value that does not fit counts as no delivery. The webhook processing writes it in the transaction of a recorded delivery (with its `deliveries` and `outbox`
+  rows, [Notifications](notifications.md#processing-a-delivery)), and for a delivery that is not recorded by one
+  conditional statement that sets it only when the stored value is missing, does not fit that form, or lies 60 seconds
+  or more from the time received; a failure of that write is ignored. The setup wizard only reads it, so it can lag
+  the latest delivery by up to a minute.
 - The `meta` row `activity_digest_run` is the time of the last run of the digest job, as decimal milliseconds in the
   same form as `last_delivery`; a value that does not fit counts as no run. Only the digest job writes it, in each
   run that gets as far as storing it ([Scheduled jobs](scheduled-jobs.md#digest)).

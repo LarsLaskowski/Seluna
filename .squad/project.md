@@ -96,7 +96,7 @@ Deliberate behavior that must not change without the Product Manager. Each one i
 
 - A draft pull request triggers no notification; the exceptions are a CI failure in a pull request whose draft state could not be read (failure or no answer within 8 seconds), reported marked _draft status unknown_ — [decision 0027](../docs/decisions/0027-ci-failure-rules-and-the-draft-lookup.md), and a secret scanning alert, which is reported whatever its source — [decision 0028](../docs/decisions/0028-security-alert-rules.md).
 - A webhook with an invalid signature has no effect: nothing is stored, nothing is sent.
-- A delivery (`X-GitHub-Delivery`) is processed once within the 7-day retention of its `deliveries` row: a redelivery produces no second message. After the cleanup removed the row, a captured, validly signed delivery replayed later (the signature has no timestamp) would produce one duplicate message; GitHub itself redelivers only within 3 days.
+- A delivery (`X-GitHub-Delivery`) that led to a message or an `activity` change is processed once within the 7-day retention of its `deliveries` row: a redelivery produces no second message. After the cleanup removed the row, a captured, validly signed delivery replayed later (the signature has no timestamp) would produce one duplicate message; GitHub itself redelivers only within 3 days.
 - Each user's data stays in that user's own Cloudflare account — no central service
   — [decision 0005](../docs/decisions/0005-one-instance-per-user.md).
 - GitHub App credentials are only ever stored encrypted

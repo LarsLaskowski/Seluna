@@ -59,10 +59,12 @@ flowchart LR
    A star or fork by another account (not the owner, not a bot; both switches off by default) is reported at once or,
    by the setting _Stars and forks_ (daily at 18:00 by default), collected in the `activity` table and sent by the
    cron as one digest; an unstar removes the star again ([decision 0041](decisions/0041-fork-and-star-rules-with-a-digest.md)).
-4. In one D1 transaction the delivery id is recorded in `deliveries`, each notification becomes a row in the
+4. A delivery with a message or an `activity` change is recorded: in one D1 transaction its id is added to `deliveries`, each notification becomes a row in the
    `outbox` (a collected star or fork becomes a row of `activity` instead) as a cleaned, channel-neutral JSON notification ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md),
    [decision 0038](decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)) and `meta`
-   records the time of the delivery; then the Worker answers 202. The active delivery channel (the setting
+   records the time of the delivery; then the Worker answers 202. Any other delivery is not recorded; only `meta` is
+   set by one bounded write, at most once a minute, and its failure is ignored
+   ([decision 0043](decisions/0043-only-deliveries-with-an-effect-are-recorded.md)). The active delivery channel (the setting
    `delivery_channel`, Telegram by default, read once per batch, no fallback) renders each row when it sends it; for
    Telegram that is escaped HTML, sent to the Bot API right after the answer (`waitUntil`), once more after a short 429 wait, and the cron trigger retries rows that are
    still pending; the fifth failed attempt marks a row failed, and it is not sent again
@@ -71,7 +73,7 @@ flowchart LR
    [`areas/notifications.md`](areas/notifications.md) ([decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)).
 
 Guarantees along the way (also in [`.squad/project.md`](../.squad/project.md), *Guarantees*): an invalid signature
-has no effect, a delivery is processed once (within the 7 days its `deliveries` row is kept), a matched event is stored before it is sent, and Telegram never calls
+has no effect, a delivery that led to a message or an `activity` change is processed once (within the 7 days its `deliveries` row is kept), a matched event is stored before it is sent, and Telegram never calls
 the Worker: it has no webhook and no route, the Worker calls only `getMe`, `getUpdates` and `sendMessage`, and the
 input it takes from Telegram is the status and `ok` of the `getMe` answer and the `getUpdates` answer of the setup
 wizard's signed-in Telegram step and the status of each `sendMessage` answer (for a 429 also its `retry_after`), all
@@ -111,7 +113,7 @@ Each job catches its own failures and logs only a fixed result; the rules are in
 | ----- | ----- |
 | `settings` | Instance settings (for example the chat id, the active delivery channel, the notification options) |
 | `secrets` | GitHub App credentials and the Telegram bot token entered in the setup wizard, AES-256-GCM ciphertext |
-| `deliveries` | Processed `X-GitHub-Delivery` ids, for deduplication |
+| `deliveries` | Ids of deliveries with a message or an `activity` change, for deduplication |
 | `outbox` | Notifications waiting for, or past, delivery; `text` holds the notification as JSON (rows of earlier versions: Telegram HTML) |
 | `token_cache` | Short-lived GitHub installation tokens, AES-256-GCM ciphertext |
 | `activity` | Stars and forks collected for the digest, with the account, the repository and the time ([decision 0041](decisions/0041-fork-and-star-rules-with-a-digest.md)) |

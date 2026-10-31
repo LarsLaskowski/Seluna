@@ -48,8 +48,14 @@ in [`areas/notifications.md`](../areas/notifications.md) and [`areas/storage.md`
   then; it can report then, once. The guarantee keeps its substance — no second message — and its wording names the
   recorded deliveries.
 - A stream of deliveries without effect costs at most one `meta` write a minute; deliveries a rule reports still write
-  their rows, so a stranger who opens many issues can still spend the budget (a separate issue).
+  their rows, so a stranger who opens many issues can still spend the budget (a separate issue). A stranger starring
+  and unstarring with the star switch on still causes one recorded delivery per star and per unstar (and one
+  `activity` row per star under a digest).
 - The status page time can lag the latest delivery by up to a minute, and a write failure leaves the earlier time.
 - A draft lookup may still refresh the installation-token cache for a delivery that is then dropped, as before.
 - That a no-op upsert counts no row written in D1's billing is taken from SQLite's change count, not measured on the
-  real D1.
+  real D1. Measured in the local workerd test pool only: the first insert gave `meta.changes` 1 and
+  `rows_written` 2, the no-op (30 s and 59,999 ms away) 0 and 0, and exactly 60 s away 1 and 1.
+- Residual: whether D1 still serves reads once the daily write budget is spent is not verified. If it rejects all
+  queries then, the known-id read already fails and every delivery answers 503; the documentation promises only that a
+  failed `last_delivery` write is ignored and the answer stays 202.

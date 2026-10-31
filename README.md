@@ -56,7 +56,7 @@ flowchart LR
   C[Cron] -->|retry, clean up| O
 ```
 
-Every webhook is checked against its signature before anything happens. A delivery is processed once, a matching event is stored in the outbox before it is sent, and your messenger never calls your instance: Seluna only sends. The GitHub App credentials and the Telegram bot token you enter in the setup are stored encrypted. The details are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Every webhook is checked against its signature before anything happens. A delivery that led to a message is processed once, a matching event is stored in the outbox before it is sent, and your messenger never calls your instance: Seluna only sends. The GitHub App credentials and the Telegram bot token you enter in the setup are stored encrypted. The details are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Get started
 
