@@ -1586,7 +1586,7 @@ describe("renderStartPage setting groups", () => {
   );
 
   it.each(LANGUAGES.map((language) => ({ language })))(
-    "renderStartPage puts the eleven rules and the release notice in one fieldset with the rules label as legend in $language",
+    "renderStartPage puts the thirteen rules and the release notice in one fieldset with the rules label as legend in $language",
     ({ language }) => {
       const texts = TEXTS[language];
 
@@ -1595,13 +1595,14 @@ describe("renderStartPage setting groups", () => {
       const rules = fieldsetsOf(page)[1];
       expect(compact(rules?.legend ?? ""), "legend").toBe(escapeHtml(texts.rulesLabel));
       const names = [...RULE_IDS.map((id) => `rule_${id}`), "update_notice"];
-      expect(RULE_IDS.length, "number of rules").toBe(11);
+      expect(RULE_IDS.length, "number of rules").toBe(13);
       const positions = names.map((name) => (rules?.content ?? "").indexOf(`name="${name}"`));
       expect(Math.min(...positions), "every switch is in the group").toBeGreaterThanOrEqual(0);
       expect(positions, "the rules come in order, then the release notice").toEqual(
         [...positions].sort((left, right) => left - right),
       );
       expect(rules?.content, "quiet hours").not.toContain('name="quiet_');
+      expect(rules?.content, "digest field").not.toContain('name="activity_digest"');
       expect(page, "rules label as a paragraph").not.toContain(`<p>${escapeHtml(texts.rulesLabel)}</p>`);
       const settings = sectionWith(page, `<h2>${escapeHtml(texts.settingsHeading)}</h2>`);
       expect(settings.lastIndexOf("</fieldset>"), "the groups are in the settings section").toBeGreaterThanOrEqual(0);
@@ -2518,15 +2519,73 @@ describe("renderStartPage settings form", () => {
     },
   );
 
+  it.each(LANGUAGES.map((language) => ({ language })))(
+    "renderStartPage puts the stars and forks field with daily at 18:00 selected in a group after the rules in $language",
+    ({ language }) => {
+      const texts = TEXTS[language];
+
+      const page = startPage(language);
+
+      const groups = fieldsetsOf(page);
+      expect(groups, "number of groups").toHaveLength(3);
+      const digest = groups[2];
+      expect(compact(digest?.legend ?? ""), "legend").toBe(escapeHtml(texts.activityDigestLabel));
+      const content = digest?.content ?? "";
+      expect(content, "select").toMatch(
+        /<select\b(?=[^>]*\bid="activity_digest")(?=[^>]*\bname="activity_digest")[^>]*>/,
+      );
+      expect(content, "select label").toContain(`aria-label="${escapeHtml(texts.activityDigestLabel)}"`);
+      expect(content, "immediate option").toContain(
+        `<option value="immediate">${escapeHtml(texts.activityDigestOptions.immediate)}</option>`,
+      );
+      expect(content, "hourly option").toContain(
+        `<option value="hourly">${escapeHtml(texts.activityDigestOptions.hourly)}</option>`,
+      );
+      expect(content, "daily option selected").toContain(
+        `<option value="daily" selected>${escapeHtml(texts.activityDigestOptions.daily)}</option>`,
+      );
+      expect(content, "time label").toContain(`<label for="digest_time">${escapeHtml(texts.digestTimeLabel)}</label>`);
+      expect(inputTag(content, "digest_time"), "time field").toMatch(/type="time"/);
+      expect(inputTag(content, "digest_time"), "time field id").toContain('id="digest_time"');
+      expect(inputTag(content, "digest_time"), "time field value").toContain('value="18:00"');
+      expect(page.indexOf('name="activity_digest"'), "after the rules").toBeGreaterThan(
+        page.indexOf('name="update_notice"'),
+      );
+      const afterGroups = page.slice(page.lastIndexOf("</fieldset>"));
+      expect(buttonClasses(afterGroups), "save button after the groups").toEqual(["primary"]);
+    },
+  );
+
+  it.each([
+    { case: "immediately", digest: { kind: "immediate" }, selected: "immediate", time: "18:00" },
+    { case: "hourly", digest: { kind: "hourly" }, selected: "hourly", time: "18:00" },
+    { case: "daily at 06:45", digest: { kind: "daily", time: "06:45" }, selected: "daily", time: "06:45" },
+  ] as const)("renderStartPage shows the saved digest $case", ({ digest, selected, time }) => {
+    const settings: NotificationSettings = { ...DEFAULT_SETTINGS, activityDigest: digest };
+
+    const page = startPage("en", { settings });
+
+    const options = Array.from(page.matchAll(/<option value="(immediate|hourly|daily)"( selected)?>/g));
+    expect(
+      options.map((option) => option[1]),
+      "options in order",
+    ).toEqual(["immediate", "hourly", "daily"]);
+    expect(
+      options.filter((option) => option[2] !== undefined).map((option) => option[1]),
+      "selected options",
+    ).toEqual([selected]);
+    expect(inputTag(page, "digest_time"), "time shown").toContain(`value="${time}"`);
+  });
+
   it.each(LANGUAGES.flatMap((language) => RULE_IDS.map((id) => ({ language, id }))))(
-    "renderStartPage renders a checked checkbox and a label for the rule $id in $language",
+    "renderStartPage renders a checkbox that is checked as the default says and a label for the rule $id in $language",
     ({ language, id }) => {
       const page = startPage(language);
 
       expect(inputTag(page, `rule_${id}`), "checkbox").toMatch(
         /type="checkbox"[^>]*value="on"|value="on"[^>]*type="checkbox"/,
       );
-      expect(inputTag(page, `rule_${id}`), "rule is on").toMatch(/\bchecked\b/);
+      expect(/\bchecked\b/.test(inputTag(page, `rule_${id}`)), "rule is checked").toBe(DEFAULT_SETTINGS.rules[id]);
       expect(page, "label").toContain(escapeHtml(TEXTS[language].ruleLabels[id]));
     },
   );
@@ -2538,7 +2597,7 @@ describe("renderStartPage settings form", () => {
       quietHours: { start: "21:30", end: "06:15" },
       rules: { ...DEFAULT_SETTINGS.rules, dependabot_alert: false },
       updateNotice: false,
-      activityDigest: { kind: "immediate" },
+      activityDigest: { kind: "daily", time: "07:15" },
     };
 
     const page = startPage("en", { settings });
@@ -2553,6 +2612,8 @@ describe("renderStartPage settings form", () => {
     expect(inputTag(page, "rule_dependabot_alert"), "switched-off rule").not.toMatch(/\bchecked\b/);
     expect(inputTag(page, "rule_code_scanning_alert"), "rule still on").toMatch(/\bchecked\b/);
     expect(inputTag(page, "update_notice"), "update notice off").not.toMatch(/\bchecked\b/);
+    expect(page, "daily selected").toContain('<option value="daily" selected>');
+    expect(inputTag(page, "digest_time"), "digest time").toContain('value="07:15"');
   });
 
   it("renderStartPage puts the session-bound token into the settings form", () => {

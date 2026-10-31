@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SETTINGS, isTimeZone, RULE_IDS, settingsFromStored, timeZones } from "./settings";
-import type { NotificationSettings } from "./settings";
+import {
+  activityDigestFromStored,
+  activityDigestToStored,
+  DEFAULT_ACTIVITY_DIGEST,
+  DEFAULT_SETTINGS,
+  isTimeZone,
+  RULE_IDS,
+  SETTING_KEYS,
+  settingsFromStored,
+  settingsToStored,
+  timeZones,
+} from "./settings";
+import type { ActivityDigest, NotificationSettings } from "./settings";
 
 const ALL_RULES_OFF: NotificationSettings["rules"] = {
   pull_request_opened: false,
@@ -28,6 +39,8 @@ const NON_DEFAULT: NotificationSettings = {
   updateNotice: false,
 };
 
+const DAILY_18: ActivityDigest = { kind: "daily", time: "18:00" };
+
 /** The stored rows that read as `NON_DEFAULT`. */
 function nonDefaultRows(): Map<string, string> {
   const rows = new Map<string, string>([
@@ -35,6 +48,7 @@ function nonDefaultRows(): Map<string, string> {
     ["time_zone", "Europe/Berlin"],
     ["quiet_hours", "22:00-07:00"],
     ["update_notice", "off"],
+    ["activity_digest", "immediate"],
   ]);
   for (const id of RULE_IDS) {
     rows.set(`rule_${id}`, "off");
@@ -67,21 +81,42 @@ describe("settingsFromStored", () => {
     });
   });
 
-  it("settingsFromStored lists the three new rules last, after secret_scanning_alert", () => {
-    expect(RULE_IDS.slice(-4), "last rule ids").toEqual([
+  it("settingsFromStored reads the two activity switches as off without rows and keeps every stored switch", () => {
+    const withoutRows = settingsFromStored(new Map());
+    const stored = settingsFromStored(
+      new Map([
+        ["rule_repository_starred", "on"],
+        ["rule_repository_forked", "off"],
+      ]),
+    );
+
+    expect(
+      [withoutRows.rules.repository_starred, withoutRows.rules.repository_forked],
+      "switches without rows",
+    ).toEqual([false, false]);
+    expect([stored.rules.repository_starred, stored.rules.repository_forked], "stored switches").toEqual([true, false]);
+    expect(stored.rules.pull_request_opened, "an existing rule without a row").toBe(true);
+  });
+
+  it("settingsFromStored lists the issue and comment rules and then the star and fork rules last", () => {
+    expect(RULE_IDS.slice(-6), "last rule ids").toEqual([
       "secret_scanning_alert",
       "issue_opened",
       "issue_comment",
       "pull_request_comment",
+      "repository_starred",
+      "repository_forked",
     ]);
     expect(
       [
         DEFAULT_SETTINGS.rules.issue_opened,
         DEFAULT_SETTINGS.rules.issue_comment,
         DEFAULT_SETTINGS.rules.pull_request_comment,
+        DEFAULT_SETTINGS.rules.repository_starred,
+        DEFAULT_SETTINGS.rules.repository_forked,
       ],
-      "defaults of the new rules",
-    ).toEqual([true, true, true]);
+      "defaults of the newer rules",
+    ).toEqual([true, true, true, false, false]);
   });
 
   it("settingsFromStored reads each stored value", () => {
@@ -110,6 +145,9 @@ describe("settingsFromStored", () => {
       expected: { ...NON_DEFAULT, rules: { ...ALL_RULES_OFF, dependabot_alert: true } },
     },
     { key: "update_notice", value: "", expected: { ...NON_DEFAULT, updateNotice: true } },
+    { key: "activity_digest", value: "daily@24:00", expected: { ...NON_DEFAULT, activityDigest: DAILY_18 } },
+    { key: "activity_digest", value: "daily@", expected: { ...NON_DEFAULT, activityDigest: DAILY_18 } },
+    { key: "activity_digest", value: "weekly", expected: { ...NON_DEFAULT, activityDigest: DAILY_18 } },
   ])("settingsFromStored falls back per key for an invalid value: $key $value", ({ key, value, expected }) => {
     const rows = nonDefaultRows();
     rows.set(key, value);
@@ -117,6 +155,84 @@ describe("settingsFromStored", () => {
     const settings = settingsFromStored(rows);
 
     expect(settings, "only the invalid key reads as its default").toEqual(expected);
+  });
+});
+
+describe("activityDigestFromStored", () => {
+  it.each([
+    { value: "immediate", expected: { kind: "immediate" } },
+    { value: "hourly", expected: { kind: "hourly" } },
+    { value: "daily@18:00", expected: { kind: "daily", time: "18:00" } },
+    { value: "daily@00:00", expected: { kind: "daily", time: "00:00" } },
+    { value: "daily@06:45", expected: { kind: "daily", time: "06:45" } },
+    { value: "daily@23:59", expected: { kind: "daily", time: "23:59" } },
+  ] as const)("activityDigestFromStored reads $value", ({ value, expected }) => {
+    const digest = activityDigestFromStored(value);
+
+    expect(digest, "digest").toEqual(expected);
+  });
+
+  it.each([
+    { case: "an absent value", value: undefined },
+    { case: "the empty text", value: "" },
+    { case: "the hour 24", value: "daily@24:00" },
+    { case: "the minute 60", value: "daily@18:60" },
+    { case: "a daily digest without a time", value: "daily@" },
+    { case: "a daily digest without the at sign", value: "daily" },
+    { case: "a time with a one-digit hour", value: "daily@6:00" },
+    { case: "a time with seconds", value: "daily@18:00:00" },
+    { case: "a time with a trailing space", value: "daily@18:00 " },
+    { case: "an unknown interval", value: "weekly" },
+    { case: "a capitalised interval", value: "Daily@18:00" },
+    { case: "an upper-case immediate", value: "IMMEDIATE" },
+    { case: "a time after hourly", value: "hourly@18:00" },
+    { case: "a time after immediate", value: "immediate@18:00" },
+  ])("activityDigestFromStored reads $case as daily at 18:00", ({ value }) => {
+    const digest = activityDigestFromStored(value);
+
+    expect(digest, "digest").toEqual({ kind: "daily", time: "18:00" });
+  });
+
+  it("DEFAULT_ACTIVITY_DIGEST is daily at 18:00 and the default settings use it", () => {
+    expect(DEFAULT_ACTIVITY_DIGEST, "constant").toEqual({ kind: "daily", time: "18:00" });
+    expect(DEFAULT_SETTINGS.activityDigest, "default settings").toEqual({ kind: "daily", time: "18:00" });
+  });
+});
+
+describe("activityDigestToStored", () => {
+  it.each([
+    { digest: { kind: "immediate" }, expected: "immediate" },
+    { digest: { kind: "hourly" }, expected: "hourly" },
+    { digest: { kind: "daily", time: "06:45" }, expected: "daily@06:45" },
+    { digest: { kind: "daily", time: "18:00" }, expected: "daily@18:00" },
+  ] as const)("activityDigestToStored writes $expected", ({ digest, expected }) => {
+    const stored = activityDigestToStored(digest);
+
+    expect(stored, "stored value").toBe(expected);
+  });
+
+  it.each([
+    { digest: { kind: "immediate" } },
+    { digest: { kind: "hourly" } },
+    { digest: { kind: "daily", time: "23:59" } },
+  ] as const)("activityDigestToStored and activityDigestFromStored round-trip $digest.kind", ({ digest }) => {
+    const read = activityDigestFromStored(activityDigestToStored(digest));
+
+    expect(read, "digest read back").toEqual(digest);
+  });
+});
+
+describe("settingsToStored", () => {
+  it("settingsToStored stores the activity digest under activity_digest and lists the key in SETTING_KEYS", () => {
+    const rows = settingsToStored({ ...NON_DEFAULT, activityDigest: { kind: "daily", time: "06:45" } });
+
+    expect(rows, "digest row").toContainEqual(["activity_digest", "daily@06:45"]);
+    expect(SETTING_KEYS, "keys of the module").toContain("activity_digest");
+    expect(
+      rows.map(([key]) => key).sort((left, right) => left.localeCompare(right)),
+      "stored keys are exactly the listed keys",
+    ).toEqual([...SETTING_KEYS].sort((left, right) => left.localeCompare(right)));
+    expect(rows, "eighteen rows").toHaveLength(18);
   });
 });
 

@@ -117,7 +117,7 @@ describe("TEXTS", () => {
       "github-store-failed":
         "GitHub created the app, but saving its credentials failed, so nothing was saved. Delete the app on GitHub and start again.",
       "settings-invalid":
-        "The settings were not saved. Check the values: quiet hours need a start and an end in the form 22:00, and the two must differ.",
+        "The settings were not saved. Check the values: quiet hours need a start and an end in the form 22:00, and the two must differ; a daily digest of stars and forks needs a time in the form 18:00.",
       "reset-not-needed": "The saved credentials can be read with the current SELUNA_SECRET, so nothing was reset.",
       "messenger-invalid": "Please choose a messenger from the list.",
       "messenger-not-set-up": "This messenger is not set up yet. Set it up first, then activate it.",
@@ -382,6 +382,9 @@ describe("TEXTS", () => {
         updateNoticeLabel: en.updateNoticeLabel,
         saveSettingsButton: en.saveSettingsButton,
         ruleLabels: en.ruleLabels,
+        activityDigestLabel: en.activityDigestLabel,
+        activityDigestOptions: en.activityDigestOptions,
+        digestTimeLabel: en.digestTimeLabel,
       },
       "English status and settings texts",
     ).toEqual({
@@ -427,7 +430,36 @@ describe("TEXTS", () => {
         issue_opened: "New issue",
         issue_comment: "New comment on an issue",
         pull_request_comment: "New comment on a pull request",
+        repository_starred: "New star on a repository",
+        repository_forked: "New fork of a repository",
       },
+      activityDigestLabel: "Stars and forks",
+      activityDigestOptions: { immediate: "Immediately", hourly: "Hourly", daily: "Daily at" },
+      digestTimeLabel: "Time",
+    });
+  });
+
+  it("texts word the German digest labels, the star and fork switches and the settings notice as the spec does", () => {
+    const { de } = TEXTS;
+
+    expect(
+      {
+        starred: de.ruleLabels.repository_starred,
+        forked: de.ruleLabels.repository_forked,
+        label: de.activityDigestLabel,
+        options: de.activityDigestOptions,
+        time: de.digestTimeLabel,
+        notice: de.notices["settings-invalid"],
+      },
+      "German texts",
+    ).toEqual({
+      starred: "Neuer Stern für ein Repository",
+      forked: "Neuer Fork eines Repositorys",
+      label: "Sterne und Forks",
+      options: { immediate: "Sofort", hourly: "Stündlich", daily: "Täglich um" },
+      time: "Uhrzeit",
+      notice:
+        "Die Einstellungen wurden nicht gespeichert. Prüfe die Werte: Ruhezeiten brauchen einen Beginn und ein Ende in der Form 22:00, und beide müssen sich unterscheiden; ein täglicher Überblick über Sterne und Forks braucht eine Uhrzeit in der Form 18:00.",
     });
   });
 

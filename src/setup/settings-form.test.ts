@@ -13,6 +13,8 @@ function fieldsWith(changes: Changes = {}): URLSearchParams {
     quiet_start: "22:00",
     quiet_end: "07:00",
     update_notice: "on",
+    activity_digest: "daily",
+    digest_time: "06:45",
     ...Object.fromEntries(RULE_IDS.map((id) => [`rule_${id}`, "on"])),
     ...changes,
   };
@@ -45,9 +47,54 @@ describe("parseSettingsForm", () => {
         issue_opened: true,
         issue_comment: true,
         pull_request_comment: true,
+        repository_starred: true,
+        repository_forked: true,
       },
       updateNotice: true,
+      activityDigest: { kind: "daily", time: "06:45" },
     });
+  });
+
+  it("parseSettingsForm reads the two activity switches and keeps them off when absent", () => {
+    const off = fieldsWith({ rule_repository_starred: undefined });
+    const onlyFork = fieldsWith({ rule_repository_starred: undefined, rule_repository_forked: undefined });
+    onlyFork.append("rule_repository_forked", "on");
+
+    const settings = parseSettingsForm(off);
+    const single = parseSettingsForm(onlyFork);
+
+    expect(settings?.rules.repository_starred, "star switch absent").toBe(false);
+    expect(settings?.rules.repository_forked, "fork switch on").toBe(true);
+    expect(single?.rules.repository_starred, "star switch absent in the second form").toBe(false);
+    expect(single?.rules.repository_forked, "fork switch on in the second form").toBe(true);
+  });
+
+  it.each([
+    {
+      case: "immediately",
+      changes: { activity_digest: "immediate", digest_time: undefined },
+      expected: { kind: "immediate" },
+    },
+    { case: "hourly", changes: { activity_digest: "hourly", digest_time: undefined }, expected: { kind: "hourly" } },
+    {
+      case: "daily at 00:00",
+      changes: { activity_digest: "daily", digest_time: "00:00" },
+      expected: { kind: "daily", time: "00:00" },
+    },
+    {
+      case: "daily at 23:59",
+      changes: { activity_digest: "daily", digest_time: "23:59" },
+      expected: { kind: "daily", time: "23:59" },
+    },
+    {
+      case: "immediately with a posted time",
+      changes: { activity_digest: "immediate", digest_time: "09:30" },
+      expected: { kind: "immediate" },
+    },
+  ] as const)("parseSettingsForm reads the digest $case", ({ changes, expected }) => {
+    const settings = parseSettingsForm(fieldsWith(changes));
+
+    expect(settings?.activityDigest, "digest").toEqual(expected);
   });
 
   it("parseSettingsForm reads the three new switches", () => {
@@ -111,6 +158,20 @@ describe("parseSettingsForm", () => {
     { case: "the start 24:00", changes: { quiet_start: "24:00" } },
     { case: "the start 7:00", changes: { quiet_start: "7:00" } },
     { case: "the end 07:00:00", changes: { quiet_end: "07:00:00" } },
+    { case: "a missing activity_digest", changes: { activity_digest: undefined } },
+    { case: "a repeated activity_digest", changes: { activity_digest: ["daily", "daily"] } },
+    { case: "two different activity_digest values", changes: { activity_digest: ["hourly", "immediate"] } },
+    { case: "the unknown interval weekly", changes: { activity_digest: "weekly" } },
+    { case: "the interval in capitals", changes: { activity_digest: "Daily" } },
+    { case: "the stored form daily@18:00 as a choice", changes: { activity_digest: "daily@18:00" } },
+    { case: "an empty activity_digest", changes: { activity_digest: "" } },
+    { case: "a daily digest without digest_time", changes: { digest_time: undefined } },
+    { case: "a daily digest with a repeated digest_time", changes: { digest_time: ["06:45", "06:45"] } },
+    { case: "a daily digest with an empty digest_time", changes: { digest_time: "" } },
+    { case: "a daily digest at 24:00", changes: { digest_time: "24:00" } },
+    { case: "a daily digest at 18:60", changes: { digest_time: "18:60" } },
+    { case: "a daily digest at 6:00", changes: { digest_time: "6:00" } },
+    { case: "a daily digest at 18:00:00", changes: { digest_time: "18:00:00" } },
     { case: "a start equal to the end", changes: { quiet_start: "07:00", quiet_end: "07:00" } },
   ])("parseSettingsForm rejects $case", ({ changes }) => {
     const settings = parseSettingsForm(fieldsWith(changes));
