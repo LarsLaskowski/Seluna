@@ -16,6 +16,24 @@ export const DE: MessageTexts = {
   pullRequestComment: "Neuer Kommentar zum Pull Request",
   byAuthor: (author) => `von ${author}`,
   pullRequestContext: (author, head, base) => `von ${author} · ${head} → ${base}`,
+  repositoryStarred: "Neuer Stern",
+  repositoryForked: "Neuer Fork",
+  activityDigestTitle: "Neue Sterne und Forks",
+  starsNow: () => {
+    throw new Error("not implemented");
+  },
+  digestStars: () => {
+    throw new Error("not implemented");
+  },
+  digestForks: () => {
+    throw new Error("not implemented");
+  },
+  moreNames: () => {
+    throw new Error("not implemented");
+  },
+  moreRepositories: () => {
+    throw new Error("not implemented");
+  },
   newSelunaRelease: "Neue Seluna-Version",
   releaseAvailable: (latest, running) => `Version ${latest} ist verfügbar; diese Instanz läuft mit ${running}.`,
 };
