@@ -1,33 +1,12 @@
 import { isClockTime } from "./settings";
+import { wallClockReader } from "./wall-clock";
 import type { QuietHours } from "./settings";
 
 const MINUTES_PER_HOUR = 60;
-const MINUTES_PER_DAY = 1440;
 
 function minutesOfDay(time: string): number {
   const [hours, minutes] = time.split(":").map(Number);
   return (hours ?? 0) * MINUTES_PER_HOUR + (minutes ?? 0);
-}
-
-function utcMinuteOfDay(at: Date): number {
-  return at.getUTCHours() * MINUTES_PER_HOUR + at.getUTCMinutes();
-}
-
-function zonedMinuteOfDay(timeZone: string, at: Date): number {
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      hourCycle: "h23",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).formatToParts(at);
-    const hour = Number(parts.find((part) => part.type === "hour")?.value);
-    const minute = Number(parts.find((part) => part.type === "minute")?.value);
-    return hour * MINUTES_PER_HOUR + minute;
-  } catch {
-    // A zone the runtime rejects (and an invalid date, which yields NaN here) is read as UTC.
-    return utcMinuteOfDay(at);
-  }
 }
 
 /**
@@ -41,8 +20,8 @@ export function isQuietTime(quietHours: QuietHours | undefined, timeZone: string
   }
   const start = minutesOfDay(quietHours.start);
   const end = minutesOfDay(quietHours.end);
-  const minute = zonedMinuteOfDay(timeZone, at);
-  if (start === end || !Number.isInteger(minute) || minute < 0 || minute >= MINUTES_PER_DAY) {
+  const minute = wallClockReader(timeZone)(at)?.minuteOfDay;
+  if (start === end || minute === undefined) {
     return false;
   }
   return start < end ? start <= minute && minute < end : minute >= start || minute < end;

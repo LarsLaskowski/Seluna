@@ -1,4 +1,4 @@
-import type { RuleId } from "../settings";
+import type { ActivityDigest, RuleId } from "../settings";
 import type { Language } from "./language";
 
 export type Notice =
@@ -154,6 +154,12 @@ export interface SetupTexts {
   readonly rulesLabel: string;
   readonly updateNoticeLabel: string;
   readonly saveSettingsButton: string;
+  /** The label of the stars and forks interval field. */
+  readonly activityDigestLabel: string;
+  /** The label of each interval option. */
+  readonly activityDigestOptions: Readonly<Record<ActivityDigest["kind"], string>>;
+  /** The label of the daily digest time field. */
+  readonly digestTimeLabel: string;
   readonly ruleLabels: Readonly<Record<RuleId, string>>;
   readonly notConfiguredHeading: string;
   readonly notConfiguredParagraphs: readonly string[];
@@ -309,6 +315,9 @@ const ENGLISH: SetupTexts = {
   rulesLabel: "Notify me about",
   updateNoticeLabel: "Tell me when a new Seluna release is available",
   saveSettingsButton: "Save settings",
+  activityDigestLabel: "Stars and forks",
+  activityDigestOptions: { immediate: "Immediately", hourly: "Hourly", daily: "Daily at" },
+  digestTimeLabel: "Time",
   ruleLabels: {
     pull_request_opened: "New pull request",
     pull_request_ready_for_review: "Pull request ready for review",
@@ -321,6 +330,8 @@ const ENGLISH: SetupTexts = {
     issue_opened: "New issue",
     issue_comment: "New comment on an issue",
     pull_request_comment: "New comment on a pull request",
+    repository_starred: "New star on a repository",
+    repository_forked: "New fork of a repository",
   },
   notConfiguredHeading: "SELUNA_SECRET is not set",
   notConfiguredParagraphs: [
@@ -402,7 +413,7 @@ const ENGLISH: SetupTexts = {
     "github-store-failed":
       "GitHub created the app, but saving its credentials failed, so nothing was saved. Delete the app on GitHub and start again.",
     "settings-invalid":
-      "The settings were not saved. Check the values: quiet hours need a start and an end in the form 22:00, and the two must differ.",
+      "The settings were not saved. Check the values: quiet hours need a start and an end in the form 22:00, and the two must differ; a daily digest of stars and forks needs a time in the form 18:00.",
     "reset-not-needed": "The saved credentials can be read with the current SELUNA_SECRET, so nothing was reset.",
   },
 };
@@ -544,6 +555,9 @@ const GERMAN: SetupTexts = {
   rulesLabel: "Benachrichtige mich über",
   updateNoticeLabel: "Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist",
   saveSettingsButton: "Einstellungen speichern",
+  activityDigestLabel: "Sterne und Forks",
+  activityDigestOptions: { immediate: "Sofort", hourly: "Stündlich", daily: "Täglich um" },
+  digestTimeLabel: "Uhrzeit",
   ruleLabels: {
     pull_request_opened: "Neuer Pull Request",
     pull_request_ready_for_review: "Pull Request bereit zum Review",
@@ -556,6 +570,8 @@ const GERMAN: SetupTexts = {
     issue_opened: "Neues Issue",
     issue_comment: "Neuer Kommentar zu einem Issue",
     pull_request_comment: "Neuer Kommentar zu einem Pull Request",
+    repository_starred: "Neuer Stern für ein Repository",
+    repository_forked: "Neuer Fork eines Repositorys",
   },
   notConfiguredHeading: "SELUNA_SECRET ist nicht gesetzt",
   notConfiguredParagraphs: [
@@ -640,7 +656,7 @@ const GERMAN: SetupTexts = {
     "github-store-failed":
       "GitHub hat die App erstellt, aber das Speichern ihrer Zugangsdaten ist fehlgeschlagen, daher wurde nichts gespeichert. Lösche die App auf GitHub und beginne erneut.",
     "settings-invalid":
-      "Die Einstellungen wurden nicht gespeichert. Prüfe die Werte: Ruhezeiten brauchen einen Beginn und ein Ende in der Form 22:00, und beide müssen sich unterscheiden.",
+      "Die Einstellungen wurden nicht gespeichert. Prüfe die Werte: Ruhezeiten brauchen einen Beginn und ein Ende in der Form 22:00, und beide müssen sich unterscheiden; ein täglicher Überblick über Sterne und Forks braucht eine Uhrzeit in der Form 18:00.",
     "reset-not-needed":
       "Die gespeicherten Zugangsdaten sind mit dem aktuellen SELUNA_SECRET lesbar, daher wurde nichts zurückgesetzt.",
   },

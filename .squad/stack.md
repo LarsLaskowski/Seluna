@@ -71,7 +71,7 @@ binaries (`.claude/hooks/install-linters.sh`), and the gate reports NOT RUN for 
 download, for example). The gate itself checks two SonarQube Cloud shell rules shellcheck does not report:
 `shelldre:S7679` (a positional parameter `$1`…`$9` used as a word of its own inside a function — assign it to a
 local variable first) and `shelldre:S7688` (`[ … ]` instead of `[[ … ]]`). Other `shelldre:*` findings are first
-reported by the *Sonar gate* below.
+reported by the *Sonar gate* below. The SonarQube rule `text:S6389` (bidirectional character in source) is likewise reported only by the *Sonar gate* and flags a raw bidirectional or invisible control character (U+202A–U+202E, U+2066–U+2069, U+200E, U+200F) in a source file, so tests that need hostile text write such characters as JavaScript escapes (`\u202e`), never as raw characters.
 
 *Sonar gate* runs SonarQube Cloud's own analysis on the work branch before the pull request (squad step 7):
 `sonar-check.py` runs the scanner with the branch name, waits for the analysis and fails on every open issue or

@@ -89,6 +89,7 @@ const CHANGED_SETTINGS: NotificationSettings = {
   quietHours: { start: "22:00", end: "07:00" },
   rules: { ...DEFAULT_SETTINGS.rules, dependabot_alert: false, ci_failed_pull_request: false },
   updateNotice: false,
+  activityDigest: { kind: "daily", time: "06:45" },
 };
 
 describe("readNotificationSettings", () => {
@@ -108,6 +109,30 @@ describe("readNotificationSettings", () => {
   });
 });
 
+describe("readNotificationSettings with rows of an earlier version", () => {
+  it("readNotificationSettings reads the digest as daily at 18:00 and the star and fork switches as off without rows", async () => {
+    await writeSetting(env.DB, "notification_language", "de");
+    await writeSetting(env.DB, "rule_issue_opened", "off");
+
+    const settings = await readNotificationSettings(env.DB);
+
+    expect(settings.activityDigest, "digest").toEqual({ kind: "daily", time: "18:00" });
+    expect(settings.rules.repository_starred, "star switch").toBe(false);
+    expect(settings.rules.repository_forked, "fork switch").toBe(false);
+    expect(settings.rules.issue_opened, "stored switch keeps its value").toBe(false);
+  });
+
+  it("readNotificationSettings reads an invalid stored digest as daily at 18:00 and keeps the stored switches", async () => {
+    await writeSetting(env.DB, "activity_digest", "daily@24:00");
+    await writeSetting(env.DB, "rule_repository_starred", "on");
+
+    const settings = await readNotificationSettings(env.DB);
+
+    expect(settings.activityDigest, "digest").toEqual({ kind: "daily", time: "18:00" });
+    expect(settings.rules.repository_starred, "stored star switch").toBe(true);
+  });
+});
+
 describe("writeNotificationSettings", () => {
   it("writeNotificationSettings then readNotificationSettings round-trips every field", async () => {
     await writeNotificationSettings(env.DB, CHANGED_SETTINGS);
@@ -117,7 +142,28 @@ describe("writeNotificationSettings", () => {
     expect(settings, "settings").toEqual(CHANGED_SETTINGS);
   });
 
-  it("writeNotificationSettings writes the fifteen settings in one batch", async () => {
+  it.each([
+    { digest: { kind: "immediate" } },
+    { digest: { kind: "hourly" } },
+    { digest: { kind: "daily", time: "00:00" } },
+  ] as const)(
+    "writeNotificationSettings then readNotificationSettings round-trips the digest $digest.kind",
+    async ({ digest }) => {
+      await writeNotificationSettings(env.DB, { ...CHANGED_SETTINGS, activityDigest: digest });
+
+      const settings = await readNotificationSettings(env.DB);
+
+      expect(settings.activityDigest, "digest").toEqual(digest);
+    },
+  );
+
+  it("writeNotificationSettings stores the digest as text under activity_digest", async () => {
+    await writeNotificationSettings(env.DB, CHANGED_SETTINGS);
+
+    expect(await storedValue("activity_digest"), "stored digest").toBe("daily@06:45");
+  });
+
+  it("writeNotificationSettings writes the eighteen settings in one batch", async () => {
     const batchSizes: number[] = [];
     const db: D1Database = {
       prepare: (query) => env.DB.prepare(query),
@@ -132,8 +178,8 @@ describe("writeNotificationSettings", () => {
 
     await writeNotificationSettings(db, CHANGED_SETTINGS);
 
-    expect(batchSizes, "batch calls and their statement counts").toEqual([15]);
-    expect(await rowCount(), "number of rows").toBe(15);
+    expect(batchSizes, "batch calls and their statement counts").toEqual([18]);
+    expect(await rowCount(), "number of rows").toBe(18);
   });
 
   it("writeNotificationSettings leaves the Telegram chat row alone", async () => {

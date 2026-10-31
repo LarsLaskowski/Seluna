@@ -3,7 +3,7 @@
 ## Scope
 
 What the Worker does when a cron trigger calls it: resending `pending` `outbox` rows and marking them `failed` after
-the fifth attempt, deleting old rows, and the daily check for a new Seluna release with its notice. The owner relies
+the fifth attempt, deleting old rows, building the digest of stars and forks, and the daily check for a new Seluna release with its notice. The owner relies
 on it to get a message once Telegram is reachable again, to keep the database small and to hear about new releases;
 the operator relies on its log entries.
 
@@ -11,17 +11,18 @@ the operator relies on its log entries.
 
 ### Schedules
 
-| Expression     | Jobs, in this order |
-| -------------- | ------------------- |
-| `*/10 * * * *` | cleanup, then retry |
-| `17 5 * * *`   | release check       |
+| Expression     | Jobs, in this order         |
+| -------------- | --------------------------- |
+| `*/10 * * * *` | cleanup, retry, then digest |
+| `17 5 * * *`   | release check               |
 
 - The expression of the trigger is compared character for character with these two; any other expression (the owner
   changed `triggers.crons`) runs no job and writes one log entry, `{ job: "schedule", result: "unknown" }`.
 - A run reads the clock once when it starts; every time bound below is computed from that reading. Quiet hours are
   still decided by a clock reading per row, at its send ([Notifications](notifications.md#quiet-hours)).
 - The jobs of one run fail independently: a failure in the cleanup does not keep the retry from running, and the
-  other way round. Every job catches its own failures; the run itself never fails.
+  other way round, and the digest runs after a failed retry too. Every job catches its own failures; the run itself
+  never fails.
 
 ### Retry
 
@@ -47,6 +48,46 @@ the operator relies on its log entries.
 - Rows are not claimed: two runs at the same time may send one row twice (at least once, never lost).
 - A message whose first send fails is tried by the first send and then by up to four runs, so an outage of more than
   about 40 minutes leaves its rows `failed`.
+
+### Digest
+
+The digest job collects the stars and forks of the `activity` table into one message
+([Notifications](notifications.md#the-digest) says what it holds; decision
+[0041](../decisions/0041-fork-and-star-rules-with-a-digest.md)). It runs in the 10-minute run after the retry, with its
+own failure handling. The run time of its last evaluation is kept in `meta` `activity_digest_run`
+([Storage](storage.md#tables)).
+
+1. The notification settings are read. When both switches _New star_ and _New fork_ are off, only the run time is
+   stored and the table is not touched (`off`).
+2. When no run time is stored (the first run after the update, or after both switches were off and no run had stored
+   one), this run is stored and nothing is due.
+3. A digest is **due** when a digest time lies after the previous run and at or before this run. _Immediately_ is
+   always due. _Hourly_ digest times are the instants at which the clock of the configured time zone shows minute 00:
+   the hour repeated when the clocks go back gives two, and the skipped hour on the spring day adds none. _Daily at
+   HH:MM_ is the first instant of each local day at or after HH:MM: a repeated time counts at its first occurrence
+   only, and a skipped time counts at the first instant after it. A late or skipped run therefore catches up once. An
+   unusable time zone is read as UTC. To keep the run inside its budget, a gap above 120 minutes (hourly) or 1,500
+   minutes (daily) is due without any conversion, and a decision makes at most 50 conversions of an instant to the
+   zone's clock, one formatter per call.
+4. Not due: in one batch, at most 1,000 `activity` rows created more than 7 days before the run started are deleted
+   (oldest first, `created_at` then `id`, unsent), and the run time is stored (`nothing-due`).
+5. Due: the collected events of the last 7 days are summarized, with the largest `activity` id read. Nothing in the
+   table: the run time is stored (`empty`). Only stale rows: they are deleted and the run time is stored (`empty`).
+   Otherwise the digest is built in the language of the settings and one batch writes its `outbox` row, deletes every
+   `activity` row up to the id read (stale ones too) and stores the run time. An event collected after the read has a
+   larger id and stays for the next digest.
+6. With `sendNow` the job sends the new row at once through the first-send path, as the release check does (`sent`).
+   Otherwise the row stays `pending` and the next run's retry sends it (`queued`). `sendNow` is true when the run's
+   retry handed fewer than 10 rows to the channel (a failed retry hands none).
+
+- A digest the channel cannot deliver is retried like any `pending` row and its events are never put into a second
+  digest. A first send inside the retry's one-minute grace is left to this send.
+- Any database failure answers `store-failed`, stores no run time and so makes the next run evaluate again; nothing
+  is lost, as the batch is all or nothing.
+- The table is read only while a switch is on. Where migration `0002` is missing, such a run answers `store-failed`.
+- A digest is sent at most 10 minutes after its digest time, or 20 minutes when that run's retry was full.
+- Under _Immediately_ the job still sends what an earlier digest interval left collected, in one digest at the next
+  run.
 
 ### Cleanup
 
@@ -122,7 +163,7 @@ The daily run, step by step; the first step that decides ends it with exactly on
 
 ### Log entries
 
-- Per run at most one entry per job: `{ job: "retry" | "cleanup", result: "store-failed" }` on a failure only,
+- Per run at most one entry per job: `{ job: "retry" | "cleanup" | "digest", result: "store-failed" }` on a failure only,
   `{ job: "release-check", result }` on every daily run, `{ job: "schedule", result: "unknown" }` for an unknown
   expression.
 - Per row marked `failed`: `{ outbox: <id>, status: "failed" }`. Per row sent: the entry of
@@ -132,7 +173,11 @@ The daily run, step by step; the first step that decides ends it with exactly on
 
 ## Limits and errors
 
-- Per run of the 10-minute schedule at most 18 D1 statements (one of them reads the active channel) and 20 Telegram requests; per daily run at most 7 D1
+- Per run of the 10-minute schedule at most 18 D1 statements (one of them reads the active channel) and 20 Telegram requests
+  for the retry. A retry that sends r rows uses at most 8 + r statements and 2r requests. The digest's due path adds 8
+  statements (settings, run time, three summary reads — the largest `activity` id, the repositories, the names — and a batch of three) and, with its send, 5 more statements and 2
+  requests. With r up to 9 and a send that is at most 17 + 18 + 13 + 2 = 50 of the 50 subrequests; with r = 10 the
+  digest is left to the next retry (`sendNow` false) and the run uses 38 + 8 = 46. Per daily run at most 7 D1
   statements, one GitHub request and 2 Telegram requests — inside the free plan's 50 subrequests per invocation. A
   run of the retry ends within about 4 minutes (10 rows of at most two 10-second requests and a 5-second wait), well
   inside the 15 minutes a cron invocation may take.
@@ -155,6 +200,9 @@ The daily run, step by step; the first step that decides ends it with exactly on
 - [`decisions/0029-outbox-retry-and-cleanup-by-the-cron.md`](../decisions/0029-outbox-retry-and-cleanup-by-the-cron.md)
   — the retry through the first send's path, `failed` in the counting update, 10 rows and 1,000 deletes per run, the
   retention, no claim.
+- [`decisions/0041-fork-and-star-rules-with-a-digest.md`](../decisions/0041-fork-and-star-rules-with-a-digest.md) —
+  the digest job after the retry, digest times after the previous run, the counted delete, the send left to the next
+  retry after a full retry.
 - [`decisions/0030-release-notice-without-credentials.md`](../decisions/0030-release-notice-without-credentials.md)
   — the unauthenticated release check, only `tag_name` in a strict form, the notice and the remembered version in one
   guarded batch, nothing read while the switch is off.

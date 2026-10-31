@@ -1,5 +1,5 @@
-import { expect, it } from "vitest";
-import { MESSAGE_TEXTS } from "./messages";
+import { describe, expect, it } from "vitest";
+import { groupDigits, MESSAGE_TEXTS } from "./messages";
 import type { MessageTexts } from "./messages";
 
 it("MESSAGE_TEXTS labels the button Open on GitHub in en and Auf GitHub öffnen in de", () => {
@@ -73,4 +73,98 @@ it("a text table without openOnGitHub is a type error", () => {
   const incomplete: MessageTexts = {};
 
   expect(Object.keys(incomplete), "keys of the incomplete table").toEqual([]);
+});
+
+it("MESSAGE_TEXTS holds the star and fork titles and the digest title in en and de", () => {
+  const { en, de } = MESSAGE_TEXTS;
+
+  expect([en.repositoryStarred, en.repositoryForked, en.activityDigestTitle], "English titles").toEqual([
+    "New star",
+    "New fork",
+    "New stars and forks",
+  ]);
+  expect([de.repositoryStarred, de.repositoryForked, de.activityDigestTitle], "German titles").toEqual([
+    "Neuer Stern",
+    "Neuer Fork",
+    "Neue Sterne und Forks",
+  ]);
+});
+
+it.each([
+  { language: "en", count: 0, text: "0 stars now" },
+  { language: "en", count: 1, text: "1 star now" },
+  { language: "en", count: 2, text: "2 stars now" },
+  { language: "en", count: 1234, text: "1,234 stars now" },
+  { language: "en", count: 1_234_567, text: "1,234,567 stars now" },
+  { language: "de", count: 0, text: "jetzt 0 Sterne" },
+  { language: "de", count: 1, text: "jetzt 1 Stern" },
+  { language: "de", count: 2, text: "jetzt 2 Sterne" },
+  { language: "de", count: 1234, text: "jetzt 1.234 Sterne" },
+  { language: "de", count: 1_234_567, text: "jetzt 1.234.567 Sterne" },
+] as const)("MESSAGE_TEXTS starsNow writes $count in $language as '$text'", ({ language, count, text }) => {
+  expect(MESSAGE_TEXTS[language].starsNow(count), "line 3").toBe(text);
+});
+
+it.each([
+  { language: "en", added: 1, total: undefined, text: "+1 ⭐" },
+  { language: "en", added: 50, total: 1284, text: "+50 ⭐ (now 1,284)" },
+  { language: "en", added: 1, total: 1234, text: "+1 ⭐ (now 1,234)" },
+  { language: "en", added: 1234, total: 12_345, text: "+1,234 ⭐ (now 12,345)" },
+  { language: "en", added: 1, total: 0, text: "+1 ⭐ (now 0)" },
+  { language: "de", added: 1, total: undefined, text: "+1 ⭐" },
+  { language: "de", added: 50, total: 1284, text: "+50 ⭐ (jetzt 1.284)" },
+  { language: "de", added: 1, total: 1234, text: "+1 ⭐ (jetzt 1.234)" },
+] as const)(
+  "MESSAGE_TEXTS digestStars writes $added and $total in $language as '$text'",
+  ({ language, added, total, text }) => {
+    expect(MESSAGE_TEXTS[language].digestStars(added, total), "star part").toBe(text);
+  },
+);
+
+it.each([
+  { language: "en", added: 1, text: "+1 fork" },
+  { language: "en", added: 2, text: "+2 forks" },
+  { language: "en", added: 1234, text: "+1,234 forks" },
+  { language: "de", added: 1, text: "+1 Fork" },
+  { language: "de", added: 2, text: "+2 Forks" },
+  { language: "de", added: 1234, text: "+1.234 Forks" },
+] as const)("MESSAGE_TEXTS digestForks writes $added in $language as '$text'", ({ language, added, text }) => {
+  expect(MESSAGE_TEXTS[language].digestForks(added), "fork part").toBe(text);
+});
+
+it.each([
+  { language: "en", count: 46, text: "and 46 more" },
+  { language: "en", count: 1, text: "and 1 more" },
+  { language: "en", count: 1234, text: "and 1,234 more" },
+  { language: "de", count: 46, text: "und 46 weitere" },
+  { language: "de", count: 1, text: "und 1 weitere" },
+  { language: "de", count: 1234, text: "und 1.234 weitere" },
+] as const)("MESSAGE_TEXTS moreNames writes $count in $language as '$text'", ({ language, count, text }) => {
+  expect(MESSAGE_TEXTS[language].moreNames(count).trim(), "names tail").toBe(text);
+});
+
+it.each([
+  { language: "en", count: 3, text: "and 3 more repositories" },
+  { language: "en", count: 12_345, text: "and 12,345 more repositories" },
+  { language: "de", count: 3, text: "und 3 weitere Repositories" },
+  { language: "de", count: 12_345, text: "und 12.345 weitere Repositories" },
+] as const)("MESSAGE_TEXTS moreRepositories writes $count in $language as '$text'", ({ language, count, text }) => {
+  expect(MESSAGE_TEXTS[language].moreRepositories(count), "last line").toBe(text);
+});
+
+describe("groupDigits", () => {
+  it.each([
+    { value: 0, separator: ",", text: "0" },
+    { value: 7, separator: ",", text: "7" },
+    { value: 999, separator: ",", text: "999" },
+    { value: 1000, separator: ",", text: "1,000" },
+    { value: 1234, separator: ".", text: "1.234" },
+    { value: 12_345, separator: ",", text: "12,345" },
+    { value: 100_000, separator: ",", text: "100,000" },
+    { value: 1_234_567, separator: ".", text: "1.234.567" },
+    { value: 10_000, separator: "", text: "10000" },
+    { value: Number.MAX_SAFE_INTEGER, separator: ",", text: "9,007,199,254,740,991" },
+  ])("groupDigits writes $value with '$separator' as '$text'", ({ value, separator, text }) => {
+    expect(groupDigits(value, separator), "grouped").toBe(text);
+  });
 });

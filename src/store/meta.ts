@@ -8,6 +8,9 @@ export const GITHUB_APP_SLUG_META_KEY = "github_app_slug";
 /** `meta` key of the GitHub App owner, stored as `<appId>:<ownerId>:<type>:<login>`. */
 export const GITHUB_APP_OWNER_META_KEY = "github_app_owner";
 
+/** `meta` key of the time of the last activity digest run (decimal milliseconds since 1970-01-01 UTC). */
+export const DIGEST_RUN_META_KEY = "activity_digest_run";
+
 const LAST_DELIVERY_FORM = /^(?:0|[1-9]\d{0,15})$/;
 const SLUG_FORM = /^(\d{1,16}):([a-z0-9-]{1,100})$/;
 const OWNER_FORM = /^(\d{1,16}):([1-9]\d{0,15}):([A-Za-z]{1,20}):([^:]{1,100})$/;
@@ -20,14 +23,18 @@ async function readMeta(db: D1Database, key: string): Promise<string | undefined
   return typeof value === "string" ? value : undefined;
 }
 
-/** The time of the last received delivery, or `undefined` when absent or not a valid time. D1 errors are not caught. */
-export async function readLastDelivery(db: D1Database): Promise<Date | undefined> {
-  const stored = await readMeta(db, LAST_DELIVERY_META_KEY);
+/** The time of a stored decimal-milliseconds value, or `undefined` when absent or not a valid time. */
+function timeOf(stored: string | undefined): Date | undefined {
   if (stored === undefined || !LAST_DELIVERY_FORM.test(stored)) {
     return undefined;
   }
   const milliseconds = Number(stored);
   return milliseconds <= MAX_TIME ? new Date(milliseconds) : undefined;
+}
+
+/** The time of the last received delivery, or `undefined` when absent or not a valid time. D1 errors are not caught. */
+export async function readLastDelivery(db: D1Database): Promise<Date | undefined> {
+  return timeOf(await readMeta(db, LAST_DELIVERY_META_KEY));
 }
 
 /** The stored slug when it belongs to `appId`, or `undefined`. D1 errors are not caught. */
@@ -68,4 +75,16 @@ export function lastDeliveryUpsert(db: D1Database, time: Date): D1PreparedStatem
   return db
     .prepare("INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value")
     .bind(LAST_DELIVERY_META_KEY, String(time.getTime()));
+}
+
+/** The time of the last activity digest run, or `undefined` when absent or not a valid time. D1 errors are not caught. */
+export async function readDigestRun(db: D1Database): Promise<Date | undefined> {
+  return timeOf(await readMeta(db, DIGEST_RUN_META_KEY));
+}
+
+/** Upsert of `activity_digest_run` with `time`, for a batch. */
+export function digestRunUpsert(db: D1Database, time: Date): D1PreparedStatement {
+  return db
+    .prepare("INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value")
+    .bind(DIGEST_RUN_META_KEY, String(time.getTime()));
 }

@@ -8,6 +8,9 @@ import { writeNotificationSettings } from "./store/settings";
 import { applyMigrations } from "../test/d1";
 import { githubApiDouble, jsonAnswer as githubAnswer, latestReleaseBody } from "../test/github";
 import { FIXTURES, jsonAnswer, telegramDouble } from "../test/telegram";
+import type { TelegramAnswers } from "../test/telegram";
+import { digestRunUpsert, readDigestRun } from "./store/meta";
+import { withoutActivityTable } from "../test/activity";
 
 const TOKEN = "123456789:AAH-throwaway_token0123456789abcdefghij";
 const CHAT = 5_001_001;
@@ -23,6 +26,7 @@ beforeEach(async () => {
   await env.DB.batch([
     env.DB.prepare("DELETE FROM deliveries"),
     env.DB.prepare("DELETE FROM outbox"),
+    env.DB.prepare("DELETE FROM activity"),
     env.DB.prepare("DELETE FROM settings"),
     env.DB.prepare("DELETE FROM meta"),
   ]);
@@ -39,17 +43,19 @@ interface Harness {
 
 interface HarnessOptions {
   readonly db?: D1Database;
+  readonly answers?: TelegramAnswers;
+  readonly now?: Date;
   readonly log?: (entry: LogEntry) => void;
 }
 
 function harness(options: HarnessOptions = {}): Harness {
-  const telegram = telegramDouble({ sendMessage: ACCEPTED });
+  const telegram = telegramDouble(options.answers ?? { sendMessage: ACCEPTED });
   const github = githubApiDouble({ latestRelease: githubAnswer(200, latestReleaseBody({ tag_name: "v0.5.0" })) });
   const log: LogEntry[] = [];
   const deps: ScheduledDeps = {
     env: READY_ENV,
     db: options.db ?? env.DB,
-    now: () => STARTED_AT,
+    now: () => options.now ?? STARTED_AT,
     telegramFetch: telegram.fetch,
     githubFetch: github.fetch,
     sleep: () => Promise.resolve(),
@@ -256,5 +262,190 @@ describe("runScheduled (AC5: the jobs are isolated)", () => {
     });
 
     await expect(runScheduled("0 * * * *", deps), "the run").resolves.toBeUndefined();
+  });
+});
+
+const DIGEST_NOW = new Date("2026-10-21T13:00:00Z");
+const DIGEST_PREVIOUS = new Date("2026-10-21T12:50:00Z");
+const DIGEST_TITLE = "<b>New stars and forks</b>";
+const TOO_MANY = jsonAnswer(429, FIXTURES.tooManyRequests);
+
+/** An hourly digest in UTC with both switches on, the last digest run ten minutes before `DIGEST_NOW`. */
+async function configureDigest(on = true): Promise<void> {
+  await writeNotificationSettings(env.DB, {
+    ...DEFAULT_SETTINGS,
+    activityDigest: { kind: "hourly" },
+    rules: { ...DEFAULT_SETTINGS.rules, repository_starred: on, repository_forked: on },
+  });
+  await digestRunUpsert(env.DB, DIGEST_PREVIOUS).run();
+}
+
+/** Collects one star of `alice` on `octo/repo`, half an hour before `DIGEST_NOW`. */
+async function addStar(): Promise<void> {
+  await env.DB.prepare(
+    "INSERT INTO activity (kind, sender_id, sender_login, repository_id, repository, repository_url, star_count, created_at) " +
+      "VALUES ('star', 1, 'alice', 5, 'octo/repo', 'https://github.com/octo/repo', 3, ?1)",
+  )
+    .bind(DIGEST_NOW.getTime() - 30 * MINUTE_MS)
+    .run();
+}
+
+/** Inserts `count` pending rows written two minutes before `DIGEST_NOW`, with `attempts` attempts each. */
+async function insertDueRows(count: number, attempts = 0): Promise<readonly number[]> {
+  const ids: number[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const row = await env.DB.prepare(
+      "INSERT INTO outbox (text, silent, attempts, created_at) VALUES ('<b>T</b> · o/r #7', 0, ?1, ?2) RETURNING id",
+    )
+      .bind(attempts, DIGEST_NOW.getTime() - 2 * MINUTE_MS + index)
+      .first();
+    const id = row?.id;
+    if (typeof id !== "number") {
+      throw new TypeError("The insert returned no id");
+    }
+    ids.push(id);
+  }
+  return ids;
+}
+
+async function activityCount(): Promise<unknown> {
+  const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM activity").first();
+  return row?.n;
+}
+
+async function digestRows(): Promise<{ status: unknown; attempts: unknown }[]> {
+  const { results } = await env.DB.prepare("SELECT status, attempts, text FROM outbox WHERE text LIKE ?1 ORDER BY id")
+    .bind('{"title":"New stars and forks"%')
+    .all();
+  return results.map((row) => ({ status: row.status, attempts: row.attempts }));
+}
+
+function sentTexts(telegram: ReturnType<typeof telegramDouble>): unknown[] {
+  return telegram.requests.map((request) =>
+    typeof request.body === "object" && request.body !== null && "text" in request.body ? request.body.text : undefined,
+  );
+}
+
+describe("runScheduled and the activity digest", () => {
+  it("runScheduled runs cleanup, then the retry, then the digest, which is sent in the same run", async () => {
+    await configureDigest();
+    await addStar();
+    await insertDelivery("old", DIGEST_NOW.getTime() - 8 * DAY_MS);
+    const [id] = await insertDueRows(1);
+    const { deps, telegram, log } = harness({ now: DIGEST_NOW });
+
+    await runScheduled("*/10 * * * *", deps);
+
+    expect(await deliveryIds(), "cleanup deleted the old delivery").toEqual([]);
+    expect(sentTexts(telegram), "the retry row first, then the digest").toEqual([
+      "<b>T</b> · o/r #7",
+      `${DIGEST_TITLE}\nocto/repo: +1 ⭐ (now 3) · alice`,
+    ]);
+    expect(await statusOf(id ?? -1), "status of the retry row").toBe("sent");
+    expect(await digestRows(), "digest row").toEqual([{ status: "sent", attempts: 1 }]);
+    expect(await activityCount(), "activity rows").toBe(0);
+    expect((await readDigestRun(env.DB))?.getTime(), "run time").toBe(DIGEST_NOW.getTime());
+    expect(jobEntries(log), "job log entries").toEqual([]);
+  });
+
+  it("runScheduled sends the digest in the run when the retry handed 9 rows to the channel", async () => {
+    await configureDigest();
+    await addStar();
+    await insertDueRows(9);
+    const { deps, telegram } = harness({ now: DIGEST_NOW });
+
+    await runScheduled("*/10 * * * *", deps);
+
+    expect(telegram.requests, "Telegram requests: 9 rows and the digest").toHaveLength(10);
+    expect(await digestRows(), "digest row").toEqual([{ status: "sent", attempts: 1 }]);
+  });
+
+  it("runScheduled still runs the digest when the cleanup batch fails", async () => {
+    await configureDigest();
+    await addStar();
+    const { deps, log, telegram } = harness({ db: dbFailing({ firstBatch: true }), now: DIGEST_NOW });
+
+    await runScheduled("*/10 * * * *", deps);
+
+    expect(jobEntries(log), "job log entries").toEqual([{ job: "cleanup", result: "store-failed" }]);
+    expect(telegram.requests, "Telegram requests").toHaveLength(1);
+    expect(await digestRows(), "digest row").toEqual([{ status: "sent", attempts: 1 }]);
+  });
+
+  it("runScheduled still runs the digest, with sendNow, when the retry fails", async () => {
+    await configureDigest();
+    await addStar();
+    await insertDueRows(1);
+    const { deps, log, telegram } = harness({
+      db: dbFailing({ prepare: /UPDATE outbox SET status = 'failed'/ }),
+      now: DIGEST_NOW,
+    });
+
+    await runScheduled("*/10 * * * *", deps);
+
+    expect(jobEntries(log), "job log entries").toEqual([{ job: "retry", result: "store-failed" }]);
+    expect(await digestRows(), "digest row").toEqual([{ status: "sent", attempts: 1 }]);
+    expect(telegram.requests, "Telegram requests: only the digest").toHaveLength(1);
+  });
+
+  it("runScheduled logs one digest store-failed entry and still runs cleanup and retry when the table is missing", async () => {
+    await configureDigest();
+    await insertDelivery("old", DIGEST_NOW.getTime() - 8 * DAY_MS);
+    const [id] = await insertDueRows(1);
+    const { deps, log, telegram } = harness({ db: withoutActivityTable(env.DB), now: DIGEST_NOW });
+
+    await runScheduled("*/10 * * * *", deps);
+
+    expect(jobEntries(log), "job log entries").toEqual([{ job: "digest", result: "store-failed" }]);
+    expect(await deliveryIds(), "cleanup ran").toEqual([]);
+    expect(await statusOf(id ?? -1), "retry ran").toBe("sent");
+    expect(telegram.requests, "Telegram requests").toHaveLength(1);
+    expect(JSON.stringify(log), "serialized log").not.toContain("no such table");
+    expect((await readDigestRun(env.DB))?.getTime(), "run time stays").toBe(DIGEST_PREVIOUS.getTime());
+  });
+
+  it("runScheduled with both switches off only stores the run time and logs nothing about the digest", async () => {
+    await configureDigest(false);
+    const { deps, log, telegram } = harness({ db: withoutActivityTable(env.DB), now: DIGEST_NOW });
+
+    await runScheduled("*/10 * * * *", deps);
+
+    expect(jobEntries(log), "job log entries").toEqual([]);
+    expect((await readDigestRun(env.DB))?.getTime(), "run time").toBe(DIGEST_NOW.getTime());
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+  });
+
+  it("runScheduled leaves the digest row pending after a full retry of 10 rows answered 429 twice, and the next run sends it", async () => {
+    await configureDigest();
+    await addStar();
+    const rows = await insertDueRows(10, 4);
+    const answers: TelegramAnswers = { sendMessage: [...Array.from({ length: 20 }, () => TOO_MANY), ACCEPTED] };
+    const first = harness({ answers, now: DIGEST_NOW });
+
+    await runScheduled("*/10 * * * *", first.deps);
+
+    expect(first.telegram.requests, "Telegram requests of the first run").toHaveLength(20);
+    expect(await digestRows(), "digest row written pending and unsent").toEqual([{ status: "pending", attempts: 0 }]);
+    expect(await activityCount(), "events are counted into the digest").toBe(0);
+    expect(await Promise.all(rows.map((id) => statusOf(id))), "the ten rows").toEqual(rows.map(() => "failed"));
+    const nextRun = new Date("2026-10-21T13:10:00Z");
+    const second = harness({ now: nextRun });
+
+    await runScheduled("*/10 * * * *", second.deps);
+
+    expect(await digestRows(), "digest row after the next run").toEqual([{ status: "sent", attempts: 1 }]);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM outbox").first(), "no second digest").toEqual({ n: 11 });
+  });
+
+  it("runScheduled does not run the digest for the release schedule", async () => {
+    await configureDigest();
+    await addStar();
+    const { deps } = harness({ now: DIGEST_NOW });
+
+    await runScheduled("17 5 * * *", deps);
+
+    expect(await activityCount(), "activity rows").toBe(1);
+    expect((await readDigestRun(env.DB))?.getTime(), "run time").toBe(DIGEST_PREVIOUS.getTime());
+    expect(await digestRows(), "digest rows").toEqual([]);
   });
 });

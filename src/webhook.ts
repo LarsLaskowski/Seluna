@@ -6,6 +6,7 @@ import { installationIdOf } from "./github/api-client";
 import type { OwnerAccount } from "./github/owner";
 import { formatMessage } from "./message";
 import { storedNotificationOf } from "./notification";
+import { starRemovalOf } from "./rules/repository-starred";
 import { runRules } from "./rules/rule";
 import type { Notification, Rule, RuleDecision, WebhookPayload } from "./rules/rule";
 import { recordDelivery, isKnownDelivery } from "./store/deliveries";
@@ -30,7 +31,9 @@ export interface SignedDelivery {
   readonly body: Uint8Array;
 }
 
-export type WebhookDecision = "reported" | "no-match" | "disabled" | "duplicate" | "invalid" | "unavailable";
+/** What the processing did; `collected` means the delivery's stars or forks went into the activity digest. */
+export type WebhookDecision =
+  "reported" | "collected" | "no-match" | "disabled" | "duplicate" | "invalid" | "unavailable";
 
 export interface WebhookOutcome {
   readonly status: 200 | 202 | 400 | 503;
@@ -137,14 +140,29 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
   try {
     const settings = await readNotificationSettings(deps.db);
     const owner = await deps.readOwner();
-    const { decision, notifications } = await notificationsOf(event, payload, settings, owner, deps);
+    const run = await notificationsOf(event, payload, settings, owner, deps);
+    // Under an hourly or daily digest a star or fork is collected in `activity` instead of being sent at once.
+    const collecting = settings.activityDigest.kind !== "immediate";
+    const collected = collecting ? run.notifications.flatMap((notification) => notification.activity ?? []) : [];
+    const notifications = collecting
+      ? run.notifications.filter((notification) => notification.activity === undefined)
+      : run.notifications;
+    const removal = starRemovalOf(event, payload, settings, owner);
+    const changes = { inserts: collected, removals: removal === undefined ? [] : [removal] };
+    const decision = collected.length > 0 && notifications.length === 0 ? "collected" : run.decision;
     const messages = notifications.map((notification) => formatMessage(notification));
     const rows = notifications.map((notification, index) => ({
       notification: storedNotificationOf(notification),
       buttonUrl: messages[index]?.buttonUrl,
       silent: false,
     }));
-    const recorded = await recordDelivery(deps.db, { id, event, receivedAt: deps.now() }, rows);
+    const touchesActivity = changes.inserts.length > 0 || changes.removals.length > 0;
+    const recorded = await recordDelivery(
+      deps.db,
+      { id, event, receivedAt: deps.now() },
+      rows,
+      touchesActivity ? changes : undefined,
+    );
     if (recorded.kind === "duplicate") {
       return outcomeOf(200, "duplicate");
     }

@@ -50,6 +50,20 @@ const TABLES: readonly (readonly [string, readonly ExpectedColumn[]])[] = [
     ],
   ],
   ["meta", [column("key", "TEXT", 1, null, 1), column("value", "TEXT", 1, null, 0)]],
+  [
+    "activity",
+    [
+      column("id", "INTEGER", 0, null, 1),
+      column("kind", "TEXT", 1, null, 0),
+      column("sender_id", "INTEGER", 1, null, 0),
+      column("sender_login", "TEXT", 1, null, 0),
+      column("repository_id", "INTEGER", 1, null, 0),
+      column("repository", "TEXT", 1, null, 0),
+      column("repository_url", "TEXT", 0, null, 0),
+      column("star_count", "INTEGER", 0, null, 0),
+      column("created_at", "INTEGER", 1, null, 0),
+    ],
+  ],
 ];
 
 /** SQLite's and D1's internal tables are not part of the schema under test. */
@@ -77,6 +91,7 @@ it("migrations apply to an empty database", async () => {
 
   expect(await names("SELECT name FROM d1_migrations ORDER BY id"), "applied migrations").toEqual([
     "0001_initial_schema.sql",
+    "0002_activity.sql",
   ]);
 });
 
@@ -85,10 +100,18 @@ describe("applied migrations", () => {
     await applyMigrations(migrationTestDb());
   });
 
-  it("migrations create exactly the tables settings, secrets, deliveries, outbox, token_cache and meta", async () => {
+  it("migrations create exactly the tables activity, settings, secrets, deliveries, outbox, token_cache and meta", async () => {
     const tables = await names(`${USER_TABLES_SQL} AND name <> 'd1_migrations' ORDER BY name`);
 
-    expect(tables, "tables").toEqual(["deliveries", "meta", "outbox", "secrets", "settings", "token_cache"]);
+    expect(tables, "tables").toEqual([
+      "activity",
+      "deliveries",
+      "meta",
+      "outbox",
+      "secrets",
+      "settings",
+      "token_cache",
+    ]);
   });
 
   it.each(TABLES)("%s has the columns of the storage area", async (table, columns) => {
@@ -114,6 +137,48 @@ describe("applied migrations", () => {
     expect(outboxIndexes, "indexes of outbox").toContain("outbox_status_created_at");
     expect(deliveriesColumns, "columns of deliveries_received_at").toEqual(["received_at"]);
     expect(outboxColumns, "columns of outbox_status_created_at").toEqual(["status", "created_at"]);
+  });
+
+  it("migrations create the indexes activity_repository_sender and activity_created_at", async () => {
+    const indexes = await names("PRAGMA index_list(activity)");
+    const senderColumns = await names("PRAGMA index_info(activity_repository_sender)");
+    const createdColumns = await names("PRAGMA index_info(activity_created_at)");
+
+    expect(indexes, "indexes of activity").toContain("activity_repository_sender");
+    expect(indexes, "indexes of activity").toContain("activity_created_at");
+    expect(senderColumns, "columns of activity_repository_sender").toEqual(["repository_id", "sender_id"]);
+    expect(createdColumns, "columns of activity_created_at").toEqual(["created_at"]);
+  });
+
+  it("activity uses AUTOINCREMENT so that an id is never reused", async () => {
+    const definition = await migrationTestDb()
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'activity'")
+      .first();
+
+    expect(definition?.sql, "table definition").toMatch(/AUTOINCREMENT/i);
+  });
+
+  it.each(["like", "STAR", "", "forks"])("activity rejects the kind %j", async (kind) => {
+    const insert = run(
+      "INSERT INTO activity (kind, sender_id, sender_login, repository_id, repository, created_at) VALUES (?1, 1, 'a', 2, 'o/r', 0)",
+      kind,
+    );
+
+    await expect(insert, `insert with kind ${kind}`).rejects.toThrow(/CHECK constraint failed/);
+  });
+
+  it.each(["star", "fork"])("activity accepts the kind %s and leaves the URL and star count empty", async (kind) => {
+    await run(
+      "INSERT INTO activity (kind, sender_id, sender_login, repository_id, repository, created_at) VALUES (?1, 1, 'a', 2, 'o/r', 0)",
+      kind,
+    );
+
+    const row = await migrationTestDb()
+      .prepare("SELECT repository_url, star_count FROM activity WHERE kind = ?1")
+      .bind(kind)
+      .first();
+
+    expect(row, "inserted row").toEqual({ repository_url: null, star_count: null });
   });
 
   it("secrets rejects an iv that is not 16 characters", async () => {

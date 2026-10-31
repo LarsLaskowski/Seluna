@@ -3598,15 +3598,18 @@ const VALID_SETTINGS_FIELDS: readonly (readonly [string, string])[] = [
   ["rule_issue_comment", "on"],
   ["rule_pull_request_comment", "on"],
   ["update_notice", "on"],
+  ["activity_digest", "daily"],
+  ["digest_time", "06:45"],
 ];
 
-/** The settings `VALID_SETTINGS_FIELDS` submit: every rule on but the Dependabot alert. */
+/** The settings `VALID_SETTINGS_FIELDS` submit: every rule on but the Dependabot alert, the star and the fork rule. */
 const SUBMITTED_SETTINGS: NotificationSettings = {
   language: "de",
   timeZone: "Europe/Berlin",
   quietHours: { start: "22:00", end: "07:00" },
   rules: { ...DEFAULT_SETTINGS.rules, dependabot_alert: false },
   updateNotice: true,
+  activityDigest: { kind: "daily", time: "06:45" },
 };
 
 /** The fields of a settings form with a valid session-bound token and `extra` appended to the valid fields. */
@@ -3814,6 +3817,18 @@ describe("handleSetup status page", () => {
     expect(inputTagOf(html, "quiet_end"), "quiet end").toContain('value="07:00"');
     expect(inputTagOf(html, "rule_dependabot_alert"), "disabled rule").not.toMatch(/\bchecked\b/);
     expect(inputTagOf(html, "rule_ci_failed_pull_request"), "enabled rule").toMatch(/\bchecked\b/);
+    expect(html, "digest interval").toContain('<option value="daily" selected>');
+    expect(inputTagOf(html, "digest_time"), "digest time").toContain('value="06:45"');
+  });
+
+  it("GET /setup shows the default digest and unchecked star and fork switches without saved settings", async () => {
+    const response = await stepPage(depsAt(), "/setup");
+
+    const html = await response.text();
+    expect(html, "digest interval").toContain('<option value="daily" selected>');
+    expect(inputTagOf(html, "digest_time"), "digest time").toContain('value="18:00"');
+    expect(inputTagOf(html, "rule_repository_starred"), "star switch").not.toMatch(/\bchecked\b/);
+    expect(inputTagOf(html, "rule_repository_forked"), "fork switch").not.toMatch(/\bchecked\b/);
   });
 
   it("GET /setup answers 503 with the unavailable notice when D1 fails", async () => {
@@ -3838,6 +3853,82 @@ describe("handleSetup settings form", () => {
     expect(response.status, "status").toBe(303);
     expect(response.headers.get("Location"), "Location").toBe("/setup");
     expect(await readNotificationSettings(env.DB), "stored settings").toEqual(SUBMITTED_SETTINGS);
+  });
+
+  it.each([
+    {
+      case: "immediately",
+      fields: [["activity_digest", "immediate"]],
+      expected: { kind: "immediate" },
+    },
+    { case: "hourly", fields: [["activity_digest", "hourly"]], expected: { kind: "hourly" } },
+    {
+      case: "daily at 23:59",
+      fields: [
+        ["activity_digest", "daily"],
+        ["digest_time", "23:59"],
+      ],
+      expected: { kind: "daily", time: "23:59" },
+    },
+  ] as const)(
+    "POST /setup/settings stores the digest $case and the star and fork switches",
+    async ({ fields, expected }) => {
+      const names = new Set(["activity_digest", "digest_time"]);
+      const form: FormFields = [
+        ["csrf", await validCsrf()],
+        ...VALID_SETTINGS_FIELDS.filter(([name]) => !names.has(name)),
+        ["rule_repository_starred", "on"],
+        ...fields,
+      ];
+
+      const response = await postSignedIn(SETTINGS_PATH, form, depsAt());
+
+      expect(response.status, "status").toBe(303);
+      const stored = await readNotificationSettings(env.DB);
+      expect(stored.activityDigest, "stored digest").toEqual(expected);
+      expect(stored.rules.repository_starred, "star switch").toBe(true);
+      expect(stored.rules.repository_forked, "fork switch").toBe(false);
+    },
+  );
+
+  it.each([
+    { case: "without activity_digest", drop: ["activity_digest"], extra: [] },
+    { case: "with an unknown interval", drop: ["activity_digest"], extra: [["activity_digest", "weekly"]] },
+    { case: "with a repeated activity_digest", drop: [], extra: [["activity_digest", "hourly"]] },
+    { case: "with a daily digest and no time", drop: ["digest_time"], extra: [] },
+    { case: "with a daily digest at 24:00", drop: ["digest_time"], extra: [["digest_time", "24:00"]] },
+    { case: "with a repeated digest_time", drop: [], extra: [["digest_time", "07:00"]] },
+  ] as const)(
+    "POST /setup/settings answers 400 with the settings invalid notice $case and stores nothing",
+    async ({ drop, extra }) => {
+      const form: FormFields = [
+        ["csrf", await validCsrf()],
+        ...VALID_SETTINGS_FIELDS.filter(([name]) => !drop.some((dropped) => dropped === name)),
+        ...extra,
+      ];
+
+      const response = await postSignedIn(SETTINGS_PATH, form, depsAt());
+
+      expect(response.status, "status").toBe(400);
+      expect(await response.text(), "notice").toContain(noticeText("settings-invalid"));
+      expect(await settingsRowCount(), "number of settings rows").toBe(0);
+    },
+  );
+
+  it("POST /setup/settings shows the settings invalid notice with the digest time sentence", async () => {
+    const form: FormFields = [
+      ["csrf", await validCsrf()],
+      ...VALID_SETTINGS_FIELDS.filter(([name]) => name !== "digest_time"),
+    ];
+
+    const response = await postSignedIn(SETTINGS_PATH, form, depsAt());
+
+    expect(response.status, "status").toBe(400);
+    expect(await response.text(), "notice text").toContain(
+      escapeHtml(
+        "The settings were not saved. Check the values: quiet hours need a start and an end in the form 22:00, and the two must differ; a daily digest of stars and forks needs a time in the form 18:00.",
+      ),
+    );
   });
 
   it("POST /setup/settings answers 400 with the settings invalid notice and stores nothing", async () => {

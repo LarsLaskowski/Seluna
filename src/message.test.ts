@@ -289,3 +289,86 @@ describe("buttonUrl", () => {
     expect(url, "normalized URL").toBeUndefined();
   });
 });
+
+describe("renderTelegramText with lines and an empty repository", () => {
+  const DIGEST: StoredNotification = {
+    title: "New stars and forks",
+    repository: "",
+    number: undefined,
+    subject: "",
+    context: "",
+    lines: ["o/a: +2 ⭐ · alice, bob", "o/b: +1 fork · carol"],
+  };
+
+  it("renderTelegramText writes the title alone and one line for each entry of lines", () => {
+    const text = renderTelegramText(DIGEST);
+
+    expect(text, "rendered text").toBe("<b>New stars and forks</b>\no/a: +2 ⭐ · alice, bob\no/b: +1 fork · carol");
+  });
+
+  it("renderTelegramText writes the lines after line 3 and keeps the separator for a repository", () => {
+    const text = renderTelegramText({
+      title: "T",
+      repository: "o/r",
+      number: 7,
+      subject: "S",
+      context: "C",
+      lines: ["L1", "L2"],
+    });
+
+    expect(text, "rendered text").toBe("<b>T</b> · o/r #7\nS\nC\nL1\nL2");
+  });
+
+  it.each([
+    { case: "an empty repository", repository: "" },
+    { case: "a repository of white space", repository: "  \t " },
+    { case: "a repository of directional characters", repository: "\u202e\u200f" },
+  ])("renderTelegramText leaves out the separator and the repository for $case", ({ repository }) => {
+    const text = renderTelegramText({ ...DIGEST, repository, lines: undefined });
+
+    expect(text, "rendered text").toBe("<b>New stars and forks</b>");
+  });
+
+  it("renderTelegramText skips empty lines and lines that are empty after cleaning", () => {
+    const text = renderTelegramText({ ...DIGEST, lines: ["", "a", "  ", "\u202e", "b"] });
+
+    expect(text, "rendered text").toBe("<b>New stars and forks</b>\na\nb");
+  });
+
+  it("renderTelegramText escapes <, > and & in a line", () => {
+    const text = renderTelegramText({ ...DIGEST, lines: ["<b>x</b> & y"] });
+
+    expect(text, "rendered text").toBe("<b>New stars and forks</b>\n&lt;b&gt;x&lt;/b&gt; &amp; y");
+  });
+
+  it("renderTelegramText cleans a line again: control and directional characters and a lone surrogate", () => {
+    // One backslash in the source: the text holds the real characters.
+    const text = renderTelegramText({ ...DIGEST, lines: ["a\u202eb\nc\u0000d \uD800e"] });
+
+    expect(text, "rendered text").toBe("<b>New stars and forks</b>\nab c d �e");
+  });
+
+  it("renderTelegramText cuts a line to 256 code points with an ellipsis before escaping", () => {
+    const text = renderTelegramText({ ...DIGEST, lines: ["&".repeat(300), "\u{1F600}".repeat(300)] });
+
+    const lines = text.split("\n");
+    expect(lines[1], "line of ampersands").toBe(`${"&amp;".repeat(255)}…`);
+    expect(Array.from(lines[2] ?? "").length, "code points of the astral line").toBe(256);
+    expect(lines[2]?.endsWith("…"), "ellipsis").toBe(true);
+  });
+
+  it("renderTelegramText renders eleven lines of 256 astral code points within 4,096 units", () => {
+    const line = `${"\u{1F600}".repeat(255)}…`;
+
+    const text = renderTelegramText({ ...DIGEST, lines: Array.from({ length: 11 }, () => line) });
+
+    expect(text.split("\n"), "number of lines").toHaveLength(12);
+    expect(text.length, "UTF-16 code units").toBe("<b>New stars and forks</b>".length + 11 * (1 + 511));
+  });
+
+  it("renderTelegramText renders a notification without lines as before", () => {
+    const text = renderTelegramText({ title: "T", repository: "o/r", number: 7, subject: "S", context: "C" });
+
+    expect(text, "rendered text").toBe("<b>T</b> · o/r #7\nS\nC");
+  });
+});

@@ -1,12 +1,15 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  DIGEST_RUN_META_KEY,
+  digestRunUpsert,
   GITHUB_APP_OWNER_META_KEY,
   GITHUB_APP_SLUG_META_KEY,
   LAST_DELIVERY_META_KEY,
   lastDeliveryUpsert,
   readAppOwner,
   readAppSlug,
+  readDigestRun,
   readLastDelivery,
   writeAppOwner,
   writeAppSlug,
@@ -198,5 +201,64 @@ describe("lastDeliveryUpsert", () => {
 
     expect(await storedMeta(LAST_DELIVERY_META_KEY), "stored text").toBe("1792240440000");
     expect((await readLastDelivery(env.DB))?.getTime(), "time read back").toBe(1_792_240_440_000);
+  });
+});
+
+describe("readDigestRun", () => {
+  beforeEach(async () => {
+    await env.DB.prepare("DELETE FROM meta WHERE key = ?1").bind(DIGEST_RUN_META_KEY).run();
+  });
+
+  it("DIGEST_RUN_META_KEY names the row activity_digest_run", () => {
+    expect(DIGEST_RUN_META_KEY, "key").toBe("activity_digest_run");
+  });
+
+  it.each([
+    { case: "the time stored", stored: "1792240440000", expected: 1_792_240_440_000 },
+    { case: "the latest time a Date holds", stored: "8640000000000000", expected: 8_640_000_000_000_000 },
+    { case: "the epoch", stored: "0", expected: 0 },
+    { case: "undefined for a text that is not a number", stored: "abc", expected: undefined },
+    { case: "undefined for a negative number", stored: "-1", expected: undefined },
+    { case: "undefined for a number with a leading zero", stored: "01", expected: undefined },
+    { case: "undefined for an exponent", stored: "1e3", expected: undefined },
+    { case: "undefined for the empty text", stored: "", expected: undefined },
+    { case: "undefined for a time above the latest a Date holds", stored: "8640000000000001", expected: undefined },
+  ])("readDigestRun returns $case", async ({ stored, expected }) => {
+    await putMeta(DIGEST_RUN_META_KEY, stored);
+
+    const time = await readDigestRun(env.DB);
+
+    expect(time?.getTime(), "time in milliseconds").toBe(expected);
+  });
+
+  it("readDigestRun returns undefined when no row is stored", async () => {
+    const time = await readDigestRun(env.DB);
+
+    expect(time, "time").toBeUndefined();
+  });
+
+  it("readDigestRun ignores the last delivery row", async () => {
+    await putMeta(LAST_DELIVERY_META_KEY, "1792240440000");
+
+    const time = await readDigestRun(env.DB);
+
+    expect(time, "time").toBeUndefined();
+  });
+
+  it("digestRunUpsert stores the time as decimal milliseconds and a second upsert replaces it", async () => {
+    await digestRunUpsert(env.DB, new Date(1_792_240_440_000)).run();
+    await digestRunUpsert(env.DB, new Date(1_792_241_040_000)).run();
+
+    expect(await storedMeta(DIGEST_RUN_META_KEY), "stored value").toBe("1792241040000");
+    expect((await readDigestRun(env.DB))?.getTime(), "read back").toBe(1_792_241_040_000);
+  });
+
+  it("digestRunUpsert leaves last_delivery alone and can run in a batch", async () => {
+    await putMeta(LAST_DELIVERY_META_KEY, "5");
+
+    await env.DB.batch([digestRunUpsert(env.DB, new Date(7))]);
+
+    expect(await storedMeta(LAST_DELIVERY_META_KEY), "last delivery").toBe("5");
+    expect(await storedMeta(DIGEST_RUN_META_KEY), "digest run").toBe("7");
   });
 });

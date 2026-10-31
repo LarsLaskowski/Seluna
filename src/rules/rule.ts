@@ -12,6 +12,24 @@ export interface DraftCheck {
   readonly titleWhenUnknown: string | undefined;
 }
 
+/** One star or fork by a foreign account, collected for the activity digest. */
+export interface ActivityEvent {
+  readonly kind: "star" | "fork";
+  readonly senderId: number;
+  readonly senderLogin: string;
+  readonly repositoryId: number;
+  readonly repository: string;
+  readonly repositoryUrl: string;
+  /** The repository's star count after the event; `undefined` for a fork or an invalid count. */
+  readonly starCount: number | undefined;
+}
+
+/** A star that was taken back: the account and the repository whose collected star rows are removed. */
+export interface StarRemoval {
+  readonly senderId: number;
+  readonly repositoryId: number;
+}
+
 export interface Notification {
   /** Line 1, bold: the case, in the notification language. */
   readonly title: string;
@@ -27,6 +45,8 @@ export interface Notification {
   readonly url: string;
   /** Set when the notification may only be sent for a pull request that is not a draft. */
   readonly draftCheck?: DraftCheck;
+  /** Set for a star or a fork: the event the activity digest collects instead of sending the notification. */
+  readonly activity?: ActivityEvent;
 }
 
 export interface Rule {
