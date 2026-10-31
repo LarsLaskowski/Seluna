@@ -108,12 +108,12 @@ retry handed fewer than `RETRY_BATCH_SIZE` rows to `deliverMessages`):
 Any D1 error returns `store-failed` and stores no run time, so the next run evaluates again.
 
 Budget, counted as `scheduled-jobs.md` counts: a retry that sends r rows uses at most 8 + r D1 statements and 2r
-Telegram requests (18 and 20 at r = 10). The digest's due path uses 7 statements (settings, run time, 2 summary
-reads, a batch of 3), plus 5 for its send (channel, token batch of 2, chat, mark) and 2 Telegram requests.
-- r ≤ 9 with a send: at most 17 + 18 + 12 + 2 = 49.
-- r = 10 without a send: 38 + 7 = 45.
+Telegram requests (18 and 20 at r = 10). The digest's due path uses 8 statements (settings, run time, 3 summary
+reads — largest id, repositories, names — and a batch of 3), plus 5 for its send (channel, token batch of 2, chat, mark) and 2 Telegram requests.
+- r ≤ 9 with a send: at most 17 + 18 + 13 + 2 = 50.
+- r = 10 without a send: 38 + 8 = 46.
 
-Both stay under 50, so no statement or request of the run is refused. A digest is then sent at most 10 minutes
+Both stay within 50 (zero headroom in the first case; 48 when a D1 batch counts as one), so no statement or request of the run is refused. A digest is then sent at most 10 minutes
 after its digest time, or 20 minutes when that run's retry was full. Option (a) of the challenge; the other two
 options are in 0041.
 
@@ -333,7 +333,7 @@ Code a unit test cannot cover: none.
   *Message format* (`lines`, line 1 without a repository, the digest's worst case and its 4,000-unit cap); *Languages*; *Log entries* (`collected`).
 - `scheduled-jobs.md`: *Schedules* (cleanup, retry, digest), a new *Digest* section (digest times, first run,
   catching up, failures, deletion of events older than 7 days), *Log entries*, *Limits and errors* (the budget of
-  *Approach*: at most 49 per run, the digest left to the next retry after a full retry).
+  *Approach*: at most 50 per run, the digest left to the next retry after a full retry).
 - `storage.md`: the `activity` table, migration `0002`, the settings rows (eighteen), the `meta` row
   `activity_digest_run`.
 - `setup-wizard.md`: the form fields and validation (*Status and settings*, the "eleven rules" at lines 193 and
@@ -400,7 +400,7 @@ expressions are unchanged.
 ## Challenge
 
 - 1 (major, budget): accepted, option (a). The digest sends only when the retry handed fewer than 10 rows to
-  `deliverMessages` (`RetryOutcome.attempted`), giving a worst case of 49. Fact 16 is now confirmed, and the
+  `deliverMessages` (`RetryOutcome.attempted`), giving a worst case of 50 (corrected from 49 after the diff review: the summary read is three statements). Fact 16 is now confirmed, and the
   `scheduled.test.ts` case is under AC10. The spec NFR and E8's timing say "up to 20 minutes when the retry was
   full". Option (b) makes the retry build the digest inside its batch, and (c) costs retry throughput on every due
   run (0041).

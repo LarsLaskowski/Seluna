@@ -73,17 +73,17 @@ Where events older than 7 days are deleted:
     and `token_cache` would no longer be cleaned up.
 
 How the digest fits the run's 50 subrequests. The run already budgets 18 D1 statements and 20 Telegram requests
-for the retry, and a digest with its own send would add 12 and 2, which makes 52. A refused `markSent` after a
+for the retry, and a digest with its own send would add 13 and 2, which makes 53. A refused `markSent` after a
 successful send would send the digest twice.
 
 16. **The digest sends its row only when the retry handed fewer than 10 rows to the sender.** Otherwise the row waits
-    `pending` for the next run's retry. The worst case is 49, at the price of a digest up to 20 minutes late during
+    `pending` for the next run's retry. The worst case is 50, with no headroom (48 if a D1 batch counted as one subrequest), at the price of a digest up to 20 minutes late during
     a backlog. Chosen.
 17. **The digest row joins the retry's send.** This saves the channel and token reads, but the retry would have to
     build the digest inside its batch, which couples the two jobs.
 18. **A retry batch one row smaller whenever a digest is due.** It costs retry throughput on every due run.
 
-Length against Telegram's 4,096 characters: **`digestNotification` drops repository lines into `and N more
+Length against Telegram's 4,096 characters, which Telegram measures after parsing the entities, so tags and escaping do not count: **`digestNotification` drops repository lines into `and N more
 repositories` beyond 4,000 UTF-16 code units** (chosen). A bound on lines and code points alone allows up to about
 5,760 units when the text has astral characters.
 

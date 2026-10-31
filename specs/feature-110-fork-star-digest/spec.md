@@ -111,7 +111,7 @@ is identified by `sender.id`, and a repository by `repository.id`.
   its row itself through the first-send path, as the release check does. The retry skips rows younger than 60 s,
   so the row is not sent twice. While both switches are off, the job only stores its run time. It sends its row only
   when the run's retry sent fewer than 10 rows. Otherwise the row waits for the next run's retry, so the digest
-  arrives at most 20 instead of 10 minutes after its time, and the run stays at 49 of its 50 subrequests. Counts are made in SQL, and at most 5 names are read for each of at most 10 repositories.
+  arrives at most 20 instead of 10 minutes after its time, and the run stays within its 50 subrequests (at most 50). Counts are made in SQL, and at most 5 names are read for each of at most 10 repositories.
 - Security: stranger text is cleaned and length-limited when it is stored and when it is rendered (*Parsing of
   external input*). No new permission is needed.
 - Logs: a collected delivery gets its own decision, distinct from `reported`. The job logs only fixed results. No
