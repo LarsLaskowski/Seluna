@@ -11,7 +11,15 @@ export interface StoredNotification {
   readonly number: number | undefined;
   readonly subject: string;
   readonly context: string;
+  /**
+   * Further lines after `context`, at most `MAX_EXTRA_LINES`; used by the activity digest, absent for every other
+   * notification.
+   */
+  readonly lines?: readonly string[];
 }
+
+/** The most entries `StoredNotification.lines` holds: ten repository lines and `and N more repositories`. */
+export const MAX_EXTRA_LINES = 11;
 
 /** `number` when it is a safe integer of at least 1, otherwise `undefined`. */
 function validNumber(number: number | undefined): number | undefined {
@@ -37,7 +45,20 @@ export function encodeStoredNotification(notification: StoredNotification): stri
     number: notification.number ?? null,
     subject: notification.subject,
     context: notification.context,
+    ...(notification.lines === undefined || notification.lines.length === 0 ? {} : { lines: notification.lines }),
   });
+}
+
+/** The entries of a stored `lines` value: `[]` when absent, `undefined` unless it is at most `MAX_EXTRA_LINES` strings. */
+function storedLines(value: unknown): readonly string[] | undefined {
+  if (value === undefined) {
+    return [];
+  }
+  const valid =
+    Array.isArray(value) &&
+    value.length <= MAX_EXTRA_LINES &&
+    value.every((entry: unknown) => typeof entry === "string");
+  return valid ? value : undefined;
 }
 
 /** The notification of a stored JSON text, or `undefined` when the text is not a valid stored notification. */
@@ -51,7 +72,7 @@ export function decodeStoredNotification(json: string): StoredNotification | und
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     return undefined;
   }
-  const { title, repository, number, subject, context } = parsed as Record<string, unknown>; // checked to be a plain object above
+  const { title, repository, number, subject, context, lines } = parsed as Record<string, unknown>; // checked to be a plain object above
   if (
     typeof title !== "string" ||
     typeof repository !== "string" ||
@@ -60,13 +81,13 @@ export function decodeStoredNotification(json: string): StoredNotification | und
   ) {
     return undefined;
   }
-  if (number === null) {
-    return { title, repository, number: undefined, subject, context };
-  }
-  if (typeof number !== "number" || validNumber(number) === undefined) {
+  const extra = storedLines(lines);
+  const validated = typeof number === "number" ? validNumber(number) : undefined;
+  if (extra === undefined || (number !== null && validated === undefined)) {
     return undefined;
   }
-  return { title, repository, number, subject, context };
+  const base = { title, repository, number: validated, subject, context };
+  return extra.length === 0 ? base : { ...base, lines: extra };
 }
 
 const BOLD_OPEN = "<b>";

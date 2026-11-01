@@ -27,12 +27,12 @@ const VULNERABILITY_PACKAGE_NAME = ["alert", "security_vulnerability", "package"
 const SUMMARY = ["alert", "security_advisory", "summary"] as const;
 
 function evaluate(payload: WebhookPayload): ReturnType<typeof DEPENDABOT_ALERT.evaluate> {
-  return DEPENDABOT_ALERT.evaluate("dependabot_alert", payload, DEFAULT_SETTINGS);
+  return DEPENDABOT_ALERT.evaluate("dependabot_alert", payload, DEFAULT_SETTINGS, undefined);
 }
 
 describe("DEPENDABOT_ALERT", () => {
   it("DEPENDABOT_ALERT reports the documented created alert in English", () => {
-    const notification = DEPENDABOT_ALERT.evaluate("dependabot_alert", created, DEFAULT_SETTINGS);
+    const notification = DEPENDABOT_ALERT.evaluate("dependabot_alert", created, DEFAULT_SETTINGS, undefined);
 
     expect(DEPENDABOT_ALERT.id, "id").toBe("dependabot_alert");
     expect(notification, "notification").toEqual(EXPECTED);
@@ -40,19 +40,19 @@ describe("DEPENDABOT_ALERT", () => {
   });
 
   it("DEPENDABOT_ALERT reports the documented reopened alert with the same lines", () => {
-    const notification = DEPENDABOT_ALERT.evaluate("dependabot_alert", reopened, DEFAULT_SETTINGS);
+    const notification = DEPENDABOT_ALERT.evaluate("dependabot_alert", reopened, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toEqual(EXPECTED);
   });
 
   it("DEPENDABOT_ALERT reports in German", () => {
-    const notification = DEPENDABOT_ALERT.evaluate("dependabot_alert", created, GERMAN);
+    const notification = DEPENDABOT_ALERT.evaluate("dependabot_alert", created, GERMAN, undefined);
 
     expect(notification, "notification").toEqual({ ...EXPECTED, title: "Dependabot-Warnung" });
   });
 
   it("DEPENDABOT_ALERT reports nothing for the documented dismissed alert", () => {
-    const notification = DEPENDABOT_ALERT.evaluate("dependabot_alert", dismissed, DEFAULT_SETTINGS);
+    const notification = DEPENDABOT_ALERT.evaluate("dependabot_alert", dismissed, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toBeUndefined();
   });
@@ -109,7 +109,7 @@ describe("DEPENDABOT_ALERT", () => {
   it.each(["code_scanning_alert", "secret_scanning_alert", "pull_request", ""])(
     "DEPENDABOT_ALERT reports nothing for its payload under the event name %s",
     (event) => {
-      const notification = DEPENDABOT_ALERT.evaluate(event, created, DEFAULT_SETTINGS);
+      const notification = DEPENDABOT_ALERT.evaluate(event, created, DEFAULT_SETTINGS, undefined);
 
       expect(notification, "notification").toBeUndefined();
     },

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- GitHub App: the manifest also asks for read-only Contents and Issues and subscribes to the events `issues`, `issue_comment`, `fork` and `star`; these deliveries are accepted and recorded. Seluna stores the app's owner (account id, login and type) beside the App ID for the rules to come.
+- Notifications: three rules and switches (on by default), _New issue_, _New comment on an issue_ and _New comment on a pull request_, report a new issue and a comment by another account, with the author and the beginning of the text on line 3; issues and comments by the owner (once the status page has stored the owner, personal accounts only) and by bots are left out, as are comments on draft pull requests or on pull requests whose draft state cannot be read. On a public repository every stranger's issue or comment gives one message.
+- Setup wizard: the status section shows the GitHub App's owner, with a notice for an organization's app, and names the permissions and events the app or an installation still lacks, with links to add and accept them on GitHub.
+
+- Notifications: two rules and switches (off by default), _New star on a repository_ and _New fork of a repository_, report a star or fork by another account (not the owner, not a bot). A new setting, _Stars and forks_, sends them immediately or collects them into one digest per hour or per day (daily at 18:00 by default); the digest lists each repository with the new stars (and the star count), forks and the accounts, and an unstar takes a collected star back. A new migration (`0002_activity.sql`) adds the table the digest collects into; deploy with `npm run deploy` so it is applied.
+
+### Changed
+
+- Installation tokens are requested with only `metadata: read` and `pull_requests: read` and refused when GitHub's answer grants more; tokens cached by earlier versions are requested again once.
+- The setup guide and the created page recommend installing the app on _Only select repositories_ instead of _All repositories_.
+- Setup wizard: the time zone setting accepts every named zone the runtime knows, also an alias such as `Asia/Kolkata`, a letter-case variant such as `europe/berlin` and a zone the list does not offer such as `Etc/GMT+5`, instead of answering 400 or falling back to UTC; fixed offsets are still rejected. The time zone select shows a configured zone missing from the list as an extra selected first option, and the status page shows the runtime's name of the zone.
+- Webhook: a delivery that leads to no message, no collected star or fork and no removal of a star (a ping, an owner's own issue or comment, an event whose switch is off) is no longer recorded in D1; only the time of the last delivery is still written, at most once a minute, so strangers can no longer use up the free plan's D1 write budget with such events. Its redelivery is evaluated again, and the status page's last delivery time may lag by up to a minute.
+
 ## [0.7.0] - 2026-10-27
 
 ### Added

@@ -23,8 +23,32 @@ export interface MessageTexts {
   readonly codeScanningAlert: string;
   /** Title of a secret scanning alert. */
   readonly secretScanningAlert: string;
+  /** Title of a new issue. */
+  readonly issueOpened: string;
+  /** Title of a new comment on an issue. */
+  readonly issueComment: string;
+  /** Title of a new comment on a pull request. */
+  readonly pullRequestComment: string;
+  /** The author part of line 3 of an issue or comment notification. */
+  readonly byAuthor: (author: string) => string;
   /** Line 3 of a pull request notification: the author and the branches. */
   readonly pullRequestContext: (author: string, head: string, base: string) => string;
+  /** Title of a new star. */
+  readonly repositoryStarred: string;
+  /** Title of a new fork. */
+  readonly repositoryForked: string;
+  /** Line 3 of a star notification: the repository's star count now. */
+  readonly starsNow: (count: number) => string;
+  /** Title of the activity digest. */
+  readonly activityDigestTitle: string;
+  /** The star part of a digest line: the new stars and the total when known. */
+  readonly digestStars: (added: number, total: number | undefined) => string;
+  /** The fork part of a digest line. */
+  readonly digestForks: (added: number) => string;
+  /** The tail of a digest line's names: the number of names left out. */
+  readonly moreNames: (count: number) => string;
+  /** The last digest line: the number of repositories left out. */
+  readonly moreRepositories: (count: number) => string;
   /** Title of the notice that a new Seluna release is available. */
   readonly newSelunaRelease: string;
   /** Line 2 of the release notice: the latest and the running version, as `A.B.C`. */
@@ -32,3 +56,5 @@ export interface MessageTexts {
 }
 
 export const MESSAGE_TEXTS: Readonly<Record<Language, MessageTexts>> = { en: EN, de: DE };
+
+export { groupDigits } from "./digits";

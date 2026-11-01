@@ -1,24 +1,58 @@
 import { describe, expect, it } from "vitest";
-import { appManifest, appName, isAccountName, manifestFormAction, parseAccountType } from "./manifest";
+import {
+  APP_EVENTS,
+  APP_PERMISSIONS,
+  appManifest,
+  appName,
+  isAccountName,
+  manifestFormAction,
+  parseAccountType,
+} from "./manifest";
 import { expectedManifestJson } from "../../test/github";
 
 const ORIGIN = "https://seluna.example.workers.dev";
 const STATE = `v1.personal.octocat.1700003600000.${"A".repeat(22)}.${"B".repeat(43)}`;
 
-describe("appManifest", () => {
-  it("appManifest requests exactly the six read-only permissions and the five events", () => {
-    const manifest = appManifest(ORIGIN, "octocat");
+describe("APP_PERMISSIONS and APP_EVENTS", () => {
+  it("APP_PERMISSIONS is exactly the eight read permissions in manifest order", () => {
+    const permissions = JSON.stringify(APP_PERMISSIONS);
 
-    expect(JSON.stringify(manifest.default_permissions), "permissions in order").toBe(
-      '{"actions":"read","pull_requests":"read","vulnerability_alerts":"read","security_events":"read","secret_scanning_alerts":"read","metadata":"read"}',
+    expect(permissions, "permissions in order").toBe(
+      '{"actions":"read","contents":"read","issues":"read","pull_requests":"read","vulnerability_alerts":"read","security_events":"read","secret_scanning_alerts":"read","metadata":"read"}',
     );
-    expect(manifest.default_events, "events in order").toEqual([
+  });
+
+  it("APP_EVENTS is exactly the nine events in manifest order", () => {
+    const events = APP_EVENTS;
+
+    expect(events, "events in order").toEqual([
       "pull_request",
       "workflow_run",
       "dependabot_alert",
       "code_scanning_alert",
       "secret_scanning_alert",
+      "issues",
+      "issue_comment",
+      "fork",
+      "star",
     ]);
+  });
+});
+
+describe("appManifest", () => {
+  it("appManifest carries the new permissions and events", () => {
+    const manifest = appManifest(ORIGIN, "octocat");
+
+    expect(JSON.stringify(manifest.default_permissions), "permissions in order").toBe(
+      '{"actions":"read","contents":"read","issues":"read","pull_requests":"read","vulnerability_alerts":"read","security_events":"read","secret_scanning_alerts":"read","metadata":"read"}',
+    );
+    expect(manifest.default_events.slice(5), "the four new events after today's five").toEqual([
+      "issues",
+      "issue_comment",
+      "fork",
+      "star",
+    ]);
+    expect(manifest.default_events.length, "number of events").toBe(9);
   });
 
   it("appManifest is private and points the webhook and the redirect at the instance origin", () => {

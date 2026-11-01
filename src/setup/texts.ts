@@ -1,4 +1,4 @@
-import type { RuleId } from "../settings";
+import type { ActivityDigest, RuleId } from "../settings";
 import type { Language } from "./language";
 
 export type Notice =
@@ -131,6 +131,17 @@ export interface SetupTexts {
   readonly moreInstallations: string;
   readonly installationsUnavailable: string;
   readonly keyUnusable: string;
+  readonly ownerLabel: string;
+  readonly ownerUnavailable: string;
+  readonly ownerOrganizationNotice: string;
+  readonly appMissingLabel: string;
+  readonly appUnchecked: string;
+  readonly appSettingsLink: string;
+  readonly readOnlySuffix: string;
+  readonly eventsLabel: string;
+  readonly installationMissing: string;
+  readonly installationReviewLink: string;
+  readonly accessNotChecked: string;
   readonly resetHeading: string;
   readonly resetText: string;
   readonly resetButton: string;
@@ -143,6 +154,12 @@ export interface SetupTexts {
   readonly rulesLabel: string;
   readonly updateNoticeLabel: string;
   readonly saveSettingsButton: string;
+  /** The label of the stars and forks interval field. */
+  readonly activityDigestLabel: string;
+  /** The label of each interval option. */
+  readonly activityDigestOptions: Readonly<Record<ActivityDigest["kind"], string>>;
+  /** The label of the daily digest time field. */
+  readonly digestTimeLabel: string;
   readonly ruleLabels: Readonly<Record<RuleId, string>>;
   readonly notConfiguredHeading: string;
   readonly notConfiguredParagraphs: readonly string[];
@@ -230,18 +247,19 @@ const ENGLISH: SetupTexts = {
   githubAppNameLabel: "App name:",
   githubPermissionsLabel: "Permissions, all read-only:",
   githubPermissionsList:
-    "Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata",
+    "Actions, Contents, Issues, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata",
   githubEventsLabel: "Events:",
-  githubEventsList: "Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert",
+  githubEventsList:
+    "Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert, Issues, Issue comment, Fork, Star",
   githubToGitHubButton: "Continue to GitHub",
   githubFinishIntro: "GitHub has created the app. Select Finish so that Seluna fetches and saves its credentials.",
   githubFinishButton: "Finish",
   githubCreated: "The GitHub App is saved.",
   githubInstallIntro:
-    "Now install it on your account or organization. Choosing All repositories is recommended, so that new repositories are covered too.",
+    "Now install it on your account or organization. Choosing Only select repositories is recommended: Seluna then sees only the repositories you pick, and you add a new repository to the installation by hand.",
   githubInstallLink: "Install the app on GitHub",
   githubInstallManual:
-    "Install it on GitHub: in the settings of your account or organization, open Developer settings, then GitHub Apps, choose the app and select Install App. Choosing All repositories is recommended, so that new repositories are covered too.",
+    "Install it on GitHub: in the settings of your account or organization, open Developer settings, then GitHub Apps, choose the app and select Install App. Choosing Only select repositories is recommended: Seluna then sees only the repositories you pick, and you add a new repository to the installation by hand.",
   githubBackLink: "Back to the GitHub App step",
   statusHeading: "Status",
   versionLabel: "Version:",
@@ -272,6 +290,18 @@ const ENGLISH: SetupTexts = {
   moreInstallations: "Only the first 100 installations are shown.",
   installationsUnavailable: "Cannot be loaded from GitHub right now.",
   keyUnusable: "The app's private key cannot be used.",
+  ownerLabel: "GitHub App owner:",
+  ownerUnavailable: "Cannot be read from GitHub right now.",
+  ownerOrganizationNotice:
+    "The app belongs to an organization, so Seluna cannot tell your own actions from anyone else's: activity of every account is reported, yours too.",
+  appMissingLabel: "Missing on the app:",
+  appUnchecked: "Seluna could not read the app's permissions from GitHub.",
+  appSettingsLink: "Add them in the app's settings on GitHub",
+  readOnlySuffix: "read-only",
+  eventsLabel: "events:",
+  installationMissing: "missing:",
+  installationReviewLink: "Review and accept on GitHub",
+  accessNotChecked: "access not checked",
   resetHeading: "The saved credentials cannot be read",
   resetText:
     "The saved credentials cannot be read with the current SELUNA_SECRET: it was changed, or a saved value is damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials, the installation tokens and the saved Telegram bot token; you then create the GitHub App again and enter the bot token again in the Telegram chat step. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept.",
@@ -285,6 +315,9 @@ const ENGLISH: SetupTexts = {
   rulesLabel: "Notify me about",
   updateNoticeLabel: "Tell me when a new Seluna release is available",
   saveSettingsButton: "Save settings",
+  activityDigestLabel: "Stars and forks",
+  activityDigestOptions: { immediate: "Immediately", hourly: "Hourly", daily: "Daily at" },
+  digestTimeLabel: "Time",
   ruleLabels: {
     pull_request_opened: "New pull request",
     pull_request_ready_for_review: "Pull request ready for review",
@@ -294,6 +327,11 @@ const ENGLISH: SetupTexts = {
     dependabot_alert: "Dependabot alert",
     code_scanning_alert: "Code scanning alert",
     secret_scanning_alert: "Secret scanning alert",
+    issue_opened: "New issue",
+    issue_comment: "New comment on an issue",
+    pull_request_comment: "New comment on a pull request",
+    repository_starred: "New star on a repository",
+    repository_forked: "New fork of a repository",
   },
   notConfiguredHeading: "SELUNA_SECRET is not set",
   notConfiguredParagraphs: [
@@ -375,7 +413,7 @@ const ENGLISH: SetupTexts = {
     "github-store-failed":
       "GitHub created the app, but saving its credentials failed, so nothing was saved. Delete the app on GitHub and start again.",
     "settings-invalid":
-      "The settings were not saved. Check the values: quiet hours need a start and an end in the form 22:00, and the two must differ.",
+      "The settings were not saved. Check the values: quiet hours need a start and an end in the form 22:00, and the two must differ; a daily digest of stars and forks needs a time in the form 18:00.",
     "reset-not-needed": "The saved credentials can be read with the current SELUNA_SECRET, so nothing was reset.",
   },
 };
@@ -448,19 +486,20 @@ const GERMAN: SetupTexts = {
   githubAppNameLabel: "App-Name:",
   githubPermissionsLabel: "Berechtigungen, alle nur lesend:",
   githubPermissionsList:
-    "Actions, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata",
+    "Actions, Contents, Issues, Pull requests, Dependabot alerts, Code scanning alerts, Secret scanning alerts, Metadata",
   githubEventsLabel: "Ereignisse:",
-  githubEventsList: "Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert",
+  githubEventsList:
+    "Pull request, Workflow run, Dependabot alert, Code scanning alert, Secret scanning alert, Issues, Issue comment, Fork, Star",
   githubToGitHubButton: "Weiter zu GitHub",
   githubFinishIntro:
     "GitHub hat die App erstellt. Wähle Abschließen, damit Seluna ihre Zugangsdaten abruft und speichert.",
   githubFinishButton: "Abschließen",
   githubCreated: "Die GitHub-App ist gespeichert.",
   githubInstallIntro:
-    "Installiere sie jetzt auf deinem Konto oder deiner Organisation. Empfohlen ist die Auswahl All repositories, damit auch neue Repositories erfasst werden.",
+    "Installiere sie jetzt auf deinem Konto oder deiner Organisation. Empfohlen ist die Auswahl Only select repositories: Seluna sieht dann nur die Repositories, die du auswählst, und ein neues Repository fügst du der Installation von Hand hinzu.",
   githubInstallLink: "App auf GitHub installieren",
   githubInstallManual:
-    "Installiere sie auf GitHub: Öffne in den Einstellungen deines Kontos oder deiner Organisation Developer settings, dann GitHub Apps, wähle die App und klicke auf Install App. Empfohlen ist die Auswahl All repositories, damit auch neue Repositories erfasst werden.",
+    "Installiere sie auf GitHub: Öffne in den Einstellungen deines Kontos oder deiner Organisation Developer settings, dann GitHub Apps, wähle die App und klicke auf Install App. Empfohlen ist die Auswahl Only select repositories: Seluna sieht dann nur die Repositories, die du auswählst, und ein neues Repository fügst du der Installation von Hand hinzu.",
   githubBackLink: "Zurück zum Schritt GitHub-App",
   statusHeading: "Status",
   versionLabel: "Version:",
@@ -491,6 +530,18 @@ const GERMAN: SetupTexts = {
   moreInstallations: "Nur die ersten 100 Installationen werden angezeigt.",
   installationsUnavailable: "Kann gerade nicht von GitHub geladen werden.",
   keyUnusable: "Der private Schlüssel der App ist nicht verwendbar.",
+  ownerLabel: "Besitzer der GitHub-App:",
+  ownerUnavailable: "Kann gerade nicht von GitHub gelesen werden.",
+  ownerOrganizationNotice:
+    "Die App gehört einer Organisation, deshalb kann Seluna deine eigenen Aktionen nicht von denen anderer unterscheiden: Aktivitäten aller Konten werden gemeldet, auch deine.",
+  appMissingLabel: "Fehlt der App:",
+  appUnchecked: "Seluna konnte die Berechtigungen der App nicht von GitHub lesen.",
+  appSettingsLink: "In den Einstellungen der App auf GitHub ergänzen",
+  readOnlySuffix: "nur lesend",
+  eventsLabel: "Ereignisse:",
+  installationMissing: "fehlt:",
+  installationReviewLink: "Auf GitHub prüfen und annehmen",
+  accessNotChecked: "Zugriff nicht geprüft",
   resetHeading: "Die gespeicherten Zugangsdaten sind nicht lesbar",
   resetText:
     "Die gespeicherten Zugangsdaten sind mit dem aktuellen SELUNA_SECRET nicht lesbar: Es wurde geändert, oder ein gespeicherter Wert ist beschädigt. Wenn du das frühere SELUNA_SECRET noch kennst, setze es stattdessen wieder. Andernfalls setze zurück: Seluna löscht die gespeicherten GitHub-Zugangsdaten, die Installations-Tokens und den gespeicherten Telegram-Bot-Token; du erstellst danach die GitHub-App neu und gibst den Bot-Token im Schritt Telegram-Chat erneut ein. Lösche die alte App danach auf GitHub: in den Einstellungen deines Kontos oder deiner Organisation unter Developer settings, dann GitHub Apps. Der Telegram-Chat und die Einstellungen bleiben erhalten.",
@@ -504,6 +555,9 @@ const GERMAN: SetupTexts = {
   rulesLabel: "Benachrichtige mich über",
   updateNoticeLabel: "Sag mir Bescheid, wenn ein neues Seluna-Release verfügbar ist",
   saveSettingsButton: "Einstellungen speichern",
+  activityDigestLabel: "Sterne und Forks",
+  activityDigestOptions: { immediate: "Sofort", hourly: "Stündlich", daily: "Täglich um" },
+  digestTimeLabel: "Uhrzeit",
   ruleLabels: {
     pull_request_opened: "Neuer Pull Request",
     pull_request_ready_for_review: "Pull Request bereit zum Review",
@@ -513,6 +567,11 @@ const GERMAN: SetupTexts = {
     dependabot_alert: "Dependabot-Warnung",
     code_scanning_alert: "Code-Scanning-Warnung",
     secret_scanning_alert: "Secret-Scanning-Warnung",
+    issue_opened: "Neues Issue",
+    issue_comment: "Neuer Kommentar zu einem Issue",
+    pull_request_comment: "Neuer Kommentar zu einem Pull Request",
+    repository_starred: "Neuer Stern für ein Repository",
+    repository_forked: "Neuer Fork eines Repositorys",
   },
   notConfiguredHeading: "SELUNA_SECRET ist nicht gesetzt",
   notConfiguredParagraphs: [
@@ -597,7 +656,7 @@ const GERMAN: SetupTexts = {
     "github-store-failed":
       "GitHub hat die App erstellt, aber das Speichern ihrer Zugangsdaten ist fehlgeschlagen, daher wurde nichts gespeichert. Lösche die App auf GitHub und beginne erneut.",
     "settings-invalid":
-      "Die Einstellungen wurden nicht gespeichert. Prüfe die Werte: Ruhezeiten brauchen einen Beginn und ein Ende in der Form 22:00, und beide müssen sich unterscheiden.",
+      "Die Einstellungen wurden nicht gespeichert. Prüfe die Werte: Ruhezeiten brauchen einen Beginn und ein Ende in der Form 22:00, und beide müssen sich unterscheiden; ein täglicher Überblick über Sterne und Forks braucht eine Uhrzeit in der Form 18:00.",
     "reset-not-needed":
       "Die gespeicherten Zugangsdaten sind mit dem aktuellen SELUNA_SECRET lesbar, daher wurde nichts zurückgesetzt.",
   },

@@ -8,20 +8,26 @@ export interface TokenRow {
   readonly expiresAt: number;
 }
 
-/** The additional data the storage contract binds a `token_cache` row to. */
+/** The additional data the storage contract binds a `token_cache` row to: the token's permission list is part of it. */
 export function tokenContext(installationId: number, expiresAt: number): string {
+  return `${legacyTokenContext(installationId, expiresAt)}/metadata=read,pull_requests=read`;
+}
+
+/** The additional data of rows written before the permission list was bound (versions before this change). */
+export function legacyTokenContext(installationId: number, expiresAt: number): string {
   return `token_cache/${String(installationId)}/${String(expiresAt)}`;
 }
 
-/** Stores `token` encrypted for `installationId` without `src/store/token-cache.ts`; resolves to the row's IV. */
+/** Stores `token` encrypted for `installationId` (bound to `additionalData`) without `src/store/token-cache.ts`; resolves to the row's IV. */
 export async function seedCachedToken(
   db: D1Database,
   key: CryptoKey,
   installationId: number,
   token: string,
   expiresAt: number,
+  additionalData: string = tokenContext(installationId, expiresAt),
 ): Promise<string> {
-  const sealed = await encrypt(key, token, tokenContext(installationId, expiresAt));
+  const sealed = await encrypt(key, token, additionalData);
   await db
     .prepare(
       "INSERT INTO token_cache (installation_id, iv, ciphertext, expires_at) VALUES (?1, ?2, ?3, ?4) " +

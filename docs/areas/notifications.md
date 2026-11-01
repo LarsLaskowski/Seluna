@@ -18,15 +18,23 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
 1. The `X-GitHub-Delivery` value must match `^[0-9A-Za-z-]{1,64}$` and the `X-GitHub-Event` value
    `^[a-z_]{1,64}$`; otherwise **400**, nothing stored.
 2. A delivery id that `deliveries` already holds answers **200** and has no other effect: nothing is parsed, stored,
-   sent or written to `meta`. A `deliveries` row is kept 7 days ([Scheduled jobs](scheduled-jobs.md#cleanup)), so a
-   redelivery is recognized within that time.
+   sent or written to `meta`. Only a recorded delivery (step 5) has such a row; it is kept 7 days
+   ([Scheduled jobs](scheduled-jobs.md#cleanup)), so a redelivery of it is recognized within that time.
 3. The body is read as the payload (below); a body that is not a JSON object answers **400**, nothing stored.
-4. The notification settings are read and the rules run (below); then the draft check of a notification that carries
+4. The notification settings and the stored owner of the app ([The sender](#the-sender)) are read and the rules run
+   (below); then the draft check of a notification that carries
    one is resolved ([Draft lookup](#draft-lookup)), which may drop the notification or change its title.
-5. In one transaction: the delivery (id, event, time received) is added to `deliveries`, one `outbox` row per
-   notification is added (the notification as JSON, [Message format](#message-format)), and `meta` `last_delivery` is set to the time received. Either all of it is stored or
-   none of it.
-6. The answer is **202**, whether or not a rule matched. The new `outbox` rows are sent after the answer (below).
+5. A delivery with at least one `outbox` row or one `activity` change (the collected events or the removal of a
+   star) is recorded. In one transaction: the delivery (id, event, time received) is added to `deliveries`, one `outbox` row per
+   notification is added (the notification as JSON, [Message format](#message-format)), the `activity` changes of
+   the delivery are made ([Stars and forks](#stars-and-forks): the collected events and the removal of a star), and
+   `meta` `last_delivery` is set to the time received. Either all of it is stored or none of it. A delivery with no
+   `activity` change does not touch the `activity` table.
+6. Any other delivery (no row and no `activity` change) is not recorded: nothing is added to `deliveries`, `outbox`
+   or `activity`, and `meta` `last_delivery` is set only as [Storage](storage.md#tables) says, by one
+   conditional statement. A failure of that write is ignored and the answer stays 202. Nothing else changes: a
+   draft lookup of such a delivery may still refresh the installation-token cache, as before.
+7. The answer is **202**, whether or not a rule matched. The new `outbox` rows are sent after the answer (below).
 
 - When the transaction fails because the delivery id was stored in the meantime (two deliveries of one id at once),
   the answer is **200** and nothing of this delivery is stored. Any other database failure in steps 2 to 5 answers
@@ -49,18 +57,20 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
 
 ### Rules
 
-- A rule is a pure function of the event name (`X-GitHub-Event`), the payload and the notification settings
-  ([Storage](storage.md)) that returns one notification or none. It reads no clock, no database and no network,
-  and it narrows every payload field it reads; an unexpected shape returns none.
+- A rule is a pure function of the event name (`X-GitHub-Event`), the payload, the notification settings
+  ([Storage](storage.md)) and the stored owner of the app (a value, or none when unknown) that returns one
+  notification or none. The owner is read by the processing once per delivery, beside the settings; no rule reads the
+  database. A rule reads no clock and no network, and it narrows every payload field it reads; an unexpected shape
+  returns none.
 - Every rule has the id of its switch in the settings. All rules run on every delivery; a notification of a rule
   whose switch is off is dropped.
 - A notification holds: the title of the case (line 1, in the notification language, chosen by the rule), the
-  repository as `owner/repo`, the number of the pull request or alert (or none), line 2, line 3 and the URL for the
+  repository as `owner/repo`, the number of the pull request, issue or alert (or none), line 2, line 3 and the URL for the
   button (the `html_url` of the payload). A notification that may only be sent for a pull request that is not a draft
   also holds a draft check: the pull request (owner, repository name, number) and the title to use when its draft
-  state is unknown.
+  state is unknown, or none, which drops the notification when its draft state is unknown.
 - The rules run in the order of the switches in the settings. The pull request rules and the CI failure rules are
-  below, then the security alert rules.
+  below, then the security alert rules and the issue and comment rules.
 
 #### Pull request rules
 
@@ -78,7 +88,8 @@ request triggers nothing.
   `by author · head → base` (German `von author · head → base`) from `pull_request.user.login`,
   `pull_request.head.ref` and `pull_request.base.ref`; the button URL is `pull_request.html_url`.
 - The rules read no other field: not `sender`, `requested_reviewer`, `requested_team` or `head.repo`. So there is no
-  filter by sender or reviewer, and a fork's branch is shown without its owner.
+  filter by sender or reviewer, and a fork's branch is shown without its owner. The helpers a later rule can use to
+  tell the owner's own actions and bots apart are in [The sender](#the-sender).
 - A delivery whose fields are missing or of another type (`number` not a whole number from 1 to 2^53 − 1, a text field
   not a string, `draft` not `false`) triggers nothing.
 - `ready_for_review` also requires `draft` to be `false`, although issue #13 gives no condition for it; on a genuine
@@ -183,15 +194,151 @@ not read.
   because only an allow-list of fields is read, such a difference can shorten a line or silence an alert, never leak a
   secret.
 
+#### Issue and comment rules
+
+Three rules report the events `issues` and `issue_comment` (decision
+[0040](../decisions/0040-issue-and-comment-rules.md)). No new permission, event or setting beyond the three switches,
+on by default.
+
+| Switch id              | Event           | Reported `action` | Case                                                | English title                 | German title                       |
+| ---------------------- | --------------- | ----------------- | --------------------------------------------------- | ----------------------------- | ---------------------------------- |
+| `issue_opened`         | `issues`        | `opened`          | a new issue                                         | `New issue`                   | `Neues Issue`                      |
+| `issue_comment`        | `issue_comment` | `created`         | a comment on an issue (`issue.pull_request` absent) | `New comment on issue`        | `Neuer Kommentar zum Issue`        |
+| `pull_request_comment` | `issue_comment` | `created`         | a comment on a pull request's conversation          | `New comment on pull request` | `Neuer Kommentar zum Pull Request` |
+
+Every other action (`edited`, `deleted`, `closed`, `reopened`, `transferred`, `labeled`, or one GitHub adds later)
+triggers nothing.
+
+- **Lines.** Line 1 is the title, `repository.full_name` and `issue.number`; line 2 is `issue.title`; line 3 is
+  `by <author> · <excerpt>` (German `von <author> · <excerpt>`), the author being `issue.user.login` for a new issue
+  and `comment.user.login` for a comment, the excerpt the beginning of `issue.body` or `comment.body`. The button is
+  `issue.html_url` for a new issue and `comment.html_url` for a comment. Line 2 and line 3 are cut to 256 code points
+  like every field ([Message format](#message-format)).
+- **The excerpt.** HTML comments (`<!-- … -->`, as issue templates leave them) are removed first, an unterminated
+  `<!--` together with everything after it; then every run of white space becomes one space and the ends are trimmed.
+  Other Markdown is shown as written. The scan is one linear pass that stops at 257 code points (one more than line 3's
+  limit, so the store still cuts and marks it), whatever the size of the body. A body that is empty, `null`, missing,
+  blank or only comments gives line 3 `by <author>` alone; the case is still reported.
+- **Required shape.** A delivery is reported only when `issue` and `comment` (for a comment) are objects,
+  `issue.number` is a whole number from 1 to 2^53 − 1, `issue.title`, `issue.html_url`, `issue.user.login`,
+  `comment.html_url`, `comment.user.login` and `repository.full_name` are strings, each `body` is a string, `null` or
+  missing, `issue.pull_request` is missing or an object and `issue.draft` is missing or a boolean. A delivery that
+  carries a `comment` under the `issues` header is another event's payload: `issue_opened` returns nothing for it, as
+  it does when `issue.pull_request` is present. Anything else gives `no-match`.
+- **The draft pull request.** `pull_request_comment` reports a comment only on a pull request that is not a draft:
+  `issue.draft` `true` triggers nothing, `false` reports without a check, and when the field is absent the
+  notification carries a draft check ([Draft lookup](#draft-lookup)) whose unknown state drops the notification
+  instead of retitling it. A comment on a draft pull request, or on one whose draft state cannot be determined, is
+  thus never reported: neither exception to the guarantee is extended.
+- **Volume.** On a public repository anyone can open an issue or comment, so each stranger's issue or comment gives one
+  message with text of their choosing; Telegram apps still turn URLs, `@mentions` and `/commands` into tappable
+  links. No rate limit exists.
+- **Documented, not observed.** The fixtures are reference-built from GitHub's webhook documentation, not captured.
+  The residual risk (decision 0040) is a field path, an action name or the place of `issue.draft` that differs in real
+  deliveries; each such difference sends nothing. A live check on a deployed copy confirms the cases.
+
+#### Stars and forks
+
+Two rules report the events `star` and `fork` (decision
+[0041](../decisions/0041-fork-and-star-rules-with-a-digest.md)). Their switches are **off** by default, and a third
+setting, _Stars and forks_, decides whether each event is sent at once or collected into a digest.
+
+| Switch id            | Event  | Reported `action`           | Case                            | English title | German title  |
+| -------------------- | ------ | --------------------------- | ------------------------------- | ------------- | ------------- |
+| `repository_starred` | `star` | `created`                   | an account starred a repository | `New star`    | `Neuer Stern` |
+| `repository_forked`  | `fork` | none (the payload has none) | an account forked a repository  | `New fork`    | `Neuer Fork`  |
+
+Every other action of `star` (and a `fork` delivery with an `action` key) triggers nothing.
+
+- **Lines.** A star: line 1 is the title and `repository.full_name`, line 2 is `by <author>` (German `von <author>`)
+  with `sender.login`, line 3 is `<n> stars now` (`1 star now`; German `jetzt <n> Sterne`, `jetzt 1 Stern`) from
+  `repository.stargazers_count`, with digits grouped by thousands (`1,234`; German `1.234`). The count 0 is valid. A
+  count that is not a whole number from 0 to 2^53 − 1 leaves line 3 empty. A fork: line 1 is the title and
+  `repository.full_name` (the repository that was forked), line 2 is `forkee.full_name`, line 3 is `by <author>`.
+  The button is `repository.html_url` for a star and `forkee.html_url` for a fork.
+- **Required shape.** A star is reported only when `repository` is an object with a safe-integer `id` and a string
+  `full_name`, and `sender` is a foreign account ([The sender](#the-sender)) with a string `login`. `repository.html_url`
+  that is not a string gives an empty URL, which sends no button. A fork also needs `forkee.full_name` and
+  `forkee.html_url` to be strings. Anything else gives `no-match`.
+- **Whose stars count.** The owner's own star or fork and a bot's are left out. With an organization owner or an
+  owner not stored yet every account counts as foreign (decision 0040).
+- **Collecting.** Under the interval _Hourly_ or _Daily at_ a star or fork is not written to the `outbox`: the
+  processing stores it as a row of the `activity` table in the delivery's transaction ([Storage](storage.md#tables)),
+  with the account id, the login and the repository name cleaned like the fields of a stored notification
+  ([Message format](#message-format)), the repository's button URL (only when it passes the button URL rule), the
+  star count (stars only) and the time received. The decision is `collected` when a delivery wrote only such rows.
+  Under _Immediately_ both rules write an `outbox` row per event like every other rule. A switch that is off collects
+  nothing, whatever the interval.
+- **Unstar.** A `star` delivery with the action `deleted` removes the collected star rows of that account on that
+  repository, in the delivery's transaction, in every interval, while _New star_ is on and the sender is foreign. It
+  sends nothing and alone it is `no-match`. A star that was already sent in a digest or message is not taken back.
+  A star that was never collected is a removal that deletes nothing.
+- **Redelivery.** A redelivered delivery collects nothing a second time (step 2 of
+  [Processing a delivery](#processing-a-delivery)).
+- **The table is missing.** Where the migration `0002` was not applied, a delivery that has to collect an event or
+  remove a star answers **503** and stores nothing, like any database failure; every other delivery is unaffected.
+- **Documented, not observed.** The `fork/fork.json` and `star/created.json` fixtures are shaped from GitHub's
+  webhook documentation, and `star/deleted.json` is reference-built from it, none captured. The residual risk is a
+  field path that differs in real deliveries, which would send or collect nothing.
+
+#### The digest
+
+The digest collects the stars and forks of the interval into one message ([Scheduled jobs](scheduled-jobs.md#digest)
+decides when it is built and sent).
+
+- **Content.** The title alone on line 1, bold: `New stars and forks` (German `Neue Sterne und Forks`), with no
+  repository. Then one line per repository, busiest first (stars plus forks, ties by repository name in binary
+  order), at most 10:
+  `<repository>: <star part>, <fork part> · <names>`. The star part is `+<n> ⭐` and, when the newest collected star
+  carries a count, ` (now <total>)` (German ` (jetzt <total>)`); the fork part is `+<n> fork` or `+<n> forks` (German
+  `Fork`, `Forks`). A part with no events is left out with its `, `. `<names>` are the logins of the first at most 5
+  accounts, in the order of their first event, then ` and <k> more` (German ` und <k> weitere`) for the accounts left
+  out; an account counts once however many events it caused. Digits are grouped by thousands. With more than 10
+  repositories the last line is `and <n> more repositories` (German `und <n> weitere Repositories`).
+- **The repository's name and URL** are those of its newest collected event, so a renamed repository shows its new name.
+- **Button.** The repository's URL when the digest names exactly one repository, otherwise none.
+- **Counting.** All counts are exact (made in SQL), whatever the number of events; only collected events of the last
+  7 days are counted. An event collected while a digest is built stays for the next digest.
+- **Settings.** The digest is written in the notification language at the time it is built; the button language and
+  the quiet hours follow the sending ([Quiet hours](#quiet-hours)).
+
+#### The sender
+
+- The GitHub App is subscribed to the events `issues`, `issue_comment`, `fork` and `star` besides the five of the
+  rules above (decision [0039](../decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md)). They are
+  accepted and answered like every other event, and recorded in `deliveries` only when they lead to a message or an
+  `activity` change ([Processing a delivery](#processing-a-delivery)). The rules for issues and comments report
+  them ([Issue and comment rules](#issue-and-comment-rules)); the rules for `fork` and `star` are in
+  [Stars and forks](#stars-and-forks).
+- Two helpers for those rules narrow the payload's `sender` and never throw (`src/rules/actor.ts`):
+  - `isOwnAction(payload, owner)` is true only when the stored owner is a `User` and `sender.id` is a number equal to
+    the owner's id; a renamed login changes nothing. A missing or non-object `sender`, a missing or non-numeric `id`,
+    an unknown owner and an organization owner are all false: the sender of a delivery is a person, and Seluna
+    cannot tell which member of an organization is its user, so for an organization's app every account's activity
+    counts as foreign (the status page says so, [Setup wizard](setup-wizard.md#status-and-settings)).
+  - `isBotSender(payload)` is true exactly when `sender.type` is the string `Bot`.
+- The owner is the one stored beside the App ID ([Storage](storage.md#tables)); the processing reads it once per
+  delivery, before the rules, for the App ID the Worker secret or the saved credential names ([GitHub
+  API](github-api.md)). The three issue and comment rules read `sender`: a delivery is dropped (decision `no-match`)
+  when `sender` is not an object with an `id` that is a safe integer (a whole number no larger than 2^53 − 1 in
+  absolute value) and a string `type`, when `sender.id` is the id of a `User`
+  owner, or when `sender.type` is `Bot` (a user whose login ends in `[bot]` is not a bot). With an organization
+  owner, an owner not stored yet (an app created before this version whose status page was not viewed) or an owner row
+  that is malformed or of another App ID, the owner's own issues and comments are reported like any other account's.
+  A database failure while the owner is read answers **503** and stores nothing, as for the settings. The existing pull
+  request and alert rules still do not read `sender`.
+
 #### Draft lookup
 
-- After the rules, each notification with a draft check (only the CI failure in a pull request, so at most one per
-  delivery) is resolved before the delivery is recorded. A notification whose switch is off has been dropped by then,
+- After the rules, each notification with a draft check (the CI failure in a pull request, or a comment on a pull
+  request whose payload has no `issue.draft`; the two come from different events, so at most one per delivery) is
+  resolved before the delivery is recorded. A notification whose switch is off has been dropped by then,
   so it causes no lookup.
 - The lookup asks GitHub for the pull request's draft state as the app, with the installation of the delivery's
   `installation.id` ([GitHub API](github-api.md#pull-request-read)). A draft drops the notification; a pull request
-  that is not a draft keeps it as it is; any failure keeps it with the title `CI failed in pull request (draft status
-unknown)` (German `CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)`).
+  that is not a draft keeps it as it is; for the CI failure rule any failure keeps it with the title `CI failed in pull
+request (draft status unknown)` (German `CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)`), while a
+  comment on a pull request is dropped (below).
 - A failure is every failure result of the GitHub API client, an `installation.id` that is not a whole number from 1 to
   2^53 − 1 (then nothing is asked), and a lookup that has not finished 8 seconds after it started: GitHub ends a
   delivery not answered within 10 seconds. A lookup cut off this way may still finish in the background; its result
@@ -200,9 +347,12 @@ unknown)` (German `CI im Pull Request fehlgeschlagen (Draft-Status unbekannt)`).
 - This is one of the two exceptions to "a draft pull request triggers no notification": a pull request whose draft
   state could not be read is reported, marked _draft status unknown_ (the other: a secret scanning alert, [Security
   alert rules](#security-alert-rules)).
+- A comment on a pull request ([Issue and comment rules](#issue-and-comment-rules)) is the second kind of check: it has
+  no title for an unknown state, so any failure, the 8-second cut-off or a missing `installation.id` drops the
+  notification instead of keeping it.
 - When the lookup drops the only notification, the decision is `no-match`.
 - A delivery whose id is already recorded on arrival causes no lookup. Two deliveries of one id processed at once may
-  each make a lookup; only one of them is stored.
+  each make a lookup; at most one of them is stored.
 
 ### Message format
 
@@ -210,6 +360,17 @@ An `outbox` row holds the notification itself, not a message for one messenger. 
 `{"title":…,"repository":…,"number":…,"subject":…,"context":…}` (keys in this order; `number` is `null` when there is
 none), so it always starts with `{`; every row written by an earlier version starts with `<b>` (old-form row, below).
 No migration changes the column: it is still `text` ([Storage](storage.md)).
+
+- **Further lines.** A notification may also hold `lines`, at most 11 texts that follow line 3 (the activity digest
+  uses them, [The digest](#the-digest)). The key `lines` comes after `context` and is written only for a non-empty
+  list. `lines` that is not an array of at most 11 strings makes the row damaged (below). When it is rendered, each
+  line is cleaned and cut to 256 code points, escaped in this order, and an empty one is left out. A row without `lines`
+  is as before, and an older version decodes the row without the key and so sends a digest as its title alone.
+- **The length of a digest.** Telegram accepts 4,096 characters after its entities are parsed. The digest builder
+  keeps the title, the lines and the line feeds between them within 4,000 UTF-16 code units: it drops repository
+  lines from the end, counting them into `and <n> more repositories`, until they fit. The uncapped worst case is the
+  title (64 code points) and 11 lines of 256 code points, which is 2,880 code points and up to 5,760 UTF-16 code
+  units with astral characters. With ASCII logins and repository names the cap is never reached (about 2,900). Telegram counts the text after parsing its entities, so the bold tags and the escaping of `&`, `<` and `>` do not count toward its limit; that unescaped text is exactly what the cap measures.
 
 - Each text (title, repository, line 2 = `subject`, line 3 = `context`) is cleaned before it is stored, by
   `storedNotificationOf`:
@@ -232,7 +393,8 @@ No migration changes the column: it is still `text` ([Storage](storage.md)).
 - **Telegram rendering** (`renderTelegramText`, at send time): every field is cleaned and cut again, which changes
   nothing for a row this version wrote, and escaped. Line 1 is the title in bold (`<b>…</b>`), then `·`, the
   repository and, when there is a number, ` #` and the number; line 2 and line 3 follow, each on its own line, an
-  empty one left out; lines are separated by a single line feed. `&`, `<` and `>` are replaced by `&amp;`, `&lt;` and
+  empty one left out; then each further line of the notification (`lines`, below) the same way; lines are separated by
+  a single line feed. When the cleaned repository is empty, line 1 is the title alone, without `·`. `&`, `<` and `>` are replaced by `&amp;`, `&lt;` and
   `&gt;`, in this order, so a text that already contains an entity is shown as written. The text is sent with
   `parse_mode` `HTML`. It is the same text the earlier version stored when the row was written.
 - Cleaning keeps a text from breaking the three-line layout and removes the invisible characters that reorder text
@@ -248,8 +410,8 @@ No migration changes the column: it is still `text` ([Storage](storage.md)).
   affected: it sends the old text unchanged. The parsing
   uses `startsWith` and `indexOf`, no regular expression with unbounded groups.
 - **Damaged rows**: a row whose `text` starts with `{` but is not a valid stored notification (not JSON, not an object,
-  a missing or mistyped field, a number that is not a whole number from 1 to 2^53 − 1), or whose `text` is not a
-  string, is damaged. It is never sent: the attempt is counted as `failed`, no channel is called, and the other rows
+  a missing or mistyped field, a number that is not a whole number from 1 to 2^53 − 1, `lines` that is not an array of
+  at most 11 strings), or whose `text` is not a string, is damaged. It is never sent: the attempt is counted as `failed`, no channel is called, and the other rows
   of the batch are still sent. A row without a decoded notification whose `text` starts with `{` is decoded or
   marked damaged the same way when it is sent, so raw JSON never goes out as a message.
 
@@ -263,7 +425,11 @@ No migration changes the column: it is still `text` ([Storage](storage.md)).
   the titles of the CI failure rules with the draft-unknown title ([CI failure rules](#ci-failure-rules),
   [Draft lookup](#draft-lookup)), and the titles of the security alert rules
   ([Security alert rules](#security-alert-rules)): _Dependabot alert_, _Code scanning alert_, _Secret scanning alert_
-  (German _Dependabot-Warnung_, _Code-Scanning-Warnung_, _Secret-Scanning-Warnung_), and the title and line 2 of the
+  (German _Dependabot-Warnung_, _Code-Scanning-Warnung_, _Secret-Scanning-Warnung_), the titles of the issue and
+  comment rules and `by <author>` (German `von <author>`) of their line 3
+  ([Issue and comment rules](#issue-and-comment-rules)), the titles of the star and fork rules, `<n> stars now`, and
+  the digest's title and its star, fork and `and <k> more` parts ([Stars and forks](#stars-and-forks),
+  [The digest](#the-digest)), and the title and line 2 of the
   release notice ([Scheduled jobs](scheduled-jobs.md#release-message)).
 - The button reads _Open on GitHub_ in English and _Auf GitHub öffnen_ in German. Its language is the notification
   language at the time the row is sent, so a row still pending when the owner switches the language keeps its text
@@ -363,9 +529,9 @@ channel that sends it.
 - The request's log entry ([HTTP routes](http-routes.md#logging)) carries, besides delivery id and event, the
   payload's `action` when it matches `^[a-z_]{1,64}$`, the repository when `repository.full_name` matches
   `^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$`, each `null` otherwise, and the decision: `reported` (at least one
-  row written), `no-match` (no rule returned a notification, or the draft lookup dropped it), `disabled` (only rules whose switch is off did),
-  `duplicate` (a known delivery id), `invalid` (a 400 of this processing) or `unavailable` (a 503 of this
-  processing).
+  row written), `collected` (only `activity` rows written, [Stars and forks](#stars-and-forks)), `no-match` (no rule returned a notification, or the draft lookup dropped it), `disabled` (only rules whose switch is off did),
+  `duplicate` (a known delivery id; only a recorded delivery is known), `invalid` (a 400 of this processing) or `unavailable` (a 503 of this
+  processing). A `no-match` or `disabled` delivery is not recorded unless it removes a star.
 - Each row sent writes one log entry with exactly two fields: the row id and the result — `sent`, `rate-limited`,
   `token-rejected`, `failed`, `no-token`, `no-chat` or `store-failed` (the database could not be read or the row
   could not be updated). When that send was the row's fifth failed attempt and marked it `failed`, a second entry
@@ -378,6 +544,8 @@ channel that sends it.
 - A delivery answered 400 or 503 stores nothing and GitHub does not send it again on its own; the owner can redeliver
   it from the GitHub App's delivery list, which works because its id was not recorded. This is accepted: the
   "never lose a message" goal covers rows already in the `outbox`, not deliveries that were never recorded.
+- A delivery that was not recorded (step 6) is evaluated again when GitHub or the owner redelivers it, against the
+  settings and draft state of then; it can report then, once. A redelivery of a recorded delivery answers 200.
 - A throwing rule or formatter answers 503 `unavailable` and stores nothing, like a database failure.
 - The signature covers the body only, not `X-GitHub-Delivery` or `X-GitHub-Event`. Residual risk, inherent to
   GitHub's webhook design: someone holding a captured signed body can replay it with a new delivery id and cause a
@@ -407,6 +575,12 @@ channel that sends it.
 - [`decisions/0028-security-alert-rules.md`](../decisions/0028-security-alert-rules.md) — the three security alert
   rules, code scanning on the default branch only, secret scanning outside the draft guarantee, the field allow-list
   that keeps a secret out of rows, messages and logs.
+- [`decisions/0040-issue-and-comment-rules.md`](../decisions/0040-issue-and-comment-rules.md) — the three issue and
+  comment rules, the owner read by the processing and passed to the rules, an unknown owner reported, the draft state
+  from the payload with the lookup as fallback, an unknown state dropped, HTML comments removed from the excerpt.
+- [`decisions/0041-fork-and-star-rules-with-a-digest.md`](../decisions/0041-fork-and-star-rules-with-a-digest.md) —
+  the star and fork rules, the `activity` table, the digest as further lines of a stored notification, digest times
+  after the previous run.
 - [`decisions/0025-quiet-hours-decided-at-sending.md`](../decisions/0025-quiet-hours-decided-at-sending.md) — quiet
   hours applied at each send rather than when the row is written, one clock reading per row, wall-clock times.
 - [`decisions/0008-delivery-through-a-d1-outbox.md`](../decisions/0008-delivery-through-a-d1-outbox.md) — the
@@ -415,6 +589,9 @@ channel that sends it.
   — the fifth failed attempt marks a row `failed` in the update that counts it.
 - [`decisions/0016-telegram-chat-in-the-setup-wizard.md`](../decisions/0016-telegram-chat-in-the-setup-wizard.md)
   — the chat, `TELEGRAM_CHAT_ID` and the Bot API client built from the reference.
+
+- [`decisions/0043-only-deliveries-with-an-effect-are-recorded.md`](../decisions/0043-only-deliveries-with-an-effect-are-recorded.md)
+  — only a delivery with an `outbox` row or an `activity` change is recorded; `last_delivery` is kept by a bounded write.
 
 ## Not here
 

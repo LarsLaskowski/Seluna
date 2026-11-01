@@ -1,19 +1,27 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  DIGEST_RUN_META_KEY,
+  digestRunUpsert,
+  GITHUB_APP_OWNER_META_KEY,
   GITHUB_APP_SLUG_META_KEY,
   LAST_DELIVERY_META_KEY,
+  LAST_DELIVERY_REFRESH_MS,
   lastDeliveryUpsert,
+  readAppOwner,
   readAppSlug,
+  readDigestRun,
   readLastDelivery,
+  refreshLastDelivery,
+  writeAppOwner,
   writeAppSlug,
 } from "./meta";
 import { applyMigrations } from "../../test/d1";
 
 beforeEach(async () => {
   await applyMigrations(env.DB);
-  await env.DB.prepare("DELETE FROM meta WHERE key IN (?1, ?2)")
-    .bind(LAST_DELIVERY_META_KEY, GITHUB_APP_SLUG_META_KEY)
+  await env.DB.prepare("DELETE FROM meta WHERE key IN (?1, ?2, ?3)")
+    .bind(LAST_DELIVERY_META_KEY, GITHUB_APP_SLUG_META_KEY, GITHUB_APP_OWNER_META_KEY)
     .run();
 });
 
@@ -97,6 +105,95 @@ describe("writeAppSlug", () => {
   });
 });
 
+describe("writeAppOwner and readAppOwner", () => {
+  it("GITHUB_APP_OWNER_META_KEY names the row github_app_owner", () => {
+    expect(GITHUB_APP_OWNER_META_KEY, "key").toBe("github_app_owner");
+  });
+
+  it("writeAppOwner and readAppOwner round-trip an owner", async () => {
+    await writeAppOwner(env.DB, 12_345, { id: 583_231, login: "octocat", type: "User" });
+
+    const owner = await readAppOwner(env.DB, 12_345);
+
+    expect(await storedMeta(GITHUB_APP_OWNER_META_KEY), "stored value").toBe("12345:583231:User:octocat");
+    expect(owner, "owner read back").toEqual({ id: 583_231, login: "octocat", type: "User" });
+  });
+
+  it("writeAppOwner and readAppOwner round-trip an organization", async () => {
+    await writeAppOwner(env.DB, 7, { id: 9, login: "Octo-Org", type: "Organization" });
+
+    const owner = await readAppOwner(env.DB, 7);
+
+    expect(await storedMeta(GITHUB_APP_OWNER_META_KEY), "stored value").toBe("7:9:Organization:Octo-Org");
+    expect(owner, "owner read back").toEqual({ id: 9, login: "Octo-Org", type: "Organization" });
+  });
+
+  it("writeAppOwner replaces an earlier owner", async () => {
+    await writeAppOwner(env.DB, 1, { id: 10, login: "first-owner", type: "User" });
+
+    await writeAppOwner(env.DB, 2, { id: 20, login: "second-owner", type: "Organization" });
+
+    expect(await storedMeta(GITHUB_APP_OWNER_META_KEY), "stored value").toBe("2:20:Organization:second-owner");
+    expect(await readAppOwner(env.DB, 1), "owner of the first App ID").toBeUndefined();
+    expect(await readAppOwner(env.DB, 2), "owner of the second App ID").toEqual({
+      id: 20,
+      login: "second-owner",
+      type: "Organization",
+    });
+  });
+
+  it.each([
+    { name: "a different App ID", appId: 54_321 },
+    { name: "an App ID that only starts the same", appId: 1234 },
+    { name: "an App ID that only ends the same", appId: 2345 },
+  ])("readAppOwner ignores an owner of another App ID: $name", async ({ appId }) => {
+    await putMeta(GITHUB_APP_OWNER_META_KEY, "12345:583231:User:octocat");
+
+    const owner = await readAppOwner(env.DB, appId);
+
+    expect(owner, "owner").toBeUndefined();
+  });
+
+  it.each([
+    { case: "a value without colons", stored: "octocat" },
+    { case: "a value without a login", stored: "12345:583231:User" },
+    { case: "a value with an empty login", stored: "12345:583231:User:" },
+    { case: "a value with an extra part", stored: "12345:583231:User:octocat:x" },
+    { case: "an unknown type", stored: "12345:583231:Bot:octocat" },
+    { case: "a type in lowercase", stored: "12345:583231:user:octocat" },
+    { case: "an owner id of 0", stored: "12345:0:User:octocat" },
+    { case: "a negative owner id", stored: "12345:-1:User:octocat" },
+    { case: "a fractional owner id", stored: "12345:1.5:User:octocat" },
+    { case: "an owner id with a leading zero", stored: "12345:01:User:octocat" },
+    { case: "an owner id beyond the safe integers", stored: "12345:9007199254740993:User:octocat" },
+    { case: "an owner id that is not a number", stored: "12345:abc:User:octocat" },
+    { case: "a login with a trailing hyphen", stored: "12345:583231:User:octocat-" },
+    { case: "a login with a slash", stored: "12345:583231:User:octo/cat" },
+    { case: "a login of 40 characters", stored: `12345:583231:User:${"a".repeat(40)}` },
+    { case: "a login with a trailing line feed", stored: "12345:583231:User:octocat\n" },
+  ])("readAppOwner reads $case as absent", async ({ stored }) => {
+    await putMeta(GITHUB_APP_OWNER_META_KEY, stored);
+
+    const owner = await readAppOwner(env.DB, 12_345);
+
+    expect(owner, "owner").toBeUndefined();
+  });
+
+  it("readAppOwner returns undefined when no row is stored", async () => {
+    const owner = await readAppOwner(env.DB, 12_345);
+
+    expect(owner, "owner").toBeUndefined();
+  });
+
+  it("writeAppOwner leaves the slug row alone", async () => {
+    await writeAppSlug(env.DB, 12_345, "seluna-demo");
+
+    await writeAppOwner(env.DB, 12_345, { id: 1, login: "octocat", type: "User" });
+
+    expect(await storedMeta(GITHUB_APP_SLUG_META_KEY), "slug row").toBe("12345:seluna-demo");
+  });
+});
+
 describe("lastDeliveryUpsert", () => {
   it("lastDeliveryUpsert stores the time readLastDelivery reads", async () => {
     await putMeta(LAST_DELIVERY_META_KEY, "1000");
@@ -106,5 +203,126 @@ describe("lastDeliveryUpsert", () => {
 
     expect(await storedMeta(LAST_DELIVERY_META_KEY), "stored text").toBe("1792240440000");
     expect((await readLastDelivery(env.DB))?.getTime(), "time read back").toBe(1_792_240_440_000);
+  });
+});
+
+describe("refreshLastDelivery", () => {
+  const now = 1_792_240_440_000;
+
+  it("refreshLastDelivery sets the time when no row is stored", async () => {
+    await refreshLastDelivery(env.DB, new Date(now));
+
+    expect(await storedMeta(LAST_DELIVERY_META_KEY), "stored last_delivery").toBe(String(now));
+  });
+
+  it.each([
+    {
+      case: "59,999 ms before",
+      stored: now - (LAST_DELIVERY_REFRESH_MS - 1),
+      expected: now - (LAST_DELIVERY_REFRESH_MS - 1),
+    },
+    { case: "exactly 60,000 ms before", stored: now - LAST_DELIVERY_REFRESH_MS, expected: now },
+    {
+      case: "59,999 ms after",
+      stored: now + (LAST_DELIVERY_REFRESH_MS - 1),
+      expected: now + (LAST_DELIVERY_REFRESH_MS - 1),
+    },
+    { case: "exactly 60,000 ms after", stored: now + LAST_DELIVERY_REFRESH_MS, expected: now },
+    { case: "the same time", stored: now, expected: now },
+    { case: "a time far before", stored: 0, expected: now },
+    { case: "a time far after", stored: now + 86_400_000, expected: now },
+  ])("refreshLastDelivery with a stored time $case stores $expected", async ({ stored, expected }) => {
+    await putMeta(LAST_DELIVERY_META_KEY, String(stored));
+
+    await refreshLastDelivery(env.DB, new Date(now));
+
+    expect(await storedMeta(LAST_DELIVERY_META_KEY), "stored last_delivery").toBe(String(expected));
+  });
+
+  it.each([
+    { case: "the empty text", stored: "", time: 1000 },
+    { case: "a text that is not a number", stored: "abc", time: 1000 },
+    { case: "a number with a leading zero", stored: "01", time: 1000 },
+    { case: "a negative number", stored: "-5", time: 1000 },
+    { case: "a decimal number", stored: "1.5", time: 1000 },
+    { case: "a number with a leading space", stored: " 5", time: 1000 },
+    { case: "a 17-digit number", stored: "12345678901234567", time: 1000 },
+    { case: "a time above the latest a Date holds", stored: "8640000000000001", time: 8_640_000_000_000_000 },
+    { case: "a time with an embedded NUL", stored: `${String(now)}\u0000x`, time: now },
+  ])("refreshLastDelivery replaces a stored value that is $case", async ({ stored, time }) => {
+    await putMeta(LAST_DELIVERY_META_KEY, stored);
+
+    await refreshLastDelivery(env.DB, new Date(time));
+
+    expect(await storedMeta(LAST_DELIVERY_META_KEY), "stored last_delivery").toBe(String(time));
+    expect((await readLastDelivery(env.DB))?.getTime(), "time read back").toBe(time);
+  });
+
+  it("refreshLastDelivery leaves the github_app_slug row untouched", async () => {
+    await putMeta(GITHUB_APP_SLUG_META_KEY, "123:seluna");
+
+    await refreshLastDelivery(env.DB, new Date(now));
+
+    expect(await storedMeta(GITHUB_APP_SLUG_META_KEY), "stored slug").toBe("123:seluna");
+    expect(await storedMeta(LAST_DELIVERY_META_KEY), "stored last_delivery").toBe(String(now));
+  });
+});
+
+describe("readDigestRun", () => {
+  beforeEach(async () => {
+    await env.DB.prepare("DELETE FROM meta WHERE key = ?1").bind(DIGEST_RUN_META_KEY).run();
+  });
+
+  it("DIGEST_RUN_META_KEY names the row activity_digest_run", () => {
+    expect(DIGEST_RUN_META_KEY, "key").toBe("activity_digest_run");
+  });
+
+  it.each([
+    { case: "the time stored", stored: "1792240440000", expected: 1_792_240_440_000 },
+    { case: "the latest time a Date holds", stored: "8640000000000000", expected: 8_640_000_000_000_000 },
+    { case: "the epoch", stored: "0", expected: 0 },
+    { case: "undefined for a text that is not a number", stored: "abc", expected: undefined },
+    { case: "undefined for a negative number", stored: "-1", expected: undefined },
+    { case: "undefined for a number with a leading zero", stored: "01", expected: undefined },
+    { case: "undefined for an exponent", stored: "1e3", expected: undefined },
+    { case: "undefined for the empty text", stored: "", expected: undefined },
+    { case: "undefined for a time above the latest a Date holds", stored: "8640000000000001", expected: undefined },
+  ])("readDigestRun returns $case", async ({ stored, expected }) => {
+    await putMeta(DIGEST_RUN_META_KEY, stored);
+
+    const time = await readDigestRun(env.DB);
+
+    expect(time?.getTime(), "time in milliseconds").toBe(expected);
+  });
+
+  it("readDigestRun returns undefined when no row is stored", async () => {
+    const time = await readDigestRun(env.DB);
+
+    expect(time, "time").toBeUndefined();
+  });
+
+  it("readDigestRun ignores the last delivery row", async () => {
+    await putMeta(LAST_DELIVERY_META_KEY, "1792240440000");
+
+    const time = await readDigestRun(env.DB);
+
+    expect(time, "time").toBeUndefined();
+  });
+
+  it("digestRunUpsert stores the time as decimal milliseconds and a second upsert replaces it", async () => {
+    await digestRunUpsert(env.DB, new Date(1_792_240_440_000)).run();
+    await digestRunUpsert(env.DB, new Date(1_792_241_040_000)).run();
+
+    expect(await storedMeta(DIGEST_RUN_META_KEY), "stored value").toBe("1792241040000");
+    expect((await readDigestRun(env.DB))?.getTime(), "read back").toBe(1_792_241_040_000);
+  });
+
+  it("digestRunUpsert leaves last_delivery alone and can run in a batch", async () => {
+    await putMeta(LAST_DELIVERY_META_KEY, "5");
+
+    await env.DB.batch([digestRunUpsert(env.DB, new Date(7))]);
+
+    expect(await storedMeta(LAST_DELIVERY_META_KEY), "last delivery").toBe("5");
+    expect(await storedMeta(DIGEST_RUN_META_KEY), "digest run").toBe("7");
   });
 });

@@ -18,8 +18,8 @@ anyone who can only read the database.
 
 ### Tables
 
-The first migration (`migrations/0001_initial_schema.sql`) creates exactly these six tables. Columns are
-`NOT NULL` unless marked nullable.
+The first migration (`migrations/0001_initial_schema.sql`) creates the first six tables below, and the second
+(`migrations/0002_activity.sql`) adds `activity`. Columns are `NOT NULL` unless marked nullable.
 
 | Table         | Column            | Type    | Holds                                                                                                                                                                                |
 | ------------- | ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -28,7 +28,7 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
 | `secrets`     | `key`             | TEXT    | Primary key: `github_app_id`, `github_private_key`, `github_webhook_secret` or `telegram_bot_token`                                                                                  |
 |               | `iv`              | TEXT    | Base64 of the 12-byte IV; the table rejects any value that is not 16 characters long                                                                                                 |
 |               | `ciphertext`      | TEXT    | Base64 of the AES-256-GCM ciphertext with its 16-byte tag                                                                                                                            |
-| `deliveries`  | `id`              | TEXT    | Primary key: the `X-GitHub-Delivery` value                                                                                                                                           |
+| `deliveries`  | `id`              | TEXT    | Primary key: the `X-GitHub-Delivery` value of a recorded delivery (one with an `outbox` row or an `activity` change)                                                                 |
 |               | `event`           | TEXT    | The `X-GitHub-Event` value                                                                                                                                                           |
 |               | `received_at`     | INTEGER | When the delivery was received (indexed)                                                                                                                                             |
 | `outbox`      | `id`              | INTEGER | Primary key, assigned by the database                                                                                                                                                |
@@ -44,19 +44,30 @@ The first migration (`migrations/0001_initial_schema.sql`) creates exactly these
 |               | `expires_at`      | INTEGER | When the token expires, as GitHub's `expires_at` of the token answer                                                                                                                 |
 | `meta`        | `key`             | TEXT    | Primary key: the name of a value the instance keeps for itself                                                                                                                       |
 |               | `value`           | TEXT    | The value as text                                                                                                                                                                    |
+| `activity`    | `id`              | INTEGER | Primary key with `AUTOINCREMENT`: an id is never reused, so a digest can delete exactly the rows up to the largest id it read                                                        |
+|               | `kind`            | TEXT    | `star` or `fork`; nothing else is accepted                                                                                                                                           |
+|               | `sender_id`       | INTEGER | The account that starred or forked (`sender.id`)                                                                                                                                     |
+|               | `sender_login`    | TEXT    | Its login, cleaned and cut to 64 code points ([Notifications](notifications.md#message-format))                                                                                      |
+|               | `repository_id`   | INTEGER | `repository.id`; indexed together with `sender_id`                                                                                                                                   |
+|               | `repository`      | TEXT    | `repository.full_name`, cleaned and cut to 140 code points                                                                                                                           |
+|               | `repository_url`  | TEXT    | Nullable: the repository's button URL, only an `https://github.com` URL                                                                                                              |
+|               | `star_count`      | INTEGER | Nullable: the repository's star count after a star; empty for a fork or an unknown count                                                                                             |
+|               | `created_at`      | INTEGER | When the delivery was received; indexed                                                                                                                                              |
 
 - `settings` holds the owner's choices: the language, the time zone, the quiet hours, the enabled rules, the
-  update notice, the Telegram chat id and the active delivery channel (`delivery_channel`, below). The notification settings are twelve rows with these keys and formats;
+  update notice, the Telegram chat id and the active delivery channel (`delivery_channel`, below). The notification settings are eighteen rows with these keys and formats;
   an absent row, or a value that does not fit its format, reads as the default of that row alone (code:
-  `settingsFromStored` in `src/settings.ts`), and the twelve rows are written in one batch:
+  `settingsFromStored` in `src/settings.ts`), and the eighteen rows are written in one batch:
 
-| Key                     | Value                                                                                                                                                                                                                                        | Default |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `notification_language` | `en` or `de`                                                                                                                                                                                                                                 | `en`    |
-| `time_zone`             | a name of `Intl.supportedValuesOf("timeZone")` of the runtime, or `UTC` (exact, case-sensitive)                                                                                                                                              | `UTC`   |
-| `quiet_hours`           | `off`, or `<start>-<end>` with two different `HH:MM` times (24-hour, `00:00` to `23:59`)                                                                                                                                                     | `off`   |
-| `rule_<id>`             | `on` or `off`, for each of `pull_request_opened`, `pull_request_ready_for_review`, `pull_request_review_requested`, `ci_failed_default_branch`, `ci_failed_pull_request`, `dependabot_alert`, `code_scanning_alert`, `secret_scanning_alert` | `on`    |
-| `update_notice`         | `on` or `off`                                                                                                                                                                                                                                | `on`    |
+| Key                                                 | Value                                                                                                                                                                                                                                                                                                                                                                      | Default       |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `notification_language`                             | `en` or `de`                                                                                                                                                                                                                                                                                                                                                               | `en`          |
+| `time_zone`                                         | a listed name of `Intl.supportedValuesOf("timeZone")`, `UTC`, or another zone name the runtime accepts, stored as the runtime's name of it; an alias or letter-case variant reads as the name the runtime resolves it to; an offset such as `+01:00` or a name the runtime rejects reads as `UTC` ([0042](../decisions/0042-time-zone-aliases-read-as-the-listed-name.md)) | `UTC`         |
+| `quiet_hours`                                       | `off`, or `<start>-<end>` with two different `HH:MM` times (24-hour, `00:00` to `23:59`)                                                                                                                                                                                                                                                                                   | `off`         |
+| `rule_<id>`                                         | `on` or `off`, for each of `pull_request_opened`, `pull_request_ready_for_review`, `pull_request_review_requested`, `ci_failed_default_branch`, `ci_failed_pull_request`, `dependabot_alert`, `code_scanning_alert`, `secret_scanning_alert`, `issue_opened`, `issue_comment`, `pull_request_comment`                                                                      | `on`          |
+| `rule_repository_starred`, `rule_repository_forked` | `on` or `off`                                                                                                                                                                                                                                                                                                                                                              | `off`         |
+| `update_notice`                                     | `on` or `off`                                                                                                                                                                                                                                                                                                                                                              | `on`          |
+| `activity_digest`                                   | `immediate`, `hourly` or `daily@HH:MM` (`HH:MM` 24-hour, `00:00` to `23:59`); any other value, such as `daily@24:00`, `daily@` or `weekly`, reads as the default                                                                                                                                                                                                           | `daily@18:00` |
 
 The quiet hours are one row: switching them off stores `off` and drops the times. Consumers read them only
 through `readNotificationSettings` or `settingsFromStored`, as `quietHours` (start inclusive, end exclusive).
@@ -97,15 +108,33 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   deleted 30 days after they were written, `deliveries` rows 7 days after they were received
   ([Scheduled jobs](scheduled-jobs.md#cleanup)).
 - `meta` holds the last notified release (`notified_release`, below), the time of the last delivery, the key check value
-  (`key_check`, below), the GitHub App's slug and the setup login's failed-attempt count (`login_attempts`, format
+  (`key_check`, below), the GitHub App's slug and owner and the setup login's failed-attempt count (`login_attempts`, format
   and rules in [Setup wizard](setup-wizard.md#failed-attempts-and-the-lock)).
 - The `meta` row `last_delivery` is the time of the last received webhook delivery, as decimal milliseconds since
   1970-01-01 UTC matching `^(0|[1-9]\d{0,15})$` and at most `8640000000000000` (the latest time a JavaScript `Date`
-  holds); a value that does not fit counts as no delivery. The webhook processing writes it, in the same transaction as the `deliveries` and `outbox` rows
-  of a new delivery ([Notifications](notifications.md#processing-a-delivery)); the setup wizard only reads it.
+  holds); a value that does not fit counts as no delivery. The webhook processing writes it in the transaction of a recorded delivery (with its `deliveries` and `outbox`
+  rows, [Notifications](notifications.md#processing-a-delivery)), and for a delivery that is not recorded by one
+  conditional statement that sets it only when the stored value is missing, does not fit that form, or lies 60 seconds
+  or more from the time received; a failure of that write is ignored. The setup wizard only reads it, so it can lag
+  the latest delivery by up to a minute.
+- The `meta` row `activity_digest_run` is the time of the last run of the digest job, as decimal milliseconds in the
+  same form as `last_delivery`; a value that does not fit counts as no run. Only the digest job writes it, in each
+  run that gets as far as storing it ([Scheduled jobs](scheduled-jobs.md#digest)).
+- `activity` rows are written by the webhook processing in the delivery's transaction, and a star row is removed by
+  an unstar of the same account in the same repository. The digest job deletes the rows it counted, in the batch that
+  writes the digest's `outbox` row, and rows older than 7 days (a bounded delete of at most 1,000 per run, only while
+  a switch is on). No other component reads or writes the table.
 - The `meta` row `github_app_slug` is `<appId>:<slug>`: `<appId>` the decimal App ID, `<slug>` matching
   `^[a-z0-9-]{1,100}$`. It is plain text (a slug is public) and is written by the GitHub App step after the three
   credentials were stored; it counts only for the App ID in its value, any other value reads as absent.
+- The `meta` row `github_app_owner` is `<appId>:<ownerId>:<type>:<login>`: `<appId>` the decimal App ID, `<ownerId>`
+  the owner account's numeric id (a decimal safe integer from 1, no leading zero), `<type>` exactly `User` or
+  `Organization` and `<login>` a GitHub account name (1 to 39 characters, letters, digits and inner hyphens). It is
+  plain text (an owner is public) and counts only for the App ID in its value; a value with any other form, App ID or
+  part reads as absent. The GitHub App step writes it after the credentials were stored (a failed write is dropped and
+  the app is created anyway), and the status page replaces it when GitHub's answer for the same App ID names another
+  owner. The rules compare the owner by its numeric id, never by the login ([Notifications](notifications.md#the-sender)).
+  The reset keeps it, like the slug.
 - The `meta` row `notified_release` is the newest Seluna release the release check reported, as `A.B.C` (each part a
   whole number from 0 to 999,999,999 without leading zeros). Only the release check writes it, in one transaction
   with the notice's `outbox` row and only while it still holds the value read before, and never lowers it; a value of
@@ -136,9 +165,12 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   `seluna/setup-github/v1` ([Setup wizard](setup-wizard.md#github-app)).
 - Each value is bound to its place as additional authenticated data, the UTF-8 bytes of:
   - `secrets/<key>` for a row of `secrets`;
-  - `token_cache/<installation_id>/<expires_at>` for a row of `token_cache`, both numbers in decimal without
-    leading zeros, as JavaScript's `String()` writes an integer. Because `expires_at` is part of it, a row whose
-    expiry was changed afterwards does not decrypt and is treated like a missing token;
+  - `token_cache/<installation_id>/<expires_at>/<permissions>` for a row of `token_cache`, the two numbers in decimal
+    without leading zeros, as JavaScript's `String()` writes an integer, and `<permissions>` the permission list the
+    token was requested with as `name=level` pairs sorted by name and joined by commas
+    (`metadata=read,pull_requests=read`). Because `expires_at` and the list are part of it, a row whose expiry was
+    changed afterwards, and every row written for another list, does not decrypt and is treated like a missing
+    token ([GitHub API](github-api.md#installation-tokens));
   - `meta/key_check` for the key check value.
 
   A ciphertext copied into another row does not decrypt there.

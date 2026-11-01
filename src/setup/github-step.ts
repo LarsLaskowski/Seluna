@@ -4,7 +4,7 @@ import { appManifest, appName, isAccountName, manifestFormAction, parseAccountTy
 import type { AccountChoice } from "../github/manifest";
 import { toPkcs8Pem } from "../github/private-key";
 import { workerCredentials } from "../github/worker-secrets";
-import { writeAppSlug } from "../store/meta";
+import { writeAppOwner, writeAppSlug } from "../store/meta";
 import { checkKey, readSecret, writeSecrets } from "../store/secrets";
 import { createGitHubState, isWellFormedGitHubState, verifyGitHubState } from "./github-state";
 
@@ -226,6 +226,7 @@ async function storeApp(
     return { kind: "store-failed" };
   }
   await keepSlug(db, app);
+  await keepOwner(db, app);
   return { kind: "created", slug: app.slug };
 }
 
@@ -236,6 +237,18 @@ async function keepSlug(db: D1Database, app: ConvertedApp): Promise<void> {
   }
   try {
     await writeAppSlug(db, app.appId, app.slug);
+  } catch {
+    // The error is deliberately dropped: it must reach neither the log nor the response.
+  }
+}
+
+/** Keeps the app's owner beside its App ID; a failure is dropped, the app is created either way. */
+async function keepOwner(db: D1Database, app: ConvertedApp): Promise<void> {
+  if (app.account === undefined) {
+    return;
+  }
+  try {
+    await writeAppOwner(db, app.appId, app.account);
   } catch {
     // The error is deliberately dropped: it must reach neither the log nor the response.
   }

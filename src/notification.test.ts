@@ -3,6 +3,7 @@ import {
   decodeStoredNotification,
   encodeStoredNotification,
   legacyNotificationOf,
+  MAX_EXTRA_LINES,
   storedNotificationOf,
 } from "./notification";
 import type { StoredNotification } from "./notification";
@@ -279,5 +280,76 @@ describe("legacyNotificationOf", () => {
     const stored = legacyNotificationOf(text);
 
     expect(stored, "recovered notification").toBeUndefined();
+  });
+});
+
+const BASE_ROW = '"title":"T","repository":"o/r","number":7,"subject":"S","context":"C"';
+
+describe("the lines of a stored notification", () => {
+  it("MAX_EXTRA_LINES is 11", () => {
+    expect(MAX_EXTRA_LINES, "limit").toBe(11);
+  });
+
+  it("encodeStoredNotification writes lines after context", () => {
+    const text = encodeStoredNotification(storedWith({ lines: ["a", "b <c>"] }));
+
+    expect(text, "encoded").toBe(`{${BASE_ROW},"lines":["a","b <c>"]}`);
+  });
+
+  it.each([
+    { case: "no lines", notification: storedWith({}) },
+    { case: "an empty list of lines", notification: storedWith({ lines: [] }) },
+  ])("encodeStoredNotification leaves the key lines out for $case", ({ notification }) => {
+    const text = encodeStoredNotification(notification);
+
+    expect(text, "encoded").toBe(`{${BASE_ROW}}`);
+  });
+
+  it.each([
+    { case: "one line", lines: ["a"] },
+    { case: "three lines with markup, quotes and an astral character", lines: ['<b>"x"</b>', "a & b", "\u{1F600}"] },
+    { case: "the most lines", lines: Array.from({ length: 11 }, (_unused, index) => `line ${String(index)}`) },
+  ])("decodeStoredNotification returns what encodeStoredNotification wrote for $case", ({ lines }) => {
+    const notification = storedWith({ number: undefined, repository: "", subject: "", context: "", lines });
+
+    const decoded = decodeStoredNotification(encodeStoredNotification(notification));
+
+    expect(decoded, "round trip").toEqual(notification);
+  });
+
+  it("decodeStoredNotification returns a row without lines as before, with no lines", () => {
+    const decoded = decodeStoredNotification(`{${BASE_ROW}}`);
+
+    expect(decoded, "decoded").toEqual(storedWith({}));
+    expect(decoded?.lines, "lines").toBeUndefined();
+  });
+
+  it("decodeStoredNotification ignores an unknown key", () => {
+    const decoded = decodeStoredNotification(`{${BASE_ROW},"future":["x"]}`);
+
+    expect(decoded, "decoded").toEqual(storedWith({}));
+  });
+
+  it.each([
+    { case: "twelve lines", lines: JSON.stringify(Array.from({ length: 12 }, () => "x")) },
+    { case: "a number in the list", lines: '["a",1]' },
+    { case: "null in the list", lines: '["a",null]' },
+    { case: "a nested list", lines: '[["a"]]' },
+    { case: "an object in the list", lines: '[{"a":"b"}]' },
+    { case: "a string instead of a list", lines: '"a"' },
+    { case: "an object instead of a list", lines: '{"0":"a"}' },
+    { case: "a number instead of a list", lines: "3" },
+    { case: "null instead of a list", lines: "null" },
+    { case: "true instead of a list", lines: "true" },
+  ])("decodeStoredNotification returns undefined for lines that are $case", ({ lines }) => {
+    const decoded = decodeStoredNotification(`{${BASE_ROW},"lines":${lines}}`);
+
+    expect(decoded, "decoded notification").toBeUndefined();
+  });
+
+  it("storedNotificationOf gives a notification no lines", () => {
+    const stored = storedNotificationOf(notificationWith({}));
+
+    expect("lines" in stored, "the stored form has no lines key").toBe(false);
   });
 });

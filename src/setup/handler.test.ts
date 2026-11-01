@@ -14,7 +14,7 @@ import {
 import type { ChannelList } from "../channels/channel";
 import { TELEGRAM_CHANNEL } from "../channels/telegram";
 import { MAX_TELEGRAM_RESPONSE_BYTES } from "../telegram";
-import { DEFAULT_SETTINGS } from "../settings";
+import { DEFAULT_SETTINGS, timeZones } from "../settings";
 import type { NotificationSettings } from "../settings";
 import { CSRF_COOKIE, csrfTokenFor, sessionCsrfTokenFor } from "./csrf";
 import { createChatProof } from "./chat-proof";
@@ -27,9 +27,11 @@ import { RESET_PATH, SETTINGS_PATH } from "./settings-form";
 import { TEXTS } from "./texts";
 import type { Notice } from "./texts";
 import { testChannel } from "../../test/channel";
+import { assertKeptUnlisted, spellingsOf } from "../../test/time-zones";
 import type { TestChannel } from "../../test/channel";
 import { applyMigrations, migrationTestDb, schemaOnlyDb, unusedDb } from "../../test/d1";
 import {
+  appBody,
   conversionAnswer,
   conversionOwnedBy,
   expectedManifestJson,
@@ -39,6 +41,8 @@ import {
   FIXTURE_WEBHOOK_SECRET,
   FIXTURES as GITHUB_FIXTURES,
   FIXTURE_PEM,
+  FULL_EVENTS,
+  FULL_PERMISSIONS,
   githubApiDouble,
   githubDouble,
   installationEntry,
@@ -3591,16 +3595,22 @@ const VALID_SETTINGS_FIELDS: readonly (readonly [string, string])[] = [
   ["rule_ci_failed_pull_request", "on"],
   ["rule_code_scanning_alert", "on"],
   ["rule_secret_scanning_alert", "on"],
+  ["rule_issue_opened", "on"],
+  ["rule_issue_comment", "on"],
+  ["rule_pull_request_comment", "on"],
   ["update_notice", "on"],
+  ["activity_digest", "daily"],
+  ["digest_time", "06:45"],
 ];
 
-/** The settings `VALID_SETTINGS_FIELDS` submit: every rule on but the Dependabot alert. */
+/** The settings `VALID_SETTINGS_FIELDS` submit: every rule on but the Dependabot alert, the star and the fork rule. */
 const SUBMITTED_SETTINGS: NotificationSettings = {
   language: "de",
   timeZone: "Europe/Berlin",
   quietHours: { start: "22:00", end: "07:00" },
   rules: { ...DEFAULT_SETTINGS.rules, dependabot_alert: false },
   updateNotice: true,
+  activityDigest: { kind: "daily", time: "06:45" },
 };
 
 /** The fields of a settings form with a valid session-bound token and `extra` appended to the valid fields. */
@@ -3664,6 +3674,7 @@ describe("handleSetup status page", () => {
     });
     expect(stored, "saving the app").toEqual({ kind: "ok" });
     const github = githubApiDouble({
+      app: githubJsonAnswer(500, { message: "Server Error" }),
       installations: githubJsonAnswer(200, [
         installationEntry({ account: { login: "octocat", type: "User" }, repository_selection: "all" }),
       ]),
@@ -3680,13 +3691,44 @@ describe("handleSetup status page", () => {
       html.indexOf(escapeHtml(TEXTS.en.githubAppLabel)),
     );
     expect(
-      github.requests.map((request) => request.url),
+      github.requests.map((request) => request.route),
       "GitHub requests",
-    ).toEqual(["https://api.github.com/app/installations?per_page=100"]);
+    ).toEqual(expect.arrayContaining(["app", "installations"]));
+    expect(github.requests.length, "number of GitHub requests").toBe(2);
+  });
+
+  it("GET /setup shows the owner of GET /app and stores it for the saved App ID", async () => {
+    const stored = await writeSecrets(env.DB, await keyFor(SECRET), {
+      github_app_id: "12345",
+      github_private_key: FIXTURE_PKCS8,
+      github_webhook_secret: "webhook-secret-text",
+    });
+    expect(stored, "saving the app").toEqual({ kind: "ok" });
+    const github = githubApiDouble({
+      app: githubJsonAnswer(
+        200,
+        appBody({
+          id: 12_345,
+          slug: "seluna-demo",
+          owner: { id: 583_231, login: "octocat", type: "User" },
+          permissions: FULL_PERMISSIONS,
+          events: FULL_EVENTS,
+        }),
+      ),
+      installations: githubJsonAnswer(200, []),
+    });
+
+    const response = await stepPage(githubDeps(github), "/setup");
+
+    expect(response.status, "status").toBe(200);
+    expect(await response.text(), "owner line").toContain("octocat (personal account)</p>");
+    const row = await env.DB.prepare("SELECT value FROM meta WHERE key = 'github_app_owner'").first();
+    expect(row?.value, "stored owner row").toBe("12345:583231:User:octocat");
   });
 
   it("GET /setup lists the installations of an app from the Worker secrets in GitHub's order", async () => {
     const github = githubApiDouble({
+      app: githubJsonAnswer(500, { message: "Server Error" }),
       installations: githubJsonAnswer(200, [
         installationEntry({ id: 1, account: { login: "octocat", type: "User" }, repository_selection: "all" }),
         installationEntry({ id: 2, account: { login: "octo-org", type: "Organization" } }),
@@ -3701,7 +3743,7 @@ describe("handleSetup status page", () => {
       `<li>octocat (${TEXTS.en.accountPersonal}), ${TEXTS.en.repositoriesAll}</li>\n` +
         `<li>octo-org (${TEXTS.en.accountOrganization}), ${TEXTS.en.repositoriesSelected}</li>`,
     );
-    expect(github.requests.length, "number of GitHub requests").toBe(1);
+    expect(github.requests.length, "number of GitHub requests").toBe(2);
   });
 
   it.each([
@@ -3712,7 +3754,10 @@ describe("handleSetup status page", () => {
   ] satisfies readonly { readonly case: string; readonly answer: GitHubAnswer }[])(
     "GET /setup answers 200 with installations unavailable when GitHub fails: $case",
     async ({ answer }) => {
-      const github = githubApiDouble({ installations: answer });
+      const github = githubApiDouble({
+        app: githubJsonAnswer(500, { message: "Server Error" }),
+        installations: answer,
+      });
       const deps = githubSecretDeps(github, { ...GITHUB_WORKER_SECRETS, GITHUB_APP_PRIVATE_KEY: FIXTURE_PEM });
 
       const response = await stepPage(deps, "/setup");
@@ -3773,6 +3818,49 @@ describe("handleSetup status page", () => {
     expect(inputTagOf(html, "quiet_end"), "quiet end").toContain('value="07:00"');
     expect(inputTagOf(html, "rule_dependabot_alert"), "disabled rule").not.toMatch(/\bchecked\b/);
     expect(inputTagOf(html, "rule_ci_failed_pull_request"), "enabled rule").toMatch(/\bchecked\b/);
+    expect(html, "digest interval").toContain('<option value="daily" selected>');
+    expect(inputTagOf(html, "digest_time"), "digest time").toContain('value="06:45"');
+  });
+
+  it("GET /setup selects and shows the listed name of a stored time zone alias", async () => {
+    const { listed, alias } = spellingsOf(["Asia/Kolkata", "Asia/Calcutta"]);
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('time_zone', ?1)").bind(alias).run();
+    await putMeta("last_delivery", "1792240440000");
+
+    const response = await stepPage(depsAt(), "/setup");
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    const select = /<select id="time_zone"[^>]*>([\s\S]*?)<\/select>/.exec(html)?.[1] ?? "";
+    expect(select, "listed spelling selected").toContain(`<option value="${listed}" selected>`);
+    expect(select.match(/<option\b/g), "no option besides the listed ones").toHaveLength(timeZones().length);
+    expect(select.match(/ selected>/g), "one selected option").toHaveLength(1);
+    expect(html, "last delivery").toContain(`2026-10-17 18:04 (${listed})`);
+  });
+
+  it("GET /setup selects and shows a stored unlisted time zone", async () => {
+    assertKeptUnlisted("Etc/GMT+5");
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('time_zone', 'Etc/GMT+5')").run();
+    await putMeta("last_delivery", "1792240440000");
+
+    const response = await stepPage(depsAt(), "/setup");
+
+    expect(response.status, "status").toBe(200);
+    const html = await response.text();
+    const select = /<select id="time_zone"[^>]*>([\s\S]*?)<\/select>/.exec(html)?.[1] ?? "";
+    expect(select.match(/<option\b[^>]*>/g)?.[0], "first option").toBe('<option value="Etc/GMT+5" selected>');
+    expect(select.match(/ selected>/g), "only the unlisted zone is selected").toHaveLength(1);
+    expect(html, "last delivery").toContain("2026-10-17 07:34 (Etc/GMT+5)");
+  });
+
+  it("GET /setup shows the default digest and unchecked star and fork switches without saved settings", async () => {
+    const response = await stepPage(depsAt(), "/setup");
+
+    const html = await response.text();
+    expect(html, "digest interval").toContain('<option value="daily" selected>');
+    expect(inputTagOf(html, "digest_time"), "digest time").toContain('value="18:00"');
+    expect(inputTagOf(html, "rule_repository_starred"), "star switch").not.toMatch(/\bchecked\b/);
+    expect(inputTagOf(html, "rule_repository_forked"), "fork switch").not.toMatch(/\bchecked\b/);
   });
 
   it("GET /setup answers 503 with the unavailable notice when D1 fails", async () => {
@@ -3797,6 +3885,82 @@ describe("handleSetup settings form", () => {
     expect(response.status, "status").toBe(303);
     expect(response.headers.get("Location"), "Location").toBe("/setup");
     expect(await readNotificationSettings(env.DB), "stored settings").toEqual(SUBMITTED_SETTINGS);
+  });
+
+  it.each([
+    {
+      case: "immediately",
+      fields: [["activity_digest", "immediate"]],
+      expected: { kind: "immediate" },
+    },
+    { case: "hourly", fields: [["activity_digest", "hourly"]], expected: { kind: "hourly" } },
+    {
+      case: "daily at 23:59",
+      fields: [
+        ["activity_digest", "daily"],
+        ["digest_time", "23:59"],
+      ],
+      expected: { kind: "daily", time: "23:59" },
+    },
+  ] as const)(
+    "POST /setup/settings stores the digest $case and the star and fork switches",
+    async ({ fields, expected }) => {
+      const names = new Set(["activity_digest", "digest_time"]);
+      const form: FormFields = [
+        ["csrf", await validCsrf()],
+        ...VALID_SETTINGS_FIELDS.filter(([name]) => !names.has(name)),
+        ["rule_repository_starred", "on"],
+        ...fields,
+      ];
+
+      const response = await postSignedIn(SETTINGS_PATH, form, depsAt());
+
+      expect(response.status, "status").toBe(303);
+      const stored = await readNotificationSettings(env.DB);
+      expect(stored.activityDigest, "stored digest").toEqual(expected);
+      expect(stored.rules.repository_starred, "star switch").toBe(true);
+      expect(stored.rules.repository_forked, "fork switch").toBe(false);
+    },
+  );
+
+  it.each([
+    { case: "without activity_digest", drop: ["activity_digest"], extra: [] },
+    { case: "with an unknown interval", drop: ["activity_digest"], extra: [["activity_digest", "weekly"]] },
+    { case: "with a repeated activity_digest", drop: [], extra: [["activity_digest", "hourly"]] },
+    { case: "with a daily digest and no time", drop: ["digest_time"], extra: [] },
+    { case: "with a daily digest at 24:00", drop: ["digest_time"], extra: [["digest_time", "24:00"]] },
+    { case: "with a repeated digest_time", drop: [], extra: [["digest_time", "07:00"]] },
+  ] as const)(
+    "POST /setup/settings answers 400 with the settings invalid notice $case and stores nothing",
+    async ({ drop, extra }) => {
+      const form: FormFields = [
+        ["csrf", await validCsrf()],
+        ...VALID_SETTINGS_FIELDS.filter(([name]) => !drop.some((dropped) => dropped === name)),
+        ...extra,
+      ];
+
+      const response = await postSignedIn(SETTINGS_PATH, form, depsAt());
+
+      expect(response.status, "status").toBe(400);
+      expect(await response.text(), "notice").toContain(noticeText("settings-invalid"));
+      expect(await settingsRowCount(), "number of settings rows").toBe(0);
+    },
+  );
+
+  it("POST /setup/settings shows the settings invalid notice with the digest time sentence", async () => {
+    const form: FormFields = [
+      ["csrf", await validCsrf()],
+      ...VALID_SETTINGS_FIELDS.filter(([name]) => name !== "digest_time"),
+    ];
+
+    const response = await postSignedIn(SETTINGS_PATH, form, depsAt());
+
+    expect(response.status, "status").toBe(400);
+    expect(await response.text(), "notice text").toContain(
+      escapeHtml(
+        "The settings were not saved. Check the values: quiet hours need a start and an end in the form 22:00, and the two must differ; a daily digest of stars and forks needs a time in the form 18:00.",
+      ),
+    );
   });
 
   it("POST /setup/settings answers 400 with the settings invalid notice and stores nothing", async () => {

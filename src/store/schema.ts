@@ -1,5 +1,13 @@
 /** The tables the migrations under `migrations/` create; the store modules read and write only these. */
-export const SCHEMA_TABLES: readonly string[] = ["settings", "secrets", "deliveries", "outbox", "token_cache", "meta"];
+export const SCHEMA_TABLES: readonly string[] = [
+  "settings",
+  "secrets",
+  "deliveries",
+  "outbox",
+  "token_cache",
+  "meta",
+  "activity",
+];
 
 /** The statement `readSchemaState` sends: the names of all tables in `sqlite_master`. */
 export const SCHEMA_TABLES_SQL = "SELECT name FROM sqlite_master WHERE type = 'table'";

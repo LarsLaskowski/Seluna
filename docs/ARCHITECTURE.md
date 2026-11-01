@@ -2,7 +2,7 @@
 
 <!-- project:begin architecture -->
 Seluna sends a Telegram message when something in the owner's GitHub repositories needs attention: a pull
-request is ready, a review is requested, CI failed or a security alert was opened. Draft pull requests trigger
+request is ready, a review is requested, CI failed, a security alert was opened, or an issue or comment was written by someone else. Draft pull requests trigger
 nothing; the exceptions are a CI failure in a pull request whose draft state could not be read (failure or no answer within 8 seconds),
 reported marked _draft status unknown_ ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)), and a
 secret scanning alert, which is reported whatever its source, a draft pull request's branch or text included
@@ -16,12 +16,12 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 | Component | Owns |
 | --------- | ---- |
 | Worker `fetch` handler | `POST /webhook`, `GET /health` (returns the version), `/setup` (the setup wizard), `GET /` (redirects to `/setup`) |
-| Webhook processing | Deduplication by `X-GitHub-Delivery`, the rules, the draft lookup of a CI failure in a pull request ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)), the outbox rows and the first send attempt of each row ([`areas/notifications.md`](areas/notifications.md), [decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)) |
-| GitHub API client | Calls of the GitHub API as the app: the app JWT, the installation tokens per `installation.id` cached encrypted in `token_cache`, the pull request read for the draft lookup of the webhook processing and the installations list for the status page ([`areas/github-api.md`](areas/github-api.md), [decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)) |
-| Rules | Pure functions of the event name, the payload and the settings to zero or one notification; no I/O, no clock |
+| Webhook processing | Deduplication by `X-GitHub-Delivery`, the owner read, the rules, the draft lookup of a CI failure in a pull request ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)) or of a comment on a pull request, the outbox rows and the first send attempt of each row ([`areas/notifications.md`](areas/notifications.md), [decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)) |
+| GitHub API client | Calls of the GitHub API as the app: the app JWT, the installation tokens per `installation.id` cached encrypted in `token_cache`, the pull request read for the draft lookup of the webhook processing (with tokens narrowed to the permissions of that one call), and the app read and the installations list for the status page ([`areas/github-api.md`](areas/github-api.md), [decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)) |
+| Rules | Pure functions of the event name, the payload, the settings and the stored app owner (read by the webhook processing) to zero or one notification (stars and forks included, which the processing sends or collects by the interval setting); no I/O, no clock |
 | Outbox and delivery channels | The D1 `outbox` table holding each message as a channel-neutral notification (JSON in `text`, no migration), and delivery through the one active delivery channel (`src/channels/`; Telegram is the first adapter, over the shared HTTP code of `src/channels/http.ts`), which renders the notification when it sends it, with one retry after a 429 and the cron's retry ([`areas/notifications.md`](areas/notifications.md), [decision 0038](decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)) |
 | Setup wizard | GitHub App creation through the manifest flow ([decision 0006](decisions/0006-github-app-per-user-manifest-flow.md), [decision 0017](decisions/0017-github-app-manifest-flow.md)), the Telegram bot token ([decision 0036](decisions/0036-telegram-bot-token-in-the-setup-wizard.md)) and chat, the setup login, the Messengers card that activates a delivery channel, the status page with the settings, the app's installations and the reset after a changed `SELUNA_SECRET` ([decision 0018](decisions/0018-settings-and-status-page.md)) |
-| Cron (`scheduled` handler) | Every 10 minutes: clean up D1 and retry the outbox up to the fifth attempt. Daily: check for a new Seluna release and send a notice ([`areas/scheduled-jobs.md`](areas/scheduled-jobs.md), [decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md), [decision 0030](decisions/0030-release-notice-without-credentials.md)) |
+| Cron (`scheduled` handler) | Every 10 minutes: clean up D1, retry the outbox up to the fifth attempt and build the digest of stars and forks. Daily: check for a new Seluna release and send a notice ([`areas/scheduled-jobs.md`](areas/scheduled-jobs.md), [decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md), [decision 0030](decisions/0030-release-notice-without-credentials.md)) |
 | D1 (`src/store/`) | `settings`, `secrets` (AES-256-GCM), `deliveries`, `outbox`, `token_cache` (AES-256-GCM), `meta`; the only code that reads or writes D1 |
 
 ```mermaid
@@ -31,7 +31,7 @@ flowchart LR
   R -->|notification| O[(D1 outbox)]
   O -->|render and send| CH[Active channel]
   CH --> T[Telegram Bot API]
-  C[Cron] -->|retry, cleanup| O
+  C[Cron] -->|retry, clean up, digest| O
   C -->|release check, no credentials| GA[GitHub API]
 ```
 
@@ -44,7 +44,7 @@ flowchart LR
    ([decision 0012](decisions/0012-webhook-signature-verification.md),
    [decision 0017](decisions/0017-github-app-manifest-flow.md)).
 2. A delivery id (`X-GitHub-Delivery`) that `deliveries` already holds is answered 200 and ignored.
-3. The payload goes through the rules, each a pure function of event name, payload and settings. A draft pull
+3. The payload goes through the rules, each a pure function of event name, payload, settings and the stored app owner (read once per delivery). A draft pull
    request, and any event no rule matches, produces nothing
    ([decision 0024](decisions/0024-pull-request-rules.md)). A failed CI run in a pull request names the pull request
    only by number, so the processing asks GitHub, as the app and within 8 seconds, whether it is a draft: a draft
@@ -53,10 +53,18 @@ flowchart LR
    New and reopened security alerts (Dependabot, code scanning on the default branch, secret scanning) are reported
    from the payload alone; no part of a secret reaches a message
    ([decision 0028](decisions/0028-security-alert-rules.md)).
-4. In one D1 transaction the delivery id is recorded in `deliveries`, each notification becomes a row in the
-   `outbox` as a cleaned, channel-neutral JSON notification ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md),
+   A new issue and a comment on an issue or a pull request are reported unless the owner or a bot wrote them; a
+   comment on a draft pull request, or one whose draft state stays unknown, produces nothing
+   ([decision 0040](decisions/0040-issue-and-comment-rules.md)).
+   A star or fork by another account (not the owner, not a bot; both switches off by default) is reported at once or,
+   by the setting _Stars and forks_ (daily at 18:00 by default), collected in the `activity` table and sent by the
+   cron as one digest; an unstar removes the star again ([decision 0041](decisions/0041-fork-and-star-rules-with-a-digest.md)).
+4. A delivery with a message or an `activity` change is recorded: in one D1 transaction its id is added to `deliveries`, each notification becomes a row in the
+   `outbox` (a collected star or fork becomes a row of `activity` instead) as a cleaned, channel-neutral JSON notification ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md),
    [decision 0038](decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)) and `meta`
-   records the time of the delivery; then the Worker answers 202. The active delivery channel (the setting
+   records the time of the delivery; then the Worker answers 202. Any other delivery is not recorded; only `meta` is
+   set by one bounded write, at most once a minute, and its failure is ignored
+   ([decision 0043](decisions/0043-only-deliveries-with-an-effect-are-recorded.md)). The active delivery channel (the setting
    `delivery_channel`, Telegram by default, read once per batch, no fallback) renders each row when it sends it; for
    Telegram that is escaped HTML, sent to the Bot API right after the answer (`waitUntil`), once more after a short 429 wait, and the cron trigger retries rows that are
    still pending; the fifth failed attempt marks a row failed, and it is not sent again
@@ -65,7 +73,7 @@ flowchart LR
    [`areas/notifications.md`](areas/notifications.md) ([decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)).
 
 Guarantees along the way (also in [`.squad/project.md`](../.squad/project.md), *Guarantees*): an invalid signature
-has no effect, a delivery is processed once (within the 7 days its `deliveries` row is kept), a matched event is stored before it is sent, and Telegram never calls
+has no effect, a delivery that led to a message or an `activity` change is processed once (within the 7 days its `deliveries` row is kept), a matched event is stored before it is sent, and Telegram never calls
 the Worker: it has no webhook and no route, the Worker calls only `getMe`, `getUpdates` and `sendMessage`, and the
 input it takes from Telegram is the status and `ok` of the `getMe` answer and the `getUpdates` answer of the setup
 wizard's signed-in Telegram step and the status of each `sendMessage` answer (for a 429 also its `retry_after`), all
@@ -93,7 +101,7 @@ only. The rules are in [`areas/http-routes.md`](areas/http-routes.md)
 
 | Schedule | Job |
 | -------- | --- |
-| every 10 minutes | Delete `deliveries` rows older than 7 days, `sent` and `failed` `outbox` rows older than 30 days and expired `token_cache` rows; then resend up to 10 `pending` `outbox` rows and mark a row `failed` after its fifth attempt ([decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md)) |
+| every 10 minutes | Delete `deliveries` rows older than 7 days, `sent` and `failed` `outbox` rows older than 30 days and expired `token_cache` rows; then resend up to 10 `pending` `outbox` rows and mark a row `failed` after its fifth attempt ([decision 0029](decisions/0029-outbox-retry-and-cleanup-by-the-cron.md)); then, while a star or fork switch is on and a digest time has passed since the previous run, turn the collected `activity` rows into one digest row and send it ([decision 0041](decisions/0041-fork-and-star-rules-with-a-digest.md)) |
 | daily | Unless the update notice is off, read the latest Seluna release without credentials and, when it is newer than the running and the remembered version, write and send a notice and remember the version in `meta` ([decision 0030](decisions/0030-release-notice-without-credentials.md)) |
 
 Each job catches its own failures and logs only a fixed result; the rules are in
@@ -105,12 +113,13 @@ Each job catches its own failures and logs only a fixed result; the rules are in
 | ----- | ----- |
 | `settings` | Instance settings (for example the chat id, the active delivery channel, the notification options) |
 | `secrets` | GitHub App credentials and the Telegram bot token entered in the setup wizard, AES-256-GCM ciphertext |
-| `deliveries` | Processed `X-GitHub-Delivery` ids, for deduplication |
+| `deliveries` | Ids of deliveries with a message or an `activity` change, for deduplication |
 | `outbox` | Notifications waiting for, or past, delivery; `text` holds the notification as JSON (rows of earlier versions: Telegram HTML) |
 | `token_cache` | Short-lived GitHub installation tokens, AES-256-GCM ciphertext |
-| `meta` | The last notified release, the time of the last delivery, the key check value that detects a changed `SELUNA_SECRET`, the setup login's failed-attempt count and the slug of the GitHub App the setup wizard created |
+| `activity` | Stars and forks collected for the digest, with the account, the repository and the time ([decision 0041](decisions/0041-fork-and-star-rules-with-a-digest.md)) |
+| `meta` | The time of the last digest run, the last notified release, the time of the last delivery, the key check value that detects a changed `SELUNA_SECRET`, the setup login's failed-attempt count, the slug of the GitHub App the setup wizard created and the owner of the GitHub App |
 
-All six tables come from the first migration; only the modules under `src/store/` access them. The key for the
+All seven tables come from the migrations (`activity` from `0002`); only the modules under `src/store/` access them. The key for the
 encrypted columns is derived from `SELUNA_SECRET` and never stored, so a reader of the database alone learns no
 credential. Columns, formats and the key check are in [`areas/storage.md`](areas/storage.md)
 ([decision 0007](decisions/0007-github-app-credentials-encrypted-in-d1.md),
@@ -147,10 +156,10 @@ narrowed, and the three credentials are stored together or not at all
 check: one request to a fixed URL of the upstream repository with no credential, read bounded, narrowed to a
 `tag_name` of the strict form `vA.B.C`, and the notice built from the parsed numbers only
 ([decision 0030](decisions/0030-release-notice-without-credentials.md)). Every other GitHub call is made as the app: a JWT
-signed with the private key for each `/app/...` request, never stored, and per installation a token that is cached
+signed with the private key for each call that needs one (one per status page view for both of its requests), never stored, and per installation a token, requested with only the permissions the pull request read needs, that is cached
 only encrypted and dropped when GitHub refuses it; what enters a URL is allow-listed, redirects are not followed and
-every answer is read bounded and narrowed; the signed-in status page calls GitHub, and so does the webhook processing
-for the draft state of a pull request with a failed CI run, with the installation of the signed delivery
+every answer is read bounded and narrowed; the signed-in status page calls GitHub (the app and its installations, under one JWT), and so does the webhook processing
+for the draft state of a pull request with a failed CI run or a comment, with the installation of the signed delivery
 ([decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)).
 The concrete areas are listed in [`.squad/project.md`](../.squad/project.md) (*Security areas*) and
 [`SECURITY.md`](../SECURITY.md).

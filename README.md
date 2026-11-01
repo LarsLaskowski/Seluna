@@ -27,7 +27,7 @@ Pull requests wait for a review, a build turns red, a security alert opens, and 
 - **Your messenger.** Telegram works today. ntfy, Gotify, Matrix and Discord are planned, and you will be able to switch between the ones you have set up.
 - **Free to run.** It fits the Cloudflare free plan; D1 and Telegram cost nothing either.
 - **Set up in the browser.** Click the button above, then follow the setup wizard. No command line is needed. The aim is a working setup in under 15 minutes.
-- **No upkeep for new repositories.** Install the GitHub App on all your repositories and new ones are covered automatically.
+- **You choose the repositories.** Install the GitHub App on only the repositories you pick, and add a new repository to the installation when you want it covered.
 - **Personal and team use.** Your own account or an organization, a private chat or a group chat. Messages come in English or German.
 
 ## What you get notified about
@@ -39,9 +39,11 @@ Pull requests wait for a review, a build turns red, a security alert opens, and 
 | A review is requested                                                                                 | available |
 | CI failed on the default branch or in a pull request                                                  | available |
 | A Dependabot, code scanning or secret scanning alert is opened (code scanning: on the default branch) | available |
+| A new issue, or a comment on an issue or a pull request (not your own and not a bot's)                | available |
+| A new star or fork (not your own and not a bot's), at once or as an hourly or daily digest            | available |
 | A new Seluna release is available                                                                     | available |
 
-Each message names the repository and the case, shows the title and the context (for a pull request its author and branches, for a failed CI run the branch and the first line of the commit message, for a security alert its name and severity or type) and carries a button that opens the item on GitHub. Draft pull requests trigger nothing; a leaked secret is reported even when it was pushed to a draft pull request, and the secret itself is never shown. When GitHub cannot tell in time whether a pull request with a failed CI run is a draft, the message says so. Quiet hours deliver messages without sound instead of holding them back.
+Each message names the repository and the case, shows the title and the context (for a pull request its author and branches, for a failed CI run the branch and the first line of the commit message, for a security alert its name and severity or type, for an issue or comment its author and the beginning of its text, for a star or fork who did it) and carries a button that opens the item on GitHub. Draft pull requests trigger nothing, and neither do comments on them; a leaked secret is reported even when it was pushed to a draft pull request, and the secret itself is never shown. When GitHub cannot tell in time whether a pull request with a failed CI run is a draft, the message says so. Quiet hours deliver messages without sound instead of holding them back.
 
 ## How it works
 
@@ -54,7 +56,7 @@ flowchart LR
   C[Cron] -->|retry, clean up| O
 ```
 
-Every webhook is checked against its signature before anything happens. A delivery is processed once, a matching event is stored in the outbox before it is sent, and your messenger never calls your instance: Seluna only sends. The GitHub App credentials and the Telegram bot token you enter in the setup are stored encrypted. The details are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Every webhook is checked against its signature before anything happens. A delivery that led to a message or a collected star or fork is processed once, a matching event is stored in the outbox before it is sent, and your messenger never calls your instance: Seluna only sends. The GitHub App credentials and the Telegram bot token you enter in the setup are stored encrypted. The details are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Get started
 
@@ -69,20 +71,23 @@ The full walk-through is in the [setup guide](docs/setup.md). Every push to `mai
 
 Change them on the setup page (`/setup`); they apply without a new deployment.
 
-| Setting                                                           | Default  |
-| ----------------------------------------------------------------- | -------- |
-| Language of the notifications (English or German)                 | English  |
-| Time zone                                                         | UTC      |
-| Quiet hours (notifications arrive without sound)                  | off      |
-| New pull request, pull request ready for review, review requested | on       |
-| CI failed on the default branch, CI failed in a pull request      | on       |
-| Dependabot alert, code scanning alert, secret scanning alert      | on       |
-| Notice about a new Seluna release                                 | on       |
-| Messenger (on the start page)                                     | Telegram |
+| Setting                                                           | Default        |
+| ----------------------------------------------------------------- | -------------- |
+| Language of the notifications (English or German)                 | English        |
+| Time zone                                                         | UTC            |
+| Quiet hours (notifications arrive without sound)                  | off            |
+| New pull request, pull request ready for review, review requested | on             |
+| CI failed on the default branch, CI failed in a pull request      | on             |
+| Dependabot alert, code scanning alert, secret scanning alert      | on             |
+| New issue, new comment on an issue, new comment on a pull request | on             |
+| New star on a repository, new fork of a repository                | off            |
+| Stars and forks: immediately, hourly or daily at a time           | daily at 18:00 |
+| Notice about a new Seluna release                                 | on             |
+| Messenger (on the start page)                                     | Telegram       |
 
 ## Status
 
-Seluna is in active development and can already notify you about pull requests, failed CI runs, security alerts and new Seluna releases. The path to 1.0.0 is planned release by release:
+Seluna is in active development and can already notify you about pull requests, failed CI runs, security alerts, issues and comments and new Seluna releases. The path to 1.0.0 is planned release by release:
 
 | Release         | What it adds                                                          |
 | --------------- | --------------------------------------------------------------------- |

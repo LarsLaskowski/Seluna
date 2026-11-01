@@ -35,6 +35,19 @@ describe("schemaStateOf", () => {
   });
 });
 
+describe("SCHEMA_TABLES with the activity table", () => {
+  it("SCHEMA_TABLES lists seven tables and the activity table among them", () => {
+    expect(SCHEMA_TABLES, "tables").toContain("activity");
+    expect(SCHEMA_TABLES, "number of tables").toHaveLength(7);
+  });
+
+  it("schemaStateOf returns tables-missing for the six tables of the first migration", () => {
+    const state = schemaStateOf(["settings", "secrets", "deliveries", "outbox", "token_cache", "meta"]);
+
+    expect(state, "state").toBe("tables-missing");
+  });
+});
+
 describe("readSchemaState", () => {
   it("readSchemaState returns complete for a migrated database", async () => {
     await applyMigrations(env.DB);

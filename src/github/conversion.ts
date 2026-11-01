@@ -1,6 +1,8 @@
 import { readJsonWithLimit } from "../body";
 import { isAccountName } from "./manifest";
 import type { AccountChoice } from "./manifest";
+import { parseOwnerAccount } from "./owner";
+import type { OwnerAccount } from "./owner";
 
 /** Sends one request to the GitHub API; injected so tests never reach the network. Same shape as `TelegramFetch`. */
 export type GitHubFetch = (request: Request) => Promise<Response>;
@@ -25,6 +27,8 @@ export interface AppOwner {
 export interface ConvertedApp {
   readonly appId: number;
   readonly owner: AppOwner;
+  /** The owner with its numeric id, parsed apart from `owner`; `undefined` when its id or shape is unusable. */
+  readonly account: OwnerAccount | undefined;
   readonly slug: string | undefined;
   readonly pem: string;
   readonly webhookSecret: string;
@@ -78,6 +82,7 @@ export function parseConversion(body: unknown): ConvertedApp | undefined {
   return {
     appId: id,
     owner,
+    account: parseOwnerAccount(body.owner),
     slug: typeof slug === "string" && APP_SLUG.test(slug) ? slug : undefined,
     pem,
     webhookSecret,

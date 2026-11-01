@@ -58,6 +58,10 @@ The run needs to push to `main` of your copy. If it ends with `GitHub refused th
 
 Then run the workflow again.
 
+## New GitHub permissions
+
+A release can ask more of the GitHub App, for example read access to Issues and Contents and the events for issues, comments, forks and stars. An app you already created keeps its old permissions until you accept the new ones on GitHub; until then those events are not delivered. After an update, open the setup page (`/setup`) and read the status section: **Missing on the app** names the permissions and events the app lacks. Select **Add them in the app's settings on GitHub**, add what is named and save. GitHub then asks each account the app is installed on to accept the change: in the **Installations** list, an entry marked **missing** carries the link **Review and accept on GitHub**; open it and accept the new permissions. Reload the status page: when nothing is missing, the **Missing** text and the suffixes are gone. Notifications keep working in the meantime, because Seluna asks GitHub for tokens that carry only the permissions it needs.
+
 ## Workflow files
 
 Your copy keeps every file under `.github/workflows/` as it is. GitHub does not let a workflow change workflow files with its own token, so a push that did would be refused. The update therefore applies everything else and, when the release changed a workflow file your copy has, lists it in the summary of the run: `The release changed these workflow files, which your copy keeps as they are: ...`.
