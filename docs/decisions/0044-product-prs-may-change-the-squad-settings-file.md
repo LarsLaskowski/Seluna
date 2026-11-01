@@ -11,13 +11,13 @@
 Record 0037 lets an issue or feature PR change no squad file except `.squad/stack.md`, `.squad/project.md` and the
 project blocks of `AGENTS.md` and its Copilot mirror. `.squad/tools/squad_settings.py` holds this repository's own
 settings for the squad tools: the coverage thresholds, the paths the gates read and `COVERAGE_PATHSPECS`. When a
-product change adds a file no unit test can cover, *Code a unit test cannot cover* in `.squad/routing.md` has the
+product change adds a file no unit test can cover, _Code a unit test cannot cover_ in `.squad/routing.md` has the
 same pull request exclude it from the coverage measure in that file, which 0037 forbade.
 
 ## Options considered
 
 1. **Keep the file a squad file**: the exclusion goes to a separate squad-maintenance pull request, and the product
-   pull request fails its *Coverage gate* until that one is merged.
+   pull request fails its _Coverage gate_ until that one is merged.
 2. **Treat the file like `stack.md` and `project.md`**: project knowledge a product pull request may change, while
    the scripts that import it stay template-managed. `scope-check.py` allows it (a fork pull request still may not).
 
