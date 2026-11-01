@@ -17,14 +17,19 @@ const EXPECTED = {
 
 describe("PULL_REQUEST_READY_FOR_REVIEW", () => {
   it("PULL_REQUEST_READY_FOR_REVIEW reports the real ready_for_review delivery in English", () => {
-    const notification = PULL_REQUEST_READY_FOR_REVIEW.evaluate("pull_request", readyForReview, DEFAULT_SETTINGS);
+    const notification = PULL_REQUEST_READY_FOR_REVIEW.evaluate(
+      "pull_request",
+      readyForReview,
+      DEFAULT_SETTINGS,
+      undefined,
+    );
 
     expect(PULL_REQUEST_READY_FOR_REVIEW.id, "id").toBe("pull_request_ready_for_review");
     expect(notification, "notification").toEqual(EXPECTED);
   });
 
   it("PULL_REQUEST_READY_FOR_REVIEW reports the real ready_for_review delivery in German", () => {
-    const notification = PULL_REQUEST_READY_FOR_REVIEW.evaluate("pull_request", readyForReview, GERMAN);
+    const notification = PULL_REQUEST_READY_FOR_REVIEW.evaluate("pull_request", readyForReview, GERMAN, undefined);
 
     expect(notification, "notification").toEqual({
       ...EXPECTED,
@@ -36,13 +41,13 @@ describe("PULL_REQUEST_READY_FOR_REVIEW", () => {
   it("PULL_REQUEST_READY_FOR_REVIEW ignores a ready_for_review payload that claims a draft", () => {
     const payload = variant(readyForReview, ["pull_request", "draft"], true);
 
-    const notification = PULL_REQUEST_READY_FOR_REVIEW.evaluate("pull_request", payload, DEFAULT_SETTINGS);
+    const notification = PULL_REQUEST_READY_FOR_REVIEW.evaluate("pull_request", payload, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toBeUndefined();
   });
 
   it("PULL_REQUEST_READY_FOR_REVIEW ignores an opened delivery", () => {
-    const notification = PULL_REQUEST_READY_FOR_REVIEW.evaluate("pull_request", opened, DEFAULT_SETTINGS);
+    const notification = PULL_REQUEST_READY_FOR_REVIEW.evaluate("pull_request", opened, DEFAULT_SETTINGS, undefined);
 
     expect(notification, "notification").toBeUndefined();
   });

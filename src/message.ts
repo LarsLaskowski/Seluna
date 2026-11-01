@@ -74,10 +74,12 @@ export function buttonUrl(url: string): string | undefined {
 export function renderTelegramText(notification: StoredNotification): string {
   const number = notification.number;
   const numberText = number !== undefined && Number.isSafeInteger(number) && number >= 1 ? ` #${String(number)}` : "";
+  const repository = cleanField(notification.repository, MAX_REPOSITORY_CHARACTERS);
+  const repositoryText = repository === "" ? "" : ` · ${escapeTelegramHtml(repository)}`;
   const lines = [
-    `<b>${escapeTelegramHtml(cleanField(notification.title, MAX_TITLE_CHARACTERS))}</b> · ${escapeTelegramHtml(cleanField(notification.repository, MAX_REPOSITORY_CHARACTERS))}${numberText}`,
+    `<b>${escapeTelegramHtml(cleanField(notification.title, MAX_TITLE_CHARACTERS))}</b>${repositoryText}${numberText}`,
   ];
-  for (const line of [notification.subject, notification.context]) {
+  for (const line of [notification.subject, notification.context, ...(notification.lines ?? [])]) {
     const cleaned = cleanField(line, MAX_LINE_CHARACTERS);
     if (cleaned !== "") {
       lines.push(escapeTelegramHtml(cleaned));

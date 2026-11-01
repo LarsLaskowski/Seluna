@@ -31,12 +31,12 @@ const DISPLAY_NAME = ["alert", "secret_type_display_name"] as const;
 const SECRET_TYPE = ["alert", "secret_type"] as const;
 
 function evaluate(payload: WebhookPayload): ReturnType<typeof SECRET_SCANNING_ALERT.evaluate> {
-  return SECRET_SCANNING_ALERT.evaluate("secret_scanning_alert", payload, DEFAULT_SETTINGS);
+  return SECRET_SCANNING_ALERT.evaluate("secret_scanning_alert", payload, DEFAULT_SETTINGS, undefined);
 }
 
 describe("SECRET_SCANNING_ALERT", () => {
   it("SECRET_SCANNING_ALERT reports the documented created alert in English", () => {
-    const notification = SECRET_SCANNING_ALERT.evaluate("secret_scanning_alert", created, DEFAULT_SETTINGS);
+    const notification = SECRET_SCANNING_ALERT.evaluate("secret_scanning_alert", created, DEFAULT_SETTINGS, undefined);
 
     expect(SECRET_SCANNING_ALERT.id, "id").toBe("secret_scanning_alert");
     expect(notification, "notification").toEqual(EXPECTED);
@@ -50,7 +50,7 @@ describe("SECRET_SCANNING_ALERT", () => {
   });
 
   it("SECRET_SCANNING_ALERT reports in German", () => {
-    const notification = SECRET_SCANNING_ALERT.evaluate("secret_scanning_alert", created, GERMAN);
+    const notification = SECRET_SCANNING_ALERT.evaluate("secret_scanning_alert", created, GERMAN, undefined);
 
     expect(notification, "notification").toEqual({ ...EXPECTED, title: "Secret-Scanning-Warnung" });
   });
@@ -108,7 +108,7 @@ describe("SECRET_SCANNING_ALERT", () => {
   it.each(["dependabot_alert", "code_scanning_alert", "pull_request", ""])(
     "SECRET_SCANNING_ALERT reports nothing for its payload under the event name %s",
     (event) => {
-      const notification = SECRET_SCANNING_ALERT.evaluate(event, created, DEFAULT_SETTINGS);
+      const notification = SECRET_SCANNING_ALERT.evaluate(event, created, DEFAULT_SETTINGS, undefined);
 
       expect(notification, "notification").toBeUndefined();
     },

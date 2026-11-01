@@ -2,6 +2,11 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import codeScanningCreated from "../test/fixtures/code_scanning_alert/created.json";
 import dependabotCreated from "../test/fixtures/dependabot_alert/created.json";
+import forkFixture from "../test/fixtures/fork/fork.json";
+import issueCommentCreated from "../test/fixtures/issue_comment/created.json";
+import draftPullRequestComment from "../test/fixtures/issue_comment/created-draft-pull-request.json";
+import pullRequestComment from "../test/fixtures/issue_comment/created-pull-request.json";
+import issuesOpened from "../test/fixtures/issues/opened.json";
 import { body as pingBody, headers as pingHeaders } from "../test/fixtures/ping/form-delivery.json";
 import opened from "../test/fixtures/pull_request/opened.json";
 import openedDraft from "../test/fixtures/pull_request/opened-draft.json";
@@ -9,6 +14,8 @@ import readyForReview from "../test/fixtures/pull_request/ready_for_review.json"
 import reviewRequested from "../test/fixtures/pull_request/review_requested.json";
 import reviewRequestedDraft from "../test/fixtures/pull_request/review_requested-draft.json";
 import secretCreated from "../test/fixtures/secret_scanning_alert/created.json";
+import starCreated from "../test/fixtures/star/created.json";
+import starDeleted from "../test/fixtures/star/deleted.json";
 import failedPullRequestRun from "../test/fixtures/workflow_run/completed-failure-pull-request.json";
 import successfulDefaultBranchRun from "../test/fixtures/workflow_run/completed-success-default-branch.json";
 import type { DraftLookup } from "./draft-lookup";
@@ -16,12 +23,14 @@ import { renderTelegramText } from "./message";
 import { decodeStoredNotification } from "./notification";
 import { RULES } from "./rules/registry";
 import type { Notification, Rule, WebhookPayload } from "./rules/rule";
-import { readLastDelivery } from "./store/meta";
+import { LAST_DELIVERY_META_KEY, readLastDelivery } from "./store/meta";
 import { writeSetting } from "./store/settings";
 import type { TelegramFetch } from "./telegram";
 import { parseWebhookPayload, processWebhook } from "./webhook";
 import type { SignedDelivery, WebhookDeps, WebhookOutcome } from "./webhook";
-import { applyMigrations, migrationTestDb } from "../test/d1";
+import { applyMigrations, migrationTestDb, writeFailingDb } from "../test/d1";
+import { batchRecordingDb, failingBatchDb, withoutActivityTable } from "../test/activity";
+import { fromBot, fromOwner, ORGANIZATION_OWNER, OWNER } from "../test/issue";
 import { ABSENT, variant } from "../test/pull-request";
 import { SECRET, SECRET_SCANNING_READ_PATHS, replaceStringsOutside, withFields } from "../test/security-alert";
 import { jsonAnswer, telegramDouble } from "../test/telegram";
@@ -43,6 +52,7 @@ beforeEach(async () => {
   await env.DB.batch([
     env.DB.prepare("DELETE FROM deliveries"),
     env.DB.prepare("DELETE FROM outbox"),
+    env.DB.prepare("DELETE FROM activity"),
     env.DB.prepare("DELETE FROM settings"),
     env.DB.prepare("DELETE FROM meta WHERE key = 'last_delivery'"),
   ]);
@@ -116,6 +126,7 @@ function harness(
     sleep,
     log: () => undefined,
     lookUpDraft: vi.fn<DraftLookup>(() => Promise.resolve({ kind: "failed" })),
+    readOwner: () => Promise.resolve(undefined),
     ...overrides,
   };
   return { deps, waitUntil, telegram, sleep };
@@ -222,7 +233,7 @@ describe("processWebhook", () => {
 
   it("processWebhook leaves last_delivery unchanged for a known delivery id", async () => {
     let clock = NOW;
-    const { deps } = harness({ now: () => clock });
+    const { deps } = harness({ rules: [testRule()], now: () => clock });
     await processWebhook(pingDelivery(), deps);
     clock = LATER;
 
@@ -266,7 +277,7 @@ describe("processWebhook", () => {
     expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
   });
 
-  it("processWebhook records the real ping delivery with event ping, answers 202 and writes no outbox row", async () => {
+  it("processWebhook answers 202 no-match for the real ping and writes no deliveries, outbox or activity row", async () => {
     const { deps } = harness({ rules: RULES });
 
     const outcome = await processWebhook(pingDelivery(), deps);
@@ -277,11 +288,9 @@ describe("processWebhook", () => {
       action: null,
       repository: "LarsLaskowski/test",
     });
-    expect(await env.DB.prepare("SELECT id, event FROM deliveries").first(), "delivery row").toEqual({
-      id: DELIVERY_ID,
-      event: "ping",
-    });
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
     expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(await activityCount(), "activity rows").toBe(0);
   });
 
   it("processWebhook writes no outbox row for a disabled rule and returns decision disabled", async () => {
@@ -541,7 +550,7 @@ describe("processWebhook with the CI failure rules", () => {
     expect(outcome.status, "status").toBe(202);
     expect(outcome.decision, "decision").toBe("no-match");
     expect(await count("outbox"), "outbox rows").toBe(0);
-    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
     expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
   });
 
@@ -704,6 +713,50 @@ async function storedMessages(): Promise<unknown[]> {
   return rows.results.map((row) => [telegramTextOf(row.text), row.button_url]);
 }
 
+async function activityCount(): Promise<unknown> {
+  const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM activity").first();
+  return row?.n;
+}
+
+describe("processWebhook with the events of issue 108", () => {
+  it.each<{ event: string; payload: object; action: string | null }>([
+    { event: "fork", payload: forkFixture, action: null },
+    { event: "star", payload: starCreated, action: "created" },
+  ])(
+    "processWebhook accepts $event with its switch off, writes no deliveries row, sends nothing and collects nothing",
+    async ({ event, payload, action }) => {
+      const { deps, waitUntil, telegram } = harness({ rules: RULES });
+
+      const outcome = await processWebhook(jsonDelivery(JSON.stringify(payload), { event }), deps);
+
+      expect(outcome, "outcome").toEqual({
+        status: 202,
+        decision: "disabled",
+        action,
+        repository: "example-owner/example-repo",
+      });
+      expect(await count("deliveries"), "deliveries rows").toBe(0);
+      expect(await count("outbox"), "outbox rows").toBe(0);
+      expect(await activityCount(), "activity rows").toBe(0);
+      expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+      expect(telegram.requests, "Telegram requests").toEqual([]);
+      expect((await readLastDelivery(env.DB))?.getTime(), "last delivery").toBe(NOW.getTime());
+    },
+  );
+
+  it.each<{ event: string; payload: object }>([
+    { event: "issues", payload: issuesOpened },
+    { event: "issue_comment", payload: issueCommentCreated },
+    { event: "fork", payload: forkFixture },
+    { event: "star", payload: starCreated },
+  ])("the $event fixture has a sender other than the owner", ({ payload }) => {
+    const sender = isRecord(payload) && isRecord(payload.sender) ? payload.sender : undefined;
+
+    expect(sender?.login, "sender login").toBe("example-other-user");
+    expect(sender?.type, "sender type").toBe("User");
+  });
+});
+
 describe("processWebhook with the security alert rules", () => {
   it.each<{ event: string; payload: WebhookPayload; text: string; button: string }>([
     { event: "dependabot_alert", payload: dependabotCreated, text: DEPENDABOT_TEXT, button: DEPENDABOT_BUTTON },
@@ -825,5 +878,861 @@ describe("processWebhook with the security alert rules", () => {
       JSON.stringify([stored, outcome, log.mock.calls, telegram.requests]),
       "everything stored, logged or sent",
     ).not.toContain(SECRET);
+  });
+});
+
+const ISSUE_TEXT =
+  "<b>New issue</b> · example-owner/example-repo #7\nExample issue from another user\nby example-other-user · An example issue body written by another user.";
+const ISSUE_BUTTON = "https://github.com/example-owner/example-repo/issues/7";
+const ISSUE_COMMENT_TEXT =
+  "<b>New comment on issue</b> · example-owner/example-repo #7\nExample issue from another user\nby example-other-user · An example comment written by another user.";
+const ISSUE_COMMENT_BUTTON = "https://github.com/example-owner/example-repo/issues/7#issuecomment-5000001";
+const PULL_REQUEST_COMMENT_TEXT =
+  "<b>New comment on pull request</b> · example-owner/example-repo #12\nExample pull request from another user\nby example-other-user · An example comment on a pull request written by another user.";
+const PULL_REQUEST_COMMENT_BUTTON = "https://github.com/example-owner/example-repo/pull/12#issuecomment-5000002";
+const COMMENTED_PULL_REQUEST = { owner: "example-owner", repo: "example-repo", number: 12 };
+
+/** A signed `issues` or `issue_comment` delivery whose JSON body is `payload`. */
+function issueDelivery(event: "issues" | "issue_comment", payload: object, delivery = DELIVERY_ID): SignedDelivery {
+  return jsonDelivery(JSON.stringify(payload), { event, delivery });
+}
+
+describe("processWebhook with the issue and comment rules", () => {
+  it.each<{ event: "issues" | "issue_comment"; payload: object; text: string; button: string }>([
+    { event: "issues", payload: issuesOpened, text: ISSUE_TEXT, button: ISSUE_BUTTON },
+    { event: "issue_comment", payload: issueCommentCreated, text: ISSUE_COMMENT_TEXT, button: ISSUE_COMMENT_BUTTON },
+  ])(
+    "processWebhook stores the message of the $event fixture of another account",
+    async ({ event, payload, text, button }) => {
+      const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+      const outcome = await processWebhook(issueDelivery(event, payload), deps);
+
+      expect(outcome.status, "status").toBe(202);
+      expect(outcome.decision, "decision").toBe("reported");
+      expect(await storedMessages(), "stored messages").toEqual([[text, button]]);
+    },
+  );
+
+  it("processWebhook stores one row for a comment on a pull request and none of issue_comment", async () => {
+    const lookUpDraft = lookupAnswering({ kind: "failed" });
+    const { deps } = harness({ rules: RULES, lookUpDraft, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcome = await processWebhook(issueDelivery("issue_comment", pullRequestComment), deps);
+
+    expect(outcome.decision, "decision").toBe("reported");
+    expect(await storedMessages(), "stored messages").toEqual([
+      [PULL_REQUEST_COMMENT_TEXT, PULL_REQUEST_COMMENT_BUTTON],
+    ]);
+    expect(lookUpDraft, "lookup calls").not.toHaveBeenCalled();
+  });
+
+  it("processWebhook stores nothing and makes no lookup for a comment on a draft pull request", async () => {
+    const lookUpDraft = lookupAnswering({ kind: "ok", draft: false });
+    const { deps, waitUntil } = harness({ rules: RULES, lookUpDraft, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcome = await processWebhook(issueDelivery("issue_comment", draftPullRequestComment), deps);
+
+    expect(outcome.status, "status").toBe(202);
+    expect(outcome.decision, "decision").toBe("no-match");
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+    expect(lookUpDraft, "lookup calls").not.toHaveBeenCalled();
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+  });
+
+  it("processWebhook stores the comment on a pull request without issue.draft when the lookup answers not a draft", async () => {
+    const lookUpDraft = lookupAnswering({ kind: "ok", draft: false });
+    const { deps } = harness({ rules: RULES, lookUpDraft, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcome = await processWebhook(
+      issueDelivery("issue_comment", variant(pullRequestComment, ["issue", "draft"], ABSENT)),
+      deps,
+    );
+
+    expect(outcome.decision, "decision").toBe("reported");
+    expect(lookUpDraft, "lookup calls").toHaveBeenCalledExactlyOnceWith(3000, COMMENTED_PULL_REQUEST);
+    expect(await storedMessages(), "stored messages").toEqual([
+      [PULL_REQUEST_COMMENT_TEXT, PULL_REQUEST_COMMENT_BUTTON],
+    ]);
+  });
+
+  it("processWebhook stores nothing for a comment on a pull request without issue.draft when the lookup answers a draft", async () => {
+    const { deps } = harness({
+      rules: RULES,
+      lookUpDraft: lookupAnswering({ kind: "ok", draft: true }),
+      readOwner: () => Promise.resolve(OWNER),
+    });
+
+    const outcome = await processWebhook(
+      issueDelivery("issue_comment", variant(pullRequestComment, ["issue", "draft"], ABSENT)),
+      deps,
+    );
+
+    expect(outcome.decision, "decision").toBe("no-match");
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it("processWebhook stores nothing for a comment on a pull request without issue.draft when the lookup fails", async () => {
+    const { deps, waitUntil } = harness({
+      rules: RULES,
+      lookUpDraft: lookupAnswering({ kind: "failed" }),
+      readOwner: () => Promise.resolve(OWNER),
+    });
+
+    const outcome = await processWebhook(
+      issueDelivery("issue_comment", variant(pullRequestComment, ["issue", "draft"], ABSENT)),
+      deps,
+    );
+
+    expect(outcome.status, "status").toBe(202);
+    expect(outcome.decision, "decision").toBe("no-match");
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+  });
+
+  it("processWebhook stores nothing for a comment on a pull request without issue.draft and without an installation id", async () => {
+    const lookUpDraft = lookupAnswering({ kind: "ok", draft: false });
+    const { deps } = harness({ rules: RULES, lookUpDraft, readOwner: () => Promise.resolve(OWNER) });
+    const payload = variant(variant(pullRequestComment, ["issue", "draft"], ABSENT), ["installation"], ABSENT);
+
+    const outcome = await processWebhook(issueDelivery("issue_comment", payload), deps);
+
+    expect(outcome.decision, "decision").toBe("no-match");
+    expect(lookUpDraft, "lookup calls").not.toHaveBeenCalled();
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it.each<{ event: "issues" | "issue_comment"; payload: WebhookPayload }>([
+    { event: "issues", payload: issuesOpened },
+    { event: "issue_comment", payload: issueCommentCreated },
+    { event: "issue_comment", payload: pullRequestComment },
+  ])(
+    "processWebhook answers 202 no-match and writes no deliveries row for the owner's own $event",
+    async ({ event, payload }) => {
+      const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+      const outcome = await processWebhook(issueDelivery(event, fromOwner(payload)), deps);
+
+      expect(outcome.status, "status").toBe(202);
+      expect(outcome.decision, "decision").toBe("no-match");
+      expect(await count("deliveries"), "deliveries rows").toBe(0);
+      expect(await count("outbox"), "outbox rows").toBe(0);
+      expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+      expect(telegram.requests, "Telegram requests").toEqual([]);
+    },
+  );
+
+  it("processWebhook answers 202 no-match and writes no deliveries row for the owner's own issue", async () => {
+    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcome = await processWebhook(issueDelivery("issues", fromOwner(issuesOpened)), deps);
+
+    expect(outcome, "outcome").toEqual({
+      status: 202,
+      decision: "no-match",
+      action: "opened",
+      repository: "example-owner/example-repo",
+    });
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it.each<{ case: string; owner: typeof OWNER | undefined }>([
+    { case: "an organization owner", owner: ORGANIZATION_OWNER },
+    { case: "an unknown owner", owner: undefined },
+  ])("processWebhook stores the owner's own issue as any other account's with $case", async ({ owner }) => {
+    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(owner) });
+
+    const outcome = await processWebhook(issueDelivery("issues", fromOwner(issuesOpened)), deps);
+
+    expect(outcome.decision, "decision").toBe("reported");
+    expect(await count("outbox"), "outbox rows").toBe(1);
+  });
+
+  it("processWebhook passes the owner readOwner answers to the rules, read once per delivery", async () => {
+    const evaluate = vi.fn<Rule["evaluate"]>(() => undefined);
+    const readOwner = vi.fn<WebhookDeps["readOwner"]>(() => Promise.resolve(OWNER));
+    const { deps } = harness({ rules: [{ id: "issue_opened", evaluate }], readOwner });
+
+    await processWebhook(issueDelivery("issues", issuesOpened), deps);
+
+    expect(readOwner, "owner reads").toHaveBeenCalledTimes(1);
+    expect(evaluate, "rule calls").toHaveBeenCalledTimes(1);
+    expect(evaluate.mock.calls[0]?.[3], "owner passed to the rule").toEqual(OWNER);
+  });
+
+  it("processWebhook answers 503 unavailable and stores nothing when readOwner rejects", async () => {
+    const evaluate = vi.fn<Rule["evaluate"]>(() => notificationWith("never"));
+    const { deps, waitUntil, telegram } = harness({
+      rules: [{ id: "issue_opened", evaluate }],
+      readOwner: () => Promise.reject(new Error("D1_ERROR: no such table")),
+    });
+
+    const outcome = await processWebhook(issueDelivery("issues", issuesOpened), deps);
+
+    expect(outcome.status, "status").toBe(503);
+    expect(outcome.decision, "decision").toBe("unavailable");
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(evaluate, "rule calls").not.toHaveBeenCalled();
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+  });
+
+  it.each<{ case: string; event: "issues" | "issue_comment"; payload: WebhookPayload }>([
+    { case: "an issue without the issue object", event: "issues", payload: variant(issuesOpened, ["issue"], ABSENT) },
+    {
+      case: "a comment without the comment object",
+      event: "issue_comment",
+      payload: variant(issueCommentCreated, ["comment"], ABSENT),
+    },
+    {
+      case: "a comment on a pull request with issue.draft as a string",
+      event: "issue_comment",
+      payload: variant(pullRequestComment, ["issue", "draft"], "false"),
+    },
+    {
+      case: "an issue without a sender",
+      event: "issues",
+      payload: variant(issuesOpened, ["sender"], ABSENT),
+    },
+  ])(
+    "processWebhook answers 202 no-match for malformed $case and writes no deliveries row",
+    async ({ event, payload }) => {
+      const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+      const outcome = await processWebhook(issueDelivery(event, payload), deps);
+
+      expect(outcome.status, "status").toBe(202);
+      expect(outcome.decision, "decision").toBe("no-match");
+      expect(await count("deliveries"), "deliveries rows").toBe(0);
+      expect(await count("outbox"), "outbox rows").toBe(0);
+    },
+  );
+
+  it.each<{ rule: string; event: "issues" | "issue_comment"; payload: WebhookPayload }>([
+    { rule: "issue_opened", event: "issues", payload: issuesOpened },
+    { rule: "issue_comment", event: "issue_comment", payload: issueCommentCreated },
+    { rule: "pull_request_comment", event: "issue_comment", payload: pullRequestComment },
+  ])(
+    "processWebhook decides disabled and stores no row for $event of $rule with its switch off",
+    async ({ rule, event, payload }) => {
+      await switchOff(rule);
+      const { deps, waitUntil } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+      const outcome = await processWebhook(issueDelivery(event, payload), deps);
+
+      expect(outcome.decision, "decision").toBe("disabled");
+      expect(await count("outbox"), "outbox rows").toBe(0);
+      expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+    },
+  );
+
+  it("processWebhook stores an issue with HTML, control and directional characters cleaned and cut at 256, and sends it escaped", async () => {
+    const title = "T <b>x</b> &amp; \u202E\u2066z\nline";
+    const body = "<!-- hidden -->Body\u0007<i>x</i> &amp; \u202E" + "y".repeat(400);
+    const payload = variant(variant(issuesOpened, ["issue", "title"], title), ["issue", "body"], body);
+    const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    await processWebhook(issueDelivery("issues", payload), deps);
+    await settled(waitUntil);
+
+    expect(title.includes("\u202E"), "the input keeps the directional character").toBe(true);
+    expect(body.includes("\u0007"), "the input keeps the control character").toBe(true);
+    const row = await env.DB.prepare("SELECT text FROM outbox").first();
+    const stored = typeof row?.text === "string" ? decodeStoredNotification(row.text) : undefined;
+    expect(stored?.subject, "stored line 2").toBe("T <b>x</b> &amp; z line");
+    expect(stored?.context, "stored line 3").toBe(`by example-other-user · Body <i>x</i> &amp; ${"y".repeat(211)}…`);
+    expect(Array.from(stored?.context ?? "").length, "code points of line 3").toBe(256);
+    expect(sentBody(telegram.requests[0]).text, "sent text").toBe(
+      "<b>New issue</b> · example-owner/example-repo #7\n" +
+        "T &lt;b&gt;x&lt;/b&gt; &amp;amp; z line\n" +
+        `by example-other-user · Body &lt;i&gt;x&lt;/i&gt; &amp;amp; ${"y".repeat(211)}…`,
+    );
+  });
+
+  it("processWebhook cuts a 300-character title and a 1 MiB body of an issue to 256 code points each", async () => {
+    const payload = variant(
+      variant(issuesOpened, ["issue", "title"], "t".repeat(300)),
+      ["issue", "body"],
+      "word ".repeat(209_716),
+    );
+    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    await processWebhook(issueDelivery("issues", payload), deps);
+
+    const row = await env.DB.prepare("SELECT text FROM outbox").first();
+    const stored = typeof row?.text === "string" ? decodeStoredNotification(row.text) : undefined;
+    expect(stored?.subject, "stored line 2").toBe(`${"t".repeat(255)}…`);
+    const context = stored?.context ?? "";
+    expect(Array.from(context).length, "code points of line 3").toBe(256);
+    expect(context.endsWith("…"), "line 3 ends with the ellipsis").toBe(true);
+  });
+});
+
+const STAR_TEXT = "<b>New star</b> · example-owner/example-repo\nby example-other-user\n0 stars now";
+const FORK_TEXT =
+  "<b>New fork</b> · example-owner/example-repo\nexample-other-user/example-repo\nby example-other-user";
+const REPOSITORY_URL = "https://github.com/example-owner/example-repo";
+const FORK_URL = "https://github.com/example-other-user/example-repo";
+const FOREIGN_ID = 1_000_002;
+
+/** A signed `star` or `fork` delivery of the account `senderId`, with its own delivery id. */
+function activityDelivery(
+  event: "star" | "fork",
+  payload: WebhookPayload,
+  deliveryId: string,
+  senderId = FOREIGN_ID,
+): SignedDelivery {
+  const sent =
+    senderId === FOREIGN_ID
+      ? payload
+      : variant(variant(payload, ["sender", "id"], senderId), ["sender", "login"], `user${String(senderId)}`);
+  return jsonDelivery(JSON.stringify(sent), { event, delivery: deliveryId });
+}
+
+async function switchOn(...rules: readonly ("repository_starred" | "repository_forked")[]): Promise<void> {
+  for (const rule of rules) {
+    await writeSetting(env.DB, `rule_${rule}`, "on");
+  }
+}
+
+async function setDigest(value: string): Promise<void> {
+  await writeSetting(env.DB, "activity_digest", value);
+}
+
+/** Inserts an `activity` row with plain SQL, created at `NOW`. */
+async function seedActivity(senderId: number, repositoryId = 2000, kind: "star" | "fork" = "star"): Promise<void> {
+  await env.DB.prepare(
+    "INSERT INTO activity (kind, sender_id, sender_login, repository_id, repository, repository_url, star_count, created_at) " +
+      "VALUES (?1, ?2, ?3, ?4, 'example-owner/example-repo', ?5, NULL, ?6)",
+  )
+    .bind(kind, senderId, `user${String(senderId)}`, repositoryId, REPOSITORY_URL, NOW.getTime())
+    .run();
+}
+
+/** The `[sender_id, repository_id, kind]` of every `activity` row, in insertion order. */
+async function activityRows(): Promise<unknown[][]> {
+  const { results } = await env.DB.prepare("SELECT sender_id, repository_id, kind FROM activity ORDER BY id").all();
+  return results.map((row) => [row.sender_id, row.repository_id, row.kind]);
+}
+
+describe("processWebhook with the star and fork rules under Immediately", () => {
+  it.each<{ event: "star" | "fork"; payload: WebhookPayload; text: string; button: string }>([
+    { event: "star", payload: starCreated, text: STAR_TEXT, button: REPOSITORY_URL },
+    { event: "fork", payload: forkFixture, text: FORK_TEXT, button: FORK_URL },
+  ])(
+    "processWebhook stores and sends one message for a $event and collects nothing",
+    async ({ event, payload, text, button }) => {
+      await switchOn("repository_starred", "repository_forked");
+      await setDigest("immediate");
+      const { deps, waitUntil, telegram } = harness({ rules: RULES });
+
+      const outcome = await processWebhook(activityDelivery(event, payload, "imm-1"), deps);
+      await settled(waitUntil);
+
+      expect(outcome.status, "status").toBe(202);
+      expect(outcome.decision, "decision").toBe("reported");
+      expect(await storedMessages(), "stored messages").toEqual([[text, button]]);
+      expect(await activityCount(), "activity rows").toBe(0);
+      expect(telegram.requests, "Telegram requests").toHaveLength(1);
+    },
+  );
+
+  it("processWebhook stores one outbox row for each of 50 stars under Immediately", async () => {
+    await switchOn("repository_starred");
+    await setDigest("immediate");
+    const { deps, waitUntil } = harness({ rules: RULES });
+
+    for (let sender = 1; sender <= 50; sender += 1) {
+      const outcome = await processWebhook(
+        activityDelivery("star", starCreated, `imm-${String(sender)}`, sender),
+        deps,
+      );
+      expect(outcome.decision, `decision of star ${String(sender)}`).toBe("reported");
+    }
+    await settled(waitUntil);
+
+    expect(await count("outbox"), "outbox rows").toBe(50);
+    expect(await activityCount(), "activity rows").toBe(0);
+  });
+
+  it("processWebhook writes the delivery, the outbox row and last_delivery in one batch of three for a star", async () => {
+    await switchOn("repository_starred");
+    await setDigest("immediate");
+    const batchSizes: number[] = [];
+    const { deps } = harness({ rules: RULES, db: batchRecordingDb(env.DB, batchSizes) });
+
+    await processWebhook(activityDelivery("star", starCreated, "imm-batch"), deps);
+
+    expect(batchSizes, "batches").toEqual([3]);
+  });
+});
+
+describe("processWebhook with the star and fork rules in digest mode", () => {
+  it.each<{ interval: string | undefined }>([
+    { interval: "hourly" },
+    { interval: "daily@18:00" },
+    { interval: "daily@06:45" },
+    { interval: undefined },
+  ])("processWebhook collects a star and a fork under $interval and sends nothing", async ({ interval }) => {
+    await switchOn("repository_starred", "repository_forked");
+    if (interval !== undefined) {
+      await setDigest(interval);
+    }
+    const { deps, waitUntil, telegram } = harness({ rules: RULES });
+
+    const star = await processWebhook(activityDelivery("star", starCreated, "dig-1"), deps);
+    const fork = await processWebhook(activityDelivery("fork", forkFixture, "dig-2", 1_000_003), deps);
+
+    expect(star, "star outcome").toEqual({
+      status: 202,
+      decision: "collected",
+      action: "created",
+      repository: "example-owner/example-repo",
+    });
+    expect(fork.decision, "fork decision").toBe("collected");
+    expect(await activityRows(), "activity rows").toEqual([
+      [FOREIGN_ID, 2000, "star"],
+      [1_000_003, 2000, "fork"],
+    ]);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(await count("deliveries"), "deliveries rows").toBe(2);
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+    expect((await readLastDelivery(env.DB))?.getTime(), "last delivery").toBe(NOW.getTime());
+  });
+
+  it("processWebhook stores the fields of the collected star and fork", async () => {
+    await switchOn("repository_starred", "repository_forked");
+    const { deps } = harness({ rules: RULES });
+
+    await processWebhook(
+      activityDelivery("star", variant(starCreated, ["repository", "stargazers_count"], 1234), "dig-f1"),
+      deps,
+    );
+    await processWebhook(activityDelivery("fork", forkFixture, "dig-f2", 1_000_003), deps);
+
+    const { results } = await env.DB.prepare("SELECT * FROM activity ORDER BY id").all();
+    expect(
+      results.map((row) => ({ ...row, id: undefined })),
+      "rows",
+    ).toEqual([
+      {
+        id: undefined,
+        kind: "star",
+        sender_id: FOREIGN_ID,
+        sender_login: "example-other-user",
+        repository_id: 2000,
+        repository: "example-owner/example-repo",
+        repository_url: REPOSITORY_URL,
+        star_count: 1234,
+        created_at: NOW.getTime(),
+      },
+      {
+        id: undefined,
+        kind: "fork",
+        sender_id: 1_000_003,
+        sender_login: "user1000003",
+        repository_id: 2000,
+        repository: "example-owner/example-repo",
+        repository_url: REPOSITORY_URL,
+        star_count: null,
+        created_at: NOW.getTime(),
+      },
+    ]);
+  });
+
+  it("processWebhook writes the delivery, the activity row and last_delivery in one batch of three", async () => {
+    await switchOn("repository_starred");
+    const batchSizes: number[] = [];
+    const { deps } = harness({ rules: RULES, db: batchRecordingDb(env.DB, batchSizes) });
+
+    await processWebhook(activityDelivery("star", starCreated, "dig-batch"), deps);
+
+    expect(batchSizes, "batches").toEqual([3]);
+    expect(await activityCount(), "activity rows").toBe(1);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it("processWebhook collects 50 stars as 50 activity rows and no outbox row", async () => {
+    await switchOn("repository_starred");
+    await setDigest("hourly");
+    const { deps, waitUntil } = harness({ rules: RULES });
+
+    for (let sender = 1; sender <= 50; sender += 1) {
+      await processWebhook(activityDelivery("star", starCreated, `dig-${String(sender)}`, sender), deps);
+    }
+
+    expect(await activityCount(), "activity rows").toBe(50);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { case: "both switches off", on: [] as const, event: "star" as const, payload: starCreated },
+    { case: "the star switch off", on: ["repository_forked"] as const, event: "star" as const, payload: starCreated },
+    { case: "the fork switch off", on: ["repository_starred"] as const, event: "fork" as const, payload: forkFixture },
+  ])("processWebhook answers disabled and collects nothing with $case", async ({ on, event, payload }) => {
+    await switchOn(...on);
+    await setDigest("hourly");
+    const { deps, waitUntil } = harness({ rules: RULES });
+
+    const outcome = await processWebhook(activityDelivery(event, payload, "dig-off"), deps);
+
+    expect(outcome.status, "status").toBe(202);
+    expect(outcome.decision, "decision").toBe("disabled");
+    expect(await activityCount(), "activity rows").toBe(0);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+  });
+
+  it.each<{ case: string; payload: WebhookPayload; owner: typeof OWNER | undefined; collected: boolean }>([
+    { case: "the owner", payload: fromOwner(starCreated), owner: OWNER, collected: false },
+    { case: "a bot", payload: fromBot(starCreated), owner: OWNER, collected: false },
+    {
+      case: "the owner's id with an organization owner",
+      payload: fromOwner(starCreated),
+      owner: ORGANIZATION_OWNER,
+      collected: true,
+    },
+    {
+      case: "the owner's id with an unknown owner",
+      payload: fromOwner(starCreated),
+      owner: undefined,
+      collected: true,
+    },
+  ])("processWebhook with a star by $case collects $collected", async ({ payload, owner, collected }) => {
+    await switchOn("repository_starred");
+    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(owner) });
+
+    const outcome = await processWebhook(activityDelivery("star", payload, "dig-own"), deps);
+
+    expect(outcome.decision, "decision").toBe(collected ? "collected" : "no-match");
+    expect(await activityCount(), "activity rows").toBe(collected ? 1 : 0);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it("processWebhook collects nothing for a redelivery", async () => {
+    await switchOn("repository_starred");
+    const { deps } = harness({ rules: RULES });
+    await processWebhook(activityDelivery("star", starCreated, "dig-same"), deps);
+
+    const again = await processWebhook(activityDelivery("star", starCreated, "dig-same"), deps);
+
+    expect(again, "outcome").toEqual({ status: 200, decision: "duplicate", action: null, repository: null });
+    expect(await activityCount(), "activity rows").toBe(1);
+  });
+
+  it("processWebhook answers 503 and stores nothing when the batch fails for a collected star", async () => {
+    await switchOn("repository_starred");
+    const { deps } = harness({ rules: RULES, db: failingBatchDb(env.DB) });
+
+    const outcome = await processWebhook(activityDelivery("star", starCreated, "dig-fail"), deps);
+
+    expect(outcome.status, "status").toBe(503);
+    expect(outcome.decision, "decision").toBe("unavailable");
+    expect(await activityCount(), "activity rows").toBe(0);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+  });
+
+  it("processWebhook collects the star of a redelivery after the batch failed", async () => {
+    await switchOn("repository_starred");
+    const failing = harness({ rules: RULES, db: failingBatchDb(env.DB) });
+    await processWebhook(activityDelivery("star", starCreated, "dig-retry"), failing.deps);
+    const { deps } = harness({ rules: RULES });
+
+    const outcome = await processWebhook(activityDelivery("star", starCreated, "dig-retry"), deps);
+
+    expect(outcome.decision, "decision").toBe("collected");
+    expect(await activityCount(), "activity rows").toBe(1);
+  });
+});
+
+describe("processWebhook with an unstar", () => {
+  it.each(["immediate", "hourly", "daily@18:00"])(
+    "processWebhook removes the stars of that account on that repository under %s and nothing else",
+    async (interval) => {
+      await switchOn("repository_starred");
+      await setDigest(interval);
+      await seedActivity(FOREIGN_ID);
+      await seedActivity(FOREIGN_ID);
+      await seedActivity(1_000_003);
+      await seedActivity(FOREIGN_ID, 2001);
+      await seedActivity(FOREIGN_ID, 2000, "fork");
+      const { deps, waitUntil, telegram } = harness({ rules: RULES });
+
+      const outcome = await processWebhook(activityDelivery("star", starDeleted, "un-1"), deps);
+
+      expect(outcome, "outcome").toEqual({
+        status: 202,
+        decision: "no-match",
+        action: "deleted",
+        repository: "example-owner/example-repo",
+      });
+      expect(await activityRows(), "remaining rows").toEqual([
+        [1_000_003, 2000, "star"],
+        [FOREIGN_ID, 2001, "star"],
+        [FOREIGN_ID, 2000, "fork"],
+      ]);
+      expect(await count("outbox"), "outbox rows").toBe(0);
+      expect(await count("deliveries"), "deliveries rows").toBe(1);
+      expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+      expect(telegram.requests, "Telegram requests").toEqual([]);
+    },
+  );
+
+  it("processWebhook leaves no row for a star and its unstar", async () => {
+    await switchOn("repository_starred");
+    const { deps } = harness({ rules: RULES });
+
+    await processWebhook(activityDelivery("star", starCreated, "su-1"), deps);
+    await processWebhook(activityDelivery("star", starDeleted, "su-2"), deps);
+
+    expect(await activityCount(), "activity rows").toBe(0);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it("processWebhook collects a star that arrives after its unstar", async () => {
+    await switchOn("repository_starred");
+    const { deps } = harness({ rules: RULES });
+
+    await processWebhook(activityDelivery("star", starDeleted, "us-1"), deps);
+    await processWebhook(activityDelivery("star", starCreated, "us-2"), deps);
+
+    expect(await activityRows(), "rows").toEqual([[FOREIGN_ID, 2000, "star"]]);
+  });
+
+  it("processWebhook removes nothing for an unstar when the star switch is off", async () => {
+    await seedActivity(FOREIGN_ID);
+    const { deps } = harness({ rules: RULES });
+
+    const outcome = await processWebhook(activityDelivery("star", starDeleted, "un-off"), deps);
+
+    expect(outcome.decision, "decision").toBe("no-match");
+    expect(await activityCount(), "activity rows").toBe(1);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+  });
+
+  it.each<{ case: string; payload: WebhookPayload; owner: typeof OWNER | undefined; remaining: number }>([
+    { case: "the owner", payload: fromOwner(starDeleted), owner: OWNER, remaining: 1 },
+    { case: "a bot", payload: fromBot(starDeleted), owner: OWNER, remaining: 1 },
+    {
+      case: "the owner's id with an organization owner",
+      payload: fromOwner(starDeleted),
+      owner: ORGANIZATION_OWNER,
+      remaining: 0,
+    },
+  ])(
+    "processWebhook with an unstar by $case leaves $remaining rows of the seeded stars",
+    async ({ payload, owner, remaining }) => {
+      await switchOn("repository_starred");
+      await seedActivity(1000);
+      const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(owner) });
+
+      const outcome = await processWebhook(activityDelivery("star", payload, "un-own"), deps);
+
+      expect(outcome.decision, "decision").toBe("no-match");
+      expect(await activityCount(), "activity rows").toBe(remaining);
+    },
+  );
+
+  it("processWebhook leaves the stars in place when the batch of an unstar fails", async () => {
+    await switchOn("repository_starred");
+    await seedActivity(FOREIGN_ID);
+    const { deps } = harness({ rules: RULES, db: failingBatchDb(env.DB) });
+
+    const outcome = await processWebhook(activityDelivery("star", starDeleted, "un-fail"), deps);
+
+    expect(outcome.status, "status").toBe(503);
+    expect(await activityCount(), "activity rows").toBe(1);
+  });
+
+  it("processWebhook applies no removal for a redelivered unstar", async () => {
+    await switchOn("repository_starred");
+    const { deps } = harness({ rules: RULES });
+    await processWebhook(activityDelivery("star", starDeleted, "un-dup"), deps);
+    await seedActivity(FOREIGN_ID);
+
+    const again = await processWebhook(activityDelivery("star", starDeleted, "un-dup"), deps);
+
+    expect(again.decision, "decision").toBe("duplicate");
+    expect(await activityCount(), "activity rows").toBe(1);
+  });
+});
+
+describe("processWebhook without the activity table", () => {
+  it.each(["hourly", "daily@18:00"])(
+    "processWebhook answers 503 for a collected star under %s and records nothing",
+    async (interval) => {
+      await switchOn("repository_starred");
+      await setDigest(interval);
+      const { deps } = harness({ rules: RULES, db: withoutActivityTable(env.DB) });
+
+      const outcome = await processWebhook(activityDelivery("star", starCreated, "mt-1"), deps);
+
+      expect(outcome.status, "status").toBe(503);
+      expect(outcome.decision, "decision").toBe("unavailable");
+      expect(await count("deliveries"), "deliveries rows").toBe(0);
+    },
+  );
+
+  it("processWebhook answers 503 for an unstar and records nothing", async () => {
+    await switchOn("repository_starred");
+    const { deps } = harness({ rules: RULES, db: withoutActivityTable(env.DB) });
+
+    const outcome = await processWebhook(activityDelivery("star", starDeleted, "mt-2"), deps);
+
+    expect(outcome.status, "status").toBe(503);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+  });
+
+  it("processWebhook still reports a star and a fork under Immediately", async () => {
+    await switchOn("repository_starred", "repository_forked");
+    await setDigest("immediate");
+    const { deps, waitUntil } = harness({ rules: RULES, db: withoutActivityTable(env.DB) });
+
+    const star = await processWebhook(activityDelivery("star", starCreated, "mt-3"), deps);
+    const fork = await processWebhook(activityDelivery("fork", forkFixture, "mt-4"), deps);
+    await settled(waitUntil);
+
+    expect([star.status, star.decision], "star").toEqual([202, "reported"]);
+    expect([fork.status, fork.decision], "fork").toEqual([202, "reported"]);
+    expect(await count("outbox"), "outbox rows").toBe(2);
+  });
+
+  it("processWebhook still answers disabled and no-match when no activity statement is needed", async () => {
+    await setDigest("hourly");
+    const { deps } = harness({ rules: RULES, db: withoutActivityTable(env.DB) });
+
+    const star = await processWebhook(activityDelivery("star", starCreated, "mt-5"), deps);
+    const unstar = await processWebhook(activityDelivery("star", starDeleted, "mt-6"), deps);
+
+    expect([star.status, star.decision], "star with its switch off").toEqual([202, "disabled"]);
+    expect([unstar.status, unstar.decision], "unstar with the switch off").toEqual([202, "no-match"]);
+  });
+
+  it("processWebhook still reports a pull request", async () => {
+    const { deps, waitUntil } = harness({
+      rules: RULES,
+      db: withoutActivityTable(env.DB),
+      readOwner: () => Promise.resolve(OWNER),
+    });
+
+    const outcome = await processWebhook(pullRequestDelivery(opened), deps);
+    await settled(waitUntil);
+
+    expect(outcome.status, "status").toBe(202);
+    expect(outcome.decision, "decision").toBe("reported");
+  });
+});
+
+describe("processWebhook with deliveries without an effect", () => {
+  const FIRST = new Date(1_792_240_440_000);
+  const THIRTY_SECONDS_LATER = new Date(FIRST.getTime() + 30_000);
+
+  async function storedLastDelivery(): Promise<unknown> {
+    const row = await env.DB.prepare("SELECT value FROM meta WHERE key = ?1").bind(LAST_DELIVERY_META_KEY).first();
+    return row?.value;
+  }
+
+  it("processWebhook answers 202 disabled for a star with its switch off and runs no batch", async () => {
+    const batchSizes: number[] = [];
+    const { deps } = harness({ rules: RULES, db: batchRecordingDb(env.DB, batchSizes) });
+
+    const outcome = await processWebhook(activityDelivery("star", starCreated, "off-1"), deps);
+
+    expect(outcome.status, "status").toBe(202);
+    expect(outcome.decision, "decision").toBe("disabled");
+    expect(batchSizes, "batch sizes").toEqual([]);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+  });
+
+  it("processWebhook answers 202 to two concurrent copies of an unrecorded ping and stores nothing", async () => {
+    const { deps } = harness({ rules: RULES });
+
+    const outcomes = await Promise.all([processWebhook(pingDelivery(), deps), processWebhook(pingDelivery(), deps)]);
+
+    expect(
+      outcomes.map((outcome) => [outcome.status, outcome.decision]),
+      "statuses and decisions",
+    ).toEqual([
+      [202, "no-match"],
+      [202, "no-match"],
+    ]);
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+  });
+
+  it("processWebhook reports an unrecorded delivery redelivered after its switch was turned on, with one outbox row and one deliveries row", async () => {
+    await setDigest("immediate");
+    const { deps, waitUntil } = harness({ rules: RULES });
+    const first = await processWebhook(activityDelivery("star", starCreated, "redeliver-1"), deps);
+    await switchOn("repository_starred");
+
+    const second = await processWebhook(activityDelivery("star", starCreated, "redeliver-1"), deps);
+    await settled(waitUntil);
+
+    expect([first.status, first.decision], "first").toEqual([202, "disabled"]);
+    expect([second.status, second.decision], "second").toEqual([202, "reported"]);
+    expect(await count("outbox"), "outbox rows").toBe(1);
+    expect(await count("deliveries"), "deliveries rows").toBe(1);
+  });
+
+  it("processWebhook sets last_delivery for an unrecorded ping and keeps it for a second one 30 seconds later", async () => {
+    let clock = FIRST;
+    const { deps } = harness({ rules: RULES, now: () => clock });
+    await processWebhook(pingDelivery(), deps);
+    const afterFirst = await storedLastDelivery();
+    clock = THIRTY_SECONDS_LATER;
+
+    await processWebhook(pingDelivery({ delivery: "other-id" }), deps);
+
+    expect(afterFirst, "after the first").toBe(String(FIRST.getTime()));
+    expect(await storedLastDelivery(), "after the second").toBe(String(FIRST.getTime()));
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+  });
+
+  it("processWebhook leaves last_delivery at one of their times for two concurrent unrecorded deliveries", async () => {
+    const { deps } = harness({ rules: RULES, now: () => FIRST });
+    const later = harness({ rules: RULES, now: () => THIRTY_SECONDS_LATER });
+
+    await Promise.all([
+      processWebhook(pingDelivery({ delivery: "c-1" }), deps),
+      processWebhook(pingDelivery({ delivery: "c-2" }), later.deps),
+    ]);
+
+    expect([String(FIRST.getTime()), String(THIRTY_SECONDS_LATER.getTime())], "candidate times").toContain(
+      await storedLastDelivery(),
+    );
+  });
+
+  it("processWebhook answers 202 no-match when the last_delivery write fails", async () => {
+    const { deps } = harness({ rules: RULES, db: writeFailingDb(env.DB) });
+
+    const outcome = await processWebhook(pingDelivery(), deps);
+
+    expect(outcome, "outcome").toEqual({
+      status: 202,
+      decision: "no-match",
+      action: null,
+      repository: "LarsLaskowski/test",
+    });
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+  });
+
+  it("processWebhook answers 503 unavailable and stores nothing when the batch of a reported ping fails", async () => {
+    const { deps, waitUntil } = harness({ rules: [testRule()], db: failingBatchDb(env.DB) });
+
+    const outcome = await processWebhook(pingDelivery(), deps);
+
+    expect(outcome.status, "status").toBe(503);
+    expect(outcome.decision, "decision").toBe("unavailable");
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
   });
 });

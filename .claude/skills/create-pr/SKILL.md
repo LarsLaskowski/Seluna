@@ -40,10 +40,9 @@ repository.
    unformatted code or outstanding analyzer diagnostics. This step is the gate
    before the PR; CI is not meant to find anything here.
 5. **Commit** as `AGENTS.md` (*Commit messages and pull requests*) says,
-   staging only the files that belong to this task. Then run the *Sonar gate*
-   from `.squad/stack.md` — SonarQube Cloud's analysis of the committed
-   branch; fix every finding it lists (and commit again). NOT CHECKED (no
-   SonarQube credential in this environment) leaves the check to step 9.
+   staging only the files that belong to this task. The *Sonar gate* from
+   `.squad/stack.md` reads the CI code analysis of the draft pull request, so it
+   runs in step 9.
 6. **Run the internal review loop** (see below) and resolve what it finds.
    This happens *before* the push, so the pull request opens on a reviewed
    change instead of collecting review rounds afterwards.
@@ -63,6 +62,11 @@ repository.
      verified) — including the unit-test, formatting, analyzer, coverage,
      documentation and dependency items, not just the general ones
    - wrap the body in a HEREDOC so the formatting survives
+   - set one label on the PR (`issue_write`, method `update`, `labels`) for the release notes
+     (`.github/release.yml`): `breaking-change` for a change that breaks existing users, else `enhancement` for a
+     feature, `security` for a security fix, `bug` for a bug fix (with a linked issue: the matching label of the
+     issue, else judge from the change); none for anything else (it lands under *Other
+     changes*), `ignore-for-release` for a change that is not worth a release note
    - read the body back right after creating or updating the PR
      (`pull_request_read`, method `get`) and compare its links and code spans
      with what you sent; a mangled one is fixed with `update_pull_request`

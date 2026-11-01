@@ -50,12 +50,12 @@ const REF_CASES: readonly RefCase[] = REPORTED_ACTIONS.flatMap((action) =>
 );
 
 function evaluate(payload: WebhookPayload): ReturnType<typeof CODE_SCANNING_ALERT.evaluate> {
-  return CODE_SCANNING_ALERT.evaluate("code_scanning_alert", payload, DEFAULT_SETTINGS);
+  return CODE_SCANNING_ALERT.evaluate("code_scanning_alert", payload, DEFAULT_SETTINGS, undefined);
 }
 
 describe("CODE_SCANNING_ALERT", () => {
   it("CODE_SCANNING_ALERT reports the documented created alert on the default branch in English", () => {
-    const notification = CODE_SCANNING_ALERT.evaluate("code_scanning_alert", created, DEFAULT_SETTINGS);
+    const notification = CODE_SCANNING_ALERT.evaluate("code_scanning_alert", created, DEFAULT_SETTINGS, undefined);
 
     expect(CODE_SCANNING_ALERT.id, "id").toBe("code_scanning_alert");
     expect(notification, "notification").toEqual(EXPECTED);
@@ -75,7 +75,7 @@ describe("CODE_SCANNING_ALERT", () => {
   });
 
   it("CODE_SCANNING_ALERT reports in German", () => {
-    const notification = CODE_SCANNING_ALERT.evaluate("code_scanning_alert", created, GERMAN);
+    const notification = CODE_SCANNING_ALERT.evaluate("code_scanning_alert", created, GERMAN, undefined);
 
     expect(notification, "notification").toEqual({ ...EXPECTED, title: "Code-Scanning-Warnung" });
   });
@@ -202,7 +202,7 @@ describe("CODE_SCANNING_ALERT", () => {
   it.each(["dependabot_alert", "secret_scanning_alert", "pull_request", ""])(
     "CODE_SCANNING_ALERT reports nothing for its payload under the event name %s",
     (event) => {
-      const notification = CODE_SCANNING_ALERT.evaluate(event, created, DEFAULT_SETTINGS);
+      const notification = CODE_SCANNING_ALERT.evaluate(event, created, DEFAULT_SETTINGS, undefined);
 
       expect(notification, "notification").toBeUndefined();
     },

@@ -1,11 +1,19 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { encrypt } from "../crypto";
-import { deleteCachedToken, readCachedToken, writeCachedToken } from "./token-cache";
+import { permissionsTag } from "../github/token-permissions";
+import { deleteCachedToken, readCachedToken, tokenContext as storeTokenContext, writeCachedToken } from "./token-cache";
 import { applyMigrations, migrationTestDb, writeFailingDb } from "../../test/d1";
 import { FIXTURE_TOKEN } from "../../test/github";
 import { keyFor } from "../../test/keys";
-import { seedCachedToken, tokenContext, tokenOfRow, tokenRowOf, tokenRows } from "../../test/token-cache";
+import {
+  legacyTokenContext,
+  seedCachedToken,
+  tokenContext,
+  tokenOfRow,
+  tokenRowOf,
+  tokenRows,
+} from "../../test/token-cache";
 
 const SECRET = "throwaway-setup-secret-0123456789abcdef";
 const OTHER_SECRET = "another-throwaway-secret-fedcba9876543210";
@@ -26,7 +34,7 @@ async function rowOrFail(installationId = INSTALLATION): ReturnType<typeof token
 }
 
 describe("writeCachedToken", () => {
-  it("writeCachedToken stores a row that decrypts with exactly token_cache/<id>/<expires_at>", async () => {
+  it("writeCachedToken stores a row that decrypts with exactly token_cache/<id>/<expires_at>/<permission tag>", async () => {
     const key = await keyFor(SECRET);
 
     const iv = await writeCachedToken(env.DB, key, INSTALLATION, TOKEN, EXPIRES_AT);
@@ -34,7 +42,9 @@ describe("writeCachedToken", () => {
     const row = await rowOrFail();
     expect(row?.iv, "iv of the row is the returned IV").toBe(iv);
     expect(row?.expiresAt, "expires_at").toBe(EXPIRES_AT);
-    expect(tokenContext(INSTALLATION, EXPIRES_AT), "additional data").toBe("token_cache/1000003/1792414800000");
+    expect(tokenContext(INSTALLATION, EXPIRES_AT), "additional data").toBe(
+      "token_cache/1000003/1792414800000/metadata=read,pull_requests=read",
+    );
     expect(row === undefined ? undefined : await tokenOfRow(key, row), "decrypted token").toBe(TOKEN);
   });
 
@@ -105,6 +115,48 @@ describe("writeCachedToken", () => {
 
     await expect(pending, "result").rejects.toThrow("The database may only be read");
     expect(await tokenRows(env.DB), "rows").toEqual([]);
+  });
+});
+
+describe("permissionsTag", () => {
+  it("permissionsTag sorts the names", () => {
+    const tag = permissionsTag({ pull_requests: "read", metadata: "read", actions: "read" });
+
+    expect(tag, "tag").toBe("actions=read,metadata=read,pull_requests=read");
+  });
+
+  it("permissionsTag joins name=level pairs by commas", () => {
+    const tag = permissionsTag({ metadata: "read", pull_requests: "write" });
+
+    expect(tag, "tag").toBe("metadata=read,pull_requests=write");
+  });
+
+  it("permissionsTag gives the same text for either key order", () => {
+    const first = permissionsTag({ metadata: "read", pull_requests: "read" });
+    const second = permissionsTag({ pull_requests: "read", metadata: "read" });
+
+    expect(first, "first").toBe(second);
+  });
+
+  it("permissionsTag gives a single pair without a comma", () => {
+    const tag = permissionsTag({ metadata: "read" });
+
+    expect(tag, "tag").toBe("metadata=read");
+  });
+});
+
+describe("tokenContext", () => {
+  it("tokenContext binds the installation, the expiry and the permission list", () => {
+    const context = storeTokenContext(INSTALLATION, EXPIRES_AT);
+
+    expect(context, "additional data").toBe("token_cache/1000003/1792414800000/metadata=read,pull_requests=read");
+  });
+
+  it("tokenContext differs for another installation and for another expiry", () => {
+    const base = storeTokenContext(INSTALLATION, EXPIRES_AT);
+
+    expect(storeTokenContext(OTHER_INSTALLATION, EXPIRES_AT), "other installation").not.toBe(base);
+    expect(storeTokenContext(INSTALLATION, EXPIRES_AT + 1), "other expiry").not.toBe(base);
   });
 });
 
@@ -225,6 +277,54 @@ describe("readCachedToken", () => {
     const cached = await readCachedToken(env.DB, key, INSTALLATION);
 
     expect(cached, "cached token").toBeUndefined();
+  });
+
+  it.each([
+    { case: "the earlier additional data without a list", context: legacyTokenContext(INSTALLATION, EXPIRES_AT) },
+    {
+      case: "only metadata",
+      context: `${legacyTokenContext(INSTALLATION, EXPIRES_AT)}/metadata=read`,
+    },
+    {
+      case: "a list with contents",
+      context: `${legacyTokenContext(INSTALLATION, EXPIRES_AT)}/contents=read,metadata=read,pull_requests=read`,
+    },
+    {
+      case: "the right pairs in another order",
+      context: `${legacyTokenContext(INSTALLATION, EXPIRES_AT)}/pull_requests=read,metadata=read`,
+    },
+    {
+      case: "a list with pull_requests write",
+      context: `${legacyTokenContext(INSTALLATION, EXPIRES_AT)}/metadata=read,pull_requests=write`,
+    },
+  ])(
+    "readCachedToken treats a row written for another permission list as no cached token: $case",
+    async ({ context }) => {
+      const key = await keyFor(SECRET);
+      await seedCachedToken(env.DB, key, INSTALLATION, TOKEN, EXPIRES_AT, context);
+
+      const cached = await readCachedToken(env.DB, key, INSTALLATION);
+
+      expect(cached, "cached token").toBeUndefined();
+    },
+  );
+
+  it("writeCachedToken replaces a row written with the earlier additional data", async () => {
+    const key = await keyFor(SECRET);
+    await seedCachedToken(
+      env.DB,
+      key,
+      INSTALLATION,
+      "ghs_old",
+      EXPIRES_AT,
+      legacyTokenContext(INSTALLATION, EXPIRES_AT),
+    );
+
+    await writeCachedToken(env.DB, key, INSTALLATION, TOKEN, EXPIRES_AT);
+
+    const rows = await tokenRows(env.DB);
+    expect(rows.length, "number of rows").toBe(1);
+    expect(await readCachedToken(env.DB, key, INSTALLATION), "cached token").toMatchObject({ token: TOKEN });
   });
 
   it("readCachedToken reads a token of 255 characters", async () => {

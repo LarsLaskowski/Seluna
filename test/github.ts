@@ -2,6 +2,7 @@ import { expect, onTestFinished, vi } from "vitest";
 import type { Mock } from "vitest";
 import type { GitHubFetch } from "../src/github/conversion";
 import type { AccountChoice } from "../src/github/manifest";
+import appFixture from "./fixtures/github/app.json";
 import installationTokenFixture from "./fixtures/github/installation-token.json";
 import installationsFixture from "./fixtures/github/installations.json";
 import conversionFixture from "./fixtures/github/manifest-conversion.json";
@@ -70,8 +71,9 @@ export function jsonAnswer(status: number, body: unknown, headers?: HeadersInit)
 /** The answer of a rejected `fetch` (network error). */
 export const REJECTED: GitHubAnswer = { kind: "reject", error: new TypeError("Network connection lost") };
 
-/** The requests the double knows: the manifest conversion, the three calls of the GitHub App authentication and the latest release. */
-export type GitHubRoute = "conversion" | "installationToken" | "installations" | "pullRequest" | "latestRelease";
+/** The requests the double knows: the manifest conversion, `GET /app`, the three calls of the GitHub App authentication and the latest release. */
+export type GitHubRoute =
+  "conversion" | "app" | "installationToken" | "installations" | "pullRequest" | "latestRelease";
 
 /** One request the double received. */
 export interface RecordedGitHubRequest {
@@ -89,6 +91,8 @@ export interface RecordedGitHubRequest {
   readonly redirect: Request["redirect"];
   readonly signal: AbortSignal;
   readonly hasBody: boolean;
+  /** The request's body as text, read from a clone of the request, or `null` when it has none. */
+  readonly body: string | null;
 }
 
 /** What answers a route: one answer, a sequence (one per request, the last repeated) or a function of the request. */
@@ -116,6 +120,7 @@ const ROUTE_MATCHES: readonly RouteMatch[] = [
     method: "POST",
     pattern: /^https:\/\/api\.github\.com\/app-manifests\/([^/?#]*)\/conversions$/,
   },
+  { route: "app", method: "GET", pattern: /^https:\/\/api\.github\.com\/app$/ },
   {
     route: "installationToken",
     method: "POST",
@@ -168,7 +173,7 @@ function matchRoute(request: Request): { readonly route: GitHubRoute; readonly p
 
 /**
  * A `fetch` that stands in for `https://api.github.com`: it records every request, with its `Authorization` header,
- * and answers by method and URL: `POST /app-manifests/<code>/conversions`, `POST /app/installations/<id>/access_tokens`,
+ * and answers by method and URL: `POST /app-manifests/<code>/conversions`, `GET /app`, `POST /app/installations/<id>/access_tokens`,
  * `GET /app/installations?per_page=100`, `GET /repos/<owner>/<repo>/pulls/<number>` and
  * `GET /repos/LarsLaskowski/Seluna/releases/latest`. Each route in `routes` is a
  * `GitHubAnswer`, a sequence of them (one per request, the last repeated) or a function of the recorded request. A
@@ -181,6 +186,7 @@ export function githubApiDouble(routes: Readonly<Partial<Record<GitHubRoute, Git
   const counts = new Map<GitHubRoute, number>();
   const fetcher = vi.fn<GitHubFetch>(async (request) => {
     const matched = matchRoute(request);
+    const body = request.body === null ? null : await request.clone().text();
     const recorded: RecordedGitHubRequest = {
       method: request.method,
       url: request.url,
@@ -192,6 +198,7 @@ export function githubApiDouble(routes: Readonly<Partial<Record<GitHubRoute, Git
       redirect: request.redirect,
       signal: request.signal,
       hasBody: request.body !== null,
+      body,
     };
     requests.push(recorded);
     const routeAnswer = matched === undefined ? undefined : routes[matched.route];
@@ -236,6 +243,8 @@ export function expectedManifestJson(origin: string, account: string): string {
     public: false,
     default_permissions: {
       actions: "read",
+      contents: "read",
+      issues: "read",
       pull_requests: "read",
       vulnerability_alerts: "read",
       security_events: "read",
@@ -248,6 +257,10 @@ export function expectedManifestJson(origin: string, account: string): string {
       "dependabot_alert",
       "code_scanning_alert",
       "secret_scanning_alert",
+      "issues",
+      "issue_comment",
+      "fork",
+      "star",
     ],
   });
 }
@@ -277,11 +290,23 @@ export const RSA_4096_PKCS8: string = keySizesFixture.bits4096;
 /** An RSA key of 4104 bits as PKCS#8 PEM (generated with OpenSSL, grants nothing): above the limit of `importSigningKey`. */
 export const RSA_4104_PKCS8: string = keySizesFixture.bits4104;
 
-/** A fresh copy of the documented installation token answer with `token` and `expires_at` (a time) set. */
-export function installationTokenBody(token: string, expiresAt: Date | number): Record<string, unknown> {
+/** The `permissions` GitHub answers for the token request Seluna sends: exactly the two it asked for. */
+export const NARROW_TOKEN_PERMISSIONS: Readonly<Record<string, string>> = { metadata: "read", pull_requests: "read" };
+
+/**
+ * A fresh copy of the documented installation token answer with `token` and `expires_at` (a time) set. Its
+ * `permissions` are `permissions` (default: the two Seluna requests), not the documented example's, because the
+ * example answers a request without a `permissions` object; the documented fields are kept otherwise.
+ */
+export function installationTokenBody(
+  token: string,
+  expiresAt: Date | number,
+  permissions: unknown = NARROW_TOKEN_PERMISSIONS,
+): Record<string, unknown> {
   const copy: Record<string, unknown> = structuredClone(installationTokenFixture);
   copy.token = token;
   copy.expires_at = new Date(expiresAt).toISOString();
+  copy.permissions = permissions;
   return copy;
 }
 
@@ -321,4 +346,61 @@ export const FIXTURE_RELEASE_TAG: string = latestReleaseFixture.tag_name;
 /** A fresh copy of the captured latest release answer with the top-level fields of `changes` set. */
 export function latestReleaseBody(changes: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
   return { ...structuredClone(latestReleaseFixture), ...changes };
+}
+
+/** The `id` of the captured app object of `test/fixtures/github/app.json`. */
+export const FIXTURE_APP_ID: number = appFixture.id;
+
+/** A fresh copy of the captured app object with the top-level fields of `changes` set (a `undefined` value removes the field). */
+export function appBody(changes: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
+  const copy: Record<string, unknown> = structuredClone(appFixture);
+  for (const [field, value] of Object.entries(changes)) {
+    if (value === undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- the helper removes a field named by its caller
+      delete copy[field];
+    } else {
+      copy[field] = value;
+    }
+  }
+  return copy;
+}
+
+/** The eight permissions of the manifest as an app or an installation is granted them, written independently of `src`. */
+export const FULL_PERMISSIONS: Readonly<Record<string, string>> = {
+  actions: "read",
+  contents: "read",
+  issues: "read",
+  pull_requests: "read",
+  vulnerability_alerts: "read",
+  security_events: "read",
+  secret_scanning_alerts: "read",
+  metadata: "read",
+};
+
+/** The nine events of the manifest, written independently of `src`. */
+export const FULL_EVENTS: readonly string[] = [
+  "pull_request",
+  "workflow_run",
+  "dependabot_alert",
+  "code_scanning_alert",
+  "secret_scanning_alert",
+  "issues",
+  "issue_comment",
+  "fork",
+  "star",
+];
+
+/** `permissions` and `events` of the documented installation: what `parseInstallations` narrows into `access`. */
+export const FIXTURE_INSTALLATION_ACCESS: {
+  readonly permissions: Readonly<Record<string, string>>;
+  readonly events: readonly string[];
+} = { permissions: { checks: "write", metadata: "read", contents: "read" }, events: ["push", "pull_request"] };
+
+/** A fresh copy of the documented installation entry granted `permissions` and `events`, with `changes` set on top. */
+export function installationWithAccess(
+  permissions: unknown,
+  events: unknown,
+  changes: Readonly<Record<string, unknown>> = {},
+): Record<string, unknown> {
+  return installationEntry({ permissions, events, ...changes });
 }
