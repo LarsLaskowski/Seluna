@@ -50,6 +50,15 @@ export default tseslint.config(
     },
   },
   {
+    // `D1Database` still declares the deprecated `dump()`, so a test double implementing the interface has to name it
+    // (typescript-eslint 8.72 reports deprecated members in object literals, and its `allow` option does not cover
+    // them); production code stays checked.
+    files: ["src/**/*.test.ts", "test/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-deprecated": "off",
+    },
+  },
+  {
     // Configuration files are plain JavaScript outside the TypeScript project.
     files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
     ...tseslint.configs.disableTypeChecked,
