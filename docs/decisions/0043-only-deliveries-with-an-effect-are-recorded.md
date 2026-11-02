@@ -1,6 +1,6 @@
-# 0043: Only deliveries with an effect are recorded, and strangers' deliveries are bounded per hour
+# 0043: Only deliveries with an effect are recorded, and deliveries of other senders are bounded per hour
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-02
 - **Area:** Notifications
 - **Source:** Issues #121 and #134
@@ -43,15 +43,16 @@ For deliveries without an effect (issue #121):
 5. **Leave an unstar that removes a collected star unrecorded as well** — saves its row, but a redelivered unstar
    after a new star would delete that newer star.
 
-For reported deliveries from strangers (issue #134):
+For reported deliveries of other senders (issue #134):
 
 6. **A bound per event, counted in fixed UTC hours by one conditional `meta` upsert per event, for the four events
-   a stranger can cause (`issues`, `issue_comment`, `star`, `fork`), at 20 recorded deliveries per event and hour** —
+   a stranger can cause (`issues`, `issue_comment`, `star`, `fork`), at 20 recorded deliveries per event and hour,
+   whoever the sender is** —
    the events are disjoint from those of the pull request, CI and alert rules, so those are never counted or
    dropped; 4 × 24 × 20 = 1,920 recorded deliveries a day at about 14 rows each is about 27,000 rows, a little over a
    quarter of the budget, and a delivery past the bound costs one read and a write that changes nothing. One
    statement decides and counts, so concurrent deliveries cannot exceed the bound. 20 an hour is well above what a
-   personal repository sees from strangers. Chosen.
+   personal repository sees from senders other than its owner. Chosen.
 7. **Count the event's `deliveries` rows of the window instead of a counter** — no extra write, but without a new
    index on `(event, received_at)` (a migration and one more row written for every delivery, alerts included) each
    check reads every delivery of the window, and a flood of deliveries past the bound would then spend the daily
@@ -83,18 +84,26 @@ effect. The rules are in [`areas/notifications.md`](../areas/notifications.md) a
   then; it can report then, once. The guarantee keeps its substance — no second message — and its wording names the
   recorded deliveries.
 - A stream of deliveries without effect costs at most one `meta` write a minute.
-- Strangers' reported deliveries cost at most about 27,000 rows written a day; the rest of the budget stays for the
-  pull request, CI and alert rules, the cron and the setup wizard. The row counts per delivery are an estimate from
-  the schema; the local test pool's `rows_written` of the counter statement is measured once in this change.
-- Past the bound a stranger's issue or comment sends no message, a star or fork is not collected, and an unstar is
+- Reported deliveries of the four bounded events cost at most about 27,000 rows written a day; the rest of the budget
+  stays for the pull request, CI and alert rules, the cron and the setup wizard. The row counts per delivery are an
+  estimate from the schema. The counter statement, measured in the local workerd test pool only (not the real D1),
+  `meta.changes` / `rows_written`: first insert 1 / 2, increment 1 / 1, refusal at the bound 0 / 0, next hour 1 / 1,
+  an empty stored value restarting 1 / 1, a stored 16-digit count above the limit 0 / 0 and unchanged; five
+  concurrent calls at 18 of 20 gave `changes` 1, 1, 0, 0, 0 and a final count of 20.
+- The bound counts every sender the rules report, not only strangers: the rules report anyone other than the owner
+  (`isForeignSender`), so collaborators' issues and comments share the hourly bound, and for an organization-owned App,
+  whose owner never acts itself (`isOwnAction`), its members' do too.
+- Past the bound an issue or comment sends no message, a star or fork is not collected, and an unstar is
   not applied (a star collected before stays in the digest). The owner learns of it only from the log entry
   (`limited`) and GitHub's own notifications; one stranger can fill an event's bound for an hour and hide the others'
   issues or comments of that hour. A dropped delivery is not recorded, so its redelivery in a later hour can report it.
 - Around the turn of an hour up to twice the bound can be recorded in a short time. A counted delivery whose batch
   then fails, or finds the id recorded meanwhile, still counts.
 - A comment on a pull request past the bound still makes its draft lookup, which runs before the bound is checked.
-- Pull requests opened by strangers stay unbounded (option 12), and the free plan's daily Worker request limit is a
-  separate budget no D1 bound protects.
+- Pull requests opened by strangers stay unbounded (option 12), and so do failed CI runs (`workflow_run`) in
+  strangers' fork pull requests (`src/rules/workflow-run.ts`), which the bound never counts because it leaves the CI
+  rules alone; both are left to one follow-up issue.
+- The free plan's daily Worker request limit is a separate budget no D1 bound protects.
 - The status page time can lag the latest delivery by up to a minute, and a write failure leaves the earlier time.
 - A draft lookup may still refresh the installation-token cache for a delivery that is then dropped, as before.
 - That a no-op upsert counts no row written in D1's billing is taken from SQLite's change count, not measured on the
