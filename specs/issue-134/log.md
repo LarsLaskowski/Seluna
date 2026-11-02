@@ -15,3 +15,5 @@ are quoted in full.
 | 2026-11-02 19:22 | 6 Coverage (continued) | squad-tester | Deferred AC3/AC4/prefix tests written; mutations fail as expected; suite 6368 green, gate pass (opus/medium · 12,627 tokens · 9 tool uses · 243 s · continued) |
 | 2026-11-02 19:25 | 6 Documentation (continued) | squad-dev | Docs written (notifications, storage, http-routes, ARCHITECTURE, project.md, CHANGELOG); suite 6368 green (sonnet/medium · 18,826 tokens · 12 tool uses · 134 s · continued) |
 | 2026-11-02 19:27 | 7 Code check | Orchestrator | format, typecheck, build, tests+coverage gate, analyzer gate, scope-check pass; main not moved |
+| 2026-11-02 19:30 | 8 Review | squad-reviewer | Round 1: BLOCKING 2 (docs wording: stores-nothing claim; what is counted), 0 non-blocking (opus/medium · 63,451 tokens · 13 tool uses · 113 s) |
+| 2026-11-02 19:30 | 8 Security diff | squad-security | APPROVED, 4 non-blocking for Lead step 9 (0043 notes; project.md entry title); fact 8 re-measured (opus/medium · 41,124 tokens · 11 tool uses · 110 s) |
