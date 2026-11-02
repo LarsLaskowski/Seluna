@@ -42,8 +42,7 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
 8. The answer is **202**, whether or not a rule matched. The new `outbox` rows are sent after the answer (below).
 
 - When the transaction fails because the delivery id was stored in the meantime (two deliveries of one id at once),
-  the answer is **200** and nothing of this delivery is stored. Any other database failure in steps 2 to 6 answers
-  **503** and stores nothing.
+  the answer is **200** and nothing of this delivery is stored except its count of step 5. Any other database failure in steps 2 to 6 answers **503** and stores nothing except a count of step 5 that was already made.
 - Every time (time received, `created_at`, `last_delivery`) is the same reading of the clock, taken once per
   delivery.
 
@@ -280,8 +279,7 @@ Every other action of `star` (and a `fork` delivery with an `action` key) trigge
   repository, in the delivery's transaction, in every interval, while _New star_ is on and the sender is foreign. It
   sends nothing and alone it is `no-match`. A star that was already sent in a digest or message is not taken back.
   A star that was never collected is a removal that deletes nothing.
-- **The hourly bound.** At most 20 `star` deliveries and 20 `fork` deliveries that would collect or send are counted
-  per UTC hour, by anyone other than the owner. Past the bound a star or fork is not collected or sent, and an
+- **The hourly bound.** At most 20 `star` deliveries (stars and unstars together) and 20 `fork` deliveries that would be recorded are counted per UTC hour, by anyone other than the owner. Past the bound a star or fork is not collected or sent, and an
   unstar removes nothing, because the delivery is not recorded (`limited`, step 5 of
   [Processing a delivery](#processing-a-delivery)).
 - **Redelivery.** A redelivered delivery collects nothing a second time (step 2 of

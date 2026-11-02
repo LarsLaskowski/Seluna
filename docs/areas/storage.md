@@ -118,10 +118,10 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   or more from the time received; a failure of that write is ignored. The setup wizard only reads it, so it can lag
   the latest delivery by up to a minute.
 - The `meta` rows `delivery_count:issues`, `delivery_count:issue_comment`, `delivery_count:star` and
-  `delivery_count:fork` count the recorded deliveries of that event in one UTC hour, as `<hour>:<count>`: `<hour>` is
+  `delivery_count:fork` count the deliveries of that event that were to be recorded in one UTC hour (a counted delivery whose batch then fails still counts), as `<hour>:<count>`: `<hour>` is
   the time received in whole hours since 1970-01-01 UTC (decimal), `<count>` matches `^[1-9]\d{0,15}$`. The webhook
   processing writes them, by one conditional statement that counts a delivery while fewer than 20 are counted in the
-  same hour, leaves the row unchanged at 20, and restarts at `<hour>:1` when the stored value is of another hour or of
+  same hour, leaves the row unchanged at 20 or more, and restarts at `<hour>:1` when the stored value is of another hour or of
   any other form ([Notifications](notifications.md#processing-a-delivery)). A row is overwritten each hour, never
   deleted, and there are at most four.
 - The `meta` row `activity_digest_run` is the time of the last run of the digest job, as decimal milliseconds in the
