@@ -1782,6 +1782,32 @@ function counterFailingDb(db: D1Database): D1Database {
   };
 }
 
+/** Stores `value` as the hourly count of each of the four bounded events. */
+async function setAllCounters(value: string): Promise<void> {
+  await setCounter("fork", value);
+  await setCounter("issue_comment", value);
+  await setCounter("issues", value);
+  await setCounter("star", value);
+}
+
+/** Every `delivery_count:` row as `[key, value]`, ordered by key. */
+async function counterRows(): Promise<unknown[][]> {
+  const { results } = await env.DB.prepare(
+    "SELECT key, value FROM meta WHERE substr(key, 1, 15) = 'delivery_count:' ORDER BY key",
+  ).all();
+  return results.map((row) => [row.key, row.value]);
+}
+
+/** The four counter rows of `counterRows`, each holding `value`. */
+function countersAt(value: string): unknown[][] {
+  return [
+    ["delivery_count:fork", value],
+    ["delivery_count:issue_comment", value],
+    ["delivery_count:issues", value],
+    ["delivery_count:star", value],
+  ];
+}
+
 /** A signed delivery of `event` whose JSON body is `payload`. */
 function boundedDelivery(event: BoundedEvent, payload: WebhookPayload, delivery: string): SignedDelivery {
   return jsonDelivery(JSON.stringify(payload), { event, delivery });
@@ -1966,6 +1992,90 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
     expect(await count("outbox"), "outbox rows").toBe(1);
     expect(telegram.requests, "Telegram requests").toHaveLength(1);
   });
+
+  it.each<{ case: string; delivery: SignedDelivery; setup: () => Promise<void>; decision: string }>([
+    {
+      case: "the owner's own issue",
+      delivery: boundedDelivery("issues", fromOwner(issuesOpened), "no-effect-own"),
+      setup: () => Promise.resolve(),
+      decision: "no-match",
+    },
+    {
+      case: "an issue with issue_opened off",
+      delivery: boundedDelivery("issues", issuesOpened, "no-effect-off"),
+      setup: () => switchOff("issue_opened"),
+      decision: "disabled",
+    },
+    { case: "a ping", delivery: pingDelivery(), setup: () => Promise.resolve(), decision: "no-match" },
+  ])("processWebhook neither counts nor limits $case", async ({ delivery, setup, decision }) => {
+    await setup();
+    await setAllCounters(AT_BOUND);
+    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcome = await processWebhook(delivery, deps);
+
+    expect([outcome.status, outcome.decision], "status and decision").toEqual([202, decision]);
+    expect(await counterRows(), "counter rows").toEqual(countersAt(AT_BOUND));
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+  });
+
+  it.each<{ case: string; delivery: SignedDelivery; setup: () => Promise<void> }>([
+    {
+      case: "the owner's own issue",
+      delivery: boundedDelivery("issues", fromOwner(issuesOpened), "below-own"),
+      setup: () => Promise.resolve(),
+    },
+    {
+      case: "an issue with issue_opened off",
+      delivery: boundedDelivery("issues", issuesOpened, "below-off"),
+      setup: () => switchOff("issue_opened"),
+    },
+    { case: "a ping", delivery: pingDelivery(), setup: () => Promise.resolve() },
+  ])("processWebhook leaves the counter unchanged for $case below the bound", async ({ delivery, setup }) => {
+    await setup();
+    await setAllCounters(`${NOW_HOUR}:5`);
+    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    await processWebhook(delivery, deps);
+
+    expect(await counterRows(), "counter rows").toEqual(countersAt(`${NOW_HOUR}:5`));
+  });
+
+  it.each<{ case: string; delivery: SignedDelivery }>([
+    { case: "a non-draft opened pull request", delivery: pullRequestDelivery(opened) },
+    {
+      case: "a failed CI run in a pull request whose lookup answers not a draft",
+      delivery: workflowRunDelivery(failedPullRequestRun),
+    },
+    { case: "a failed CI run on the default branch", delivery: workflowRunDelivery(MAIN_FAILURE) },
+    { case: "a Dependabot alert", delivery: alertDelivery("dependabot_alert", dependabotCreated) },
+    { case: "a secret scanning alert", delivery: alertDelivery("secret_scanning_alert", secretCreated) },
+  ])(
+    "processWebhook records and sends $case while every bounded event is at its bound and answers its redelivery 200 duplicate",
+    async ({ delivery }) => {
+      await setAllCounters(AT_BOUND);
+      const { deps, waitUntil, telegram } = harness({
+        rules: RULES,
+        lookUpDraft: lookupAnswering({ kind: "ok", draft: false }),
+      });
+
+      const first = await processWebhook(delivery, deps);
+      const again = await processWebhook(delivery, deps);
+      await settled(waitUntil);
+
+      expect(
+        [first, again].map((outcome) => [outcome.status, outcome.decision]),
+        "statuses and decisions",
+      ).toEqual([
+        [202, "reported"],
+        [200, "duplicate"],
+      ]);
+      expect(await count("deliveries"), "deliveries rows").toBe(1);
+      expect(await count("outbox"), "outbox rows").toBe(1);
+      expect(telegram.requests, "Telegram requests").toHaveLength(1);
+      expect(await counterRows(), "counter rows").toEqual(countersAt(AT_BOUND));
+    },
+  );
 
   it("processWebhook answers 503 unavailable and stores nothing when the counter write fails for an issue", async () => {
     const { deps, waitUntil, telegram } = harness({

@@ -341,6 +341,10 @@ describe("countBoundedDelivery", () => {
     return results;
   }
 
+  it("DELIVERY_COUNT_META_PREFIX names the rows delivery_count:", () => {
+    expect(DELIVERY_COUNT_META_PREFIX, "prefix").toBe("delivery_count:");
+  });
+
   it("countBoundedDelivery stores <hour>:1 when no row is stored", async () => {
     const counted = await countBoundedDelivery(env.DB, "issues", time, 20);
 

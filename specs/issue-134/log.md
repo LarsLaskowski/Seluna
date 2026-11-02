@@ -12,3 +12,4 @@ are quoted in full.
 | 2026-11-02 18:53 | 4 Skeleton | squad-dev | Stubs added in meta.ts and webhook.ts (BoundedEvent typed per Security note 1); typecheck and lint pass (sonnet/medium · 80,938 tokens · 10 tool uses · 93 s) |
 | 2026-11-02 19:00 | 5 Tests first | squad-tester | 43 new tests fail on skeleton (confirmed: 43 failed, 257 passed); deferred: AC3, AC4, prefix constant test (opus/medium · 161,455 tokens · 27 tool uses · 402 s) |
 | 2026-11-02 19:17 | 6 Implement | squad-dev | countBoundedDelivery + wiring; suite green, coverage gate pass (28/28 new lines), analyzer pass; docs pending (sonnet/medium · 83,483 tokens · 14 tool uses · 817 s) |
+| 2026-11-02 19:22 | 6 Coverage (continued) | squad-tester | Deferred AC3/AC4/prefix tests written; mutations fail as expected; suite 6368 green, gate pass (opus/medium · 12,627 tokens · 9 tool uses · 243 s · continued) |
