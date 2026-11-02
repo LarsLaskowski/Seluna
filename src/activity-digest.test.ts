@@ -14,7 +14,7 @@ import type { NotificationSettings } from "./settings";
 import { ACTIVITY_RETENTION_MS } from "./store/activity";
 import { digestRunUpsert, readDigestRun } from "./store/meta";
 import { writeNotificationSettings } from "./store/settings";
-import { processWebhook } from "./webhook";
+import { BOUNDED_DELIVERIES_PER_HOUR, processWebhook } from "./webhook";
 import type { SignedDelivery, WebhookDeps } from "./webhook";
 import { failingBatchDb, hookedBatchDb, withoutActivityTable } from "../test/activity";
 import { applyMigrations } from "../test/d1";
@@ -619,7 +619,7 @@ function activityDelivery(
   };
 }
 
-describe("the digest of 50 stars and 2 forks (AC4)", () => {
+describe("the digest of the 20 stars and 2 forks of one hour", () => {
   it("one job run at the next full hour sends exactly one message with the line of the hourly example", async () => {
     await configure({ activityDigest: { kind: "hourly" } });
     await storeRun(new Date("2026-10-21T12:05:00Z"));
@@ -637,13 +637,13 @@ describe("the digest of 50 stars and 2 forks (AC4)", () => {
       lookUpDraft: () => Promise.resolve({ kind: "failed" }),
       readOwner: () => Promise.resolve(undefined),
     };
-    for (let sender = 1; sender <= 50; sender += 1) {
+    for (let sender = 1; sender <= BOUNDED_DELIVERIES_PER_HOUR; sender += 1) {
       const payload = variant(starCreated, ["repository", "stargazers_count"], 1234 + sender);
       await processWebhook(activityDelivery("star", payload, `s-${String(sender)}`, sender), webhook);
     }
     await processWebhook(activityDelivery("fork", forkFixture, "f-1", 1), webhook);
     await processWebhook(activityDelivery("fork", forkFixture, "f-2", 51), webhook);
-    expect(await activityCount(), "collected rows").toBe(52);
+    expect(await activityCount(), "collected rows").toBe(BOUNDED_DELIVERIES_PER_HOUR + 2);
     expect(await outboxCount(), "no message before the digest").toBe(0);
     const { deps, telegram: digestTelegram } = harness();
 
@@ -655,8 +655,8 @@ describe("the digest of 50 stars and 2 forks (AC4)", () => {
         status: "sent",
         attempts: 1,
         text:
-          "<b>New stars and forks</b>\nexample-owner/example-repo: +50 ⭐ (now 1,284), +2 forks · " +
-          "user1, user2, user3, user4, user5 and 46 more",
+          "<b>New stars and forks</b>\nexample-owner/example-repo: +20 ⭐ (now 1,254), +2 forks · " +
+          "user1, user2, user3, user4, user5 and 16 more",
         button: "https://github.com/example-owner/example-repo",
       },
     ]);

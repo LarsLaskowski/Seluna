@@ -1,6 +1,8 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  countBoundedDelivery,
+  DELIVERY_COUNT_META_PREFIX,
   DIGEST_RUN_META_KEY,
   digestRunUpsert,
   GITHUB_APP_OWNER_META_KEY,
@@ -23,6 +25,7 @@ beforeEach(async () => {
   await env.DB.prepare("DELETE FROM meta WHERE key IN (?1, ?2, ?3)")
     .bind(LAST_DELIVERY_META_KEY, GITHUB_APP_SLUG_META_KEY, GITHUB_APP_OWNER_META_KEY)
     .run();
+  await env.DB.prepare("DELETE FROM meta WHERE substr(key, 1, length(?1)) = ?1").bind(DELIVERY_COUNT_META_PREFIX).run();
 });
 
 async function putMeta(key: string, value: string): Promise<void> {
@@ -324,5 +327,150 @@ describe("readDigestRun", () => {
 
     expect(await storedMeta(LAST_DELIVERY_META_KEY), "last delivery").toBe("5");
     expect(await storedMeta(DIGEST_RUN_META_KEY), "digest run").toBe("7");
+  });
+});
+
+describe("countBoundedDelivery", () => {
+  /** 2026-10-17T12:34:00Z, in the UTC hour 497844 since 1970-01-01 (`Math.floor(time / 3,600,000)`). */
+  const time = new Date(1_792_240_440_000);
+  const hour = "497844";
+  const issuesKey = "delivery_count:issues";
+
+  async function allMeta(): Promise<Record<string, unknown>[]> {
+    const { results } = await env.DB.prepare("SELECT key, value FROM meta ORDER BY key").all();
+    return results;
+  }
+
+  it("DELIVERY_COUNT_META_PREFIX names the rows delivery_count:", () => {
+    expect(DELIVERY_COUNT_META_PREFIX, "prefix").toBe("delivery_count:");
+  });
+
+  it("countBoundedDelivery stores <hour>:1 when no row is stored", async () => {
+    const counted = await countBoundedDelivery(env.DB, "issues", time, 20);
+
+    expect(counted, "counted").toBe(true);
+    expect(await storedMeta(issuesKey), "stored count").toBe(`${hour}:1`);
+  });
+
+  it.each([
+    { stored: "1", expected: "2" },
+    { stored: "7", expected: "8" },
+    { stored: "19", expected: "20" },
+  ])("countBoundedDelivery counts a stored $stored of the same hour up to $expected", async ({ stored, expected }) => {
+    await putMeta(issuesKey, `${hour}:${stored}`);
+
+    const counted = await countBoundedDelivery(env.DB, "issues", time, 20);
+
+    expect(counted, "counted").toBe(true);
+    expect(await storedMeta(issuesKey), "stored count").toBe(`${hour}:${expected}`);
+  });
+
+  it("countBoundedDelivery counts up to the limit and refuses the next call", async () => {
+    const results = [
+      await countBoundedDelivery(env.DB, "issues", time, 3),
+      await countBoundedDelivery(env.DB, "issues", time, 3),
+      await countBoundedDelivery(env.DB, "issues", time, 3),
+      await countBoundedDelivery(env.DB, "issues", time, 3),
+    ];
+
+    expect(results, "results of the four calls").toEqual([true, true, true, false]);
+    expect(await storedMeta(issuesKey), "stored count").toBe(`${hour}:3`);
+  });
+
+  it.each([
+    { case: "at the limit", stored: "20" },
+    { case: "above the limit", stored: "21" },
+    { case: "of 16 digits", stored: "9999999999999999" },
+  ])("countBoundedDelivery refuses and keeps a count $case", async ({ stored }) => {
+    await putMeta(issuesKey, `${hour}:${stored}`);
+
+    const counted = await countBoundedDelivery(env.DB, "issues", time, 20);
+
+    expect(counted, "counted").toBe(false);
+    expect(await storedMeta(issuesKey), "stored count").toBe(`${hour}:${stored}`);
+  });
+
+  it.each([
+    { case: "the previous hour", value: "497843:5" },
+    { case: "the previous hour at the limit", value: "497843:20" },
+    { case: "a later hour at the limit", value: "497845:20" },
+    { case: "an hour that starts with the same digits", value: "4978440:20" },
+    { case: "x", value: "x" },
+    { case: "the empty text", value: "" },
+    { case: "the hour without a count", value: `${hour}:` },
+    { case: "the hour without a colon", value: hour },
+    { case: "a count that is not a number", value: `${hour}:abc` },
+    { case: "a count with a leading zero", value: `${hour}:01` },
+    { case: "a count of 0", value: `${hour}:0` },
+    { case: "a negative count", value: `${hour}:-1` },
+    { case: "a decimal count", value: `${hour}:20.5` },
+    { case: "a count with an exponent", value: `${hour}:2e1` },
+    { case: "a count with a trailing space", value: `${hour}:20 ` },
+    { case: "a count with a leading space", value: `${hour}: 20` },
+    { case: "a value with a leading space", value: ` ${hour}:20` },
+    { case: "a count followed by text", value: `${hour}:20x` },
+    { case: "a count of 17 digits", value: `${hour}:10000000000000000` },
+  ])("countBoundedDelivery restarts at 1 for $case", async ({ value }) => {
+    await putMeta(issuesKey, value);
+
+    const counted = await countBoundedDelivery(env.DB, "issues", time, 20);
+
+    expect(counted, "counted").toBe(true);
+    expect(await storedMeta(issuesKey), "stored count").toBe(`${hour}:1`);
+  });
+
+  it("countBoundedDelivery counts exactly two of five concurrent calls at 18 of 20", async () => {
+    await putMeta(issuesKey, `${hour}:18`);
+
+    const results = await Promise.all([
+      countBoundedDelivery(env.DB, "issues", time, 20),
+      countBoundedDelivery(env.DB, "issues", time, 20),
+      countBoundedDelivery(env.DB, "issues", time, 20),
+      countBoundedDelivery(env.DB, "issues", time, 20),
+      countBoundedDelivery(env.DB, "issues", time, 20),
+    ]);
+
+    expect(
+      results.filter((counted) => counted),
+      "counted calls",
+    ).toEqual([true, true]);
+    expect(await storedMeta(issuesKey), "stored count").toBe(`${hour}:20`);
+  });
+
+  it("countBoundedDelivery counts each event in its own row and leaves last_delivery untouched", async () => {
+    await putMeta(LAST_DELIVERY_META_KEY, "1792240000000");
+    await putMeta(GITHUB_APP_SLUG_META_KEY, "123:seluna");
+    await putMeta("delivery_count:star", `${hour}:20`);
+    const before = await allMeta();
+
+    const results = [
+      await countBoundedDelivery(env.DB, "issues", time, 20),
+      await countBoundedDelivery(env.DB, "fork", time, 20),
+      await countBoundedDelivery(env.DB, "star", time, 20),
+    ];
+
+    expect(results, "results for issues, fork and star").toEqual([true, true, false]);
+    expect(await allMeta(), "meta rows").toEqual(
+      [
+        ...before,
+        { key: "delivery_count:fork", value: `${hour}:1` },
+        { key: "delivery_count:issues", value: `${hour}:1` },
+      ].sort((a, b) => (String(a.key) < String(b.key) ? -1 : 1)),
+    );
+    expect(await storedMeta("delivery_count:issue_comment"), "issue_comment row").toBeUndefined();
+  });
+
+  it("countBoundedDelivery starts a new count at the first millisecond of the next hour", async () => {
+    const lastMillisecond = new Date(497_845 * 3_600_000 - 1);
+    const firstMillisecond = new Date(497_845 * 3_600_000);
+    await countBoundedDelivery(env.DB, "issues", lastMillisecond, 1);
+
+    const results = [
+      await countBoundedDelivery(env.DB, "issues", lastMillisecond, 1),
+      await countBoundedDelivery(env.DB, "issues", firstMillisecond, 1),
+    ];
+
+    expect(results, "results in the last and the first millisecond").toEqual([false, true]);
+    expect(await storedMeta(issuesKey), "stored count").toBe("497845:1");
   });
 });

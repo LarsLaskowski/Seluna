@@ -8,9 +8,10 @@ import { formatMessage } from "./message";
 import { storedNotificationOf } from "./notification";
 import { starRemovalOf } from "./rules/repository-starred";
 import { runRules } from "./rules/rule";
-import type { Notification, Rule, RuleDecision, WebhookPayload } from "./rules/rule";
+import type { ActivityEvent, Notification, Rule, RuleDecision, WebhookPayload } from "./rules/rule";
 import { recordDelivery, isKnownDelivery } from "./store/deliveries";
-import { refreshLastDelivery } from "./store/meta";
+import { BOUNDED_EVENT_NAMES, countBoundedDelivery, refreshLastDelivery } from "./store/meta";
+import type { BoundedEvent } from "./store/meta";
 import { readNotificationSettings } from "./store/settings";
 import type { NotificationSettings } from "./settings";
 import type { TelegramFetch } from "./telegram";
@@ -34,7 +35,17 @@ export interface SignedDelivery {
 
 /** What the processing did; `collected` means the delivery's stars or forks went into the activity digest. */
 export type WebhookDecision =
-  "reported" | "collected" | "no-match" | "disabled" | "duplicate" | "invalid" | "unavailable";
+  "reported" | "collected" | "no-match" | "disabled" | "limited" | "duplicate" | "invalid" | "unavailable";
+
+/** The events a stranger can cause on a public repository; their recorded deliveries are bounded per event and UTC hour. */
+export const BOUNDED_EVENTS: ReadonlySet<string> = new Set<string>(BOUNDED_EVENT_NAMES);
+/** At most this many deliveries of one bounded event are recorded per UTC hour. */
+export const BOUNDED_DELIVERIES_PER_HOUR = 20;
+
+/** Whether `event` is one of `BOUNDED_EVENTS`. */
+export function isBoundedEvent(event: string): event is BoundedEvent {
+  return BOUNDED_EVENTS.has(event);
+}
 
 export interface WebhookOutcome {
   readonly status: 200 | 202 | 400 | 503;
@@ -129,6 +140,51 @@ async function refreshLastDeliveryQuietly(db: D1Database, time: Date): Promise<v
   }
 }
 
+/** Under a digest (`collecting`) the notifications that carry `activity` are collected, not sent at once. */
+function splitActivity(
+  all: readonly Notification[],
+  collecting: boolean,
+): { readonly collected: readonly ActivityEvent[]; readonly notifications: readonly Notification[] } {
+  if (!collecting) {
+    return { collected: [], notifications: all };
+  }
+  return {
+    collected: all.flatMap((notification) => notification.activity ?? []),
+    notifications: all.filter((notification) => notification.activity === undefined),
+  };
+}
+
+/** The messages to send: each stored row with its outbox id, in order. */
+function pendingMessagesOf(
+  rows: readonly {
+    readonly notification: PendingMessage["notification"];
+    readonly buttonUrl: string | undefined;
+    readonly silent: boolean;
+  }[],
+  messages: readonly { readonly text: string }[],
+  outboxIds: readonly number[],
+): PendingMessage[] {
+  const pending: PendingMessage[] = [];
+  rows.forEach((row, index) => {
+    const outboxId = outboxIds[index];
+    if (outboxId !== undefined) {
+      pending.push({
+        id: outboxId,
+        text: messages[index]?.text ?? "",
+        buttonUrl: row.buttonUrl,
+        silent: row.silent,
+        notification: row.notification,
+      });
+    }
+  });
+  return pending;
+}
+
+/** Whether a delivery that would be recorded may be: always, except a bounded event past its hourly bound. */
+async function withinBound(db: D1Database, event: string, time: Date): Promise<boolean> {
+  return !isBoundedEvent(event) || (await countBoundedDelivery(db, event, time, BOUNDED_DELIVERIES_PER_HOUR));
+}
+
 /** Records a signed delivery, evaluates the rules, stores the messages and hands their sending to `waitUntil`. */
 export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps): Promise<WebhookOutcome> {
   const { delivery: id, event } = delivery;
@@ -152,11 +208,7 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
     const owner = await deps.readOwner();
     const run = await notificationsOf(event, payload, settings, owner, deps);
     // Under an hourly or daily digest a star or fork is collected in `activity` instead of being sent at once.
-    const collecting = settings.activityDigest.kind !== "immediate";
-    const collected = collecting ? run.notifications.flatMap((notification) => notification.activity ?? []) : [];
-    const notifications = collecting
-      ? run.notifications.filter((notification) => notification.activity === undefined)
-      : run.notifications;
+    const { collected, notifications } = splitActivity(run.notifications, settings.activityDigest.kind !== "immediate");
     const removal = starRemovalOf(event, payload, settings, owner);
     const changes = { inserts: collected, removals: removal === undefined ? [] : [removal] };
     const decision = collected.length > 0 && notifications.length === 0 ? "collected" : run.decision;
@@ -172,6 +224,10 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
       await refreshLastDeliveryQuietly(deps.db, receivedAt);
       return outcomeOf(202, decision, fields);
     }
+    if (!(await withinBound(deps.db, event, receivedAt))) {
+      await refreshLastDeliveryQuietly(deps.db, receivedAt);
+      return outcomeOf(202, "limited", fields);
+    }
     const recorded = await recordDelivery(
       deps.db,
       { id, event, receivedAt },
@@ -181,19 +237,7 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
     if (recorded.kind === "duplicate") {
       return outcomeOf(200, "duplicate");
     }
-    const pending: PendingMessage[] = [];
-    rows.forEach((row, index) => {
-      const outboxId = recorded.outboxIds[index];
-      if (outboxId !== undefined) {
-        pending.push({
-          id: outboxId,
-          text: messages[index]?.text ?? "",
-          buttonUrl: row.buttonUrl,
-          silent: row.silent,
-          notification: row.notification,
-        });
-      }
-    });
+    const pending = pendingMessagesOf(rows, messages, recorded.outboxIds);
     if (pending.length > 0) {
       deps.waitUntil(
         deliverMessages(pending, settings, {

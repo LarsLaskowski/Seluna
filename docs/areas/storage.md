@@ -107,7 +107,7 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   cron ([Scheduled jobs](scheduled-jobs.md#retry)). A `pending` row is never deleted; `sent` and `failed` rows are
   deleted 30 days after they were written, `deliveries` rows 7 days after they were received
   ([Scheduled jobs](scheduled-jobs.md#cleanup)).
-- `meta` holds the last notified release (`notified_release`, below), the time of the last delivery, the key check value
+- `meta` holds the last notified release (`notified_release`, below), the time of the last delivery, the hourly delivery counts, the key check value
   (`key_check`, below), the GitHub App's slug and owner and the setup login's failed-attempt count (`login_attempts`, format
   and rules in [Setup wizard](setup-wizard.md#failed-attempts-and-the-lock)).
 - The `meta` row `last_delivery` is the time of the last received webhook delivery, as decimal milliseconds since
@@ -117,6 +117,13 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   conditional statement that sets it only when the stored value is missing, does not fit that form, or lies 60 seconds
   or more from the time received; a failure of that write is ignored. The setup wizard only reads it, so it can lag
   the latest delivery by up to a minute.
+- The `meta` rows `delivery_count:issues`, `delivery_count:issue_comment`, `delivery_count:star` and
+  `delivery_count:fork` count the deliveries of that event that were to be recorded in one UTC hour (a counted delivery whose batch then fails still counts), as `<hour>:<count>`: `<hour>` is
+  the time received in whole hours since 1970-01-01 UTC (decimal), `<count>` matches `^[1-9]\d{0,15}$`. The webhook
+  processing writes them, by one conditional statement that counts a delivery while fewer than 20 are counted in the
+  same hour, leaves the row unchanged at 20 or more, and restarts at `<hour>:1` when the stored value is of another hour or of
+  any other form ([Notifications](notifications.md#processing-a-delivery)). A row is overwritten each hour, never
+  deleted, and there are at most four.
 - The `meta` row `activity_digest_run` is the time of the last run of the digest job, as decimal milliseconds in the
   same form as `last_delivery`; a value that does not fit counts as no run. Only the digest job writes it, in each
   run that gets as far as storing it ([Scheduled jobs](scheduled-jobs.md#digest)).

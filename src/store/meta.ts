@@ -114,3 +114,39 @@ export function digestRunUpsert(db: D1Database, time: Date): D1PreparedStatement
     .prepare("INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value")
     .bind(DIGEST_RUN_META_KEY, String(time.getTime()));
 }
+
+/** The events whose recorded deliveries are counted per UTC hour. */
+export const BOUNDED_EVENT_NAMES = ["issues", "issue_comment", "star", "fork"] as const;
+/** One of `BOUNDED_EVENT_NAMES`; the only values a `delivery_count:` key is built from. */
+export type BoundedEvent = (typeof BOUNDED_EVENT_NAMES)[number];
+
+/** Prefix of the `meta` keys that count one bounded event's recorded deliveries in a UTC hour, as `<hour>:<count>`. */
+export const DELIVERY_COUNT_META_PREFIX = "delivery_count:";
+/** Length of a counting window, one UTC hour, in milliseconds. */
+export const DELIVERY_COUNT_WINDOW_MS = 3_600_000;
+
+/**
+ * Counts one delivery of `event` in the UTC hour of `time` unless `limit` or more are counted there already, in one
+ * conditional statement; true when it counted. D1 errors are not caught.
+ */
+export async function countBoundedDelivery(
+  db: D1Database,
+  event: BoundedEvent,
+  time: Date,
+  limit: number,
+): Promise<boolean> {
+  const prefix = `${String(Math.floor(time.getTime() / DELIVERY_COUNT_WINDOW_MS))}:`;
+  // The stored count counts as a number only for this hour's prefix and the form [1-9][0-9]{0,15}.
+  const count = "substr(meta.value, length(?2) + 1)";
+  const counted = `(substr(meta.value, 1, length(?2)) = ?2 AND ${count} GLOB '[1-9]*' AND ${count} NOT GLOB '*[^0-9]*' AND length(${count}) <= 16)`;
+  const result = await db
+    .prepare(
+      `INSERT INTO meta (key, value) VALUES (?1, ?2 || '1') ON CONFLICT (key) DO UPDATE SET value = CASE
+         WHEN ${counted} THEN ?2 || CAST(CAST(${count} AS INTEGER) + 1 AS TEXT)
+         ELSE ?2 || '1' END
+       WHERE NOT (${counted} AND CAST(${count} AS INTEGER) >= ?3)`,
+    )
+    .bind(`${DELIVERY_COUNT_META_PREFIX}${event}`, prefix, limit)
+    .run();
+  return result.meta.changes === 1;
+}
