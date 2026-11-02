@@ -13,3 +13,5 @@ are quoted in full.
 | 2026-11-02 19:00 | 5 Tests first | squad-tester | 43 new tests fail on skeleton (confirmed: 43 failed, 257 passed); deferred: AC3, AC4, prefix constant test (opus/medium · 161,455 tokens · 27 tool uses · 402 s) |
 | 2026-11-02 19:17 | 6 Implement | squad-dev | countBoundedDelivery + wiring; suite green, coverage gate pass (28/28 new lines), analyzer pass; docs pending (sonnet/medium · 83,483 tokens · 14 tool uses · 817 s) |
 | 2026-11-02 19:22 | 6 Coverage (continued) | squad-tester | Deferred AC3/AC4/prefix tests written; mutations fail as expected; suite 6368 green, gate pass (opus/medium · 12,627 tokens · 9 tool uses · 243 s · continued) |
+| 2026-11-02 19:25 | 6 Documentation (continued) | squad-dev | Docs written (notifications, storage, http-routes, ARCHITECTURE, project.md, CHANGELOG); suite 6368 green (sonnet/medium · 18,826 tokens · 12 tool uses · 134 s · continued) |
+| 2026-11-02 19:27 | 7 Code check | Orchestrator | format, typecheck, build, tests+coverage gate, analyzer gate, scope-check pass; main not moved |
