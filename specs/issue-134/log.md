@@ -18,3 +18,4 @@ are quoted in full.
 | 2026-11-02 19:30 | 8 Review | squad-reviewer | Round 1: BLOCKING 2 (docs wording: stores-nothing claim; what is counted), 0 non-blocking (opus/medium · 63,451 tokens · 13 tool uses · 113 s) |
 | 2026-11-02 19:30 | 8 Security diff | squad-security | APPROVED, 4 non-blocking for Lead step 9 (0043 notes; project.md entry title); fact 8 re-measured (opus/medium · 41,124 tokens · 11 tool uses · 110 s) |
 | 2026-11-02 19:31 | 8 Fix round 1 (docs) | squad-dev | Applied 2 blocking doc findings and project.md entry rename; suite 6368 green (sonnet/medium · 2,531 tokens · 3 tool uses · 105 s · continued) |
+| 2026-11-02 19:32 | 8 Review delta (round 2) | squad-reviewer | APPROVE: both blocking findings fixed, nothing new (opus/medium · 3,926 tokens · 3 tool uses · 19 s · continued) |
