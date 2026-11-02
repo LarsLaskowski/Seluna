@@ -125,7 +125,6 @@ export const DELIVERY_COUNT_META_PREFIX = "delivery_count:";
 /** Length of a counting window, one UTC hour, in milliseconds. */
 export const DELIVERY_COUNT_WINDOW_MS = 3_600_000;
 
-/* eslint-disable @typescript-eslint/require-await, @typescript-eslint/no-unused-vars -- skeleton: the implementation awaits the statement and uses the arguments */
 /**
  * Counts one delivery of `event` in the UTC hour of `time` unless `limit` or more are counted there already, in one
  * conditional statement; true when it counted. D1 errors are not caught.
@@ -136,6 +135,18 @@ export async function countBoundedDelivery(
   time: Date,
   limit: number,
 ): Promise<boolean> {
-  throw new Error("Not implemented");
+  const prefix = `${String(Math.floor(time.getTime() / DELIVERY_COUNT_WINDOW_MS))}:`;
+  // The stored count counts as a number only for this hour's prefix and the form [1-9][0-9]{0,15}.
+  const count = "substr(meta.value, length(?2) + 1)";
+  const counted = `(substr(meta.value, 1, length(?2)) = ?2 AND ${count} GLOB '[1-9]*' AND ${count} NOT GLOB '*[^0-9]*' AND length(${count}) <= 16)`;
+  const result = await db
+    .prepare(
+      `INSERT INTO meta (key, value) VALUES (?1, ?2 || '1') ON CONFLICT (key) DO UPDATE SET value = CASE
+         WHEN ${counted} THEN ?2 || CAST(CAST(${count} AS INTEGER) + 1 AS TEXT)
+         ELSE ?2 || '1' END
+       WHERE NOT (${counted} AND CAST(${count} AS INTEGER) >= ?3)`,
+    )
+    .bind(`${DELIVERY_COUNT_META_PREFIX}${event}`, prefix, limit)
+    .run();
+  return result.meta.changes === 1;
 }
-/* eslint-enable @typescript-eslint/require-await, @typescript-eslint/no-unused-vars */
