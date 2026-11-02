@@ -231,3 +231,21 @@ Follow-up issues for the orchestrator to open:
    were left out (decision 0043, option 11)."
 
 Not in scope: whether D1 serves reads once the budget is spent (fact 4, residual in 0043); the Worker request limit.
+
+## Challenge notes
+
+Devil's Advocate, 0 major, 3 minor (verbatim):
+
+1. minor: "Any other existing test that records more than 20 deliveries of one bounded event in one clock hour: none found" is wrong. `src/activity-digest.test.ts:640-664` sends 50 stars and 2 forks through `processWebhook`, all at the same `received` time (12:30). It asserts 52 activity rows and the digest text "+50 ⭐ (now 1,284), +2 forks · user1, … and 46 more". Under the bound only 20 stars are collected, so this test fails. Instruction: the Tester adds this test to the adapted list. Use `BOUNDED_DELIVERIES_PER_HOUR` stars, expect `BOUNDED_DELIVERIES_PER_HOUR + 2` activity rows, and rewrite the expected digest text ("+20 ⭐ (now 1,254) … and 16 more"). The `delivery_count:` cleanup in that file's `beforeEach` (line 35) still applies.
+2. minor: AC4 covers only a CI failure in a pull request. CI failures have a second rule, `src/rules/ci-failed-default-branch.ts` (also `workflow_run`), which AC4 never exercises. Instruction: the Tester adds "a failed CI run on the default branch" to the AC4 `it.each`. A code scanning alert row is optional.
+3. minor: Decision 0043 option 6 and the CHANGELOG text call the bound one on "strangers", but the counter counts every reported delivery of those events, and the rules report every sender that is not the owner (`isForeignSender`, `src/rules/issue-comment.ts:14`), including collaborators; when the App owner is an organization, `isOwnAction` (`src/rules/actor.ts:17-19`) is false for everyone. Instruction: in step 9 the Lead adds to the 0043 *Consequences*: collaborators' and, for an organization-owned App, members' issues and comments share the hourly bound. The Dev words the CHANGELOG and `docs/areas/notifications.md` *Volume* text as "issues, comments, stars and forks by anyone other than the owner", not "strangers".
+
+## Security notes
+
+Security (plan review): APPROVED, no blocking findings. Non-blocking (verbatim in substance):
+
+1. Key type: type the `event` parameter as a `BoundedEvent` union narrowed by a type guard (`isBoundedEvent`) instead of `Set.has` on a string, so the compiler enforces the bound on `meta` rows.
+2. Prefix check: compare the hour prefix with `substr(value, 1, length(?2)) = ?2`, not with a GLOB pattern built from the bound prefix.
+3. `workflow_run` failures in strangers' fork pull requests remain an unbounded path (`src/rules/workflow-run.ts:69`); name them in 0043 *Consequences* (the Lead, step 9) and include them in follow-up issue 1.
+
+Measurement (fact 8): statement run locally — first insert changes 1 / rows_written 2; increment 1/1; refusal at the bound 0/0; next hour 1/1; five concurrent calls at 18 of 20 gave changes 1,1,0,0,0 and 20. Local pool, not real D1.
