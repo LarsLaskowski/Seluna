@@ -10,7 +10,8 @@ import { starRemovalOf } from "./rules/repository-starred";
 import { runRules } from "./rules/rule";
 import type { Notification, Rule, RuleDecision, WebhookPayload } from "./rules/rule";
 import { recordDelivery, isKnownDelivery } from "./store/deliveries";
-import { refreshLastDelivery } from "./store/meta";
+import { BOUNDED_EVENT_NAMES, refreshLastDelivery } from "./store/meta";
+import type { BoundedEvent } from "./store/meta";
 import { readNotificationSettings } from "./store/settings";
 import type { NotificationSettings } from "./settings";
 import type { TelegramFetch } from "./telegram";
@@ -34,7 +35,17 @@ export interface SignedDelivery {
 
 /** What the processing did; `collected` means the delivery's stars or forks went into the activity digest. */
 export type WebhookDecision =
-  "reported" | "collected" | "no-match" | "disabled" | "duplicate" | "invalid" | "unavailable";
+  "reported" | "collected" | "no-match" | "disabled" | "limited" | "duplicate" | "invalid" | "unavailable";
+
+/** The events a stranger can cause on a public repository; their recorded deliveries are bounded per event and UTC hour. */
+export const BOUNDED_EVENTS: ReadonlySet<string> = new Set<string>(BOUNDED_EVENT_NAMES);
+/** At most this many deliveries of one bounded event are recorded per UTC hour. */
+export const BOUNDED_DELIVERIES_PER_HOUR = 20;
+
+/** Whether `event` is one of `BOUNDED_EVENTS`. */
+export function isBoundedEvent(event: string): event is BoundedEvent {
+  return BOUNDED_EVENTS.has(event);
+}
 
 export interface WebhookOutcome {
   readonly status: 200 | 202 | 400 | 503;

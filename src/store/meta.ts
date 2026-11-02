@@ -114,3 +114,28 @@ export function digestRunUpsert(db: D1Database, time: Date): D1PreparedStatement
     .prepare("INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value")
     .bind(DIGEST_RUN_META_KEY, String(time.getTime()));
 }
+
+/** The events whose recorded deliveries are counted per UTC hour. */
+export const BOUNDED_EVENT_NAMES = ["issues", "issue_comment", "star", "fork"] as const;
+/** One of `BOUNDED_EVENT_NAMES`; the only values a `delivery_count:` key is built from. */
+export type BoundedEvent = (typeof BOUNDED_EVENT_NAMES)[number];
+
+/** Prefix of the `meta` keys that count one bounded event's recorded deliveries in a UTC hour, as `<hour>:<count>`. */
+export const DELIVERY_COUNT_META_PREFIX = "delivery_count:";
+/** Length of a counting window, one UTC hour, in milliseconds. */
+export const DELIVERY_COUNT_WINDOW_MS = 3_600_000;
+
+/* eslint-disable @typescript-eslint/require-await, @typescript-eslint/no-unused-vars -- skeleton: the implementation awaits the statement and uses the arguments */
+/**
+ * Counts one delivery of `event` in the UTC hour of `time` unless `limit` or more are counted there already, in one
+ * conditional statement; true when it counted. D1 errors are not caught.
+ */
+export async function countBoundedDelivery(
+  db: D1Database,
+  event: BoundedEvent,
+  time: Date,
+  limit: number,
+): Promise<boolean> {
+  throw new Error("Not implemented");
+}
+/* eslint-enable @typescript-eslint/require-await, @typescript-eslint/no-unused-vars */
