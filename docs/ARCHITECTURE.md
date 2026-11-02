@@ -16,7 +16,7 @@ service ([decision 0005](decisions/0005-one-instance-per-user.md), TypeScript in
 | Component | Owns |
 | --------- | ---- |
 | Worker `fetch` handler | `POST /webhook`, `GET /health` (returns the version), `/setup` (the setup wizard), `GET /` (redirects to `/setup`) |
-| Webhook processing | Deduplication by `X-GitHub-Delivery`, the owner read, the rules, the draft lookup of a CI failure in a pull request ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)) or of a comment on a pull request, the outbox rows and the first send attempt of each row ([`areas/notifications.md`](areas/notifications.md), [decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)) |
+| Webhook processing | Deduplication by `X-GitHub-Delivery`, the owner read, the rules, the draft lookup of a CI failure in a pull request ([decision 0027](decisions/0027-ci-failure-rules-and-the-draft-lookup.md)) or of a comment on a pull request, the hourly bound on issues, comments, stars and forks, the outbox rows and the first send attempt of each row ([`areas/notifications.md`](areas/notifications.md), [decision 0023](decisions/0023-webhook-processing-and-delivery-through-the-outbox.md)) |
 | GitHub API client | Calls of the GitHub API as the app: the app JWT, the installation tokens per `installation.id` cached encrypted in `token_cache`, the pull request read for the draft lookup of the webhook processing (with tokens narrowed to the permissions of that one call), and the app read and the installations list for the status page ([`areas/github-api.md`](areas/github-api.md), [decision 0026](decisions/0026-github-app-authentication-and-installation-tokens.md)) |
 | Rules | Pure functions of the event name, the payload, the settings and the stored app owner (read by the webhook processing) to zero or one notification (stars and forks included, which the processing sends or collects by the interval setting); no I/O, no clock |
 | Outbox and delivery channels | The D1 `outbox` table holding each message as a channel-neutral notification (JSON in `text`, no migration), and delivery through the one active delivery channel (`src/channels/`; Telegram is the first adapter, over the shared HTTP code of `src/channels/http.ts`), which renders the notification when it sends it, with one retry after a 429 and the cron's retry ([`areas/notifications.md`](areas/notifications.md), [decision 0038](decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)) |
@@ -62,7 +62,8 @@ flowchart LR
 4. A delivery with a message or an `activity` change is recorded: in one D1 transaction its id is added to `deliveries`, each notification becomes a row in the
    `outbox` (a collected star or fork becomes a row of `activity` instead) as a cleaned, channel-neutral JSON notification ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md),
    [decision 0038](decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)) and `meta`
-   records the time of the delivery; then the Worker answers 202. Any other delivery is not recorded; only `meta` is
+   records the time of the delivery; then the Worker answers 202. Of `issues`, `issue_comment`, `star` and `fork` at most 20 deliveries per event and UTC hour are recorded; a further one is handled like a delivery without effect
+   ([decision 0043](decisions/0043-only-deliveries-with-an-effect-are-recorded.md)). Any other delivery is not recorded; only `meta` is
    set by one bounded write, at most once a minute, and its failure is ignored
    ([decision 0043](decisions/0043-only-deliveries-with-an-effect-are-recorded.md)). The active delivery channel (the setting
    `delivery_channel`, Telegram by default, read once per batch, no fallback) renders each row when it sends it; for
@@ -117,7 +118,7 @@ Each job catches its own failures and logs only a fixed result; the rules are in
 | `outbox` | Notifications waiting for, or past, delivery; `text` holds the notification as JSON (rows of earlier versions: Telegram HTML) |
 | `token_cache` | Short-lived GitHub installation tokens, AES-256-GCM ciphertext |
 | `activity` | Stars and forks collected for the digest, with the account, the repository and the time ([decision 0041](decisions/0041-fork-and-star-rules-with-a-digest.md)) |
-| `meta` | The time of the last digest run, the last notified release, the time of the last delivery, the key check value that detects a changed `SELUNA_SECRET`, the setup login's failed-attempt count, the slug of the GitHub App the setup wizard created and the owner of the GitHub App |
+| `meta` | The time of the last digest run, the last notified release, the time of the last delivery, the hourly counts of issue, comment, star and fork deliveries, the key check value that detects a changed `SELUNA_SECRET`, the setup login's failed-attempt count, the slug of the GitHub App the setup wizard created and the owner of the GitHub App |
 
 All seven tables come from the migrations (`activity` from `0002`); only the modules under `src/store/` access them. The key for the
 encrypted columns is derived from `SELUNA_SECRET` and never stored, so a reader of the database alone learns no
