@@ -180,9 +180,18 @@ function pendingMessagesOf(
   return pending;
 }
 
-/** Whether a delivery that would be recorded may be: always, except a bounded event past its hourly bound. */
-async function withinBound(db: D1Database, event: string, time: Date): Promise<boolean> {
-  return !isBoundedEvent(event) || (await countBoundedDelivery(db, event, time, BOUNDED_DELIVERIES_PER_HOUR));
+/**
+ * Whether a delivery that would be recorded may be: always, except a counted delivery of a bounded event past its
+ * hourly bound (`isCountedDelivery` decides whether the delivery counts at all). D1 errors are not caught.
+ */
+async function withinBound(
+  db: D1Database,
+  event: string,
+  payload: WebhookPayload,
+  owner: OwnerAccount | undefined,
+  time: Date,
+): Promise<boolean> {
+  throw new Error("Not implemented");
 }
 
 /** Records a signed delivery, evaluates the rules, stores the messages and hands their sending to `waitUntil`. */
@@ -224,7 +233,7 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
       await refreshLastDeliveryQuietly(deps.db, receivedAt);
       return outcomeOf(202, decision, fields);
     }
-    if (!(await withinBound(deps.db, event, receivedAt))) {
+    if (!(await withinBound(deps.db, event, payload, owner, receivedAt))) {
       await refreshLastDeliveryQuietly(deps.db, receivedAt);
       return outcomeOf(202, "limited", fields);
     }
