@@ -116,8 +116,8 @@ request triggers nothing.
   `FIRST_TIMER`, `FIRST_TIME_CONTRIBUTOR`, `NONE`, `MANNEQUIN`, a value of another case or form, a missing or mistyped
   field, a bot's pull request (Dependabot, Renovate) and a pull request from a branch of the repository itself, because
   anyone with read access can open one between existing branches. The association is computed by GitHub for the pull
-  request's author; a member of an organization whose membership is private is marked `CONTRIBUTOR` or `NONE` and is
-  counted, so the documents never claim that every organization member is exempt. A draft, an action no rule reports
+  request's author; a member of an organization whose membership is private may be marked `CONTRIBUTOR` or `NONE` and is
+  then counted, so the documents never claim that every organization member is exempt. A draft, an action no rule reports
   and a switch that is off are never counted. The decision is in `src/rules/stranger.ts`
   ([decision 0043](../decisions/0043-only-deliveries-with-an-effect-are-recorded.md)).
 - Not verified against real deliveries: a review requested from a team, a pull request from a fork and the
@@ -168,8 +168,9 @@ Both report only a delivery whose `action` is `completed` and whose `workflow_ru
   `issue_comment`, `issues`, `workflow_dispatch`, `repository_dispatch`, `status`, a chained `workflow_run`, an
   unknown event name, and a run whose event or `triggering_actor` is missing or mistyped. A collaborator's run of
   such an event is counted too (a run carries no author association), and so is an organization owner's, since only
-  a User owner is recognised. Residual: a token with write access that the owner places in a workflow a stranger can
-  start (a personal access token, an App token) can raise any of the 11 events, and those runs are then not counted;
+  a User owner is recognised. Residual: a write-capable token or installed app the owner admitted that acts on a stranger's
+  input (a personal access token or App token in a workflow a stranger can start, a comment-command release bot whose
+  branch, tag or release starts `push`, `create` or `release` runs) can raise any of the 11 events, and those runs are then not counted;
   the built-in `GITHUB_TOKEN` starts only `workflow_dispatch` and `repository_dispatch`, which are counted. The
   draft lookup of a CI failure in a pull request runs before the bound ([Draft lookup](#draft-lookup)).
 - Each run is reported once per delivery: two failing workflows on one push give two messages, a workflow that runs on

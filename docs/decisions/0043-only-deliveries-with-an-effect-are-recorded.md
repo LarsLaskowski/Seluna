@@ -54,8 +54,8 @@ For reported deliveries of other senders (issue #134):
 6. **A bound per event, counted in fixed UTC hours by one conditional `meta` upsert per event, for the four events
    a stranger can cause (`issues`, `issue_comment`, `star`, `fork`), at 20 recorded deliveries per event and hour,
    whoever the sender is** —
-   the events are disjoint from those of the pull request, CI and alert rules, so those are never counted or
-   dropped; 4 × 24 × 20 = 1,920 recorded deliveries a day at about 14 rows each is about 27,000 rows, a little over a
+   the events are disjoint from those of the pull request, CI and alert rules, so this option counts or drops
+   none of those (option 13 adds strangers' pull requests and CI failures); 4 × 24 × 20 = 1,920 recorded deliveries a day at about 14 rows each is about 27,000 rows, a little over a
    quarter of the budget, and a delivery past the bound costs one read and a write that changes nothing. One
    statement decides and counts, so concurrent deliveries cannot exceed the bound. 20 an hour is well above what a
    personal repository sees from senders other than its owner. Chosen.
@@ -141,11 +141,12 @@ stranger can have caused it (option 13). The rules are in [`areas/notifications.
   carries no author association and a chained run does not name the event before it (option 15 declined). For an
   organization-owned App the owner exemptions never apply (`isOwnAction`), so an admin's review request on a
   stranger's pull request or re-run of a stranger's run is counted; members' and collaborators' pull requests and the
-  admitted-only runs stay uncounted. A member whose organization membership is private is marked `CONTRIBUTOR` or
-  `NONE` and counted. Dependabot's and Renovate's pull requests and collaborators' `pull_request` CI failures share
+  admitted-only runs stay uncounted. A member whose organization membership is private may be marked `CONTRIBUTOR` or
+  `NONE` and then counted. Dependabot's and Renovate's pull requests and collaborators' `pull_request` CI failures share
   the bound (options 17 and 19).
-- Residual: a token with write access (a personal access token, an App token) that the owner places in a workflow a
-  stranger can start can raise an admitted-only event, whose runs are then not counted; `GITHUB_TOKEN` can raise only
+- Residual: a write-capable token or installed app the owner admitted that acts on a stranger's input (a personal
+  access token or App token in a workflow a stranger can start, a comment-command release bot whose branch, tag or
+  release starts `push`, `create` or `release` runs) can raise an admitted-only event, whose runs are then not counted; `GITHUB_TOKEN` can raise only
   the two dispatch events, which are counted.
 - Which run events only an admitted account can cause, that `GITHUB_TOKEN` starts runs only through the dispatch
   events, and that `triggering_actor` is the account that re-ran a run are taken
