@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isBotSender, isOwnAction } from "./actor";
+import { isBotSender, isOwnAction, isOwnerAccount } from "./actor";
 import type { OwnerAccount } from "../github/owner";
 
 const OWNER: OwnerAccount = { id: 1000, login: "example-owner", type: "User" };
@@ -80,5 +80,30 @@ describe("isBotSender", () => {
     const bot = isBotSender(payload);
 
     expect(bot, "bot").toBe(false);
+  });
+});
+
+describe("isOwnerAccount", () => {
+  it("isOwnerAccount is true for an account with the owner's id", () => {
+    expect(isOwnerAccount({ id: 1000, login: "example-owner", type: "User" }, OWNER), "owner").toBe(true);
+  });
+
+  it("isOwnerAccount is true for a renamed login with the owner's id", () => {
+    expect(isOwnerAccount({ id: 1000, login: "renamed-owner" }, OWNER), "owner").toBe(true);
+  });
+
+  it.each<{ case: string; account: unknown; owner: OwnerAccount | undefined }>([
+    { case: "another id", account: { id: 2000 }, owner: OWNER },
+    { case: "an Organization owner", account: { id: 1000 }, owner: ORGANIZATION },
+    { case: "an unknown owner", account: { id: 1000 }, owner: undefined },
+    { case: "undefined", account: undefined, owner: OWNER },
+    { case: "null", account: null, owner: OWNER },
+    { case: "a string", account: "example-owner", owner: OWNER },
+    { case: "an array", account: [{ id: 1000 }], owner: OWNER },
+    { case: "an account without an id", account: { login: "example-owner" }, owner: OWNER },
+    { case: "an id that is a string", account: { id: "1000" }, owner: OWNER },
+    { case: "an id that is NaN", account: { id: Number.NaN }, owner: OWNER },
+  ])("isOwnerAccount is false for $case", ({ account, owner }) => {
+    expect(isOwnerAccount(account, owner), "owner").toBe(false);
   });
 });
