@@ -12,27 +12,20 @@ export const ADMITTED_ONLY_RUN_EVENTS: ReadonlySet<string> = new Set<string>();
  * Whether the pull request of the payload comes from a stranger: not the owner and without an admitted author
  * association.
  */
-export function isStrangerPullRequest(payload: WebhookPayload, owner: OwnerAccount | undefined): boolean {
-  void payload;
-  void owner;
+export function isStrangerPullRequest(_payload: WebhookPayload, _owner: OwnerAccount | undefined): boolean {
   throw new Error("Not implemented");
 }
 
 /** Whether the workflow run of the payload was triggered by a stranger: not the owner and not an admitted-only event. */
-export function isStrangerRun(payload: WebhookPayload, owner: OwnerAccount | undefined): boolean {
-  void payload;
-  void owner;
+export function isStrangerRun(_payload: WebhookPayload, _owner: OwnerAccount | undefined): boolean {
   throw new Error("Not implemented");
 }
 
 /** Whether a delivery of `event` counts against the hourly bound. */
 export function isCountedDelivery(
-  event: BoundedEvent,
-  payload: WebhookPayload,
-  owner: OwnerAccount | undefined,
+  _event: BoundedEvent,
+  _payload: WebhookPayload,
+  _owner: OwnerAccount | undefined,
 ): boolean {
-  void event;
-  void payload;
-  void owner;
   throw new Error("Not implemented");
 }
