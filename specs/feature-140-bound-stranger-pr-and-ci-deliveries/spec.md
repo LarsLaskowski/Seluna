@@ -1,7 +1,7 @@
 # Spec: Bound the deliveries of pull requests and CI failures caused by strangers
 
 Source: Issue #140
-Status: Draft
+Status: Approved by Lead
 
 ## Problem
 
