@@ -1849,6 +1849,12 @@ function runOf(payload: WebhookPayload, event: string, actor: object, triggering
 /** The real failed pull request run (head in the repository itself), started by a stranger. */
 const STRANGER_RUN = runOf(failedPullRequestRun, "pull_request", STRANGER, STRANGER);
 
+/** The real opened draft pull request of a stranger marked NONE. */
+const STRANGER_DRAFT_PULL_REQUEST = pullRequestOf(openedDraft, "NONE", STRANGER);
+
+/** The real successful default-branch run, as a pull request run started by a stranger. */
+const STRANGER_SUCCESSFUL_RUN = runOf(successfulDefaultBranchRun, "pull_request", STRANGER, STRANGER);
+
 describe("processWebhook with the hourly bound of issues, comments, stars and forks", () => {
   it("processWebhook records 20 issues of one hour and answers 202 limited for the 21st without a row or a message", async () => {
     const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
@@ -2057,10 +2063,38 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
       decision: "disabled",
     },
     { case: "a ping", delivery: pingDelivery(), setup: () => Promise.resolve(), decision: "no-match" },
+    {
+      case: "a stranger's draft pull request",
+      delivery: boundedDelivery("pull_request", STRANGER_DRAFT_PULL_REQUEST, "no-effect-draft"),
+      setup: () => Promise.resolve(),
+      decision: "no-match",
+    },
+    {
+      case: "a stranger's successful run",
+      delivery: boundedDelivery("workflow_run", STRANGER_SUCCESSFUL_RUN, "no-effect-success"),
+      setup: () => Promise.resolve(),
+      decision: "no-match",
+    },
+    {
+      case: "a stranger's pull request with pull_request_opened off",
+      delivery: boundedDelivery("pull_request", STRANGER_PULL_REQUEST, "no-effect-pr-off"),
+      setup: () => switchOff("pull_request_opened"),
+      decision: "disabled",
+    },
+    {
+      case: "a stranger's CI failure in a pull request the draft lookup finds to be a draft",
+      delivery: boundedDelivery("workflow_run", STRANGER_RUN, "no-effect-draft-run"),
+      setup: () => Promise.resolve(),
+      decision: "no-match",
+    },
   ])("processWebhook neither counts nor limits $case", async ({ delivery, setup, decision }) => {
     await setup();
     await setAllCounters(AT_BOUND);
-    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+    const { deps } = harness({
+      rules: RULES,
+      readOwner: () => Promise.resolve(OWNER),
+      lookUpDraft: lookupAnswering({ kind: "ok", draft: true }),
+    });
 
     const outcome = await processWebhook(delivery, deps);
 
@@ -2081,10 +2115,34 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
       setup: () => switchOff("issue_opened"),
     },
     { case: "a ping", delivery: pingDelivery(), setup: () => Promise.resolve() },
+    {
+      case: "a stranger's draft pull request",
+      delivery: boundedDelivery("pull_request", STRANGER_DRAFT_PULL_REQUEST, "below-draft"),
+      setup: () => Promise.resolve(),
+    },
+    {
+      case: "a stranger's successful run",
+      delivery: boundedDelivery("workflow_run", STRANGER_SUCCESSFUL_RUN, "below-success"),
+      setup: () => Promise.resolve(),
+    },
+    {
+      case: "a stranger's pull request with pull_request_opened off",
+      delivery: boundedDelivery("pull_request", STRANGER_PULL_REQUEST, "below-pr-off"),
+      setup: () => switchOff("pull_request_opened"),
+    },
+    {
+      case: "a stranger's CI failure in a pull request the draft lookup finds to be a draft",
+      delivery: boundedDelivery("workflow_run", STRANGER_RUN, "below-draft-run"),
+      setup: () => Promise.resolve(),
+    },
   ])("processWebhook leaves the counter unchanged for $case below the bound", async ({ delivery, setup }) => {
     await setup();
     await setAllCounters(`${NOW_HOUR}:5`);
-    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+    const { deps } = harness({
+      rules: RULES,
+      readOwner: () => Promise.resolve(OWNER),
+      lookUpDraft: lookupAnswering({ kind: "ok", draft: true }),
+    });
 
     await processWebhook(delivery, deps);
 
@@ -2317,6 +2375,30 @@ describe("processWebhook with the hourly bound of pull requests and CI failures"
     expect(await counterOf(event), "counter of its event").toBe(`${NOW_HOUR}:1`);
     expect(await counterOf(full), "counter of the full event").toBe(AT_BOUND);
   });
+
+  it.each<{ case: string; event: BoundedEvent; payload: WebhookPayload }>([
+    { case: "a stranger pull request", event: "pull_request", payload: STRANGER_PULL_REQUEST },
+    { case: "a stranger's failed run", event: "workflow_run", payload: STRANGER_RUN },
+  ])(
+    "processWebhook answers 503 unavailable and stores nothing when the counter write fails for $case",
+    async ({ event, payload }) => {
+      const { deps, waitUntil, telegram } = harness({
+        rules: RULES,
+        readOwner: () => Promise.resolve(OWNER),
+        lookUpDraft: lookupAnswering({ kind: "ok", draft: false }),
+        db: counterFailingDb(env.DB),
+      });
+
+      const outcome = await processWebhook(boundedDelivery(event, payload, "counter-fails-stranger"), deps);
+
+      expect([outcome.status, outcome.decision], "status and decision").toEqual([503, "unavailable"]);
+      expect(await count("deliveries"), "deliveries rows").toBe(0);
+      expect(await count("outbox"), "outbox rows").toBe(0);
+      expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+      expect(telegram.requests, "Telegram requests").toEqual([]);
+      expect(await counterOf(event), "counter").toBeUndefined();
+    },
+  );
 
   it("processWebhook reports a limited stranger pull request once when it is redelivered in the next hour", async () => {
     await setCounter("pull_request", AT_BOUND);
