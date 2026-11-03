@@ -27,10 +27,14 @@ export const ADMITTED_ONLY_RUN_EVENTS: ReadonlySet<string> = new Set<string>([
  * association. A missing or mistyped value counts as a stranger.
  */
 export function isStrangerPullRequest(payload: WebhookPayload, owner: OwnerAccount | undefined): boolean {
+  const pullRequest = recordField(payload, "pull_request");
+  if (pullRequest === undefined) {
+    return true;
+  }
   if (isOwnAction(payload, owner)) {
     return false;
   }
-  const association = stringField(recordField(payload, "pull_request") ?? {}, "author_association");
+  const association = stringField(pullRequest, "author_association");
   return association === undefined || !ADMITTED_AUTHOR_ASSOCIATIONS.has(association);
 }
 
