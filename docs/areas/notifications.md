@@ -24,10 +24,14 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
 4. The notification settings and the stored owner of the app ([The sender](#the-sender)) are read and the rules run
    (below); then the draft check of a notification that carries
    one is resolved ([Draft lookup](#draft-lookup)), which may drop the notification or change its title.
-5. A delivery of `issues`, `issue_comment`, `star` or `fork` that step 6 would record is first counted for its event
-   in the current UTC hour, at most 20 (`BOUNDED_DELIVERIES_PER_HOUR`), by one conditional statement on the `meta`
+5. A delivery of `issues`, `issue_comment`, `star`, `fork`, `pull_request` or `workflow_run` that step 6 would
+   record is first counted for its event in the current UTC hour (a `pull_request` or `workflow_run` delivery only
+   when a stranger caused it, see [Pull request rules](#pull-request-rules) and [CI failure rules](#ci-failure-rules);
+   the others always), at most 20 (`BOUNDED_DELIVERIES_PER_HOUR`), by one conditional statement on the `meta`
    row `delivery_count:<event>` ([Storage](storage.md#tables)). Past that bound it is not recorded (as step 7) and
-   the answer is **202** with the decision `limited`. Pull request, CI and security alert events are never counted.
+   the answer is **202** with the decision `limited`. Security alert events are never counted.
+   The draft lookup of step 4 runs before this step, so a comment on a pull request or a CI failure in a pull request
+   past the bound has made its lookup already.
    A failure of the counter answers **503** and stores nothing.
 6. A delivery with at least one `outbox` row or one `activity` change (the collected events or the removal of a
    star) is recorded. In one transaction: the delivery (id, event, time received) is added to `deliveries`, one `outbox` row per
@@ -104,7 +108,18 @@ request triggers nothing.
 - Because the rules do not filter by sender, on a public repository anyone who opens a pull request triggers a
   message with a title and branch name of their choosing, one per pull request; Telegram apps still turn URLs,
   `@mentions` and `/commands` in that text into tappable links, even though the text is escaped and link previews
-  are off. No rate limit exists.
+  are off.
+- The bound: a `pull_request` delivery that would be recorded is counted against the hourly bound of 20 (step 5 of
+  [Processing a delivery](#processing-a-delivery)) unless `pull_request.author_association` is exactly `OWNER`,
+  `MEMBER` or `COLLABORATOR`, or `sender` is the owner (`isOwnAction`, a User owner only; for an organization-owned app
+  or an owner not stored yet the second exemption never applies). Anything else is counted: `CONTRIBUTOR`,
+  `FIRST_TIMER`, `FIRST_TIME_CONTRIBUTOR`, `NONE`, `MANNEQUIN`, a value of another case or form, a missing or mistyped
+  field, a bot's pull request (Dependabot, Renovate) and a pull request from a branch of the repository itself, because
+  anyone with read access can open one between existing branches. The association is computed by GitHub for the pull
+  request's author; a member of an organization whose membership is private is marked `CONTRIBUTOR` or `NONE` and is
+  counted, so the documents never claim that every organization member is exempt. A draft, an action no rule reports
+  and a switch that is off are never counted. The decision is in `src/rules/stranger.ts`
+  ([decision 0043](../decisions/0043-only-deliveries-with-an-effect-are-recorded.md)).
 - Not verified against real deliveries: a review requested from a team, a pull request from a fork and the
   one-delivery-per-reviewer behavior. The rules read only fields that exist in all of them and stay silent when one
   is missing.
@@ -144,6 +159,19 @@ Both report only a delivery whose `action` is `completed` and whose `workflow_ru
   is not a string.
 - The notification of the pull request case carries a draft check of its pull request, in the repository of
   `repository.full_name` (owner before the first `/`, name after it).
+- The bound: a reported `workflow_run` delivery is counted against the hourly bound of 20 unless
+  `workflow_run.event` is exactly one of `push`, `schedule`, `merge_group`, `release`, `create`, `delete`,
+  `page_build`, `label`, `milestone`, `registry_package` or `branch_protection_rule` (events only an account admitted
+  to the repository can cause), or `workflow_run.triggering_actor` is the owner (by account id, a User owner only; the
+  account that re-ran a run, not the original `actor`). Every other run is counted: `pull_request` (also from a
+  branch of the repository itself, which a stranger's reopened pull request can start), `pull_request_target`,
+  `issue_comment`, `issues`, `workflow_dispatch`, `repository_dispatch`, `status`, a chained `workflow_run`, an
+  unknown event name, and a run whose event or `triggering_actor` is missing or mistyped. A collaborator's run of
+  such an event is counted too (a run carries no author association), and so is an organization owner's, since only
+  a User owner is recognised. Residual: a token with write access that the owner places in a workflow a stranger can
+  start (a personal access token, an App token) can raise any of the 11 events, and those runs are then not counted;
+  the built-in `GITHUB_TOKEN` starts only `workflow_dispatch` and `repository_dispatch`, which are counted. The
+  draft lookup of a CI failure in a pull request runs before the bound ([Draft lookup](#draft-lookup)).
 - Each run is reported once per delivery: two failing workflows on one push give two messages, a workflow that runs on
   both `push` and `pull_request` gives two, and a re-run that fails again is reported again with the same lines.
 - Not verified against real deliveries: a failed or `timed_out` run on the default branch, a `cancelled` run, a fork's
@@ -356,6 +384,8 @@ request (draft status unknown)` (German `CI im Pull Request fehlgeschlagen (Draf
 - This is one of the two exceptions to "a draft pull request triggers no notification": a pull request whose draft
   state could not be read is reported, marked _draft status unknown_ (the other: a secret scanning alert, [Security
   alert rules](#security-alert-rules)).
+- The lookup runs before the hourly bound (step 5 of [Processing a delivery](#processing-a-delivery)): a comment on a
+  pull request or a counted CI failure in a pull request past the bound has made its lookup already.
 - A comment on a pull request ([Issue and comment rules](#issue-and-comment-rules)) is the second kind of check: it has
   no title for an unknown state, so any failure, the 8-second cut-off or a missing `installation.id` drops the
   notification instead of keeping it.
@@ -539,7 +569,7 @@ channel that sends it.
   payload's `action` when it matches `^[a-z_]{1,64}$`, the repository when `repository.full_name` matches
   `^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$`, each `null` otherwise, and the decision: `reported` (at least one
   row written), `collected` (only `activity` rows written, [Stars and forks](#stars-and-forks)), `no-match` (no rule returned a notification, or the draft lookup dropped it), `disabled` (only rules whose switch is off did),
-  `limited` (a delivery of `issues`, `issue_comment`, `star` or `fork` past the hourly bound, never recorded), `duplicate` (a known delivery id; only a recorded delivery is known), `invalid` (a 400 of this processing) or `unavailable` (a 503 of this
+  `limited` (a counted delivery of `issues`, `issue_comment`, `star`, `fork`, `pull_request` or `workflow_run` past the hourly bound, never recorded), `duplicate` (a known delivery id; only a recorded delivery is known), `invalid` (a 400 of this processing) or `unavailable` (a 503 of this
   processing). A `no-match` or `disabled` delivery is not recorded unless it removes a star.
 - Each row sent writes one log entry with exactly two fields: the row id and the result — `sent`, `rate-limited`,
   `token-rejected`, `failed`, `no-token`, `no-chat` or `store-failed` (the database could not be read or the row
@@ -601,7 +631,7 @@ channel that sends it.
 
 - [`decisions/0043-only-deliveries-with-an-effect-are-recorded.md`](../decisions/0043-only-deliveries-with-an-effect-are-recorded.md)
   — only a delivery with an `outbox` row or an `activity` change is recorded; `last_delivery` is kept by a bounded
-  write; deliveries of `issues`, `issue_comment`, `star` and `fork` are bounded to 20 per event and UTC hour.
+  write; the counted deliveries of `issues`, `issue_comment`, `star`, `fork`, `pull_request` and `workflow_run` (the last two only when a stranger caused them) are bounded to 20 per event and UTC hour.
 
 ## Not here
 

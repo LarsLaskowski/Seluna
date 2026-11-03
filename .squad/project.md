@@ -88,9 +88,15 @@ files or endpoints.
   issue and comment bodies and author logins are attacker-controlled text (a body is shown as an excerpt built by `bodyExcerpt` in `src/rules/issue.ts`, bounded to 257 code points); the stored JSON and the text of rows written by an earlier version are parsed in `src/notification.ts` (`decodeStoredNotification`, `legacyNotificationOf`, with `startsWith`/`indexOf`, no regular expression with unbounded groups; `decodeStoredNotification` also decodes `lines`, at most 11 strings), and a row that does not decode is never sent. The stranger text of a star or fork (login, repository name) is cleaned and cut in `src/store/activity.ts` (`activityInsert`) when it is stored in the `activity` table, the digest's lines are built and cut in `src/digest.ts`, and `renderTelegramText` cleans and escapes every line again.
 - **Request body size:** every route that reads a request body reads it through the bounded reader in `src/body.ts` (1 MiB; a `Content-Length` above it is rejected before reading, and the body is always counted while read); a route that reads a body any other way is a `security`-tier finding.
 - **Bound on deliveries of other senders:** `processWebhook` (`src/webhook.ts`) records a delivery of `BOUNDED_EVENTS`
-  (`issues`, `issue_comment`, `star`, `fork`) only when `countBoundedDelivery` (`src/store/meta.ts`) counts it, at most
+  (`issues`, `issue_comment`, `star`, `fork`, `pull_request`, `workflow_run`) only when `isCountedDelivery`
+  (`src/rules/stranger.ts`) leaves it uncounted or `countBoundedDelivery` (`src/store/meta.ts`) counts it, at most
   `BOUNDED_DELIVERIES_PER_HOUR` per event and UTC hour, in one conditional statement on the `meta` row
-  `delivery_count:<event>`; pull request, CI and alert events are never counted; a counter failure answers 503.
+  `delivery_count:<event>`; alert events are never counted. A `pull_request` delivery is exempt when the author association is exactly
+  `OWNER`, `MEMBER` or `COLLABORATOR` or the sender is the owner; a `workflow_run` delivery when its event is one of
+  the 11 only admitted accounts cause or its `triggering_actor` is the owner; everything else, a missing or mistyped
+  field and the head repository included, is counted (no claim that every organization member is exempt: a private
+  member is counted). Residual: a write token the owner places in a workflow a stranger can start raises exempt
+  events uncounted. A counter failure answers 503.
 - **Logging of external data:** logs carry event type, delivery id, the action and repository (pattern-checked) and the decision of the processing, each sent outbox row logs its id and result (a row marked failed after its fifth attempt logs its id and status `failed`), each scheduled job logs only a fixed result (`src/scheduled.ts`: `store-failed`, `unknown`, the release check's result), and per request the method, the URL path without query string and the status (`src/router.ts`); never payload text, headers, query strings, tokens or keys.
 
 ## Guarantees
