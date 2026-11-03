@@ -116,7 +116,7 @@ export function digestRunUpsert(db: D1Database, time: Date): D1PreparedStatement
 }
 
 /** The events whose recorded deliveries are counted per UTC hour. */
-export const BOUNDED_EVENT_NAMES = ["issues", "issue_comment", "star", "fork"] as const;
+export const BOUNDED_EVENT_NAMES = ["issues", "issue_comment", "star", "fork", "pull_request", "workflow_run"] as const;
 /** One of `BOUNDED_EVENT_NAMES`; the only values a `delivery_count:` key is built from. */
 export type BoundedEvent = (typeof BOUNDED_EVENT_NAMES)[number];
 
