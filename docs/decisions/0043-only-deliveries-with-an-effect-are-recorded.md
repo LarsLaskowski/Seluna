@@ -79,11 +79,12 @@ For pull requests and CI failures caused by strangers (issue #140):
 
 13. **The same hourly bound with its own counter per event for `pull_request` and `workflow_run`, applied only to a
     delivery a stranger can have caused: a pull request whose author GitHub marks as neither owner, member nor
-    collaborator, from a fork, not sent by the owner; a run whose `event` is not one only a writer can cause, not a
-    same-repository pull request's run, and not started by the owner** — decided from fields of the payload alone
-    (`author_association`, the head repository's id, `workflow_run.event`, `triggering_actor`), with no read or
-    call beyond today's; the owner's, members' and collaborators' pull requests and the writer-only runs are never
-    counted; unknown values fall to the counted side, which protects the budget. Chosen.
+    collaborator and that the owner did not send; a run whose `event` is not one only an account the owner admitted
+    can cause and that the owner did not start** — decided from fields of the payload alone (`author_association`,
+    `workflow_run.event`, `triggering_actor`), with no read or call beyond today's; admitted authors' pull requests,
+    the runs of admitted-only events and the owner's runs are never counted; unknown values fall to the counted side,
+    which protects the budget. `workflow_dispatch` and `repository_dispatch` are not admitted-only: a workflow a
+    stranger starts can raise them with its `GITHUB_TOKEN`. Chosen.
 14. **The sender alone (`isForeignSender`), as for issues** — simplest, but collaborators' and members' pull requests
     and every run of a collaborator's push would share the bound, which the issue rules out.
 15. **Ask GitHub whether the account is a collaborator** — exact for comment-triggered runs too, but one API call
@@ -91,12 +92,16 @@ For pull requests and CI failures caused by strangers (issue #140):
     then spend GitHub's rate limit and the Worker's time instead.
 16. **Count only a list of stranger-capable run events** (`pull_request_target`, `issue_comment`, …) — exempts more,
     but any event GitHub adds, or one that an app raises in reaction to a stranger (`status`, `deployment_status`,
-    `check_run`, `dynamic`), would pass unbounded; the list of writer-only events fails closed instead.
-17. **Exempt pull requests authored by a bot (`user.type` `Bot`)** — would spare Dependabot and Renovate, but it rests
-    on the unverified claim that no stranger's app can author a pull request here; the same-repository test spares
-    those bots, whose branches live in the repository, on a fact the payload proves.
+    `check_run`, `dynamic`), would pass unbounded; the list of admitted-only events fails closed instead.
+17. **Exempt pull requests authored by a bot (`user.type` `Bot`), alone or together with a branch of the repository
+    itself** — would spare Dependabot and Renovate, but it rests on the unverified claim that no stranger's app can
+    author a pull request here; their pull requests share the bound instead, which fails closed.
 18. **One counter shared by `pull_request` and `workflow_run`** — fewer rows, but a flood of either would hide the
     other's messages.
+19. **Exempt a pull request, or a `pull_request` run, whose head repository is the repository itself** — taken at
+    first on the belief that only a writer can push such a branch, but anyone with read access can open a pull
+    request between two existing branches and reopen it to start CI, so a stranger could send unbounded messages.
+    Rejected: collaborators' `pull_request` CI failures share the bound instead.
 
 ## Decision
 
@@ -130,15 +135,22 @@ stranger can have caused it (option 13). The rules are in [`areas/notifications.
   issues or comments of that hour. A dropped delivery is not recorded, so its redelivery in a later hour can report it.
 - Around the turn of an hour up to twice the bound can be recorded in a short time. A counted delivery whose batch
   then fails, or finds the id recorded meanwhile, still counts.
-- A comment on a pull request past the bound still makes its draft lookup, which runs before the bound is checked.
+- A comment on a pull request or a CI failure in a pull request past the bound still makes its draft lookup (a GitHub
+  call, possibly a token refresh), which runs before the bound is checked.
 - A collaborator's comment or issue that starts a failing workflow, and a chained `workflow_run`, are counted: a run
   carries no author association and a chained run does not name the event before it (option 15 declined). For an
   organization-owned App the owner exemptions never apply (`isOwnAction`), so an admin's review request on a
   stranger's pull request or re-run of a stranger's run is counted; members' and collaborators' pull requests and the
-  writer-only runs stay uncounted.
-- Which run events only a writer can cause and that `triggering_actor` is the account that re-ran a run are taken
+  admitted-only runs stay uncounted. A member whose organization membership is private is marked `CONTRIBUTOR` or
+  `NONE` and counted. Dependabot's and Renovate's pull requests and collaborators' `pull_request` CI failures share
+  the bound (options 17 and 19).
+- Residual: a token with write access (a personal access token, an App token) that the owner places in a workflow a
+  stranger can start can raise an admitted-only event, whose runs are then not counted; `GITHUB_TOKEN` can raise only
+  the two dispatch events, which are counted.
+- Which run events only an admitted account can cause, that `GITHUB_TOKEN` starts runs only through the dispatch
+  events, and that `triggering_actor` is the account that re-ran a run are taken
   from GitHub's documentation, not observed. A wrong `triggering_actor` only counts a run that need not be; an event
-  wrongly taken as writer-only would let a stranger's runs of that event pass unbounded.
+  wrongly taken as admitted-only would let a stranger's runs of that event pass unbounded.
 - The free plan's daily Worker request limit is a separate budget no D1 bound protects.
 - The status page time can lag the latest delivery by up to a minute, and a write failure leaves the earlier time.
 - A draft lookup may still refresh the installation-token cache for a delivery that is then dropped, as before.

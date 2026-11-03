@@ -12,8 +12,9 @@ request rules read neither the sender nor the author ([`notifications.md`](../..
 the CI rules report as a default-branch failure (decision 0027). Each such delivery writes about 14 rows over its life
 (decision 0043), and issue #134 bounded only `issues`, `issue_comment`, `star` and `fork`. So a stranger can still
 spend the free plan's daily D1 write budget (100,000 rows), after which every delivery, alerts and the owner's own CI
-failures included, is answered 503. The pull requests of the owner, members and collaborators, and the CI failures of
-runs that only a person or app admitted to the repository can start, must keep being reported whatever strangers do.
+failures included, is answered 503. The pull requests of the owner, members and collaborators, the CI failures of
+runs whose event only an account admitted to the repository can cause, and the owner's own runs must keep being
+reported whatever strangers do.
 
 Claims of the issue checked against the code:
 
@@ -21,13 +22,9 @@ Claims of the issue checked against the code:
   sent it (`src/rules/pull-request.ts`, `nonDraftPullRequest` reads no `sender` or `author_association`).
 - Confirmed: the bound counts only `BOUNDED_EVENT_NAMES = ["issues", "issue_comment", "star", "fork"]`
   (`src/store/meta.ts:119`); `withinBound` in `src/webhook.ts` lets every other event through.
-- Refuted in its example, confirmed in substance: a failed run of a fork's pull request (`event` `pull_request`) is
-  *not* reported today. Its `head_repository` is the fork, so it is not on the default branch, and GitHub sends it
-  with an empty `workflow_run.pull_requests`, so the pull request case finds no number (`src/rules/workflow-run.ts`,
-  `failedWorkflowRun` and `pullRequestNumberOf`); it is therefore not recorded (decision 0043). The empty list follows
-  GitHub's documentation and is not observed (decision 0027, *Consequences*). The real stranger path is the run a
-  stranger's event starts in the repository's own context, reported as `CI failed on <branch>`
-  (`notifications.md`, *CI failure rules*, first bullet).
+- Refuted in its example, confirmed in substance: a fork's `pull_request` run is *not* reported today — its head
+  repository is the fork and its `pull_requests` is empty (`src/rules/workflow-run.ts`; the empty list is documented,
+  not observed, decision 0027). Strangers reach the CI rules through runs in the repository's own context.
 
 ## Scenarios
 
@@ -37,27 +34,27 @@ owner" is the stored owner as `isOwnAction` (`src/rules/actor.ts`) compares it, 
 for an organization-owned App or an owner not stored yet (E9).
 
 - S1: Given a public repository and fewer than 20 counted `pull_request` deliveries this UTC hour, when a stranger (an
-  account GitHub marks as neither the owner, a member nor a collaborator) opens a non-draft pull request from their
-  fork, then the owner gets _New pull request_ as today, and the delivery is counted.
+  account GitHub marks as neither the owner, a member nor a collaborator) opens a non-draft pull request, then the owner gets _New pull request_ as today, and the delivery is counted.
 - S2: Given 20 counted `pull_request` deliveries this UTC hour, when a stranger opens another non-draft pull request
-  from a fork (or marks one ready for review, or re-requests a review on their own), then no message is sent, GitHub
+  (or marks one ready for review, or re-requests a review on their own), then no message is sent, GitHub
   gets **202**, the log entry's decision is `limited`, and the delivery is not recorded. In the next UTC hour a
   stranger's pull request is reported again.
 - S3: Given the `pull_request` bound is full, when the owner, a member or a collaborator opens a pull request, marks
   one ready for review or has a review requested on their pull request, then the message is sent as today; the
   delivery is not counted.
-- S4: Given the `pull_request` bound is full, when a pull request from a branch of the repository itself (Dependabot,
-  Renovate, Copilot or any account that can push branches there) is opened, marked ready or has a review requested,
-  then the message is sent; it is not counted.
+- S4: Given fewer than 20 counted `pull_request` deliveries, when a stranger opens a pull request between two branches
+  that already exist in the repository itself (anyone with read access can), then it is reported and counted like S1;
+  so is a pull request of a bot (Dependabot, Renovate) whose author association is not one of S3's.
 - S5: Given the `pull_request` bound is full, when the owner requests a review on a stranger's pull request, then
   _Review requested_ is sent; the owner's own action is not counted.
-- S6: Given the `workflow_run` bound is full, when a run fails whose event only a person or app with write access to
-  the repository can cause (the list of AC3: a push, a schedule, a manual or API start, the merge queue, a release, a
-  branch or tag created or deleted, …) or a pull request from a branch of the repository itself, then
-  _CI failed on <branch>_ or _CI failed in pull request_ is sent as today; it is not counted.
+- S6: Given the `workflow_run` bound is full, when a run fails whose event only an account admitted to the repository
+  can cause (the list of AC3: a push, a schedule, the merge queue, a release, a branch or tag created or deleted, …),
+  then _CI failed on <branch>_ or _CI failed in pull request_ is sent as today; it is not counted.
 - S7: Given fewer than 20 counted `workflow_run` deliveries this UTC hour, when a run of any other event fails and is
-  reported (for example `pull_request_target` on a fork's pull request, `issue_comment`, `issues`, `status`,
-  `dynamic`, a chained `workflow_run`, or a fork's `pull_request` should GitHub name its pull request after all), then
+  reported (for example `pull_request` — also from a branch of the repository itself, which a stranger's reopened pull
+  request can start —, `pull_request_target`, `issue_comment`, `issues`, `workflow_dispatch` and
+  `repository_dispatch` — which a stranger-started workflow can raise with its token —, `status`, `dynamic`, a
+  chained `workflow_run`), then
   the message is sent and the delivery is counted; the 21st of the hour is `limited` like S2.
 - S8: Given the `workflow_run` bound is full, when such a run of S7 was started or re-run by the owner, then the
   failure is reported; it is not counted.
@@ -68,13 +65,12 @@ for an organization-owned App or an owner not stored yet (E9).
 
 - E1: A `pull_request` delivery whose author association is missing, not a string or not exactly one of `OWNER`,
   `MEMBER`, `COLLABORATOR` (for example `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, `NONE`, `MANNEQUIN`, a lower-case
-  `owner`, one GitHub adds later), and whose head repository is not provably the repository itself, is counted. A
-  bot's pull request from a fork is counted.
-- E2: A pull request's head repository counts as the repository itself only when `pull_request.head.repo.id` and
-  `repository.id` are both whole numbers from 1 to 2^53 − 1 and equal; a `null` head repository (a deleted fork), a
-  missing or mistyped id, or a matching name with another id is counted. A run's head repository is compared the same
-  way (`workflow_run.head_repository.id` with `repository.id`, as `failedWorkflowRun` already narrows them), never by
-  name.
+  `owner`, one GitHub adds later) is counted, whatever its head repository and whoever its author is (a bot
+  included).
+- E2: The head repository decides nothing: a pull request or a `pull_request` run from a branch of the repository
+  itself is counted like a fork's, because anyone with read access can open a pull request between existing branches
+  and reopen it to start CI. A collaborator's pull request CI failure (event `pull_request`) therefore shares the
+  bound; the same failure reported from its `push` run is uncounted.
 - E3: A reported `workflow_run` delivery whose run event or starting account is missing or of an unexpected type is
   counted unless it is provably one of S6 or S8.
 - E4: Concurrent deliveries at 19 or 20 counted never record more than 20 of one event in one hour (one conditional
@@ -83,15 +79,19 @@ for an organization-owned App or an owner not stored yet (E9).
 - E6: Around the turn of an hour up to twice the bound can be recorded in a short time, as today.
 - E7: One stranger can fill an event's bound for an hour and hide the other strangers' pull requests or CI failures of
   that hour; the owner learns of it only from the log (`limited`) and GitHub's own notifications. The pull requests of
-  S3 and S4 and the runs of S6 are never hidden.
-- E8: A collaborator's comment or issue that starts a failing workflow, and a chained `workflow_run` started by a
-  collaborator's run, are counted (S7): a run carries no author association, a chained run does not name the event of
+  S3 and the runs of S6 and S8 are never hidden.
+- E8: A collaborator's comment or issue that starts a failing workflow, a collaborator's manual or API start, and a
+  chained `workflow_run` started by a collaborator's run, are counted (S7): a run carries no author association, a chained run does not name the event of
   the run before it, and only the owner is told apart, as the issue and comment bound already counts collaborators
   (decision 0043, *Consequences*).
 - E9: For an organization-owned App, or an owner not stored yet, S5 and S8 never apply: an organization admin's review
   request on a stranger's pull request and an admin's re-run of a stranger's run are counted, as `isOwnAction` never
   matches there (`src/rules/actor.ts:17`; `notifications.md`, *Whose stars count*). Members' and collaborators' pull
-  requests (S3, by author association) and the runs of S6 stay uncounted there too.
+  requests (S3, by author association) and the runs of S6 stay uncounted there too. A member whose organization
+  membership is private is marked `CONTRIBUTOR` or `NONE` by GitHub, so their pull requests are counted.
+- E11: A token with write access that the owner places in a workflow a stranger can start (a personal access token,
+  an App token) can raise any event of AC3, and its runs are then not counted; Seluna cannot tell them apart. With
+  the built-in `GITHUB_TOKEN` only `workflow_dispatch` and `repository_dispatch` start runs, and both are counted.
 - E10: A delivery that would not be recorded (a draft, an action no rule reports, a successful run, a switch that is
   off, a CI failure in a pull request the draft lookup finds to be a draft) is never counted, as today.
 
@@ -99,7 +99,7 @@ for an organization-owned App or an owner not stored yet (E9).
 
 - Budget: with `pull_request` and `workflow_run` bounded, at most 6 × 24 × 20 = 2,880 counted recorded deliveries a
   day, about 40,000 of the 100,000 daily rows written (estimate per decision 0043); the uncounted ones of S3 to S6 and
-  S8 are not limited, as no stranger can cause them.
+  S8 are not limited, as no stranger can cause them except through a token of E11.
 - No new setting: the bound stays the constant 20 (`BOUNDED_DELIVERIES_PER_HOUR`, decision 0043 option 10), shared by
   all six events, each with its own counter.
 - No migration, no new GitHub permission or event, no network call and no read beyond today's: the decision uses only
@@ -114,16 +114,17 @@ for an organization-owned App or an owner not stored yet (E9).
   20 per UTC hour are recorded, every further one of that hour answers 202 with decision `limited`, sends no message
   and is not recorded (S1, S2, E1, E7).
 - [ ] AC2: A `pull_request` delivery is reported and recorded without being counted, also while its bound is full,
-  when `pull_request.author_association` is exactly `OWNER`, `MEMBER` or `COLLABORATOR`, when its head repository is
-  the repository itself (compared as E2), or when `sender` is the owner (S3, S4, S5, E2, E9).
+  when `pull_request.author_association` is exactly `OWNER`, `MEMBER` or `COLLABORATOR`, or when `sender` is the
+  owner; a pull request from a branch of the repository itself is counted otherwise (S3, S4, S5, E2, E9).
 - [ ] AC3: A `workflow_run` delivery that would be recorded is not counted, also while its bound is full, when
-  `workflow_run.event` is exactly one of `push`, `schedule`, `workflow_dispatch`, `repository_dispatch`,
-  `merge_group`, `release`, `create`, `delete`, `page_build`, `label`, `milestone`, `registry_package` or
-  `branch_protection_rule`; when it is `pull_request` and the head repository is the repository itself (compared as
-  E2); or when `workflow_run.triggering_actor.id` is the owner's id (S6, S8, E9).
+  `workflow_run.event` is exactly one of `push`, `schedule`, `merge_group`, `release`, `create`, `delete`,
+  `page_build`, `label`, `milestone`, `registry_package` or `branch_protection_rule`, or when
+  `workflow_run.triggering_actor.id` is the owner's id (S6, S8, E9, E11).
 - [ ] AC4: Every other `workflow_run` delivery that would be recorded is counted, a missing or mistyped field
   included, and a run whose `workflow_run.actor` is the owner but whose `triggering_actor` is not is counted; at most
-  20 per UTC hour are recorded and further ones are `limited` as in AC1 (S7, E3, E8).
+  20 per UTC hour are recorded and further ones are `limited` as in AC1; this includes `pull_request` runs from a
+  branch of the repository itself and `workflow_dispatch` and `repository_dispatch` runs not started by the owner
+  (S7, E2, E3, E8).
 - [ ] AC5: `pull_request` and `workflow_run` each have their own hourly counter, separate from each other and from the
   four existing ones, with the same concurrency, hour restart and 503-on-failure behavior (E4, E5, E6).
 - [ ] AC6: A delivery that would not be recorded is never counted, and a `limited` delivery redelivered in a later hour
@@ -134,31 +135,32 @@ for an organization-owned App or an owner not stored yet (E9).
 - A notice to the owner when a bound is reached (decision 0043, option 11).
 - Telling collaborators from strangers for CI runs started by comments, issues or a chained run (E8): it needs a
   GitHub API call per delivery.
-- A bound for the security alert events, which no stranger can cause in numbers.
+- A bound for the security alert events.
 - Changing what the pull request or CI rules report, their texts or the draft lookup.
 
 ## Open questions
 
 - Who is a stranger for a pull request? Answered: an author GitHub marks as neither `OWNER`, `MEMBER` nor
   `COLLABORATOR` (`pull_request.author_association`, present with `OWNER` in all five real fixtures,
-  `test/fixtures/pull_request/*.json`) whose pull request comes from a fork. These three values name the accounts the
-  owner admitted to the repository or its organization, whatever their access level; this also covers an
-  organization-owned App, where `isOwnAction` never matches. A branch of the repository itself can only be pushed by
-  an account or app with write access, so its pull requests are never counted (S4; `opened.json` has
-  `head.repo.id` equal to `repository.id`). The sender check adds the owner's own action on a stranger's pull request
-  (S5).
+  `test/fixtures/pull_request/*.json`), wherever the pull request comes from: anyone with read access can open one
+  between two existing branches of the repository (S4, E2). These three values name accounts the owner admitted to
+  the repository or its organization, whatever their access level (not every member: E9); this also covers an
+  organization-owned App, where `isOwnAction` never matches. The sender check adds the owner's own action on a
+  stranger's pull request (S5).
 - Who is a stranger for a CI run? Answered: a `workflow_run` carries no author association, so the run's `event`
-  decides which runs only someone with write access (or GitHub on their behalf) can start (AC3). Events a stranger can
+  decides which runs only an admitted account can start (AC3). `pull_request` (a stranger can reopen a pull request
+  between existing branches) and `workflow_dispatch`/`repository_dispatch` (a stranger-started workflow can raise
+  them with `GITHUB_TOKEN`) are not in that list. Events a stranger can
   cause, directly or through an app reacting to their pull request (`status`, `deployment`, `deployment_status`,
   `check_run`, `check_suite`, `dynamic` — CodeQL default setup also analyzes fork pull requests), stay counted, failing
   closed toward the budget. Of the rest only the owner is exempt, by `workflow_run.triggering_actor.id`: on a re-run
   it is the account that re-ran while `actor` stays the original one (GitHub's documentation; the real fixtures have
-  all three accounts equal, so the plan marks it unverified). The real samples carry `event`, `actor`,
-  `triggering_actor` and `head_repository` (`test/fixtures/workflow_run/completed-failure-pull-request.json`).
-- Should bots' pull requests be exempt? Answered: those from a branch of the repository are (S4); a bot's pull request
-  from a fork is counted, the side that protects the budget (E1). Dependabot alerts are never counted.
-- One counter per event or a shared one? Answered: per event, as decision 0043 option 6 chose, so a flood of pull
-  requests does not hide CI failures and vice versa.
+  all three accounts equal, so the plan marks it unverified). The real samples carry `event`, `actor` and
+  `triggering_actor` (`test/fixtures/workflow_run/completed-failure-pull-request.json`).
+- Should bots' pull requests be exempt? Answered: no; they are counted unless GitHub marks their author as admitted,
+  the side that protects the budget (S4, E1). Whether only an installed app can author a pull request here is not
+  verified, so neither `user.type` nor the head repository exempts them. Dependabot alerts are never counted.
+- One counter per event or a shared one? Answered: per event (decision 0043, option 18).
 
 ## Area documents
 
@@ -179,10 +181,10 @@ for an organization-owned App or an owner not stored yet (E9).
    counted: its payload lacks the upstream event (E8). The Problem's promise is narrowed to match.
 2. (minor) Field of the owner check — accepted. AC3 names `workflow_run.triggering_actor.id`; AC4 counts a run with
    the owner as `actor` and a stranger as `triggering_actor`; tests build both directions from the real fixture.
-3. (minor) Same-repository pull requests — accepted. AC2 adds the head-repository test, S4 describes it, and E1 and
-   the bots question are adjusted.
+3. (minor) Same-repository pull requests — accepted, then withdrawn in the plan revision: a stranger can open one
+   between existing branches (plan, *Challenge* 1); S4 and E2 now count them.
 4. (minor) Wording of `MEMBER`/`COLLABORATOR` — accepted in the first open question; E1 and AC2 require the exact
    upper-case values, so tests build `MEMBER`, `COLLABORATOR`, a lower-case `owner` and an unknown value.
-5. (minor) How the head repository is compared — accepted: E2, by positive safe-integer ids, never by name.
+5. (minor) How the head repository is compared — moot: the head repository no longer decides anything (E2).
 6. (minor) Owner exemption for organization-owned Apps — accepted. E9 states that S5 and S8 never apply there and that
    an organization admin's action is counted. "The owner" is defined once above the scenarios.
