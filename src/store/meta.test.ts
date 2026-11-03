@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  BOUNDED_EVENT_NAMES,
   countBoundedDelivery,
   DELIVERY_COUNT_META_PREFIX,
   DIGEST_RUN_META_KEY,
@@ -458,6 +459,33 @@ describe("countBoundedDelivery", () => {
       ].sort((a, b) => (String(a.key) < String(b.key) ? -1 : 1)),
     );
     expect(await storedMeta("delivery_count:issue_comment"), "issue_comment row").toBeUndefined();
+  });
+
+  it("BOUNDED_EVENT_NAMES lists the six bounded events", () => {
+    expect([...BOUNDED_EVENT_NAMES], "events").toEqual([
+      "issues",
+      "issue_comment",
+      "star",
+      "fork",
+      "pull_request",
+      "workflow_run",
+    ]);
+  });
+
+  it("countBoundedDelivery keeps the pull_request and workflow_run counters apart from each other and from issues", async () => {
+    await putMeta("delivery_count:pull_request", `${hour}:20`);
+
+    const results = [
+      await countBoundedDelivery(env.DB, "pull_request", time, 20),
+      await countBoundedDelivery(env.DB, "workflow_run", time, 20),
+      await countBoundedDelivery(env.DB, "issues", time, 20),
+      await countBoundedDelivery(env.DB, "workflow_run", time, 20),
+    ];
+
+    expect(results, "results").toEqual([false, true, true, true]);
+    expect(await storedMeta("delivery_count:pull_request"), "pull_request row").toBe(`${hour}:20`);
+    expect(await storedMeta("delivery_count:workflow_run"), "workflow_run row").toBe(`${hour}:2`);
+    expect(await storedMeta(issuesKey), "issues row").toBe(`${hour}:1`);
   });
 
   it("countBoundedDelivery starts a new count at the first millisecond of the next hour", async () => {

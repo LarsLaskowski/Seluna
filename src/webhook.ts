@@ -9,6 +9,7 @@ import { storedNotificationOf } from "./notification";
 import { starRemovalOf } from "./rules/repository-starred";
 import { runRules } from "./rules/rule";
 import type { ActivityEvent, Notification, Rule, RuleDecision, WebhookPayload } from "./rules/rule";
+import { isCountedDelivery } from "./rules/stranger";
 import { recordDelivery, isKnownDelivery } from "./store/deliveries";
 import { BOUNDED_EVENT_NAMES, countBoundedDelivery, refreshLastDelivery } from "./store/meta";
 import type { BoundedEvent } from "./store/meta";
@@ -37,7 +38,7 @@ export interface SignedDelivery {
 export type WebhookDecision =
   "reported" | "collected" | "no-match" | "disabled" | "limited" | "duplicate" | "invalid" | "unavailable";
 
-/** The events a stranger can cause on a public repository; their recorded deliveries are bounded per event and UTC hour. */
+/** The events a stranger can cause on a public repository (for a pull request or a workflow run only those of a stranger, see `isCountedDelivery`); their recorded deliveries are bounded per event and UTC hour. */
 export const BOUNDED_EVENTS: ReadonlySet<string> = new Set<string>(BOUNDED_EVENT_NAMES);
 /** At most this many deliveries of one bounded event are recorded per UTC hour. */
 export const BOUNDED_DELIVERIES_PER_HOUR = 20;
@@ -180,9 +181,21 @@ function pendingMessagesOf(
   return pending;
 }
 
-/** Whether a delivery that would be recorded may be: always, except a bounded event past its hourly bound. */
-async function withinBound(db: D1Database, event: string, time: Date): Promise<boolean> {
-  return !isBoundedEvent(event) || (await countBoundedDelivery(db, event, time, BOUNDED_DELIVERIES_PER_HOUR));
+/**
+ * Whether a delivery that would be recorded may be: always, except a counted delivery of a bounded event past its
+ * hourly bound (`isCountedDelivery` decides whether the delivery counts at all). D1 errors are not caught.
+ */
+async function withinBound(
+  db: D1Database,
+  event: string,
+  payload: WebhookPayload,
+  owner: OwnerAccount | undefined,
+  time: Date,
+): Promise<boolean> {
+  if (!isBoundedEvent(event) || !isCountedDelivery(event, payload, owner)) {
+    return true;
+  }
+  return countBoundedDelivery(db, event, time, BOUNDED_DELIVERIES_PER_HOUR);
 }
 
 /** Records a signed delivery, evaluates the rules, stores the messages and hands their sending to `waitUntil`. */
@@ -224,7 +237,7 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
       await refreshLastDeliveryQuietly(deps.db, receivedAt);
       return outcomeOf(202, decision, fields);
     }
-    if (!(await withinBound(deps.db, event, receivedAt))) {
+    if (!(await withinBound(deps.db, event, payload, owner, receivedAt))) {
       await refreshLastDeliveryQuietly(deps.db, receivedAt);
       return outcomeOf(202, "limited", fields);
     }
