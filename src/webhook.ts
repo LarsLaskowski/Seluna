@@ -9,6 +9,7 @@ import { storedNotificationOf } from "./notification";
 import { starRemovalOf } from "./rules/repository-starred";
 import { runRules } from "./rules/rule";
 import type { ActivityEvent, Notification, Rule, RuleDecision, WebhookPayload } from "./rules/rule";
+import { isCountedDelivery } from "./rules/stranger";
 import { recordDelivery, isKnownDelivery } from "./store/deliveries";
 import { BOUNDED_EVENT_NAMES, countBoundedDelivery, refreshLastDelivery } from "./store/meta";
 import type { BoundedEvent } from "./store/meta";
@@ -37,7 +38,7 @@ export interface SignedDelivery {
 export type WebhookDecision =
   "reported" | "collected" | "no-match" | "disabled" | "limited" | "duplicate" | "invalid" | "unavailable";
 
-/** The events a stranger can cause on a public repository; their recorded deliveries are bounded per event and UTC hour. */
+/** The events a stranger can cause on a public repository (for a pull request or a workflow run only those of a stranger, see `isCountedDelivery`); their recorded deliveries are bounded per event and UTC hour. */
 export const BOUNDED_EVENTS: ReadonlySet<string> = new Set<string>(BOUNDED_EVENT_NAMES);
 /** At most this many deliveries of one bounded event are recorded per UTC hour. */
 export const BOUNDED_DELIVERIES_PER_HOUR = 20;
@@ -191,7 +192,10 @@ async function withinBound(
   owner: OwnerAccount | undefined,
   time: Date,
 ): Promise<boolean> {
-  throw new Error("Not implemented");
+  if (!isBoundedEvent(event) || !isCountedDelivery(event, payload, owner)) {
+    return true;
+  }
+  return countBoundedDelivery(db, event, time, BOUNDED_DELIVERIES_PER_HOUR);
 }
 
 /** Records a signed delivery, evaluates the rules, stores the messages and hands their sending to `waitUntil`. */
