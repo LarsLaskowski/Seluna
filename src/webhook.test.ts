@@ -19,6 +19,7 @@ import starDeleted from "../test/fixtures/star/deleted.json";
 import failedPullRequestRun from "../test/fixtures/workflow_run/completed-failure-pull-request.json";
 import successfulDefaultBranchRun from "../test/fixtures/workflow_run/completed-success-default-branch.json";
 import type { DraftLookup } from "./draft-lookup";
+import type { OwnerAccount } from "./github/owner";
 import { renderTelegramText } from "./message";
 import { decodeStoredNotification } from "./notification";
 import { RULES } from "./rules/registry";
@@ -1782,12 +1783,14 @@ function counterFailingDb(db: D1Database): D1Database {
   };
 }
 
-/** Stores `value` as the hourly count of each of the four bounded events. */
+/** Stores `value` as the hourly count of each of the six bounded events. */
 async function setAllCounters(value: string): Promise<void> {
   await setCounter("fork", value);
   await setCounter("issue_comment", value);
   await setCounter("issues", value);
+  await setCounter("pull_request", value);
   await setCounter("star", value);
+  await setCounter("workflow_run", value);
 }
 
 /** Every `delivery_count:` row as `[key, value]`, ordered by key. */
@@ -1798,13 +1801,15 @@ async function counterRows(): Promise<unknown[][]> {
   return results.map((row) => [row.key, row.value]);
 }
 
-/** The four counter rows of `counterRows`, each holding `value`. */
+/** The six counter rows of `counterRows`, each holding `value`. */
 function countersAt(value: string): unknown[][] {
   return [
     ["delivery_count:fork", value],
     ["delivery_count:issue_comment", value],
     ["delivery_count:issues", value],
+    ["delivery_count:pull_request", value],
     ["delivery_count:star", value],
+    ["delivery_count:workflow_run", value],
   ];
 }
 
@@ -1812,6 +1817,37 @@ function countersAt(value: string): unknown[][] {
 function boundedDelivery(event: BoundedEvent, payload: WebhookPayload, delivery: string): SignedDelivery {
   return jsonDelivery(JSON.stringify(payload), { event, delivery });
 }
+
+/** An account GitHub marks as neither the owner, a member nor a collaborator. */
+const STRANGER = { login: "example-stranger", id: 1_000_777, type: "User" };
+/** An account the owner admitted to the repository, not the owner. */
+const ADMITTED = { login: "example-member", id: 1_000_778, type: "User" };
+/** The account of {@link OWNER}, as a run or a sender names it. */
+const OWNER_ACCOUNT = { login: "example-owner", id: 1000, type: "User" };
+/** The account of the built-in `GITHUB_TOKEN`. */
+const ACTIONS_BOT = { login: "github-actions[bot]", id: 41_898_282, type: "Bot" };
+
+/** `payload`, a pull request delivery, authored and sent by `account` with the author association `association`. */
+function pullRequestOf(payload: WebhookPayload, association: string, account: object): WebhookPayload {
+  const authored = variant(
+    variant(payload, ["pull_request", "author_association"], association),
+    ["pull_request", "user"],
+    account,
+  );
+  return variant(authored, ["sender"], account);
+}
+
+/** The real opened pull request (head and base in the repository itself) of a stranger marked NONE. */
+const STRANGER_PULL_REQUEST = pullRequestOf(opened, "NONE", STRANGER);
+
+/** `payload`, a workflow run delivery, of the run event `event`, with `actor` and `triggeringActor`. */
+function runOf(payload: WebhookPayload, event: string, actor: object, triggeringActor: object): WebhookPayload {
+  const started = variant(variant(payload, ["workflow_run", "event"], event), ["workflow_run", "actor"], actor);
+  return variant(started, ["workflow_run", "triggering_actor"], triggeringActor);
+}
+
+/** The real failed pull request run (head in the repository itself), started by a stranger. */
+const STRANGER_RUN = runOf(failedPullRequestRun, "pull_request", STRANGER, STRANGER);
 
 describe("processWebhook with the hourly bound of issues, comments, stars and forks", () => {
   it("processWebhook records 20 issues of one hour and answers 202 limited for the 21st without a row or a message", async () => {
@@ -1905,6 +1941,20 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
         await seedActivity(FOREIGN_ID);
       },
       activity: [[FOREIGN_ID, 2000, "star"]],
+    },
+    {
+      case: "a stranger's pull request from a branch of the repository itself",
+      event: "pull_request",
+      payload: STRANGER_PULL_REQUEST,
+      setup: () => Promise.resolve(),
+      activity: [],
+    },
+    {
+      case: "a stranger's failed pull request run",
+      event: "workflow_run",
+      payload: STRANGER_RUN,
+      setup: () => Promise.resolve(),
+      activity: [],
     },
   ])(
     "processWebhook answers 202 limited for $case when 20 deliveries of its event were counted this hour",
@@ -2041,22 +2091,32 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
     expect(await counterRows(), "counter rows").toEqual(countersAt(`${NOW_HOUR}:5`));
   });
 
-  it.each<{ case: string; delivery: SignedDelivery }>([
-    { case: "a non-draft opened pull request", delivery: pullRequestDelivery(opened) },
+  it.each<{ case: string; delivery: SignedDelivery; owner: OwnerAccount | undefined }>([
+    { case: "a non-draft opened pull request", delivery: pullRequestDelivery(opened), owner: undefined },
     {
-      case: "a failed CI run in a pull request whose lookup answers not a draft",
+      case: "a failed CI run in a pull request of the owner whose lookup answers not a draft",
       delivery: workflowRunDelivery(failedPullRequestRun),
+      owner: OWNER,
     },
-    { case: "a failed CI run on the default branch", delivery: workflowRunDelivery(MAIN_FAILURE) },
-    { case: "a Dependabot alert", delivery: alertDelivery("dependabot_alert", dependabotCreated) },
-    { case: "a secret scanning alert", delivery: alertDelivery("secret_scanning_alert", secretCreated) },
+    { case: "a failed CI run on the default branch", delivery: workflowRunDelivery(MAIN_FAILURE), owner: undefined },
+    {
+      case: "a Dependabot alert",
+      delivery: alertDelivery("dependabot_alert", dependabotCreated),
+      owner: undefined,
+    },
+    {
+      case: "a secret scanning alert",
+      delivery: alertDelivery("secret_scanning_alert", secretCreated),
+      owner: undefined,
+    },
   ])(
     "processWebhook records and sends $case while every bounded event is at its bound and answers its redelivery 200 duplicate",
-    async ({ delivery }) => {
+    async ({ delivery, owner }) => {
       await setAllCounters(AT_BOUND);
       const { deps, waitUntil, telegram } = harness({
         rules: RULES,
         lookUpDraft: lookupAnswering({ kind: "ok", draft: false }),
+        readOwner: () => Promise.resolve(owner),
       });
 
       const first = await processWebhook(delivery, deps);
@@ -2092,5 +2152,201 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
     expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
     expect(telegram.requests, "Telegram requests").toEqual([]);
     expect(await counterOf("issues"), "issues counter").toBeUndefined();
+  });
+});
+
+describe("processWebhook with the hourly bound of pull requests and CI failures", () => {
+  it("processWebhook records 20 stranger pull requests of one hour and answers 202 limited for the 21st without a row or a message", async () => {
+    const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+    const recorded = await Promise.all(
+      Array.from({ length: 20 }, (_, index) =>
+        processWebhook(boundedDelivery("pull_request", STRANGER_PULL_REQUEST, `pr-bound-${String(index)}`), deps),
+      ),
+    );
+    await settled(waitUntil);
+
+    const outcome = await processWebhook(boundedDelivery("pull_request", STRANGER_PULL_REQUEST, "pr-bound-21"), deps);
+    await settled(waitUntil);
+
+    expect(
+      recorded.map((first) => first.decision),
+      "decisions of the first 20",
+    ).toEqual(Array.from({ length: 20 }, () => "reported"));
+    expect(outcome, "outcome of the 21st").toEqual({
+      status: 202,
+      decision: "limited",
+      action: "opened",
+      repository: "example-owner/example-other-repo",
+    });
+    expect(await count("deliveries"), "deliveries rows").toBe(20);
+    expect(await count("outbox"), "outbox rows").toBe(20);
+    expect(waitUntil, "waitUntil calls").toHaveBeenCalledTimes(20);
+    expect(telegram.requests, "Telegram requests").toHaveLength(20);
+    expect(await counterOf("pull_request"), "pull_request counter").toBe(AT_BOUND);
+  });
+
+  it("processWebhook records one of two concurrent stranger pull requests at 19 counted and answers 202 limited for the other", async () => {
+    await setCounter("pull_request", `${NOW_HOUR}:19`);
+    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcomes = await Promise.all([
+      processWebhook(boundedDelivery("pull_request", STRANGER_PULL_REQUEST, "pr-concurrent-1"), deps),
+      processWebhook(boundedDelivery("pull_request", STRANGER_PULL_REQUEST, "pr-concurrent-2"), deps),
+    ]);
+
+    expect(
+      outcomes.map((outcome) => outcome.decision).sort((a, b) => a.localeCompare(b)),
+      "sorted decisions",
+    ).toEqual(["limited", "reported"]);
+    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(await counterOf("pull_request"), "pull_request counter").toBe(AT_BOUND);
+  });
+
+  it.each<{ case: string; payload: WebhookPayload }>([
+    { case: "a pull request of a MEMBER", payload: pullRequestOf(opened, "MEMBER", ADMITTED) },
+    {
+      case: "a pull request of a COLLABORATOR marked ready for review",
+      payload: pullRequestOf(readyForReview, "COLLABORATOR", ADMITTED),
+    },
+    {
+      case: "the owner's review request on a stranger's pull request",
+      payload: fromOwner(pullRequestOf(reviewRequested, "NONE", STRANGER)),
+    },
+  ])("processWebhook reports $case while the pull_request bound is full", async ({ payload }) => {
+    await setCounter("pull_request", AT_BOUND);
+    const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcome = await processWebhook(boundedDelivery("pull_request", payload, "pr-admitted"), deps);
+    await settled(waitUntil);
+
+    expect([outcome.status, outcome.decision], "status and decision").toEqual([202, "reported"]);
+    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(await count("outbox"), "outbox rows").toBe(1);
+    expect(telegram.requests, "Telegram requests").toHaveLength(1);
+    expect(await counterOf("pull_request"), "pull_request counter").toBe(AT_BOUND);
+  });
+
+  it.each<{ case: string; payload: WebhookPayload }>([
+    { case: "push", payload: runOf(MAIN_FAILURE, "push", ADMITTED, ADMITTED) },
+    { case: "release", payload: runOf(MAIN_FAILURE, "release", ADMITTED, ADMITTED) },
+    {
+      case: "workflow_dispatch started by the owner",
+      payload: runOf(MAIN_FAILURE, "workflow_dispatch", OWNER_ACCOUNT, OWNER_ACCOUNT),
+    },
+    {
+      case: "issue_comment of a stranger re-run by the owner",
+      payload: runOf(MAIN_FAILURE, "issue_comment", STRANGER, OWNER_ACCOUNT),
+    },
+  ])("processWebhook reports a failed $case run while the workflow_run bound is full", async ({ payload }) => {
+    await setCounter("workflow_run", AT_BOUND);
+    const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcome = await processWebhook(boundedDelivery("workflow_run", payload, "run-admitted"), deps);
+    await settled(waitUntil);
+
+    expect([outcome.status, outcome.decision], "status and decision").toEqual([202, "reported"]);
+    expect(await storedTexts(), "stored texts").toEqual([MAIN_FAILURE_TEXT]);
+    expect(telegram.requests, "Telegram requests").toHaveLength(1);
+    expect(await counterOf("workflow_run"), "workflow_run counter").toBe(AT_BOUND);
+  });
+
+  it.each<{ case: string; payload: WebhookPayload }>([
+    { case: "issue_comment", payload: runOf(MAIN_FAILURE, "issue_comment", STRANGER, STRANGER) },
+    {
+      case: "workflow_dispatch started by github-actions[bot]",
+      payload: runOf(MAIN_FAILURE, "workflow_dispatch", ACTIONS_BOT, ACTIONS_BOT),
+    },
+    { case: "pull_request from a branch of the repository itself started by a stranger", payload: STRANGER_RUN },
+    {
+      case: "pull_request of the owner re-run by a stranger",
+      payload: runOf(failedPullRequestRun, "pull_request", OWNER_ACCOUNT, STRANGER),
+    },
+  ])(
+    "processWebhook answers 202 limited for a failed $case run when 20 workflow_run deliveries were counted this hour",
+    async ({ payload }) => {
+      await setCounter("workflow_run", AT_BOUND);
+      const { deps, waitUntil, telegram } = harness({
+        rules: RULES,
+        readOwner: () => Promise.resolve(OWNER),
+        lookUpDraft: lookupAnswering({ kind: "ok", draft: false }),
+      });
+
+      const outcome = await processWebhook(boundedDelivery("workflow_run", payload, "run-limited"), deps);
+
+      expect([outcome.status, outcome.decision], "status and decision").toEqual([202, "limited"]);
+      expect(await count("deliveries"), "deliveries rows").toBe(0);
+      expect(await count("outbox"), "outbox rows").toBe(0);
+      expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+      expect(telegram.requests, "Telegram requests").toEqual([]);
+      expect(await counterOf("workflow_run"), "workflow_run counter").toBe(AT_BOUND);
+    },
+  );
+
+  it.each<{ case: string; event: BoundedEvent; payload: WebhookPayload; full: BoundedEvent }>([
+    {
+      case: "a stranger pull request while workflow_run",
+      event: "pull_request",
+      payload: STRANGER_PULL_REQUEST,
+      full: "workflow_run",
+    },
+    {
+      case: "a stranger's failed run while pull_request",
+      event: "workflow_run",
+      payload: STRANGER_RUN,
+      full: "pull_request",
+    },
+    {
+      case: "a stranger pull request while issues",
+      event: "pull_request",
+      payload: STRANGER_PULL_REQUEST,
+      full: "issues",
+    },
+  ])("processWebhook still records $case is at the bound", async ({ event, payload, full }) => {
+    await setCounter(full, AT_BOUND);
+    const { deps, waitUntil } = harness({
+      rules: RULES,
+      readOwner: () => Promise.resolve(OWNER),
+      lookUpDraft: lookupAnswering({ kind: "ok", draft: false }),
+    });
+
+    const outcome = await processWebhook(boundedDelivery(event, payload, "other-bounded-event"), deps);
+    await settled(waitUntil);
+
+    expect([outcome.status, outcome.decision], "status and decision").toEqual([202, "reported"]);
+    expect(await count("outbox"), "outbox rows").toBe(1);
+    expect(await counterOf(event), "counter of its event").toBe(`${NOW_HOUR}:1`);
+    expect(await counterOf(full), "counter of the full event").toBe(AT_BOUND);
+  });
+
+  it("processWebhook reports a limited stranger pull request once when it is redelivered in the next hour", async () => {
+    await setCounter("pull_request", AT_BOUND);
+    let clock = NOW;
+    const { deps, waitUntil, telegram } = harness({
+      rules: RULES,
+      readOwner: () => Promise.resolve(OWNER),
+      now: () => clock,
+    });
+    const limited = await processWebhook(
+      boundedDelivery("pull_request", STRANGER_PULL_REQUEST, "pr-redelivered"),
+      deps,
+    );
+    clock = NEXT_HOUR;
+
+    const again = await processWebhook(boundedDelivery("pull_request", STRANGER_PULL_REQUEST, "pr-redelivered"), deps);
+    const third = await processWebhook(boundedDelivery("pull_request", STRANGER_PULL_REQUEST, "pr-redelivered"), deps);
+    await settled(waitUntil);
+
+    expect(
+      [limited, again, third].map((outcome) => [outcome.status, outcome.decision]),
+      "statuses and decisions",
+    ).toEqual([
+      [202, "limited"],
+      [202, "reported"],
+      [200, "duplicate"],
+    ]);
+    expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(await count("outbox"), "outbox rows").toBe(1);
+    expect(telegram.requests, "Telegram requests").toHaveLength(1);
+    expect(await counterOf("pull_request"), "pull_request counter").toBe("497845:1");
   });
 });
