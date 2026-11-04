@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-04
+
 ### Added
 
 - GitHub App: the manifest also asks for read-only Contents and Issues and subscribes to the events `issues`, `issue_comment`, `fork` and `star`; these deliveries are accepted and recorded. Seluna stores the app's owner (account id, login and type) beside the App ID for the rules to come.
