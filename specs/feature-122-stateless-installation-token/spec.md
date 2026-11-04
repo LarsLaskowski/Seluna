@@ -114,3 +114,13 @@ refused token is never put into a request header.
   changes with it.
 - Decision 0026 is released (v0.7.0) and states the old allow-list: a new record supersedes that point and holds
   the residual risk of building without a real stateless token (Q1).
+
+## Challenge notes
+
+Minor objections of the spec challenge, verbatim:
+
+1. `minor`: AC3 and AC4 ask for the GitHub test double to answer a stateless token, but no such value exists in the repository. `test/fixtures/github/installation-token.json` holds only the classic token, and `test/github.ts:287` exports only `FIXTURE_TOKEN`. Why it matters: unless the source of the value is fixed, tests could each invent their own token, or a "fixture" could appear that looks captured. Instruction: build one stateless token in `test/github.ts`, from the documented form `ghs_<App ID>_<base64url header>.<base64url payload>.<342-character base64url signature>`. Mark it as built from GitHub's documentation, not captured. Feed it through `installationTokenBody(token)` in the token-check, cache and draft-lookup tests. If you add a fixture file instead, add a row for it in `test/fixtures/github/README.md` saying it is reference-built.
+
+2. `minor`: The opt-in request header is out of scope for the Worker, which is correct. But it is also the one way to get a real stateless token, which is the residual risk the Product Manager accepted under Q1. Decision 0026 (line 104 onward) already relies on the Product Manager's live check on a deployed copy. Why it matters: the new record would leave out the one way that risk can be checked. Instruction: in the new decision record that supersedes 0026's allow-list point, say that the live check can turn the format on with GitHub's temporary opt-in header, from the 2026-05-15 changelog post linked in `ghs-stateless-token-format.md`. Say that a token captured that way, without its signature, is the sample a later issue would use. Do not add the header to Seluna's own requests.
+
+3. `minor`: Some of the existing tests in `src/github/token-text.test.ts` flip under the new rule and others must stay: "a hyphen" (`a-b`) and "a dot" (`a.b`) are rejected today and must now pass, so they move to the accepted list. "256 characters" becomes 4097 characters, with 4096 accepted. "a trailing line feed" (`a\n`) must stay rejected. Why it matters: E1 relies on the anchors without the `m` flag. JavaScript's `$` does not match before a final `\n` (unlike PCRE or Python), but it would with `m`. Instruction: write the class out as `/^[A-Za-z0-9_.-]{1,4096}$/` with no `m`, `i` or `u` flag. Keep the trailing line feed and `\r\n` rejection cases. Update the doc comment at `src/github/token-text.ts:3`, which still describes the old form.
