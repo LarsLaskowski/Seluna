@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Area:** Notifications
-- **Source:** Issues #121, #134 and #140
+- **Source:** Issues #121, #134, #140 and #141
 - **Supersedes:** 0023 — amends its option 3: a new delivery is recorded only when it stores a message or an
   `activity` change, and `last_delivery` is otherwise kept by a bounded write
 
@@ -30,6 +30,11 @@ issue can start a workflow in the repository's own context (`pull_request_target
 failure the CI rules report as a default-branch failure (decision 0027). Neither event was bounded, but both carry
 the owner's, members' and collaborators' work, which the bound must not drop. A fork's own `pull_request` run is not
 reported today (its `pull_requests` is empty, decision 0027), so it was not the path the issue named.
+
+Issue #141: past the bound a delivery leaves only the log decision `limited`, which the owner does not read, so the
+owner cannot tell that messages were left out, also those of collaborators and, for an organization-owned App, of
+members. Telling the owner must not give back the D1 write budget the bound protects, nor let a stranger send more
+than a handful of messages.
 
 ## Options considered
 
@@ -70,7 +75,7 @@ For reported deliveries of other senders (issue #134):
 10. **The bound as a setting** — a new setting with its wizard field, storage and documentation for a number few
     owners would change; the constant can become one later.
 11. **A notice to the owner when the bound is reached** — the owner would learn that messages were dropped, at the
-    cost of a recorded row and new texts per event and hour; left to a follow-up issue.
+    cost of a row and new texts per event and hour; left to issue #141, which chose it as option 20.
 12. **Bound `pull_request` and `workflow_run` as well, whoever the sender is** — strangers can open pull requests and
     start failing runs too, but this bound would also drop the owner's and collaborators' pull requests and CI
     failures. Rejected for #134 and in this form for #140.
@@ -103,6 +108,31 @@ For pull requests and CI failures caused by strangers (issue #140):
     request between two existing branches and reopen it to start CI, so a stranger could send unbounded messages.
     Rejected: collaborators' `pull_request` CI failures share the bound instead.
 
+For telling the owner that deliveries were dropped (issue #141):
+
+20. **One notice per event and UTC hour, sent by the first delivery past the bound: one conditional `meta` upsert
+    (`limit_notice:<event>`, the hour) that changes the row only for another hour claims it, then one `outbox` row
+    with fixed texts, sent like any row; the delivery itself stays unrecorded and `limited`, and a failure is
+    ignored** — the owner learns of it when it happens, at most 6 notices an hour (144 a day, a few hundred rows
+    written); every further delivery past the bound costs one more statement that writes nothing; the counter
+    statement, the guard, is not touched. Chosen.
+21. **A line on the status page** (the issue's alternative) — no message, but the owner sees it only when visiting
+    the page; a line that says how many were dropped needs a write per dropped delivery, which spends the budget the
+    bound protects, and one read from the counter (`<hour>:20`) shows only that the bound was reached in the current
+    hour, not that anything was dropped, and is gone an hour later.
+22. **Let the counter count one past the bound and send the notice on that step** — one statement fewer, but it
+    changes the bound's own statement, its stored form and the measurements above, for no gain in what the owner sees.
+23. **Claim and row in one batch, the row inserted only while the claim holds this attempt's nonce** — no notice is
+    lost when the row write fails after the claim, at the cost of a nonce and a two-statement batch on every delivery
+    past the bound; that loss needs a D1 failure between two statements, the same failure that already loses a
+    counted delivery's own message.
+24. **Write the row first, or read the claim before writing it** — concurrent deliveries past the bound could each
+    send a notice.
+25. **One notice at the end of the hour with the number left out** — the number needs a write per dropped delivery
+    (see option 21) and the cron to send it; the notice of option 20 names the bound instead.
+26. **The hour in the owner's time zone instead of UTC** — friendlier, but the bound counts UTC hours, whose edges
+    fall on the half hour in some zones and move with daylight saving; the notice names the UTC hour it counts.
+
 ## Decision
 
 `processWebhook` records a delivery in the transaction of decision 0023 only when it has `outbox` rows or `activity`
@@ -110,7 +140,8 @@ changes; otherwise it answers 202 after one conditional `last_delivery` upsert w
 `issues`, `issue_comment`, `star` or `fork` that would be recorded is recorded only when one conditional `meta` upsert
 counts it as one of at most 20 of its event in the current UTC hour; otherwise it is handled like a delivery without
 effect. A `pull_request` or `workflow_run` delivery is counted the same way, with its own counter, only when a
-stranger can have caused it (option 13). The rules are in [`areas/notifications.md`](../areas/notifications.md) and
+stranger can have caused it (option 13). The first delivery of an event past its bound in a UTC hour writes and sends
+one notice to the owner (option 20). The rules are in [`areas/notifications.md`](../areas/notifications.md) and
 [`areas/storage.md`](../areas/storage.md).
 
 ## Consequences
@@ -130,9 +161,19 @@ stranger can have caused it (option 13). The rules are in [`areas/notifications.
   (`isForeignSender`), so collaborators' issues and comments share the hourly bound, and for an organization-owned App,
   whose owner never acts itself (`isOwnAction`), its members' do too.
 - Past the bound an issue or comment sends no message, a star or fork is not collected, and an unstar is
-  not applied (a star collected before stays in the digest). The owner learns of it only from the log entry
-  (`limited`) and GitHub's own notifications; one stranger can fill an event's bound for an hour and hide the others'
-  issues or comments of that hour. A dropped delivery is not recorded, so its redelivery in a later hour can report it.
+  not applied (a star collected before stays in the digest). The owner learns of it from one notice per event and
+  UTC hour, which names the event and the hour but not how many were dropped, nor which; one stranger can fill an
+  event's bound for an hour and hide the others' issues or comments of that hour. A dropped delivery is not recorded,
+  so its redelivery in a later hour can report it.
+- The notice is a message of an event's hour, not of a delivery: a redelivery of a dropped delivery sends a notice
+  only when it is the first delivery of its event past the bound in that hour. "A recorded delivery is processed
+  once" keeps its substance: no message is sent twice.
+- A stranger can make the owner receive up to 6 notices an hour (one per bounded event), with sound outside the
+  quiet hours; under a star and fork digest the notice is still sent at once.
+- A notice is lost when its row write fails after the claim (the claim stays for that hour) or when the claim
+  write fails; the delivery's answer stays 202 `limited` either way. That the claim of an hour already claimed
+  writes no row in D1's billing rests on the same SQLite change count as the `last_delivery` no-op; the tests measure
+  `meta.changes` and `rows_written` in the local workerd pool only.
 - Around the turn of an hour up to twice the bound can be recorded in a short time. A counted delivery whose batch
   then fails, or finds the id recorded meanwhile, still counts.
 - A comment on a pull request or a CI failure in a pull request past the bound still makes its draft lookup (a GitHub
