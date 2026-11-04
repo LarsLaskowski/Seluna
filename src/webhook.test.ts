@@ -1794,6 +1794,27 @@ function noticeText(kind: string, from = "12:00", to = "13:00"): string {
   return `<b>Notifications left out</b>\n${kind}: more than 20 between ${from} and ${to} UTC\nFurther ones in that hour are not reported; GitHub still shows them.`;
 }
 
+/** A `D1Database` that behaves like `db` except that binding a statement to a key starting with `prefix` throws. */
+function failingOnBoundValue(db: D1Database, prefix: string): D1Database {
+  return {
+    prepare: (query: string) => {
+      const statement = db.prepare(query);
+      const bind = statement.bind.bind(statement);
+      statement.bind = (...values: unknown[]) => {
+        if (values.some((value) => typeof value === "string" && value.startsWith(prefix))) {
+          throw new Error("D1_ERROR: the write failed");
+        }
+        return bind(...values);
+      };
+      return statement;
+    },
+    batch: <T = unknown>(statements: D1PreparedStatement[]) => db.batch<T>(statements),
+    exec: (query: string) => db.exec(query),
+    dump: () => Promise.reject(new Error("dump is deprecated and not forwarded")),
+    withSession: (constraintOrBookmark) => db.withSession(constraintOrBookmark),
+  };
+}
+
 /** The stored hour of the limit notice claim of `event`, or `undefined` without a row. */
 async function noticeClaimOf(event: BoundedEvent): Promise<unknown> {
   const row = await env.DB.prepare("SELECT value FROM meta WHERE key = ?1").bind(`limit_notice:${event}`).first();
@@ -2183,6 +2204,26 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
     ]);
     expect(telegram.requests, "Telegram requests").toHaveLength(2);
     expect(await noticeClaimOf("issues"), "claim").toBe("497845");
+  });
+
+  it("processWebhook answers 202 limited and sets last_delivery when the limit notice claim fails", async () => {
+    await setCounter("issues", AT_BOUND);
+    const claimFailing = failingOnBoundValue(env.DB, LIMIT_NOTICE_META_PREFIX);
+    const { deps, waitUntil, telegram } = harness({
+      rules: RULES,
+      readOwner: () => Promise.resolve(OWNER),
+      db: claimFailing,
+    });
+
+    const outcome = await processWebhook(boundedDelivery("issues", issuesOpened, "claim-fails"), deps);
+    await settled(waitUntil);
+
+    expect([outcome.status, outcome.decision], "status and decision").toEqual([202, "limited"]);
+    expect((await readLastDelivery(env.DB))?.getTime(), "last_delivery").toBe(NOW.getTime());
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+    expect(await noticeClaimOf("issues"), "claim").toBeUndefined();
   });
 
   it("processWebhook answers 202 limited, sends nothing and sends no later notice that hour when the notice row write fails", async () => {

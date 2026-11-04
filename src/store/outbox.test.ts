@@ -96,6 +96,22 @@ describe("insertOutboxRow", () => {
       created_at: 1_792_240_440_000,
     });
   });
+
+  it("insertOutboxRow rejects with a TypeError when the insert returns no numeric id", async () => {
+    const noId = (result: unknown): D1Database => {
+      const statement = { bind: () => statement, first: () => Promise.resolve(result) };
+      // A minimal double for the one statement `insertOutboxRow` prepares; the cast follows the runtime shape above.
+      return { prepare: () => statement } as unknown as D1Database;
+    };
+    const row = {
+      notification: { title: "T", repository: "", number: undefined, subject: "S", context: "C" },
+      buttonUrl: undefined,
+      silent: false,
+    };
+
+    await expect(insertOutboxRow(noId(null), row, new Date(0)), "no row").rejects.toThrow(TypeError);
+    await expect(insertOutboxRow(noId({ id: "7" }), row, new Date(0)), "id is a string").rejects.toThrow(TypeError);
+  });
 });
 
 describe("markSent", () => {

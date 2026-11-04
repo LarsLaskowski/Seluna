@@ -507,6 +507,10 @@ describe("countBoundedDelivery", () => {
 });
 
 describe("claimLimitNotice", () => {
+  it("LIMIT_NOTICE_META_PREFIX names the rows limit_notice:", () => {
+    expect(LIMIT_NOTICE_META_PREFIX, "prefix").toBe("limit_notice:");
+  });
+
   /** 2026-10-17T12:34:00Z, in the UTC hour 497844 since 1970-01-01 (`Math.floor(time / 3,600,000)`). */
   const time = new Date(1_792_240_440_000);
   const hour = "497844";
