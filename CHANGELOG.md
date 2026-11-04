@@ -85,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- GitHub API: installation tokens in GitHub's new stateless format (`ghs_<App ID>_<JWT>`) are accepted, so CI failures in pull requests no longer read _draft status unknown_ and comments on pull requests are no longer dropped once GitHub issues them (issue #122).
 - Setup guide: after the Deploy to Cloudflare button's deploy, check that the **Deploy command** in the Worker's build settings is `npm run deploy`; the button may set `npx wrangler deploy`, which skips the D1 migrations and leaves the database without tables (issue #46).
 
 ## [0.1.0] - 2026-10-17

@@ -68,7 +68,7 @@ files or endpoints.
   `src/github/` (`app-jwt.ts`, `http.ts`, `app-credentials.ts`, `installation-token.ts`, `token-text.ts`,
   `installations.ts`, `api-client.ts`, `app-info.ts`, `app-links.ts`, `token-permissions.ts`): an RS256 JWT (`iat` now − 60 s, `exp` now + 540 s, `iss` the App ID) signed per call with the
   private key resolved per credential (the status page signs one for its `GET /app` and installations requests), never stored; installation tokens per `installation.id`, allow-listed
-  (`[A-Za-z0-9_]`, 1–255 characters), requested with an explicit permission list (`INSTALLATION_TOKEN_PERMISSIONS`: `metadata` and `pull_requests` read, the one call made with a token) and accepted only when the answer's `permissions` hold nothing but those two entries (own entries checked, a missing `permissions` refused), cached only encrypted in `token_cache` (`src/store/token-cache.ts`) until 5
+  (`[A-Za-z0-9_.-]`, 1–4096 characters), requested with an explicit permission list (`INSTALLATION_TOKEN_PERMISSIONS`: `metadata` and `pull_requests` read, the one call made with a token) and accepted only when the answer's `permissions` hold nothing but those two entries (own entries checked, a missing `permissions` refused), cached only encrypted in `token_cache` (`src/store/token-cache.ts`) until 5
   minutes before expiry, the row of a token GitHub answered 401 for deleted by installation id and IV; installation id,
   owner, repository name and number allow-listed before they enter a URL; only `https://api.github.com`, no redirects
   followed, 10-second timeout, answers read bounded (1 MiB) and narrowed; the status page's `GET /app` answer is
