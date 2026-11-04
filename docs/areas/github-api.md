@@ -127,7 +127,8 @@ wizard's status page rely on it.
   text; nothing in this area is logged.
 - The 10-second timeout covers the whole request: waiting for the answer and reading its body (the body is read
   from the same request that carries the timeout), so a call waits at most about 10 seconds per request.
-- The token form follows GitHub's note on the stateless format, which names no maximum length; a token outside the
+- The token form follows the note on the stateless format in GitHub's OpenAPI description of
+  `POST /app/installations/{installation_id}/access_tokens`, which names no maximum length; a token outside the
   allow-list fails closed (decision 0045). The forms of `expires_at`, the `Link` header and the account shapes follow GitHub's documentation and
   OpenAPI description, not a captured answer; each deviation fails closed (decision 0026).
 

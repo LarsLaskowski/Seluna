@@ -1,6 +1,6 @@
 # 0045: Installation token allow-list for GitHub's stateless token format
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-04
 - **Area:** GitHub API
 - **Source:** Issue #122
