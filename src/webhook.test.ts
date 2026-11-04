@@ -24,7 +24,12 @@ import { renderTelegramText } from "./message";
 import { decodeStoredNotification } from "./notification";
 import { RULES } from "./rules/registry";
 import type { Notification, Rule, WebhookPayload } from "./rules/rule";
-import { DELIVERY_COUNT_META_PREFIX, LAST_DELIVERY_META_KEY, readLastDelivery } from "./store/meta";
+import {
+  DELIVERY_COUNT_META_PREFIX,
+  LAST_DELIVERY_META_KEY,
+  LIMIT_NOTICE_META_PREFIX,
+  readLastDelivery,
+} from "./store/meta";
 import type { BoundedEvent } from "./store/meta";
 import { writeSetting } from "./store/settings";
 import type { TelegramFetch } from "./telegram";
@@ -58,6 +63,7 @@ beforeEach(async () => {
     env.DB.prepare("DELETE FROM settings"),
     env.DB.prepare("DELETE FROM meta WHERE key = 'last_delivery'"),
     env.DB.prepare("DELETE FROM meta WHERE substr(key, 1, length(?1)) = ?1").bind(DELIVERY_COUNT_META_PREFIX),
+    env.DB.prepare("DELETE FROM meta WHERE substr(key, 1, length(?1)) = ?1").bind(LIMIT_NOTICE_META_PREFIX),
   ]);
 });
 
@@ -1783,6 +1789,37 @@ function counterFailingDb(db: D1Database): D1Database {
   };
 }
 
+/** The Telegram text of the English limit notice of `kind` for the UTC hour `from` to `to` (default: that of `NOW`). */
+function noticeText(kind: string, from = "12:00", to = "13:00"): string {
+  return `<b>Notifications left out</b>\n${kind}: more than 20 between ${from} and ${to} UTC\nFurther ones in that hour are not reported; GitHub still shows them.`;
+}
+
+/** The stored hour of the limit notice claim of `event`, or `undefined` without a row. */
+async function noticeClaimOf(event: BoundedEvent): Promise<unknown> {
+  const row = await env.DB.prepare("SELECT value FROM meta WHERE key = ?1").bind(`limit_notice:${event}`).first();
+  return row?.value;
+}
+
+/**
+ * A `D1Database` that behaves like `db` except that a statement inserting into `outbox` throws; `attempts` collects
+ * the text of each such statement.
+ */
+function outboxFailingDb(db: D1Database, attempts: string[]): D1Database {
+  return {
+    prepare: (query: string) => {
+      if (/^\s*INSERT\s+INTO\s+outbox\b/i.test(query)) {
+        attempts.push(query);
+        throw new Error("D1_ERROR: the outbox write failed");
+      }
+      return db.prepare(query);
+    },
+    batch: <T = unknown>(statements: D1PreparedStatement[]) => db.batch<T>(statements),
+    exec: (query: string) => db.exec(query),
+    dump: () => Promise.reject(new Error("dump is deprecated and not forwarded")),
+    withSession: (constraintOrBookmark) => db.withSession(constraintOrBookmark),
+  };
+}
+
 /** Stores `value` as the hourly count of each of the six bounded events. */
 async function setAllCounters(value: string): Promise<void> {
   await setCounter("fork", value);
@@ -1856,7 +1893,7 @@ const STRANGER_DRAFT_PULL_REQUEST = pullRequestOf(openedDraft, "NONE", STRANGER)
 const STRANGER_SUCCESSFUL_RUN = runOf(successfulDefaultBranchRun, "pull_request", STRANGER, STRANGER);
 
 describe("processWebhook with the hourly bound of issues, comments, stars and forks", () => {
-  it("processWebhook records 20 issues of one hour and answers 202 limited for the 21st without a row or a message", async () => {
+  it("processWebhook records 20 issues of one hour and answers 202 limited with one limit notice for the 21st", async () => {
     const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
     const recorded = await Promise.all(
       Array.from({ length: 20 }, (_, index) =>
@@ -1879,23 +1916,32 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
       repository: "example-owner/example-repo",
     });
     expect(await count("deliveries"), "deliveries rows").toBe(20);
-    expect(await count("outbox"), "outbox rows").toBe(20);
-    expect(waitUntil, "waitUntil calls").toHaveBeenCalledTimes(20);
-    expect(telegram.requests, "Telegram requests").toHaveLength(20);
+    expect(await count("outbox"), "outbox rows, the 21st is the notice").toBe(21);
+    expect(waitUntil, "waitUntil calls").toHaveBeenCalledTimes(21);
+    expect(telegram.requests, "Telegram requests").toHaveLength(21);
     expect(await counterOf("issues"), "issues counter").toBe(AT_BOUND);
   });
 
   it.each<{
     case: string;
     event: BoundedEvent;
+    kind: string;
     payload: WebhookPayload;
     setup: () => Promise<void>;
     activity: readonly unknown[][];
   }>([
-    { case: "an issue", event: "issues", payload: issuesOpened, setup: () => Promise.resolve(), activity: [] },
+    {
+      case: "an issue",
+      event: "issues",
+      kind: "Issues",
+      payload: issuesOpened,
+      setup: () => Promise.resolve(),
+      activity: [],
+    },
     {
       case: "a comment on an issue",
       event: "issue_comment",
+      kind: "Comments",
       payload: issueCommentCreated,
       setup: () => Promise.resolve(),
       activity: [],
@@ -1903,6 +1949,7 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
     {
       case: "a comment on a pull request",
       event: "issue_comment",
+      kind: "Comments",
       payload: pullRequestComment,
       setup: () => Promise.resolve(),
       activity: [],
@@ -1910,6 +1957,7 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
     {
       case: "a star under Immediately",
       event: "star",
+      kind: "Stars and unstars",
       payload: starCreated,
       setup: async () => {
         await switchOn("repository_starred");
@@ -1920,6 +1968,7 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
     {
       case: "a star under the hourly digest",
       event: "star",
+      kind: "Stars and unstars",
       payload: starCreated,
       setup: async () => {
         await switchOn("repository_starred");
@@ -1930,6 +1979,7 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
     {
       case: "a fork under Immediately",
       event: "fork",
+      kind: "Forks",
       payload: forkFixture,
       setup: async () => {
         await switchOn("repository_forked");
@@ -1940,6 +1990,7 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
     {
       case: "an unstar with a collected star of the same sender",
       event: "star",
+      kind: "Stars and unstars",
       payload: starDeleted,
       setup: async () => {
         await switchOn("repository_starred");
@@ -1951,6 +2002,7 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
     {
       case: "a stranger's pull request from a branch of the repository itself",
       event: "pull_request",
+      kind: "Pull requests",
       payload: STRANGER_PULL_REQUEST,
       setup: () => Promise.resolve(),
       activity: [],
@@ -1958,37 +2010,207 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
     {
       case: "a stranger's failed pull request run",
       event: "workflow_run",
+      kind: "CI failures",
       payload: STRANGER_RUN,
       setup: () => Promise.resolve(),
       activity: [],
     },
   ])(
     "processWebhook answers 202 limited for $case when 20 deliveries of its event were counted this hour",
-    async ({ event, payload, setup, activity }) => {
+    async ({ event, kind, payload, setup, activity }) => {
       await setup();
       await setCounter(event, AT_BOUND);
       const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
 
       const outcome = await processWebhook(boundedDelivery(event, payload, "limited-1"), deps);
+      await settled(waitUntil);
 
       expect([outcome.status, outcome.decision], "status and decision").toEqual([202, "limited"]);
       expect(await count("deliveries"), "deliveries rows").toBe(0);
-      expect(await count("outbox"), "outbox rows").toBe(0);
+      expect(await storedMessages(), "stored messages, the notice only").toEqual([[noticeText(kind), null]]);
       expect(await activityRows(), "activity rows").toEqual(activity);
-      expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
-      expect(telegram.requests, "Telegram requests").toEqual([]);
+      expect(waitUntil, "waitUntil calls").toHaveBeenCalledTimes(1);
+      expect(
+        telegram.requests.map((request) => sentBody(request).text),
+        "Telegram texts",
+      ).toEqual([noticeText(kind)]);
       expect(await counterOf(event), "counter").toBe(AT_BOUND);
     },
   );
 
   it("processWebhook sets last_delivery for a limited delivery", async () => {
     await setCounter("issues", AT_BOUND);
-    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+    const { deps, waitUntil } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
 
     const outcome = await processWebhook(boundedDelivery("issues", issuesOpened, "limited-last"), deps);
+    await settled(waitUntil);
 
     expect(outcome.decision, "decision").toBe("limited");
     expect((await readLastDelivery(env.DB))?.getTime(), "last_delivery").toBe(NOW.getTime());
+  });
+
+  it("processWebhook writes and sends one limit notice for the first limited issue of the hour and still answers 202 limited", async () => {
+    await setCounter("issues", AT_BOUND);
+    const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcome = await processWebhook(boundedDelivery("issues", issuesOpened, "notice-first"), deps);
+    await settled(waitUntil);
+
+    expect([outcome.status, outcome.decision], "status and decision").toEqual([202, "limited"]);
+    const { results } = await env.DB.prepare("SELECT text, button_url, silent, status, created_at FROM outbox").all();
+    expect(results, "outbox rows").toEqual([
+      {
+        text: JSON.stringify({
+          title: "Notifications left out",
+          repository: "",
+          number: null,
+          subject: "Issues: more than 20 between 12:00 and 13:00 UTC",
+          context: "Further ones in that hour are not reported; GitHub still shows them.",
+        }),
+        button_url: null,
+        silent: 0,
+        status: "sent",
+        created_at: NOW.getTime(),
+      },
+    ]);
+    expect(telegram.requests, "Telegram requests").toHaveLength(1);
+    const sent = sentBody(telegram.requests[0]);
+    expect(sent.text, "Telegram text").toBe(noticeText("Issues"));
+    expect(sent.reply_markup, "button").toBeUndefined();
+    expect(await count("deliveries"), "deliveries rows").toBe(0);
+    expect(await counterOf("issues"), "issues counter").toBe(AT_BOUND);
+    expect(await noticeClaimOf("issues"), "claim").toBe(NOW_HOUR);
+  });
+
+  it("processWebhook writes the limit notice in German when the notification language is German", async () => {
+    await writeSetting(env.DB, "notification_language", "de");
+    await setCounter("issue_comment", AT_BOUND);
+    const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcome = await processWebhook(boundedDelivery("issue_comment", issueCommentCreated, "notice-de"), deps);
+    await settled(waitUntil);
+
+    expect(outcome.decision, "decision").toBe("limited");
+    expect(
+      telegram.requests.map((request) => sentBody(request).text),
+      "Telegram texts",
+    ).toEqual([
+      "<b>Benachrichtigungen ausgelassen</b>\nKommentare: mehr als 20 zwischen 12:00 und 13:00 UTC\nWeitere in dieser Stunde werden nicht gemeldet; GitHub zeigt sie weiterhin.",
+    ]);
+    expect(await count("outbox"), "outbox rows").toBe(1);
+  });
+
+  it("processWebhook sends one limit notice for three limited issues of one hour, a redelivery among them", async () => {
+    await setCounter("issues", AT_BOUND);
+    const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcomes = [
+      await processWebhook(boundedDelivery("issues", issuesOpened, "notice-once-1"), deps),
+      await processWebhook(boundedDelivery("issues", issuesOpened, "notice-once-1"), deps),
+      await processWebhook(boundedDelivery("issues", issuesOpened, "notice-once-2"), deps),
+    ];
+    await settled(waitUntil);
+
+    expect(
+      outcomes.map((outcome) => [outcome.status, outcome.decision]),
+      "statuses and decisions",
+    ).toEqual([
+      [202, "limited"],
+      [202, "limited"],
+      [202, "limited"],
+    ]);
+    expect(await count("outbox"), "outbox rows").toBe(1);
+    expect(waitUntil, "waitUntil calls").toHaveBeenCalledTimes(1);
+    expect(telegram.requests, "Telegram requests").toHaveLength(1);
+  });
+
+  it("processWebhook writes one limit notice for two concurrent limited issues", async () => {
+    await setCounter("issues", AT_BOUND);
+    const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    const outcomes = await Promise.all([
+      processWebhook(boundedDelivery("issues", issuesOpened, "notice-concurrent-1"), deps),
+      processWebhook(boundedDelivery("issues", issuesOpened, "notice-concurrent-2"), deps),
+    ]);
+    await settled(waitUntil);
+
+    expect(
+      outcomes.map((outcome) => outcome.decision),
+      "decisions",
+    ).toEqual(["limited", "limited"]);
+    expect(await count("outbox"), "outbox rows").toBe(1);
+    expect(waitUntil, "waitUntil calls").toHaveBeenCalledTimes(1);
+    expect(telegram.requests, "Telegram requests").toHaveLength(1);
+  });
+
+  it("processWebhook sends one limit notice each for issues and comments past the bound in the same hour", async () => {
+    await setCounter("issues", AT_BOUND);
+    await setCounter("issue_comment", AT_BOUND);
+    const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+
+    await processWebhook(boundedDelivery("issues", issuesOpened, "notice-event-1"), deps);
+    await processWebhook(boundedDelivery("issue_comment", issueCommentCreated, "notice-event-2"), deps);
+    await processWebhook(boundedDelivery("issues", issuesOpened, "notice-event-3"), deps);
+    await processWebhook(boundedDelivery("issue_comment", issueCommentCreated, "notice-event-4"), deps);
+    await settled(waitUntil);
+
+    expect(await storedMessages(), "stored messages").toEqual([
+      [noticeText("Issues"), null],
+      [noticeText("Comments"), null],
+    ]);
+    expect(telegram.requests, "Telegram requests").toHaveLength(2);
+  });
+
+  it("processWebhook sends a new limit notice for the first limited issue of the next UTC hour", async () => {
+    await setCounter("issues", AT_BOUND);
+    let clock = NOW;
+    const { deps, waitUntil, telegram } = harness({
+      rules: RULES,
+      readOwner: () => Promise.resolve(OWNER),
+      now: () => clock,
+    });
+    await processWebhook(boundedDelivery("issues", issuesOpened, "notice-hour-1"), deps);
+    clock = NEXT_HOUR;
+    await setCounter("issues", "497845:20");
+
+    const outcome = await processWebhook(boundedDelivery("issues", issuesOpened, "notice-hour-2"), deps);
+    await settled(waitUntil);
+
+    expect(outcome.decision, "decision").toBe("limited");
+    expect(await storedMessages(), "stored messages").toEqual([
+      [noticeText("Issues"), null],
+      [noticeText("Issues", "13:00", "14:00"), null],
+    ]);
+    expect(telegram.requests, "Telegram requests").toHaveLength(2);
+    expect(await noticeClaimOf("issues"), "claim").toBe("497845");
+  });
+
+  it("processWebhook answers 202 limited, sends nothing and sends no later notice that hour when the notice row write fails", async () => {
+    await setCounter("issues", AT_BOUND);
+    const attempts: string[] = [];
+    const { deps, waitUntil, telegram } = harness({
+      rules: RULES,
+      readOwner: () => Promise.resolve(OWNER),
+      db: outboxFailingDb(env.DB, attempts),
+    });
+
+    const first = await processWebhook(boundedDelivery("issues", issuesOpened, "row-fails-1"), deps);
+    const second = await processWebhook(boundedDelivery("issues", issuesOpened, "row-fails-2"), deps);
+    await settled(waitUntil);
+
+    expect(
+      [first, second].map((outcome) => [outcome.status, outcome.decision]),
+      "statuses and decisions",
+    ).toEqual([
+      [202, "limited"],
+      [202, "limited"],
+    ]);
+    expect((await readLastDelivery(env.DB))?.getTime(), "last_delivery").toBe(NOW.getTime());
+    expect(attempts, "attempts to write a row").toHaveLength(1);
+    expect(await count("outbox"), "outbox rows").toBe(0);
+    expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
+    expect(telegram.requests, "Telegram requests").toEqual([]);
+    expect(await noticeClaimOf("issues"), "claim").toBe(NOW_HOUR);
   });
 
   it("processWebhook still records an issue comment while issues are at the bound", async () => {
@@ -2045,8 +2267,11 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
       [200, "duplicate"],
     ]);
     expect(await count("deliveries"), "deliveries rows").toBe(1);
-    expect(await count("outbox"), "outbox rows").toBe(1);
-    expect(telegram.requests, "Telegram requests").toHaveLength(1);
+    expect(await storedMessages(), "stored messages, the notice and the issue").toEqual([
+      [noticeText("Issues"), null],
+      [ISSUE_TEXT, ISSUE_BUTTON],
+    ]);
+    expect(telegram.requests, "Telegram requests").toHaveLength(2);
   });
 
   it.each<{ case: string; delivery: SignedDelivery; setup: () => Promise<void>; decision: string }>([
@@ -2214,7 +2439,7 @@ describe("processWebhook with the hourly bound of issues, comments, stars and fo
 });
 
 describe("processWebhook with the hourly bound of pull requests and CI failures", () => {
-  it("processWebhook records 20 stranger pull requests of one hour and answers 202 limited for the 21st without a row or a message", async () => {
+  it("processWebhook records 20 stranger pull requests of one hour and answers 202 limited with one limit notice for the 21st", async () => {
     const { deps, waitUntil, telegram } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
     const recorded = await Promise.all(
       Array.from({ length: 20 }, (_, index) =>
@@ -2237,26 +2462,32 @@ describe("processWebhook with the hourly bound of pull requests and CI failures"
       repository: "example-owner/example-other-repo",
     });
     expect(await count("deliveries"), "deliveries rows").toBe(20);
-    expect(await count("outbox"), "outbox rows").toBe(20);
-    expect(waitUntil, "waitUntil calls").toHaveBeenCalledTimes(20);
-    expect(telegram.requests, "Telegram requests").toHaveLength(20);
+    expect(await count("outbox"), "outbox rows, the 21st is the notice").toBe(21);
+    expect(waitUntil, "waitUntil calls").toHaveBeenCalledTimes(21);
+    expect(telegram.requests, "Telegram requests").toHaveLength(21);
     expect(await counterOf("pull_request"), "pull_request counter").toBe(AT_BOUND);
   });
 
   it("processWebhook records one of two concurrent stranger pull requests at 19 counted and answers 202 limited for the other", async () => {
     await setCounter("pull_request", `${NOW_HOUR}:19`);
-    const { deps } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
+    const { deps, waitUntil } = harness({ rules: RULES, readOwner: () => Promise.resolve(OWNER) });
 
     const outcomes = await Promise.all([
       processWebhook(boundedDelivery("pull_request", STRANGER_PULL_REQUEST, "pr-concurrent-1"), deps),
       processWebhook(boundedDelivery("pull_request", STRANGER_PULL_REQUEST, "pr-concurrent-2"), deps),
     ]);
+    await settled(waitUntil);
 
     expect(
       outcomes.map((outcome) => outcome.decision).sort((a, b) => a.localeCompare(b)),
       "sorted decisions",
     ).toEqual(["limited", "reported"]);
     expect(await count("deliveries"), "deliveries rows").toBe(1);
+    expect(await count("outbox"), "outbox rows, the pull request and the notice").toBe(2);
+    expect(
+      (await storedTexts()).filter((text) => text === noticeText("Pull requests")),
+      "notices",
+    ).toHaveLength(1);
     expect(await counterOf("pull_request"), "pull_request counter").toBe(AT_BOUND);
   });
 
@@ -2330,12 +2561,16 @@ describe("processWebhook with the hourly bound of pull requests and CI failures"
       });
 
       const outcome = await processWebhook(boundedDelivery("workflow_run", payload, "run-limited"), deps);
+      await settled(waitUntil);
 
       expect([outcome.status, outcome.decision], "status and decision").toEqual([202, "limited"]);
       expect(await count("deliveries"), "deliveries rows").toBe(0);
-      expect(await count("outbox"), "outbox rows").toBe(0);
-      expect(waitUntil, "waitUntil calls").not.toHaveBeenCalled();
-      expect(telegram.requests, "Telegram requests").toEqual([]);
+      expect(await storedMessages(), "stored messages, the notice only").toEqual([[noticeText("CI failures"), null]]);
+      expect(waitUntil, "waitUntil calls").toHaveBeenCalledTimes(1);
+      expect(
+        telegram.requests.map((request) => sentBody(request).text),
+        "Telegram texts",
+      ).toEqual([noticeText("CI failures")]);
       expect(await counterOf("workflow_run"), "workflow_run counter").toBe(AT_BOUND);
     },
   );
@@ -2427,8 +2662,8 @@ describe("processWebhook with the hourly bound of pull requests and CI failures"
       [200, "duplicate"],
     ]);
     expect(await count("deliveries"), "deliveries rows").toBe(1);
-    expect(await count("outbox"), "outbox rows").toBe(1);
-    expect(telegram.requests, "Telegram requests").toHaveLength(1);
+    expect(await count("outbox"), "outbox rows, the notice and the pull request").toBe(2);
+    expect(telegram.requests, "Telegram requests").toHaveLength(2);
     expect(await counterOf("pull_request"), "pull_request counter").toBe("497845:1");
   });
 });

@@ -11,6 +11,8 @@ import {
   LAST_DELIVERY_META_KEY,
   LAST_DELIVERY_REFRESH_MS,
   lastDeliveryUpsert,
+  LIMIT_NOTICE_META_PREFIX,
+  claimLimitNotice,
   readAppOwner,
   readAppSlug,
   readDigestRun,
@@ -27,6 +29,7 @@ beforeEach(async () => {
     .bind(LAST_DELIVERY_META_KEY, GITHUB_APP_SLUG_META_KEY, GITHUB_APP_OWNER_META_KEY)
     .run();
   await env.DB.prepare("DELETE FROM meta WHERE substr(key, 1, length(?1)) = ?1").bind(DELIVERY_COUNT_META_PREFIX).run();
+  await env.DB.prepare("DELETE FROM meta WHERE substr(key, 1, length(?1)) = ?1").bind(LIMIT_NOTICE_META_PREFIX).run();
 });
 
 async function putMeta(key: string, value: string): Promise<void> {
@@ -500,5 +503,125 @@ describe("countBoundedDelivery", () => {
 
     expect(results, "results in the last and the first millisecond").toEqual([false, true]);
     expect(await storedMeta(issuesKey), "stored count").toBe("497845:1");
+  });
+});
+
+describe("claimLimitNotice", () => {
+  /** 2026-10-17T12:34:00Z, in the UTC hour 497844 since 1970-01-01 (`Math.floor(time / 3,600,000)`). */
+  const time = new Date(1_792_240_440_000);
+  const hour = "497844";
+  const issuesKey = "limit_notice:issues";
+
+  async function allMeta(): Promise<Record<string, unknown>[]> {
+    const { results } = await env.DB.prepare("SELECT key, value FROM meta ORDER BY key").all();
+    return results;
+  }
+
+  /** The `meta` object of each `run()` result of the statements prepared on the returned database. */
+  function recordingDb(db: D1Database, runs: D1Meta[]): D1Database {
+    return {
+      prepare: (query: string) => {
+        const statement = db.prepare(query);
+        const bind = statement.bind.bind(statement);
+        statement.bind = (...values: unknown[]) => {
+          const bound = bind(...values);
+          const run = bound.run.bind(bound);
+          bound.run = async <T = Record<string, unknown>>() => {
+            const result = await run<T>();
+            runs.push(result.meta);
+            return result;
+          };
+          return bound;
+        };
+        return statement;
+      },
+      batch: <T = unknown>(statements: D1PreparedStatement[]) => db.batch<T>(statements),
+      exec: (query: string) => db.exec(query),
+      dump: () => Promise.reject(new Error("dump is not forwarded")),
+      withSession: (constraintOrBookmark) => db.withSession(constraintOrBookmark),
+    };
+  }
+
+  it("claimLimitNotice stores the hour and returns true when no row is stored", async () => {
+    const claimed = await claimLimitNotice(env.DB, "issues", time);
+
+    expect(claimed, "claimed").toBe(true);
+    expect(await storedMeta(issuesKey), "stored hour").toBe(hour);
+  });
+
+  it("claimLimitNotice returns false and writes nothing for a second claim in the same hour", async () => {
+    const runs: D1Meta[] = [];
+    const db = recordingDb(env.DB, runs);
+    await claimLimitNotice(db, "issues", time);
+
+    const claimed = await claimLimitNotice(db, "issues", new Date(time.getTime() + 60_000));
+
+    expect(claimed, "claimed").toBe(false);
+    expect(await storedMeta(issuesKey), "stored hour").toBe(hour);
+    expect(
+      runs.map((meta) => meta.changes),
+      "changes of the first and the second claim",
+    ).toEqual([1, 0]);
+    expect(runs[1]?.rows_written, "rows written by the second claim").toBe(0);
+  });
+
+  it.each([
+    { case: "the next hour", stored: "497843", expected: hour },
+    { case: "a later hour", stored: "497845", expected: hour },
+    { case: "a text that is no hour", stored: "abc", expected: hour },
+    { case: "the empty text", stored: "", expected: hour },
+    { case: "an hour followed by a count", stored: `${hour}:1`, expected: hour },
+  ])("claimLimitNotice returns true and stores the hour for a stored value of $case", async ({ stored, expected }) => {
+    await putMeta(issuesKey, stored);
+
+    const claimed = await claimLimitNotice(env.DB, "issues", time);
+
+    expect(claimed, "claimed").toBe(true);
+    expect(await storedMeta(issuesKey), "stored hour").toBe(expected);
+  });
+
+  it("claimLimitNotice returns true for the first claim of the next hour", async () => {
+    await claimLimitNotice(env.DB, "issues", time);
+
+    const claimed = await claimLimitNotice(env.DB, "issues", new Date(497_845 * 3_600_000));
+
+    expect(claimed, "claimed").toBe(true);
+    expect(await storedMeta(issuesKey), "stored hour").toBe("497845");
+  });
+
+  it("claimLimitNotice returns true for exactly one of five concurrent calls", async () => {
+    const results = await Promise.all([
+      claimLimitNotice(env.DB, "issues", time),
+      claimLimitNotice(env.DB, "issues", time),
+      claimLimitNotice(env.DB, "issues", time),
+      claimLimitNotice(env.DB, "issues", time),
+      claimLimitNotice(env.DB, "issues", time),
+    ]);
+
+    expect(
+      results.filter((claimed) => claimed),
+      "claimed calls",
+    ).toEqual([true]);
+    expect(await storedMeta(issuesKey), "stored hour").toBe(hour);
+  });
+
+  it("claimLimitNotice keeps each event in its own row and leaves the delivery_count and last_delivery rows untouched", async () => {
+    await putMeta(LAST_DELIVERY_META_KEY, "1792240000000");
+    await putMeta("delivery_count:issues", `${hour}:20`);
+    await putMeta("limit_notice:star", hour);
+    const before = await allMeta();
+
+    const results = [
+      await claimLimitNotice(env.DB, "issues", time),
+      await claimLimitNotice(env.DB, "star", time),
+      await claimLimitNotice(env.DB, "workflow_run", time),
+    ];
+
+    expect(results, "results for issues, star and workflow_run").toEqual([true, false, true]);
+    expect(await allMeta(), "meta rows").toEqual(
+      [...before, { key: "limit_notice:issues", value: hour }, { key: "limit_notice:workflow_run", value: hour }].sort(
+        (a, b) => (String(a.key) < String(b.key) ? -1 : 1),
+      ),
+    );
   });
 });
