@@ -159,5 +159,12 @@ export const LIMIT_NOTICE_META_PREFIX = "limit_notice:";
  * changed the row. D1 errors are not caught.
  */
 export async function claimLimitNotice(db: D1Database, event: BoundedEvent, time: Date): Promise<boolean> {
-  throw new Error("Not implemented");
+  const result = await db
+    .prepare(
+      `INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value
+       WHERE meta.value IS NOT excluded.value`,
+    )
+    .bind(`${LIMIT_NOTICE_META_PREFIX}${event}`, String(Math.floor(time.getTime() / DELIVERY_COUNT_WINDOW_MS)))
+    .run();
+  return result.meta.changes === 1;
 }

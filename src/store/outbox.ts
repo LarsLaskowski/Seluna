@@ -119,5 +119,9 @@ export function finishedRowsDelete(db: D1Database, writtenBefore: Date, limit: n
  * D1 errors are not caught.
  */
 export async function insertOutboxRow(db: D1Database, row: NewOutboxRow, createdAt: Date): Promise<number> {
-  throw new Error("Not implemented");
+  const inserted = await outboxInsert(db, row, createdAt).first<{ readonly id: unknown }>();
+  if (typeof inserted?.id !== "number") {
+    throw new TypeError("The outbox insert returned no id");
+  }
+  return inserted.id;
 }
