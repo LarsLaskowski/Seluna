@@ -150,3 +150,21 @@ export async function countBoundedDelivery(
     .run();
   return result.meta.changes === 1;
 }
+
+/** Prefix of the `meta` keys that hold the UTC hour in which one bounded event's limit notice was claimed. */
+export const LIMIT_NOTICE_META_PREFIX = "limit_notice:";
+
+/**
+ * Claims the limit notice of `event` for the UTC hour of `time` in one conditional statement; true when this call
+ * changed the row. D1 errors are not caught.
+ */
+export async function claimLimitNotice(db: D1Database, event: BoundedEvent, time: Date): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value
+       WHERE meta.value IS NOT excluded.value`,
+    )
+    .bind(`${LIMIT_NOTICE_META_PREFIX}${event}`, String(Math.floor(time.getTime() / DELIVERY_COUNT_WINDOW_MS)))
+    .run();
+  return result.meta.changes === 1;
+}

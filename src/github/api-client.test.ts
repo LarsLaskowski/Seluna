@@ -20,6 +20,7 @@ import {
   pullRequestBody,
   REJECTED,
   RSA_4104_PKCS8,
+  STATELESS_TOKEN,
 } from "../../test/github";
 import type { GitHubAnswer, GitHubDouble, RecordedGitHubRequest } from "../../test/github";
 import { bearerOf, decodeJwt, jwtVerifies } from "../../test/jwt";
@@ -373,6 +374,58 @@ describe("isPullRequestDraft: the pull request answer", () => {
   });
 });
 
+describe("isPullRequestDraft: a stateless installation token", () => {
+  /** A double that issues `STATELESS_TOKEN`, expiring one hour after `NOW`, and answers every pull request read with `answer`. */
+  function statelessDoubleWith(pullRequest: GitHubAnswer = jsonAnswer(200, pullRequestBody(false))): GitHubDouble {
+    return githubApiDouble({
+      installationToken: jsonAnswer(201, installationTokenBody(STATELESS_TOKEN, FRESH_EXPIRY)),
+      pullRequest,
+    });
+  }
+
+  it("isPullRequestDraft sends a stateless token as the Bearer token of the pull request read and stores it", async () => {
+    const key = await keyFor(SECRET);
+    const github = statelessDoubleWith();
+
+    const result = await isPullRequestDraft(depsFor(github), INSTALLATION, PULL);
+
+    expect(result, "result").toEqual({ kind: "ok", draft: false });
+    expect(routesOf(github), "requests").toEqual(["installationToken", "pullRequest"]);
+    expect(github.requests[1]?.url, "repository request").toBe(
+      "https://api.github.com/repos/octocat/hello-world/pulls/42",
+    );
+    expect(github.requests[1]?.authorization, "repository request authorization").toBe(`Bearer ${STATELESS_TOKEN}`);
+    const row = await tokenRowOf(env.DB, INSTALLATION);
+    expect(row === undefined ? undefined : await tokenOfRow(key, row), "token of the row").toBe(STATELESS_TOKEN);
+  });
+
+  it("isPullRequestDraft reuses a cached stateless token without a token request", async () => {
+    const github = statelessDoubleWith();
+    const deps = depsFor(github);
+
+    const first = await isPullRequestDraft(deps, INSTALLATION, PULL);
+    const second = await isPullRequestDraft(deps, INSTALLATION, { ...PULL, number: 43 });
+
+    expect([first, second], "results").toEqual([
+      { kind: "ok", draft: false },
+      { kind: "ok", draft: false },
+    ]);
+    expect(routesOf(github), "requests").toEqual(["installationToken", "pullRequest", "pullRequest"]);
+    expect(github.requests[2]?.authorization, "authorization of the second read").toBe(`Bearer ${STATELESS_TOKEN}`);
+  });
+
+  it.each([
+    { case: "not a draft for the captured pull request", draft: false },
+    { case: "a draft for its draft variant", draft: true },
+  ])("isPullRequestDraft answers the draft state with a stateless token: $case", async ({ draft }) => {
+    const github = statelessDoubleWith(jsonAnswer(200, pullRequestBody(draft)));
+
+    const result = await isPullRequestDraft(depsFor(github), INSTALLATION, PULL);
+
+    expect(result, "result").toEqual({ kind: "ok", draft });
+  });
+});
+
 describe("isPullRequestDraft: guards", () => {
   it.each([
     { case: "an installation id of 0", id: 0 },
@@ -512,10 +565,13 @@ describe("isPullRequestDraft: failures", () => {
       answer: { kind: "raw", status: 201, body: `"${"a".repeat(MAX_GITHUB_RESPONSE_BYTES)}"` },
     },
     { case: "answers without a token", answer: jsonAnswer(201, { expires_at: new Date(FRESH_EXPIRY).toISOString() }) },
-    { case: "answers a token with a hyphen", answer: jsonAnswer(201, installationTokenBody("ghs-abc", FRESH_EXPIRY)) },
     {
-      case: "answers a token of 256 characters",
-      answer: jsonAnswer(201, installationTokenBody("a".repeat(256), FRESH_EXPIRY)),
+      case: "answers a token with a plus sign",
+      answer: jsonAnswer(201, installationTokenBody("ghs_a+b", FRESH_EXPIRY)),
+    },
+    {
+      case: "answers a token of 4097 characters",
+      answer: jsonAnswer(201, installationTokenBody("a".repeat(4097), FRESH_EXPIRY)),
     },
     {
       case: "answers an expires_at that is no time",

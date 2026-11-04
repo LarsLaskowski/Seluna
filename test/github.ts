@@ -285,6 +285,28 @@ export async function stateFor(
 
 /** The `token` of the documented installation token answer. */
 export const FIXTURE_TOKEN: string = installationTokenFixture.token;
+
+/** The UTF-8 bytes of `value` as JSON, base64url without padding: one part of a JWT. */
+function jwtPartOf(value: unknown): string {
+  return base64UrlOf(new TextEncoder().encode(JSON.stringify(value)));
+}
+
+/**
+ * An installation token in GitHub's documented stateless form `ghs_<App ID>_<header>.<payload>.<signature>`. It is
+ * invented, built here from that documented form and not captured from GitHub, and grants nothing: the App ID,
+ * the payload and the "signature" (the 342-character base64url text of the bytes 0 to 255, the length of an RS256
+ * signature, with `-` and `_`) are made up. It is put together from parts, so no literal token text is in the
+ * repository, and it is deterministic (no random bytes, no clock).
+ */
+export const STATELESS_TOKEN: string = [
+  "ghs",
+  "123456",
+  [
+    jwtPartOf({ alg: "RS256", typ: "JWT" }),
+    jwtPartOf({ iss: "123456", iat: 1_792_411_200, exp: 1_792_414_800, installation_id: 1_000_003 }),
+    base64UrlOf(Uint8Array.from({ length: 256 }, (_, index) => index)),
+  ].join("."),
+].join("_");
 /** An RSA key of exactly 4096 bits as PKCS#8 PEM (generated with OpenSSL, grants nothing): the largest `importSigningKey` accepts. */
 export const RSA_4096_PKCS8: string = keySizesFixture.bits4096;
 /** An RSA key of 4104 bits as PKCS#8 PEM (generated with OpenSSL, grants nothing): above the limit of `importSigningKey`. */

@@ -33,4 +33,15 @@ export const EN: MessageTexts = {
   moreRepositories: (count) => `and ${groupDigits(count, SEPARATOR)} more repositories`,
   newSelunaRelease: "New Seluna release",
   releaseAvailable: (latest, running) => `Version ${latest} is available; this instance runs ${running}.`,
+  limitNoticeTitle: "Notifications left out",
+  limitNoticeKinds: {
+    issues: "Issues",
+    issue_comment: "Comments",
+    star: "Stars and unstars",
+    fork: "Forks",
+    pull_request: "Pull requests",
+    workflow_run: "CI failures",
+  },
+  limitNoticeLine: (kind, limit, from, to) => `${kind}: more than ${String(limit)} between ${from} and ${to} UTC`,
+  limitNoticeContext: "Further ones in that hour are not reported; GitHub still shows them.",
 };

@@ -4,7 +4,7 @@ import { encrypt } from "../crypto";
 import { permissionsTag } from "../github/token-permissions";
 import { deleteCachedToken, readCachedToken, tokenContext as storeTokenContext, writeCachedToken } from "./token-cache";
 import { applyMigrations, migrationTestDb, writeFailingDb } from "../../test/d1";
-import { FIXTURE_TOKEN } from "../../test/github";
+import { FIXTURE_TOKEN, STATELESS_TOKEN } from "../../test/github";
 import { keyFor } from "../../test/keys";
 import {
   legacyTokenContext,
@@ -260,10 +260,10 @@ describe("readCachedToken", () => {
 
   it.each([
     { case: "an empty token", token: "" },
-    { case: "a token with a hyphen", token: "ghs-abc" },
+    { case: "a token with a plus sign", token: "ghs_a+b" },
     { case: "a token with a line break", token: "ghs_abc\r\nX-Injected: yes" },
     { case: "a token with a space", token: "ghs abc" },
-    { case: "a token of 256 characters", token: "a".repeat(256) },
+    { case: "a token of 4097 characters", token: "a".repeat(4097) },
     { case: "a token with a non-ASCII character", token: "ghs_ä" },
   ])("readCachedToken treats a row that decrypts to $case as no cached token", async ({ token }) => {
     const key = await keyFor(SECRET);
@@ -325,6 +325,15 @@ describe("readCachedToken", () => {
     const rows = await tokenRows(env.DB);
     expect(rows.length, "number of rows").toBe(1);
     expect(await readCachedToken(env.DB, key, INSTALLATION), "cached token").toMatchObject({ token: TOKEN });
+  });
+
+  it("readCachedToken reads a stateless token", async () => {
+    const key = await keyFor(SECRET);
+    await seedCachedToken(env.DB, key, INSTALLATION, STATELESS_TOKEN, EXPIRES_AT);
+
+    const cached = await readCachedToken(env.DB, key, INSTALLATION);
+
+    expect(cached, "cached token").toMatchObject({ token: STATELESS_TOKEN, expiresAt: EXPIRES_AT });
   });
 
   it("readCachedToken reads a token of 255 characters", async () => {

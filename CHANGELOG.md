@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-04
+
 ### Added
 
 - GitHub App: the manifest also asks for read-only Contents and Issues and subscribes to the events `issues`, `issue_comment`, `fork` and `star`; these deliveries are accepted and recorded. Seluna stores the app's owner (account id, login and type) beside the App ID for the rules to come.
@@ -21,7 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The setup guide and the created page recommend installing the app on _Only select repositories_ instead of _All repositories_.
 - Setup wizard: the time zone setting accepts every named zone the runtime knows, also an alias such as `Asia/Kolkata`, a letter-case variant such as `europe/berlin` and a zone the list does not offer such as `Etc/GMT+5`, instead of answering 400 or falling back to UTC; fixed offsets are still rejected. The time zone select shows a configured zone missing from the list as an extra selected first option, and the status page shows the runtime's name of the zone.
 - Webhook: a delivery that leads to no message, no collected star or fork and no removal of a star (a ping, an owner's own issue or comment, an event whose switch is off) is no longer recorded in D1; only the time of the last delivery is still written, at most once a minute, so strangers can no longer use up the free plan's D1 write budget with such events. Its redelivery is evaluated again, and the status page's last delivery time may lag by up to a minute.
-- Webhook: at most 20 new issues, 20 comments, 20 stars or unstars and 20 forks an hour by anyone other than the owner are recorded and reported; further ones in that hour send nothing, so they can no longer use up the free plan's D1 write budget. Pull requests whose author is not the owner, a member or a collaborator, and failed CI runs not provably started by the owner or by an account admitted to the repository (a push, a schedule, a release and similar events), are limited the same way, 20 each an hour with a counter of their own. The owner's, members' and collaborators' pull requests and the CI failures of pushes, schedules and the other admitted-only events stay unlimited; a member whose organization membership is private may be counted. Security alerts are still not limited.
+- Webhook: at most 20 new issues, 20 comments, 20 stars or unstars and 20 forks an hour by anyone other than the owner are recorded and reported; further ones in that hour send nothing, and you get one notice per kind and hour that messages were left out, so they can no longer use up the free plan's D1 write budget. Pull requests whose author is not the owner, a member or a collaborator, and failed CI runs not provably started by the owner or by an account admitted to the repository (a push, a schedule, a release and similar events), are limited the same way, 20 each an hour with a counter of their own. The owner's, members' and collaborators' pull requests and the CI failures of pushes, schedules and the other admitted-only events stay unlimited; a member whose organization membership is private may be counted. Security alerts are still not limited.
+
+### Fixed
+
+- GitHub API: installation tokens in GitHub's new stateless format (`ghs_<App ID>_<JWT>`) are accepted, so CI failures in pull requests no longer read _draft status unknown_ and comments on pull requests are no longer dropped once GitHub issues them (issue #122).
 
 ## [0.7.0] - 2026-10-27
 
