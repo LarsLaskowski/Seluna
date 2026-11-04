@@ -4,14 +4,16 @@ import { applyDraftChecks } from "./draft-lookup";
 import type { DraftLookup } from "./draft-lookup";
 import { installationIdOf } from "./github/api-client";
 import type { OwnerAccount } from "./github/owner";
-import { formatMessage } from "./message";
+import { limitNotice } from "./limit-notice";
+import { formatMessage, renderTelegramText } from "./message";
 import { storedNotificationOf } from "./notification";
 import { starRemovalOf } from "./rules/repository-starred";
 import { runRules } from "./rules/rule";
 import type { ActivityEvent, Notification, Rule, RuleDecision, WebhookPayload } from "./rules/rule";
 import { isCountedDelivery } from "./rules/stranger";
 import { recordDelivery, isKnownDelivery } from "./store/deliveries";
-import { BOUNDED_EVENT_NAMES, countBoundedDelivery, refreshLastDelivery } from "./store/meta";
+import { BOUNDED_EVENT_NAMES, claimLimitNotice, countBoundedDelivery, refreshLastDelivery } from "./store/meta";
+import { insertOutboxRow } from "./store/outbox";
 import type { BoundedEvent } from "./store/meta";
 import { readNotificationSettings } from "./store/settings";
 import type { NotificationSettings } from "./settings";
@@ -182,20 +184,55 @@ function pendingMessagesOf(
 }
 
 /**
- * Whether a delivery that would be recorded may be: always, except a counted delivery of a bounded event past its
- * hourly bound (`isCountedDelivery` decides whether the delivery counts at all). D1 errors are not caught.
+ * The bounded event of a counted delivery that is past its hourly bound, `undefined` when the delivery may be recorded
+ * (`isCountedDelivery` decides whether it counts at all). D1 errors are not caught.
  */
-async function withinBound(
+async function limitedEvent(
   db: D1Database,
   event: string,
   payload: WebhookPayload,
   owner: OwnerAccount | undefined,
   time: Date,
-): Promise<boolean> {
+): Promise<BoundedEvent | undefined> {
   if (!isBoundedEvent(event) || !isCountedDelivery(event, payload, owner)) {
-    return true;
+    return undefined;
   }
-  return countBoundedDelivery(db, event, time, BOUNDED_DELIVERIES_PER_HOUR);
+  return (await countBoundedDelivery(db, event, time, BOUNDED_DELIVERIES_PER_HOUR)) ? undefined : event;
+}
+
+/**
+ * Writes and sends the limit notice when this is the first refused delivery of `event` in the UTC hour of `time`. A
+ * failure is dropped: after a failed row write that hour's notice is lost.
+ */
+async function sendLimitNoticeQuietly(
+  event: BoundedEvent,
+  settings: NotificationSettings,
+  time: Date,
+  deps: WebhookDeps,
+): Promise<void> {
+  try {
+    if (!(await claimLimitNotice(deps.db, event, time))) {
+      return;
+    }
+    const notification = limitNotice(event, time, BOUNDED_DELIVERIES_PER_HOUR, settings.language);
+    const id = await insertOutboxRow(deps.db, { notification, buttonUrl: undefined, silent: false }, time);
+    deps.waitUntil(
+      deliverMessages(
+        [{ id, text: renderTelegramText(notification), buttonUrl: undefined, silent: false, notification }],
+        settings,
+        {
+          env: deps.env,
+          db: deps.db,
+          fetch: deps.telegramFetch,
+          sleep: deps.sleep,
+          log: deps.log,
+          now: deps.now,
+        },
+      ),
+    );
+  } catch {
+    // The owner gets no notice for this hour; the answer stays 202.
+  }
 }
 
 /** Records a signed delivery, evaluates the rules, stores the messages and hands their sending to `waitUntil`. */
@@ -237,8 +274,10 @@ export async function processWebhook(delivery: SignedDelivery, deps: WebhookDeps
       await refreshLastDeliveryQuietly(deps.db, receivedAt);
       return outcomeOf(202, decision, fields);
     }
-    if (!(await withinBound(deps.db, event, payload, owner, receivedAt))) {
+    const limited = await limitedEvent(deps.db, event, payload, owner, receivedAt);
+    if (limited !== undefined) {
       await refreshLastDeliveryQuietly(deps.db, receivedAt);
+      await sendLimitNoticeQuietly(limited, settings, receivedAt, deps);
       return outcomeOf(202, "limited", fields);
     }
     const recorded = await recordDelivery(

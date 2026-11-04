@@ -62,7 +62,7 @@ flowchart LR
 4. A delivery with a message or an `activity` change is recorded: in one D1 transaction its id is added to `deliveries`, each notification becomes a row in the
    `outbox` (a collected star or fork becomes a row of `activity` instead) as a cleaned, channel-neutral JSON notification ([decision 0008](decisions/0008-delivery-through-a-d1-outbox.md),
    [decision 0038](decisions/0038-channel-neutral-outbox-and-active-delivery-channel.md)) and `meta`
-   records the time of the delivery; then the Worker answers 202. Of `issues`, `issue_comment`, `star`, `fork` and, when a stranger caused them, `pull_request` and `workflow_run` at most 20 deliveries per event and UTC hour are recorded (owner, member and collaborator pull requests and runs of events only admitted accounts cause are not counted); a further one is handled like a delivery without effect
+   records the time of the delivery; then the Worker answers 202. Of `issues`, `issue_comment`, `star`, `fork` and, when a stranger caused them, `pull_request` and `workflow_run` at most 20 deliveries per event and UTC hour are recorded (owner, member and collaborator pull requests and runs of events only admitted accounts cause are not counted); a further one is handled like a delivery without effect, and the first of an event in an hour sends the owner one limit notice
    ([decision 0043](decisions/0043-only-deliveries-with-an-effect-are-recorded.md)). Any other delivery is not recorded; only `meta` is
    set by one bounded write, at most once a minute, and its failure is ignored
    ([decision 0043](decisions/0043-only-deliveries-with-an-effect-are-recorded.md)). The active delivery channel (the setting
@@ -118,7 +118,7 @@ Each job catches its own failures and logs only a fixed result; the rules are in
 | `outbox` | Notifications waiting for, or past, delivery; `text` holds the notification as JSON (rows of earlier versions: Telegram HTML) |
 | `token_cache` | Short-lived GitHub installation tokens, AES-256-GCM ciphertext |
 | `activity` | Stars and forks collected for the digest, with the account, the repository and the time ([decision 0041](decisions/0041-fork-and-star-rules-with-a-digest.md)) |
-| `meta` | The time of the last digest run, the last notified release, the time of the last delivery, the hourly counts of issue, comment, star and fork deliveries, the key check value that detects a changed `SELUNA_SECRET`, the setup login's failed-attempt count, the slug of the GitHub App the setup wizard created and the owner of the GitHub App |
+| `meta` | The time of the last digest run, the last notified release, the time of the last delivery, the hourly counts of the deliveries of the six bounded events, the hours of the limit notices, the key check value that detects a changed `SELUNA_SECRET`, the setup login's failed-attempt count, the slug of the GitHub App the setup wizard created and the owner of the GitHub App |
 
 All seven tables come from the migrations (`activity` from `0002`); only the modules under `src/store/` access them. The key for the
 encrypted columns is derived from `SELUNA_SECRET` and never stored, so a reader of the database alone learns no

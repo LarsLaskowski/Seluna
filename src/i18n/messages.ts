@@ -1,4 +1,5 @@
 import type { Language } from "../setup/language";
+import type { BoundedEvent } from "../store/meta";
 import { DE } from "./de";
 import { EN } from "./en";
 
@@ -53,6 +54,14 @@ export interface MessageTexts {
   readonly newSelunaRelease: string;
   /** Line 2 of the release notice: the latest and the running version, as `A.B.C`. */
   readonly releaseAvailable: (latest: string, running: string) => string;
+  /** Title of the notice that deliveries of a bounded event were left out. */
+  readonly limitNoticeTitle: string;
+  /** The name of each bounded event's kind of delivery in line 2 of the limit notice. */
+  readonly limitNoticeKinds: Readonly<Record<BoundedEvent, string>>;
+  /** Line 2 of the limit notice: the kind, the limit and the UTC hour as `HH:00` from and to. */
+  readonly limitNoticeLine: (kind: string, limit: number, from: string, to: string) => string;
+  /** Line 3 of the limit notice. */
+  readonly limitNoticeContext: string;
 }
 
 export const MESSAGE_TEXTS: Readonly<Record<Language, MessageTexts>> = { en: EN, de: DE };

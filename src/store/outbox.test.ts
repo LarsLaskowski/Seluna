@@ -1,6 +1,14 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { failExhaustedRows, finishedRowsDelete, markAttempted, markSent, outboxInsert, readDueRows } from "./outbox";
+import {
+  failExhaustedRows,
+  finishedRowsDelete,
+  insertOutboxRow,
+  markAttempted,
+  markSent,
+  outboxInsert,
+  readDueRows,
+} from "./outbox";
 import { applyMigrations } from "../../test/d1";
 
 beforeEach(async () => {
@@ -63,6 +71,46 @@ describe("outboxInsert", () => {
       status: "pending",
       created_at: 1_792_240_440_000,
     });
+  });
+});
+
+describe("insertOutboxRow", () => {
+  it("insertOutboxRow writes a pending row with the notification as JSON and returns its id", async () => {
+    const createdAt = new Date(1_792_240_440_000);
+    const row = {
+      notification: { title: "T", repository: "", number: undefined, subject: "S", context: "C" },
+      buttonUrl: undefined,
+      silent: false,
+    };
+
+    const id = await insertOutboxRow(env.DB, row, createdAt);
+
+    expect(id, "returned id").toEqual(expect.any(Number));
+    expect(await rowOf(id), "stored row").toEqual({
+      id,
+      text: '{"title":"T","repository":"","number":null,"subject":"S","context":"C"}',
+      button_url: null,
+      silent: 0,
+      attempts: 0,
+      status: "pending",
+      created_at: 1_792_240_440_000,
+    });
+  });
+
+  it("insertOutboxRow rejects with a TypeError when the insert returns no numeric id", async () => {
+    const noId = (result: unknown): D1Database => {
+      const statement = { bind: () => statement, first: () => Promise.resolve(result) };
+      // A minimal double for the one statement `insertOutboxRow` prepares; the cast follows the runtime shape above.
+      return { prepare: () => statement } as unknown as D1Database;
+    };
+    const row = {
+      notification: { title: "T", repository: "", number: undefined, subject: "S", context: "C" },
+      buttonUrl: undefined,
+      silent: false,
+    };
+
+    await expect(insertOutboxRow(noId(null), row, new Date(0)), "no row").rejects.toThrow(TypeError);
+    await expect(insertOutboxRow(noId({ id: "7" }), row, new Date(0)), "id is a string").rejects.toThrow(TypeError);
   });
 });
 

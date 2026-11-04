@@ -113,3 +113,15 @@ export function finishedRowsDelete(db: D1Database, writtenBefore: Date, limit: n
     )
     .bind(writtenBefore.getTime(), limit);
 }
+
+/**
+ * Writes one `pending` row and returns its id. Rejects with a `TypeError` when the insert returns no numeric id; other
+ * D1 errors are not caught.
+ */
+export async function insertOutboxRow(db: D1Database, row: NewOutboxRow, createdAt: Date): Promise<number> {
+  const inserted = await outboxInsert(db, row, createdAt).first<{ readonly id: unknown }>();
+  if (typeof inserted?.id !== "number") {
+    throw new TypeError("The outbox insert returned no id");
+  }
+  return inserted.id;
+}

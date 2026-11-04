@@ -97,7 +97,9 @@ files or endpoints.
   field and the head repository included, is counted (no claim that every organization member is exempt: a private
   member may be marked otherwise and counted). Residual: a write-capable token or installed app the owner admitted that acts on a stranger's
   input (e.g. a comment-command release bot whose branch, tag or release starts `push`, `create` or `release` runs)
-  raises exempt events uncounted. A counter failure answers 503.
+  raises exempt events uncounted. A counter failure answers 503. Past the bound the first refused delivery of an event
+  in a UTC hour writes one notice (`claimLimitNotice` on the `meta` row `limit_notice:<event>`, then `insertOutboxRow`),
+  fixed texts only, its failure ignored.
 - **Logging of external data:** logs carry event type, delivery id, the action and repository (pattern-checked) and the decision of the processing, each sent outbox row logs its id and result (a row marked failed after its fifth attempt logs its id and status `failed`), each scheduled job logs only a fixed result (`src/scheduled.ts`: `store-failed`, `unknown`, the release check's result), and per request the method, the URL path without query string and the status (`src/router.ts`); never payload text, headers, query strings, tokens or keys.
 
 ## Guarantees
