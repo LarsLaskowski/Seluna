@@ -122,10 +122,11 @@ For telling the owner that deliveries were dropped (issue #141):
     hour, not that anything was dropped, and is gone an hour later.
 22. **Let the counter count one past the bound and send the notice on that step** — one statement fewer, but it
     changes the bound's own statement, its stored form and the measurements above, for no gain in what the owner sees.
-23. **Claim and row in one batch, the row inserted only while the claim holds this attempt's nonce** — no notice is
-    lost when the row write fails after the claim, at the cost of a nonce and a two-statement batch on every delivery
-    past the bound; that loss needs a D1 failure between two statements, the same failure that already loses a
-    counted delivery's own message.
+23. **Claim and row in one batch, atomic as `recordReleaseNotice` (`src/store/notified-release.ts`) does it: the row
+    inserted by a `SELECT … WHERE` on the `meta` value, then the `meta` upsert under the same guard** — no notice is
+    lost when the row write fails after the claim, at the cost of a two-statement batch on every delivery past the
+    bound; that loss needs a D1 failure between two statements, the same failure that already loses a counted
+    delivery's own message.
 24. **Write the row first, or read the claim before writing it** — concurrent deliveries past the bound could each
     send a notice.
 25. **One notice at the end of the hour with the number left out** — the number needs a write per dropped delivery

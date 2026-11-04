@@ -29,7 +29,8 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
    when a stranger caused it, see [Pull request rules](#pull-request-rules) and [CI failure rules](#ci-failure-rules);
    the others always), at most 20 (`BOUNDED_DELIVERIES_PER_HOUR`), by one conditional statement on the `meta`
    row `delivery_count:<event>` ([Storage](storage.md#tables)). Past that bound it is not recorded (as step 7) and
-   the answer is **202** with the decision `limited`. Security alert events are never counted.
+   the answer is **202** with the decision `limited`; the first such delivery of the event in the UTC hour also
+   writes and sends the owner a limit notice ([Limit notice](#limit-notice)). Security alert events are never counted.
    The draft lookup of step 4 runs before this step, so a comment on a pull request or a CI failure in a pull request
    past the bound has made its lookup already.
    A failure of the counter answers **503** and stores nothing.
@@ -40,7 +41,7 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
    `meta` `last_delivery` is set to the time received. Either all of it is stored or none of it. A delivery with no
    `activity` change does not touch the `activity` table.
 7. Any other delivery (no row and no `activity` change), and a `limited` one, is not recorded: nothing is added to `deliveries`, `outbox`
-   or `activity`, and `meta` `last_delivery` is set only as [Storage](storage.md#tables) says, by one
+   or `activity` (the only row a `limited` delivery can add is its limit notice in `outbox`, step 5), and `meta` `last_delivery` is set only as [Storage](storage.md#tables) says, by one
    conditional statement. A failure of that write is ignored and the answer stays 202. Nothing else changes: a
    draft lookup of such a delivery may still refresh the installation-token cache, as before.
 8. The answer is **202**, whether or not a rule matched. The new `outbox` rows are sent after the answer (below).
@@ -49,6 +50,39 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
   the answer is **200** and nothing of this delivery is stored except its count of step 5. Any other database failure in steps 2 to 6 answers **503** and stores nothing except a count of step 5 that was already made.
 - Every time (time received, `created_at`, `last_delivery`) is the same reading of the clock, taken once per
   delivery.
+
+### Limit notice
+
+The first delivery of a bounded event that step 5 of [Processing a delivery](#processing-a-delivery) refuses in a UTC
+hour tells the owner that messages were left out. This holds for each of the six events (`issues`, `issue_comment`,
+`star`, `fork`, `pull_request`, `workflow_run`), so at most six notices an hour.
+
+- **When.** After `last_delivery` is refreshed, `claimLimitNotice` runs one conditional statement on the `meta` row
+  `limit_notice:<event>` (the key is built from the event name of the six alone; [Storage](storage.md#tables)); only
+  the call that changed the row, the first of the hour, goes on. It writes one `outbox` row (`insertOutboxRow`,
+  `silent` 0, no button, `created_at` the time received) and hands its sending to `waitUntil` like the rows of a
+  recorded delivery. Of concurrent refused deliveries exactly one gets the claim. Every further refused delivery of
+  the event in that hour costs the one statement and writes nothing. The delivery itself stays unrecorded and the
+  decision stays `limited`.
+- **Layout.** Title alone on line 1 (the repository is empty), line 2 and line 3, no button, no number:
+
+  |        | English                                                                | German                                                                        |
+  | ------ | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+  | Title  | _Notifications left out_                                               | _Benachrichtigungen ausgelassen_                                              |
+  | Line 2 | `<kind>: more than 20 between <from> and <to> UTC`                     | `<kind>: mehr als 20 zwischen <from> und <to> UTC`                            |
+  | Line 3 | _Further ones in that hour are not reported; GitHub still shows them._ | _Weitere in dieser Stunde werden nicht gemeldet; GitHub zeigt sie weiterhin._ |
+
+  `<from>` and `<to>` are the UTC hour as `HH:00` and the next one (23 reads `between 23:00 and 00:00 UTC`). The
+  kind per event: `issues` _Issues_ (German _Issues_), `issue_comment` _Comments_ (_Kommentare_), `star` _Stars and
+  unstars_ (_Sterne und entfernte Sterne_), `fork` _Forks_ (_Forks_), `pull_request` _Pull requests_ (_Pull Requests_),
+  `workflow_run` _CI failures_ (_CI-Fehlschläge_). The notice names the event and the hour, not how many were dropped
+  nor which. The language is the notification language of the settings.
+
+- **Sending.** At once, also under a star and fork digest; silent per the quiet hours at the time of sending, like
+  every row ([Quiet hours](#quiet-hours)); a row not sent is retried by the cron.
+- **Failure.** A failure of the claim or of the row write is ignored: the answer stays 202 `limited` and nothing is
+  sent. A failed row write after the claim loses that hour's notice, because the claim stays for the hour.
+- **Redelivery.** A redelivery sends a notice only as the first refused delivery of its event in its hour.
 
 ### Payload
 
@@ -119,7 +153,8 @@ request triggers nothing.
   request's author; a member of an organization whose membership is private may be marked `CONTRIBUTOR` or `NONE` and is
   then counted, so the documents never claim that every organization member is exempt. A draft, an action no rule reports
   and a switch that is off are never counted. The decision is in `src/rules/stranger.ts`
-  ([decision 0043](../decisions/0043-only-deliveries-with-an-effect-are-recorded.md)).
+  ([decision 0043](../decisions/0043-only-deliveries-with-an-effect-are-recorded.md)). Past the bound the owner gets one
+  limit notice ([Limit notice](#limit-notice)).
 - Not verified against real deliveries: a review requested from a team, a pull request from a fork and the
   one-delivery-per-reviewer behavior. The rules read only fields that exist in all of them and stay silent when one
   is missing.
@@ -172,7 +207,8 @@ Both report only a delivery whose `action` is `completed` and whose `workflow_ru
   input (a personal access token or App token in a workflow a stranger can start, a comment-command release bot whose
   branch, tag or release starts `push`, `create` or `release` runs) can raise any of the 11 events, and those runs are then not counted;
   the built-in `GITHUB_TOKEN` starts only `workflow_dispatch` and `repository_dispatch`, which are counted. The
-  draft lookup of a CI failure in a pull request runs before the bound ([Draft lookup](#draft-lookup)).
+  draft lookup of a CI failure in a pull request runs before the bound ([Draft lookup](#draft-lookup)). Past the bound
+  the owner gets one limit notice ([Limit notice](#limit-notice)).
 - Each run is reported once per delivery: two failing workflows on one push give two messages, a workflow that runs on
   both `push` and `pull_request` gives two, and a re-run that fails again is reported again with the same lines.
 - Not verified against real deliveries: a failed or `timed_out` run on the default branch, a `cancelled` run, a fork's
@@ -267,7 +303,8 @@ triggers nothing.
   than the owner gives one message with text of their choosing; Telegram apps still turn URLs, `@mentions` and
   `/commands` into tappable links. At most 20 issues and 20 comments (as events `issues` and `issue_comment`) are
   recorded and reported per UTC hour; further ones of that hour are `limited` (step 5 of
-  [Processing a delivery](#processing-a-delivery), decision 0043).
+  [Processing a delivery](#processing-a-delivery), decision 0043), and the owner gets one limit notice
+  ([Limit notice](#limit-notice)).
 - **Documented, not observed.** The fixtures are reference-built from GitHub's webhook documentation, not captured.
   The residual risk (decision 0040) is a field path, an action name or the place of `issue.draft` that differs in real
   deliveries; each such difference sends nothing. A live check on a deployed copy confirms the cases.
@@ -310,7 +347,7 @@ Every other action of `star` (and a `fork` delivery with an `action` key) trigge
   A star that was never collected is a removal that deletes nothing.
 - **The hourly bound.** At most 20 `star` deliveries (stars and unstars together) and 20 `fork` deliveries that would be recorded are counted per UTC hour, by anyone other than the owner. Past the bound a star or fork is not collected or sent, and an
   unstar removes nothing, because the delivery is not recorded (`limited`, step 5 of
-  [Processing a delivery](#processing-a-delivery)).
+  [Processing a delivery](#processing-a-delivery)); the owner gets one limit notice ([Limit notice](#limit-notice)).
 - **Redelivery.** A redelivered delivery collects nothing a second time (step 2 of
   [Processing a delivery](#processing-a-delivery)).
 - **The table is missing.** Where the migration `0002` was not applied, a delivery that has to collect an event or
@@ -429,7 +466,8 @@ No migration changes the column: it is still `text` ([Storage](storage.md)).
   ([Quiet hours](#quiet-hours)). The release notice of the daily release check is a second kind of row besides the
   rules' notifications: the title, the repository `LarsLaskowski/Seluna` and line 2 are fixed texts and the parsed version numbers,
   stored without cleaning or cutting, and the button URL is built from the same numbers
-  ([Scheduled jobs](scheduled-jobs.md#release-message)).
+  ([Scheduled jobs](scheduled-jobs.md#release-message)). The limit notice is a third kind: fixed texts, an empty
+  repository, no number and no button ([Limit notice](#limit-notice)).
 - **Telegram rendering** (`renderTelegramText`, at send time): every field is cleaned and cut again, which changes
   nothing for a row this version wrote, and escaped. Line 1 is the title in bold (`<b>…</b>`), then `·`, the
   repository and, when there is a number, ` #` and the number; line 2 and line 3 follow, each on its own line, an
@@ -461,7 +499,8 @@ No migration changes the column: it is still `text` ([Storage](storage.md)).
   a table with a missing key does not compile.
 - The rules write the title and line 3 in the notification language of the settings, read when the delivery is
   processed.
-- The tables hold the titles and line 3 of the pull request rules ([Pull request rules](#pull-request-rules)), and
+- The tables hold the title, the kind of each of the six bounded events, line 2 and line 3 of the limit notice
+  ([Limit notice](#limit-notice)), the titles and line 3 of the pull request rules ([Pull request rules](#pull-request-rules)), and
   the titles of the CI failure rules with the draft-unknown title ([CI failure rules](#ci-failure-rules),
   [Draft lookup](#draft-lookup)), and the titles of the security alert rules
   ([Security alert rules](#security-alert-rules)): _Dependabot alert_, _Code scanning alert_, _Secret scanning alert_
@@ -485,7 +524,7 @@ channel that sends it.
   that names no registered channel (also with different case or padding) reads as `telegram`, or as the first
   registered channel if Telegram is not registered. The owner changes it on the start page ([Setup
   wizard](setup-wizard.md#messengers)).
-- A batch of rows (the rows of a delivery, the rows of one cron retry run, the release notice) reads the active channel
+- A batch of rows (the rows of a delivery, the rows of one cron retry run, the release notice, the limit notice) reads the active channel
   once and asks it for its destination once (`prepare`); the whole batch is sent through that channel, even when the
   owner switches the channel while it runs. The next batch uses the new one. A D1 error in either step is
   `store-failed` for every row of the batch, the rows unchanged.
@@ -585,7 +624,8 @@ channel that sends it.
   it from the GitHub App's delivery list, which works because its id was not recorded. This is accepted: the
   "never lose a message" goal covers rows already in the `outbox`, not deliveries that were never recorded.
 - A delivery that was not recorded (step 7), a `limited` one included, is evaluated again when GitHub or the owner redelivers it, against the
-  settings and draft state of then; it can report then, once. A redelivery of a recorded delivery answers 200.
+  settings and draft state of then; it can report then, once. A redelivered `limited` delivery gets no second limit
+  notice in the same hour; it sends one only as the first refused delivery of its event in its hour. A redelivery of a recorded delivery answers 200.
 - A throwing rule or formatter answers 503 `unavailable` and stores nothing, like a database failure.
 - The signature covers the body only, not `X-GitHub-Delivery` or `X-GitHub-Event`. Residual risk, inherent to
   GitHub's webhook design: someone holding a captured signed body can replay it with a new delivery id and cause a
@@ -632,7 +672,7 @@ channel that sends it.
 
 - [`decisions/0043-only-deliveries-with-an-effect-are-recorded.md`](../decisions/0043-only-deliveries-with-an-effect-are-recorded.md)
   — only a delivery with an `outbox` row or an `activity` change is recorded; `last_delivery` is kept by a bounded
-  write; the counted deliveries of `issues`, `issue_comment`, `star`, `fork`, `pull_request` and `workflow_run` (the last two only when a stranger caused them) are bounded to 20 per event and UTC hour.
+  write; the counted deliveries of `issues`, `issue_comment`, `star`, `fork`, `pull_request` and `workflow_run` (the last two only when a stranger caused them) are bounded to 20 per event and UTC hour; the first refused delivery of an event in an hour sends one limit notice.
 
 ## Not here
 

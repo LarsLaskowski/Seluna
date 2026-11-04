@@ -32,18 +32,19 @@ Pull requests wait for a review, a build turns red, a security alert opens, and 
 
 ## What you get notified about
 
-| Event                                                                                                 | Status    |
-| ----------------------------------------------------------------------------------------------------- | --------- |
-| A pull request is opened                                                                              | available |
-| A draft pull request is marked ready for review                                                       | available |
-| A review is requested                                                                                 | available |
-| CI failed on the default branch or in a pull request                                                  | available |
-| A Dependabot, code scanning or secret scanning alert is opened (code scanning: on the default branch) | available |
-| A new issue, or a comment on an issue or a pull request (not your own and not a bot's)                | available |
-| A new star or fork (not your own and not a bot's), at once or as an hourly or daily digest            | available |
-| A new Seluna release is available                                                                     | available |
+| Event                                                                                                                                                                 | Status    |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| A pull request is opened                                                                                                                                              | available |
+| A draft pull request is marked ready for review                                                                                                                       | available |
+| A review is requested                                                                                                                                                 | available |
+| CI failed on the default branch or in a pull request                                                                                                                  | available |
+| A Dependabot, code scanning or secret scanning alert is opened (code scanning: on the default branch)                                                                 | available |
+| A new issue, or a comment on an issue or a pull request (not your own and not a bot's)                                                                                | available |
+| A new star or fork (not your own and not a bot's), at once or as an hourly or daily digest                                                                            | available |
+| A new Seluna release is available                                                                                                                                     | available |
+| Messages were left out because more than 20 of one kind (issues, comments, stars, forks, pull requests, CI failures) arrived in an hour; one notice per kind and hour | available |
 
-Each message names the repository and the case, shows the title and the context (for a pull request its author and branches, for a failed CI run the branch and the first line of the commit message, for a security alert its name and severity or type, for an issue or comment its author and the beginning of its text, for a star or fork who did it) and carries a button that opens the item on GitHub. Draft pull requests trigger nothing, and neither do comments on them; a leaked secret is reported even when it was pushed to a draft pull request, and the secret itself is never shown. When GitHub cannot tell in time whether a pull request with a failed CI run is a draft, the message says so. Quiet hours deliver messages without sound instead of holding them back.
+Each message about an item names the repository and the case, shows the title and the context (for a pull request its author and branches, for a failed CI run the branch and the first line of the commit message, for a security alert its name and severity or type, for an issue or comment its author and the beginning of its text, for a star or fork who did it) and carries a button that opens the item on GitHub; the notice that messages were left out has neither. Draft pull requests trigger nothing, and neither do comments on them; a leaked secret is reported even when it was pushed to a draft pull request, and the secret itself is never shown. When GitHub cannot tell in time whether a pull request with a failed CI run is a draft, the message says so. Quiet hours deliver messages without sound instead of holding them back.
 
 ## How it works
 
