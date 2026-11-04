@@ -68,7 +68,7 @@ files or endpoints.
   `src/github/` (`app-jwt.ts`, `http.ts`, `app-credentials.ts`, `installation-token.ts`, `token-text.ts`,
   `installations.ts`, `api-client.ts`, `app-info.ts`, `app-links.ts`, `token-permissions.ts`): an RS256 JWT (`iat` now − 60 s, `exp` now + 540 s, `iss` the App ID) signed per call with the
   private key resolved per credential (the status page signs one for its `GET /app` and installations requests), never stored; installation tokens per `installation.id`, allow-listed
-  (`[A-Za-z0-9_]`, 1–255 characters), requested with an explicit permission list (`INSTALLATION_TOKEN_PERMISSIONS`: `metadata` and `pull_requests` read, the one call made with a token) and accepted only when the answer's `permissions` hold nothing but those two entries (own entries checked, a missing `permissions` refused), cached only encrypted in `token_cache` (`src/store/token-cache.ts`) until 5
+  (`[A-Za-z0-9_.-]`, 1–4096 characters), requested with an explicit permission list (`INSTALLATION_TOKEN_PERMISSIONS`: `metadata` and `pull_requests` read, the one call made with a token) and accepted only when the answer's `permissions` hold nothing but those two entries (own entries checked, a missing `permissions` refused), cached only encrypted in `token_cache` (`src/store/token-cache.ts`) until 5
   minutes before expiry, the row of a token GitHub answered 401 for deleted by installation id and IV; installation id,
   owner, repository name and number allow-listed before they enter a URL; only `https://api.github.com`, no redirects
   followed, 10-second timeout, answers read bounded (1 MiB) and narrowed; the status page's `GET /app` answer is
@@ -182,7 +182,10 @@ otherwise):
   `FIXTURE_INSTALLATION_ACCESS` and `installationWithAccess(permissions, events, changes)` (an installation entry
   with its access), and `installationTokenBody(token, expiresAt, permissions)`, whose `permissions` default to the
   narrow `metadata: read` and `pull_requests: read` the code requires (the documented example answers a request
-  without a `permissions` object, so its own `permissions` are replaced). `test/token-cache.ts` seeds rows without
+  without a `permissions` object, so its own `permissions` are replaced), and `STATELESS_TOKEN`, an installation
+  token in GitHub's stateless form `ghs_<App ID>_<JWT>` reference-built from the documented form (invented, not
+  captured, grants nothing; put together from parts so no literal token text is in the repository, decision 0045).
+  `test/token-cache.ts` seeds rows without
   `src/store/token-cache.ts`: `tokenContext` is the additional data with the permission tag,
   `legacyTokenContext` the one of earlier versions, and `seedCachedToken(..., additionalData)` takes either. The
   check-run answers of the later API clients get their fixtures beside these.

@@ -39,7 +39,8 @@ wizard's status page rely on it.
   token and a JSON body that names the token's permissions explicitly: `{"permissions":{"metadata":"read","pull_requests":"read"}}`
   (`Content-Type: application/json`). That is all the only call made with an installation token, the pull request
   read, needs, so a token never carries a permission the app was later granted (Contents, Issues). A 2xx answer is
-  accepted only with a `token` of 1 to 255 characters from `[A-Za-z0-9_]`, an `expires_at` in the form
+  accepted only with a `token` of 1 to 4096 characters from `[A-Za-z0-9_.-]` (the classic form and GitHub's stateless
+  `ghs_<App ID>_<JWT>`), an `expires_at` in the form
   `YYYY-MM-DDTHH:MM:SS`, optional fractional seconds, then `Z` or `±HH:MM`, more than 5 minutes after now, and a
   `permissions` object that is not an array and whose own entries are each `metadata: read` or
   `pull_requests: read` (a missing `permissions`, another name or another level is refused). Any other answer is a
@@ -126,7 +127,9 @@ wizard's status page rely on it.
   text; nothing in this area is logged.
 - The 10-second timeout covers the whole request: waiting for the answer and reading its body (the body is read
   from the same request that carries the timeout), so a call waits at most about 10 seconds per request.
-- The forms of the token, `expires_at`, the `Link` header and the account shapes follow GitHub's documentation and
+- The token form follows the note on the stateless format in GitHub's OpenAPI description of
+  `POST /app/installations/{installation_id}/access_tokens`, which names no maximum length; a token outside the
+  allow-list fails closed (decision 0045). The forms of `expires_at`, the `Link` header and the account shapes follow GitHub's documentation and
   OpenAPI description, not a captured answer; each deviation fails closed (decision 0026).
 
 ## Related decisions
@@ -141,6 +144,8 @@ wizard's status page rely on it.
 
 - [`decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md`](../decisions/0039-issue-comment-fork-star-events-and-the-app-owner.md)
   — the explicit token permission list, the app read and the two-request status page.
+- [`decisions/0045-installation-token-allow-list-for-the-stateless-format.md`](../decisions/0045-installation-token-allow-list-for-the-stateless-format.md)
+  — the token allow-list `[A-Za-z0-9_.-]`, 1 to 4096 characters, for GitHub's stateless token format.
 
 ## Not here
 
