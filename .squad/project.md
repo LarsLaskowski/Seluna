@@ -182,7 +182,10 @@ otherwise):
   `FIXTURE_INSTALLATION_ACCESS` and `installationWithAccess(permissions, events, changes)` (an installation entry
   with its access), and `installationTokenBody(token, expiresAt, permissions)`, whose `permissions` default to the
   narrow `metadata: read` and `pull_requests: read` the code requires (the documented example answers a request
-  without a `permissions` object, so its own `permissions` are replaced). `test/token-cache.ts` seeds rows without
+  without a `permissions` object, so its own `permissions` are replaced), and `STATELESS_TOKEN`, an installation
+  token in GitHub's stateless form `ghs_<App ID>_<JWT>` reference-built from the documented form (invented, not
+  captured, grants nothing; put together from parts so no literal token text is in the repository, decision 0045).
+  `test/token-cache.ts` seeds rows without
   `src/store/token-cache.ts`: `tokenContext` is the additional data with the permission tag,
   `legacyTokenContext` the one of earlier versions, and `seedCachedToken(..., additionalData)` takes either. The
   check-run answers of the later API clients get their fixtures beside these.
