@@ -142,3 +142,16 @@ often, not more.
 
 See [spec.md](spec.md), *Out of scope*. No follow-up issue. A real token from the live check that fails the form is a
 new issue (decision 0045).
+
+## Challenge notes
+
+Minor objection of the plan challenge, verbatim:
+
+1. `minor`: the list of existing tests that flip misses six cases, and one AC5 case already exists. Why minor: the Tester will see these cases fail once the regex changes, but the plan says its list is complete. A case adapted by deleting it, instead of moving it to 4097, would lose the length-bound pin on the cache and lookup paths. The plan's *Test files* section ("Existing cases whose input the new rule handles differently, all adapted…") names only `token-text.test.ts` and two cases in `installation-token.test.ts` (lines 106–107). These cases also expect a refusal, and they pass under the new rule: `src/store/token-cache.test.ts:262` "a token with a hyphen" (`ghs-abc`) and `:266` "a token of 256 characters", in the table "readCachedToken treats a row that decrypts to $case as no cached token"; `src/github/installation-token.test.ts:429` "answers a token with a hyphen" and `:431–432` "answers a token of 256 characters"; `src/github/api-client.test.ts:515` "answers a token with a hyphen" and `:517–518` "answers a token of 256 characters", in `UNREADABLE_TOKEN_ANSWERS`. Also, the plan's AC5 row has the Tester write a new "a cached token with a space as no cached token" case. That case already exists at `src/store/token-cache.test.ts:264`. Instruction for the Tester: in each of the three tables above, change the hyphen case to a token with a character the new class still refuses (for example `ghs_a b` or `ghs_a+b`), and change every 256-character case to 4097 characters, keeping it as a refusal. Cover AC5 by turning the existing 256 case at `token-cache.test.ts:266` into 4097, plus the existing space case at line 264. Do not add a duplicate space test.
+
+## Security notes
+
+Non-blocking findings of Security's plan review (`APPROVED`), verbatim:
+
+- **non-blocking:** `STATELESS_TOKEN` in `test/github.ts` will be a literal starting with `ghs_` in a shape GitHub may recognise as an installation token. That could trip GitHub push protection or open a secret scanning alert on the repository, and Seluna itself notifies on those. The Tester could build it from parts (e.g. `"ghs" + "_" + …`) and keep the doc comment saying it is invented. If a push is blocked, the orchestrator handles it.
+- **non-blocking:** plan fact 9 (real tokens fit 4096 characters from `[A-Za-z0-9_.-]`) is still unverified. This is a functional risk, not a security one: a token outside the form fails closed, as today. Decision 0045 records it and the Product Manager accepted it.
