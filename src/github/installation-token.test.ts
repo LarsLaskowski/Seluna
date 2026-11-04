@@ -12,6 +12,7 @@ import {
   jsonAnswer,
   NARROW_TOKEN_PERMISSIONS,
   REJECTED,
+  STATELESS_TOKEN,
 } from "../../test/github";
 import type { GitHubAnswer, GitHubDouble } from "../../test/github";
 import { bearerOf, decodeJwt, fixtureSigningKey, jwtVerifies } from "../../test/jwt";
@@ -80,6 +81,18 @@ describe("parseInstallationToken", () => {
     expect(parsed, "narrowed answer").toEqual({ token: FIXTURE_TOKEN, expiresAt: Date.parse("2016-07-11T22:14:10Z") });
   });
 
+  it("parseInstallationToken narrows an answer with the stateless token to its token and expiry", () => {
+    const parsed = parseInstallationToken(
+      installationTokenBody(STATELESS_TOKEN, Date.parse("2016-07-11T22:14:10Z")),
+      BEFORE,
+    );
+
+    expect(parsed, "narrowed answer").toEqual({
+      token: STATELESS_TOKEN,
+      expiresAt: Date.parse("2016-07-11T22:14:10Z"),
+    });
+  });
+
   it.each([
     {
       case: "fractional seconds",
@@ -103,8 +116,11 @@ describe("parseInstallationToken", () => {
     { case: "an object without expires_at", body: narrow({ token: FIXTURE_TOKEN }) },
     { case: "an empty token", body: narrow({ token: "", expires_at: "2016-07-11T22:14:10Z" }) },
     { case: "a token that is a number", body: narrow({ token: 42, expires_at: "2016-07-11T22:14:10Z" }) },
-    { case: "a token of 256 characters", body: narrow({ token: "a".repeat(256), expires_at: "2016-07-11T22:14:10Z" }) },
-    { case: "a token with a hyphen", body: narrow({ token: "ghs-abc", expires_at: "2016-07-11T22:14:10Z" }) },
+    {
+      case: "a token of 4097 characters",
+      body: narrow({ token: "a".repeat(4097), expires_at: "2016-07-11T22:14:10Z" }),
+    },
+    { case: "a token with a space", body: narrow({ token: "ghs_a b", expires_at: "2016-07-11T22:14:10Z" }) },
     { case: "a token with a line break", body: narrow({ token: "ghs_a\r\nX: y", expires_at: "2016-07-11T22:14:10Z" }) },
     { case: "an expires_at that is a number", body: narrow({ token: FIXTURE_TOKEN, expires_at: 1_468_275_250 }) },
     { case: "an expires_at that is a word", body: narrow({ token: FIXTURE_TOKEN, expires_at: "tomorrow" }) },
@@ -426,10 +442,13 @@ describe("installationToken", () => {
     },
     { case: "answers without a token", answer: jsonAnswer(201, { expires_at: new Date(FRESH_EXPIRY).toISOString() }) },
     { case: "answers an empty token", answer: jsonAnswer(201, installationTokenBody("", FRESH_EXPIRY)) },
-    { case: "answers a token with a hyphen", answer: jsonAnswer(201, installationTokenBody("ghs-abc", FRESH_EXPIRY)) },
     {
-      case: "answers a token of 256 characters",
-      answer: jsonAnswer(201, installationTokenBody("a".repeat(256), FRESH_EXPIRY)),
+      case: "answers a token with a plus sign",
+      answer: jsonAnswer(201, installationTokenBody("ghs_a+b", FRESH_EXPIRY)),
+    },
+    {
+      case: "answers a token of 4097 characters",
+      answer: jsonAnswer(201, installationTokenBody("a".repeat(4097), FRESH_EXPIRY)),
     },
     { case: "answers without expires_at", answer: jsonAnswer(201, { token: NEW_TOKEN }) },
     {
