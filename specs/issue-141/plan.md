@@ -204,3 +204,27 @@ All by the Dev, after the code is green, against the code as built:
 
 - The number of dropped deliveries and which ones (needs a write per drop).
 - A switch to turn the notice off; a status page line.
+
+## Challenge notes
+
+Devil's Advocate, plan challenge on e237df1 (0 major, 3 minor), verbatim:
+
+1. **Option 23 of decision 0043 rests on a claim the code refutes.** The record says that making the claim and the row atomic needs "a nonce and a two-statement batch". The codebase already does this without a nonce: `recordReleaseNotice` in `src/store/notified-release.ts:17-43` runs one D1 batch. Its first statement inserts the `outbox` row with `SELECT … WHERE <meta value> = ?4 RETURNING id`, and its second upserts the `meta` row under the same guard. Both statements read the same state inside one transaction.
+   - Instruction for the Lead or the Dev writing the record: remove "a nonce" from option 23. State that the atomic form would follow the `recordReleaseNotice` pattern, and keep as its cost the two-statement batch on every delivery past the bound. The chosen option 20 can stay as it is.
+   - Why minor: option 20 is still a defensible choice, but the record must not reject an alternative for a cost the code shows it does not have.
+2. **Two tests the plan marks as unchanged will now leave a notice unsent at the end of the test.**
+   - `src/webhook.test.ts:1984` ("sets last_delivery for a limited delivery") and `:2246` (two concurrent stranger pull requests at 19, one of them `limited`) both reach the `limited` branch. Under the plan, each will write a notice row and hand its sending to `waitUntil`. Neither test calls `settled(waitUntil)`, so the D1 and Telegram work would still be running when the test ends, inside the workers pool's isolated storage.
+   - Instruction for the Tester: add `await settled(waitUntil)` to both tests. In `:2246`, also assert exactly one `outbox` row, the notice. That also covers a `limited` delivery that races a counted one.
+   - Why minor: it is a test adaptation inside step 5 and needs no change to the plan.
+3. **A README sentence becomes false and the plan does not list it.**
+   - `README.md:46` says "Each message names the repository … and carries a button that opens the item on GitHub". The limit notice has an empty repository and no button.
+   - Instruction for the Dev: besides the new table row the plan names, qualify that sentence so it excludes the limit notice. One example: "Each message about an item names the repository …; the notice that messages were left out has neither".
+   - Small correction in the same documentation work: the `meta` enumeration in `docs/areas/storage.md` is at line 110 (`` `meta` holds … ``), not 108.
+   - Why minor: a documentation fix the Dev can make without changing the plan.
+
+## Security notes
+
+Security, plan review on e237df1 (APPROVED), non-blocking findings verbatim:
+
+1. Every refused delivery now runs one more D1 statement (the claim: 1 row read, 0 written). Decision 0043 option 20 already records this. No change needed.
+2. For the Reviewer in step 8: if the diff runs `claimLimitNotice` anywhere other than after a refusal, changes `countBoundedDelivery`/`isCountedDelivery`, or builds the `limit_notice:` key from anything other than `BoundedEvent`, that is a change to the guard and the tier must go up to `security`.
