@@ -40,9 +40,7 @@ checked ([HTTP routes](http-routes.md)). It is processed in this order; the firs
    the delivery are made ([Stars and forks](#stars-and-forks): the collected events and the removal of a star), and
    `meta` `last_delivery` is set to the time received. Either all of it is stored or none of it. A delivery with no
    `activity` change does not touch the `activity` table.
-7. Any other delivery (no row and no `activity` change), and a `limited` one, is not recorded: nothing is added to `deliveries`, `outbox`
-   or `activity` (the only row a `limited` delivery can add is its limit notice in `outbox`, step 5), and `meta` `last_delivery` is set only as [Storage](storage.md#tables) says, by one
-   conditional statement. A failure of that write is ignored and the answer stays 202. Nothing else changes: a
+7. Any other delivery (no row and no `activity` change), and a `limited` one, is not recorded: nothing of its own is added to `deliveries`, `outbox` or `activity`, and `meta` `last_delivery` is set only as [Storage](storage.md#tables) says, by one conditional statement; besides that, a `limited` delivery can only write its limit notice to `outbox` and the `meta` row `limit_notice:<event>` ([Limit notice](#limit-notice)). A failure of that write is ignored and the answer stays 202. Nothing else changes: a
    draft lookup of such a delivery may still refresh the installation-token cache, as before.
 8. The answer is **202**, whether or not a rule matched. The new `outbox` rows are sent after the answer (below).
 
