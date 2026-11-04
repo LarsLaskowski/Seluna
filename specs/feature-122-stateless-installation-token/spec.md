@@ -49,7 +49,7 @@ refused token is never put into a request header.
 - E2: A token holding a character other than ASCII letters, digits, `_`, `-` and `.` (such as `+`, `/`, `=`, `:`, a
   non-ASCII letter): refused.
 - E3: An empty token: refused.
-- E4: A token longer than the length bound (Open questions, Q1): refused; a token of exactly the bound is accepted.
+- E4: A token of more than 4096 characters: refused; a token of exactly 4096 characters is accepted (Q1).
 - E5: A cached row whose decrypted token fails the same check counts as no cached token, and a new one is requested
   (as today).
 - E6: A token that is not a string: refused (unchanged).
@@ -57,7 +57,7 @@ refused token is never put into a request header.
 ## Non-functional requirements
 
 - Security: the token goes only into `Authorization: Bearer <token>`; the accepted characters can never end or add a
-  header line, and the length is bounded (Q1). The token is still never logged, shown or stored in plain text.
+  header line, and the length is bounded to 4096 characters (Q1). The token is still never logged, shown or stored in plain text.
 - Compatibility: classic tokens, and classic tokens already cached by an earlier version, keep working (S5); no
   migration, `token_cache.ciphertext` is `TEXT` without a length limit.
 - No new configuration, log line or request.
@@ -67,10 +67,10 @@ refused token is never put into a request header.
 ## Acceptance criteria
 
 - [ ] AC1: A token in the documented stateless form `ghs_<App ID>_<header>.<payload>.<signature>` (base64url parts
-  with `-` and `_`, as long as a real RS256 JWT) is accepted by the token answer check and by the cache read; a
+  with `-` and `_`, longer than 255 characters, e.g. one with a 342-character RS256 signature) is accepted by the token answer check and by the cache read; a
   classic token is still accepted (S1, S4, S5).
 - [ ] AC2: A token with whitespace, a control character, any other character outside `[A-Za-z0-9_.-]`, an empty
-  token and a token one character over the bound are refused; a token of exactly the bound is accepted (E1, E2, E3,
+  token, a non-string token and a token of 4097 characters are refused; a token of 4096 characters is accepted (E1, E2, E3,
   E4, E6).
 - [ ] AC3: With the GitHub test double answering a stateless token, the draft lookup sends the pull request read
   with `Authorization: Bearer <that token>`, caches the token, and a second lookup reuses it without a token request
@@ -92,8 +92,9 @@ refused token is never put into a request header.
 
 - Q1: What is the length bound? GitHub's OpenAPI description (`components.schemas.installation-token.token`, plain
   `string`) and its docs give no maximum, and the GitHub changelog post they link (2026-05-15) cannot be reached from
-  this session. No real stateless token is in the repository or on the issue. Not answered: escalated to the
-  Product Manager.
+  this session. No real stateless token is in the repository or on the issue. Answered: by the Product Manager
+  (escalation, option (a)): at most 4096 characters from `[A-Za-z0-9_.-]`, built from the documented form; the
+  residual risk that no real sample was available is recorded in the new decision record.
 - Q2: Is the documented form really `ghs_APPID_JWT`? Answered: yes, in the OpenAPI description of the operation
   (`main` of `github/rest-api-description`) and in `github/docs`, both read on 2026-11-04.
 - Q3: Does a refused token make CI failures read _draft status unknown_? Answered: yes, `parseInstallationToken`
@@ -105,10 +106,11 @@ refused token is never put into a request header.
 
 ## Area documents
 
-- `docs/areas/github-api.md`, *Installation tokens*: a 2xx answer is accepted with a `token` of 1 to N characters
-  from `[A-Za-z0-9_.-]` (or the narrower form the plan picks), covering the classic and the stateless
+- `docs/areas/github-api.md`, *Installation tokens*: a 2xx answer is accepted with a `token` of 1 to 4096 characters
+  from `[A-Za-z0-9_.-]`, covering the classic and the stateless
   `ghs_<App ID>_<JWT>` form; the cache read applies the same check. *Limits and errors*: the token form follows
   GitHub's OpenAPI note on the stateless format, with its source.
 - `.squad/project.md`, *Security areas* (GitHub API client): the allow-list text `[A-Za-z0-9_]`, 1–255 characters
   changes with it.
-- Decision 0026 is released (v0.7.0) and states the old allow-list: a new record supersedes that point.
+- Decision 0026 is released (v0.7.0) and states the old allow-list: a new record supersedes that point and holds
+  the residual risk of building without a real stateless token (Q1).
