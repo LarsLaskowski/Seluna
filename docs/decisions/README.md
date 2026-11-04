@@ -98,5 +98,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0042](0042-time-zone-aliases-read-as-the-listed-name.md) | Time zone aliases read as the listed name of their zone, other zone names as the runtime's name | Accepted | 2026-10-31 |
 | [0043](0043-only-deliveries-with-an-effect-are-recorded.md) | Only deliveries with an effect are recorded, and deliveries of other senders are bounded per hour | Accepted | 2026-11-02 |
 | [0044](0044-product-prs-may-change-the-squad-settings-file.md) | Product PRs may change the squad settings file | Accepted | 2026-11-01 |
+| [0045](0045-installation-token-allow-list-for-the-stateless-format.md) | Installation token allow-list for GitHub's stateless token format | Proposed | 2026-11-04 |
 
 <!-- project:end index -->

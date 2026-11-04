@@ -1,7 +1,7 @@
 # Spec: Accept GitHub's stateless installation token format
 
 Source: Issue #122
-Status: Draft
+Status: Approved by Product Manager
 
 ## Problem
 
@@ -75,9 +75,10 @@ refused token is never put into a request header.
 - [ ] AC3: With the GitHub test double answering a stateless token, the draft lookup sends the pull request read
   with `Authorization: Bearer <that token>`, caches the token, and a second lookup reuses it without a token request
   (S1, S4).
-- [ ] AC4: With the GitHub test double answering a stateless token, a CI failure in a pull request that is not a
-  draft keeps its usual title, one in a draft is dropped, and a comment on a pull request that is not a draft is kept
-  (S1, S2, S3).
+- [ ] AC4: With the GitHub test double answering a stateless token, the draft lookup answers the pull request's
+  draft state (not a draft, a draft), never a failure; with those answers a CI failure in a pull request that is
+  not a draft keeps its usual title, one in a draft is dropped, and a comment on a pull request that is not a draft
+  is kept (S1, S2, S3).
 - [ ] AC5: A cached row whose token fails the check counts as no cached token (E5).
 - [ ] AC6: `docs/areas/github-api.md` states the accepted token form and bound (Area documents).
 
@@ -115,12 +116,26 @@ refused token is never put into a request header.
 - Decision 0026 is released (v0.7.0) and states the old allow-list: a new record supersedes that point and holds
   the residual risk of building without a real stateless token (Q1).
 
-## Challenge notes
+## Challenge
 
-Minor objections of the spec challenge, verbatim:
+Minor objections of the spec challenge, answered while planning:
 
-1. `minor`: AC3 and AC4 ask for the GitHub test double to answer a stateless token, but no such value exists in the repository. `test/fixtures/github/installation-token.json` holds only the classic token, and `test/github.ts:287` exports only `FIXTURE_TOKEN`. Why it matters: unless the source of the value is fixed, tests could each invent their own token, or a "fixture" could appear that looks captured. Instruction: build one stateless token in `test/github.ts`, from the documented form `ghs_<App ID>_<base64url header>.<base64url payload>.<342-character base64url signature>`. Mark it as built from GitHub's documentation, not captured. Feed it through `installationTokenBody(token)` in the token-check, cache and draft-lookup tests. If you add a fixture file instead, add a row for it in `test/fixtures/github/README.md` saying it is reference-built.
+1. No stateless token value exists in the repository, so tests could invent their own or a fixture could look
+   captured. Accepted: the plan adds one constant, `STATELESS_TOKEN` in `test/github.ts`, built from the documented
+   form `ghs_<App ID>_<base64url header>.<base64url payload>.<342-character base64url signature>`, with a doc comment
+   saying it is built from GitHub's documentation and not captured. It is the token the token-check, cache and
+   draft-lookup tests feed through `installationTokenBody(token, …)`. No fixture file is added, so
+   `test/fixtures/github/README.md` gets no row; `.squad/project.md` (*Test doubles*) names the constant.
+2. The new decision record should say how the residual risk can be checked. Accepted: decision 0045
+   (*Consequences*) says that the Product Manager's live check can turn the format on with GitHub's temporary opt-in
+   header (the 2026-05-15 changelog post linked from `ghs-stateless-token-format.md`), and that a token captured that
+   way, without its signature, is the sample a later issue would use. Seluna's own requests never send the header
+   (Out of scope).
+3. Existing tests flip under the new rule, and E1 relies on anchors without the `m` flag. Accepted: the plan fixes
+   the pattern as `/^[A-Za-z0-9_.-]{1,4096}$/` with no flag, keeps the trailing line feed and `\r\n` cases rejected,
+   moves `a-b` and `a.b` to the accepted cases, replaces 256 by 4097 (refused) and 4096 (accepted), and has the doc
+   comment of `isInstallationTokenText` rewritten.
 
-2. `minor`: The opt-in request header is out of scope for the Worker, which is correct. But it is also the one way to get a real stateless token, which is the residual risk the Product Manager accepted under Q1. Decision 0026 (line 104 onward) already relies on the Product Manager's live check on a deployed copy. Why it matters: the new record would leave out the one way that risk can be checked. Instruction: in the new decision record that supersedes 0026's allow-list point, say that the live check can turn the format on with GitHub's temporary opt-in header, from the 2026-05-15 changelog post linked in `ghs-stateless-token-format.md`. Say that a token captured that way, without its signature, is the sample a later issue would use. Do not add the header to Seluna's own requests.
-
-3. `minor`: Some of the existing tests in `src/github/token-text.test.ts` flip under the new rule and others must stay: "a hyphen" (`a-b`) and "a dot" (`a.b`) are rejected today and must now pass, so they move to the accepted list. "256 characters" becomes 4097 characters, with 4096 accepted. "a trailing line feed" (`a\n`) must stay rejected. Why it matters: E1 relies on the anchors without the `m` flag. JavaScript's `$` does not match before a final `\n` (unlike PCRE or Python), but it would with `m`. Instruction: write the class out as `/^[A-Za-z0-9_.-]{1,4096}$/` with no `m`, `i` or `u` flag. Keep the trailing line feed and `\r\n` rejection cases. Update the doc comment at `src/github/token-text.ts:3`, which still describes the old form.
+Spec fix made while planning: AC4 now also says the lookup answers the draft state, not a failure, with a stateless
+token. The step from that answer to the title (or the dropped notification) is code this change does not touch,
+and the existing `processWebhook` tests pin it (plan, *Tests per criterion*).
