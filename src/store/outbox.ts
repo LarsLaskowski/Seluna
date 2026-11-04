@@ -113,3 +113,11 @@ export function finishedRowsDelete(db: D1Database, writtenBefore: Date, limit: n
     )
     .bind(writtenBefore.getTime(), limit);
 }
+
+/**
+ * Writes one `pending` row and returns its id. Rejects with a `TypeError` when the insert returns no numeric id; other
+ * D1 errors are not caught.
+ */
+export async function insertOutboxRow(db: D1Database, row: NewOutboxRow, createdAt: Date): Promise<number> {
+  throw new Error("Not implemented");
+}
