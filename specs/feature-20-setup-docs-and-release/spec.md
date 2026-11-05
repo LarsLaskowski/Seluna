@@ -1,19 +1,14 @@
 # Spec: Setup documentation, troubleshooting and the path to 1.0.0
 
 Source: Issue #20
-Status: Draft
+Status: Approved by Product Manager
 
 ## Problem
 
-Seluna's aim is that someone without prior knowledge sets up their own instance alone, in under 15 minutes and
-without a command line (issue #20, *Goal*). Today [`docs/setup.md`](../../docs/setup.md) calls itself a stopgap
-("A fuller guide follows in a later version"): it is text only, packs the Telegram step, the GitHub App step, the
-installation and the settings into three dense paragraphs, suggests `openssl rand -hex 32` (a command line) for
-`SELUNA_SECRET`, never ends with a check that a real message arrives, and exists in English only. There is no guide
-for a setup without the Deploy button, and no page that turns a symptom (no message, GitHub's delivery log showing
-401, a bot that "does not answer") into a cause and a fix, so a stuck user has to read the area documents or ask.
-Every dependency the issue lists (#13, #14, #16–#19, #65–#69, #108–#110) is closed and released in v0.3.0–v0.8.0, so
-the pages and events the guide describes are final for 1.0.0.
+Issue #20 (*Goal*) wants a reader without prior knowledge to set up Seluna alone, in under 15 minutes, without a
+command line. Today's [`docs/setup.md`](../../docs/setup.md) is a text-only stopgap in English, suggests `openssl` for
+`SELUNA_SECRET` and never checks that a message arrives; there is no manual setup and no troubleshooting page. Every
+dependency of the issue is closed and released (up to v0.8.0), so the pages the guides describe are final for 1.0.0.
 
 ## Scenarios
 
@@ -82,24 +77,18 @@ the pages and events the guide describes are final for 1.0.0.
 - Reader environment (S1, S2), as the Product Manager answered: a desktop browser and the Telegram app on a phone;
   new or existing free accounts at GitHub, Cloudflare and Telegram; a personal GitHub account; no command line and
   no local tools.
-- Manual setup environment (S3): _pending the Product Manager's answer (open question 7)_; proposed: Linux, macOS or
-  WSL with a POSIX shell, Node.js 24 and npm (`engines` in `package.json`), Git, a clone of the reader's own copy or
-  of the original repository, `wrangler login` through the desktop browser, a new or existing free Cloudflare
-  account. The guide covers creating the D1 database and recording its id (the configuration carries none), and how
-  such an instance gets updates.
-- Screenshots are produced without a new dependency and without committed code: Seluna's pages rendered with made-up
-  values and captured with a headless browser in the session; the plan names the procedure. A committed generator
-  would be code with tests and is not part of this change.
+- Manual setup environment (S3), as the Product Manager answered: Linux, macOS or WSL with a POSIX shell, Node.js 24 and npm,
+  Git, a clone of the reader's own copy or of the original repository, `wrangler login` through the desktop browser,
+  a new or existing free Cloudflare account. The guide covers creating the D1 database and how such an instance gets
+  updates.
 - Every label, notice and page name a guide quotes is the text of the version it ships with (`src/setup/texts.ts`,
   `src/i18n/`), in the language of the guide.
-- Screenshots: of Seluna's own pages only, rendered by the squad in English and German; one file per screenshot
-  under `docs/assets/`, each with alt text that says what the image shows, sized
-  to stay readable on GitHub without blowing up the repository (limit fixed in the plan); none shows a secret or a
-  private value (E9).
+- Screenshots: of Seluna's own pages only, in English and German, rendered with made-up values and captured with a
+  headless browser, no new dependency and no committed generator (decision 0046); one file each under
+  `docs/assets/`, with alt text, size limit in the plan; none shows a secret or a private value (E9).
 - `docs/setup.md` and `docs/setup.de.md` stay equivalent: same sections, same order, same screenshots or their German
   counterparts; a later change to one changes the other in the same pull request.
 - No change to the Worker, its configuration or its behavior; no new setting.
-- English everywhere else in the repository; `docs/setup.de.md` is the one German document (open question 2).
 
 ## Acceptance criteria
 
@@ -129,12 +118,13 @@ the pages and events the guide describes are final for 1.0.0.
   screenshot shows is made up for the rendering; checked by the Reviewer and confirmed by the Product Manager at the
   PR approval (E9).
 - [ ] AC7: Before the documentation is reviewed, the Product Manager (or a stand-in the plan names) runs `docs/setup.md`
-  on a new instance deployed from the branch head and ends with the test pull request's message, then switches the
+  on a new instance deployed with the Deploy button (the change holds no code, so `main` deploys what the branch
+  head would), reading the guides of the branch head, and ends with the test pull request's message, then switches the
   pages to **Deutsch** and checks the labels and screenshots of `docs/setup.de.md` against them; every step where the
   run differed from a guide is fixed in both guides, every statement no run showed is marked as such in the guide,
   and the run's duration is recorded in `log.md` beside the 15-minute aim (S1, S2).
-- [ ] AC8: The same applies to `docs/manual-setup.md`: the Product Manager or the named stand-in runs it end to end
-  on a new Cloudflare account in the environment of open question 7 before the review, with the same fixes and
+- [ ] AC8: The same applies to `docs/manual-setup.md`: the Product Manager runs it end to end on a new Cloudflare
+  account in the environment of open question 7, alongside the AC7 run and before the review, with the same fixes and
   markings (S3).
 - [ ] AC9: `docs/CONTRIBUTING.md` states that a change of a setup page's text or look updates `docs/setup.md`,
   `docs/setup.de.md` and their screenshots in the same pull request (E10).
@@ -145,8 +135,8 @@ the pages and events the guide describes are final for 1.0.0.
   external person with their own accounts, one week of real use without a lost or duplicated message, and the
   release v1.0.0 — are verified by the Product Manager after this pull request is merged. The pull request refers to
   issue #20 without closing it; stumbling points from the external test are fixed in follow-up documentation pull
-  requests; v1.0.0 is cut by its own release pull request as `docs/CONTRIBUTING.md` (*Versioning and releases*,
-  *Release plan up to 1.0.0*) describes, which also changes the README's *Status* section, and #20 is closed then.
+  requests; v1.0.0 is cut by its own release pull request (`docs/CONTRIBUTING.md`), which also changes the README's
+  *Status* section, and #20 is closed then.
 - Guides for the messengers of #70–#73 (they bring their own sections, issue comment of 2026-10-18).
 - Any change to the setup pages; a defect the screenshots reveal (decision 0034, *Consequences*) becomes a new issue.
 - A German translation of any document other than the setup guide.
@@ -155,16 +145,12 @@ the pages and events the guide describes are final for 1.0.0.
 
 ## Open questions
 
-- Q1: Which dependencies are still open? Answered: none — #13, #14, #16–#19, #65–#69, #108–#110 are closed (milestones
-  M3–M8, released up to v0.8.0); the issue's *Context* lists fewer events than Seluna reports today (issues,
-  comments, stars, forks, the release notice and the limit notice were added later), so the guides and README list
-  the current set from the code, not the issue's.
-- Q2: May a German document live in the repository, which writes everything in English (`AGENTS.md`)? Answered: yes
-  for `docs/setup.de.md` — the owner asks for it in the issue's *Scope*, and user-facing German already ships in
-  `src/i18n/` and `src/setup/texts.ts`; the rule governs the project's working language, not translations for users.
-- Q3: How are the issue's criteria handled that the squad cannot run in a session (external test, one week of use,
-  v1.0.0)? Answered: Lead decision — out of scope of this pull request and verified by the Product Manager afterwards
-  (*Out of scope*); the squad's part ends with AC7, the dry run the routing requires for a documented procedure.
+- Q1: Which dependencies are still open? Answered: none (#13, #14, #16–#19, #65–#69, #108–#110 closed); the issue's
+  *Context* lists fewer events than today's, so the documents list the current set from the code.
+- Q2: May a German document live in an English-only repository (`AGENTS.md`)? Answered: yes, `docs/setup.de.md` only —
+  [decision 0046](../../docs/decisions/0046-setup-guides-screenshots-and-languages.md).
+- Q3: How are the issue's criteria handled that the squad cannot run (external test, one week of use, v1.0.0)?
+  Answered: Lead decision — *Out of scope*, verified by the Product Manager after the merge.
 - Q4: Who takes the screenshots, of which screens, in which languages, and what may the guide assume about the
   reader's browser and accounts? Answered: by the Product Manager — screenshots of Seluna's own pages only, rendered
   by the squad in both languages; other services' steps in text with a link to their own documentation; the reader
@@ -177,42 +163,25 @@ the pages and events the guide describes are final for 1.0.0.
   non-draft pull request whoever opened it (`src/rules/pull-request-opened.ts`); only issues and comments leave the
   owner's own out.
 - Q7: What does the reader of `docs/manual-setup.md` have, and who runs it end to end before the review? Answered:
-  not yet — escalated to the Product Manager (Challenge, M1); the proposal is under *Non-functional requirements*.
+  by the Product Manager — the environment under *Non-functional requirements*; the Product Manager runs it alongside
+  the AC7 dry run.
 
 ## Area documents
 
-None describes new behavior: the change is documentation only. [Deployment](../../docs/areas/deployment.md) keeps
-saying the setup guide has the user check the deploy command (still true) and gains a link to `docs/manual-setup.md`
-for the Wrangler path. The plan sweeps every reference to `docs/setup.md` and its sections — at least the area
-documents, `docs/ARCHITECTURE.md`, `docs/update.md` (*After the update*, *Unknown base*), `README.md` (*Get
-started*), `docs/CONTRIBUTING.md` (*Release plan up to 1.0.0*) and the sign-in notice's "as the setup guide
-describes" (`src/setup/texts.ts`, mirrored in `docs/areas/setup-wizard.md`), which the guide's deploy step keeps
-true. Today's content of `docs/setup.md` keeps a destination: *Updates* stays as a link to `docs/update.md`, the
-Worker secrets that override the wizard move to `docs/manual-setup.md`, the note on the owner's own issues and
-comments stays in the settings step, and the organization note becomes one sentence in the GitHub App step.
+None describes new behavior: the change is documentation only. [Deployment](../../docs/areas/deployment.md) gains
+the manual deployment path; the plan's *Documentation updates* list every reference to `docs/setup.md` to sweep
+and where each part of today's `docs/setup.md` goes.
 
 ## Challenge
 
-- M1 (manual setup has no environment and no run): accepted. S3 now names the environment, a proposal under
-  *Non-functional requirements* (the database id and updates included), AC3 asks for the machine's needs and the
-  database, secret and update commands, and AC8 adds an end-to-end run before the review. The environment and who
-  runs it are the Product Manager's to answer (`.squad/routing.md`, *Operator environments*): escalated as Q7. The
-  shell-procedure questions (a)–(d) go to the plan.
-- 1 (causes of _No message arrives_): accepted — E5 lists the eight causes, E7 adds _No chat found_ and the webhook
-  conflict; the plan checks each against the code.
-- 2 (German guide never run): accepted — AC7 has the same run check `docs/setup.de.md` against the German pages and
-  mark what no run showed.
-- 3 (how screenshots are made): accepted — a non-functional requirement: no new dependency, no committed generator,
-  the session's headless browser on pages rendered with made-up values; the plan names the procedure. The change
-  stays documentation only.
-- 4 (no safeguard for E10): accepted, narrowed — E10 holds for the release this change ships with, and AC9 adds the
-  rule to `docs/CONTRIBUTING.md`. No automatic label check: it would be committed code for a rare change.
-- 5 (sweep too narrow, content without destination): accepted — *Area documents* names the references and where
-  today's `docs/setup.md` content goes; AC1 keeps the deploy-command check and the links, AC3 the secret overrides.
-- 6 (two events missing from AC5): accepted — AC5 reworded as proposed.
-- 7 (test repository): accepted — S1 has the reader create a private repository and open the pull request in the
-  web interface, and warns against the Seluna copy.
-- 8 (15 minutes): accepted — AC7 records the run's duration in `log.md` beside the aim; the aim itself is met or
-  missed in the external test after the merge (*Out of scope*).
-- 9 (Q5 and `openssl`): accepted — Q5 corrected, E2 points to the password manager and names no browser-only way, AC1
-  says "no shell command".
+Spec challenge (1 major, 9 minor), all accepted; the spec text above carries each change.
+
+- M1 (manual setup without environment or run): environment under *Non-functional requirements* (Q7, answered by the
+  Product Manager), AC3 extended, AC8 added; the shell-procedure questions are answered in the plan.
+- 1: E5 lists the eight causes of a missing message, E7 the Telegram step's failures.
+- 2: AC7 checks `docs/setup.de.md` against the German pages.
+- 3: screenshot method under *Non-functional requirements* and in the plan.
+- 4: E10 narrowed to the release the guides ship with; AC9 adds the rule to `docs/CONTRIBUTING.md`.
+- 5: the plan's *Documentation updates* name the references and the destination of today's `docs/setup.md` content.
+- 6: AC5 names the release and limit notices. 7: S1 names the test repository. 8: AC7 records the duration.
+- 9: Q5 corrected; E2 and AC1 reworded.

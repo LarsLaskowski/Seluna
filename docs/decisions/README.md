@@ -99,5 +99,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0043](0043-only-deliveries-with-an-effect-are-recorded.md) | Only deliveries with an effect are recorded, and deliveries of other senders are bounded per hour | Accepted | 2026-11-02 |
 | [0044](0044-product-prs-may-change-the-squad-settings-file.md) | Product PRs may change the squad settings file | Accepted | 2026-11-01 |
 | [0045](0045-installation-token-allow-list-for-the-stateless-format.md) | Installation token allow-list for GitHub's stateless token format | Accepted | 2026-11-04 |
+| [0046](0046-setup-guides-screenshots-and-languages.md) | Setup guides with screenshots of Seluna's own pages, in English and German | Proposed | 2026-11-05 |
 
 <!-- project:end index -->
