@@ -23,3 +23,4 @@ are quoted in full.
 | 2026-11-05 18:59 | 7 Code check | Orchestrator | main unchanged; Format check PASS, Analyzer gate PASS (0 TS files), Test 93 files / 6557 tests PASS, scope-check PASS (38 files), decision-check PASS; Coverage gate n/a (no code) |
 | 2026-11-05 19:00 | 7 Early draft PR | Orchestrator | opened https://github.com/LarsLaskowski/Seluna/pull/153 as draft on 69a8e13 (label enhancement), subscribed; waiting for CI, Sonar and the PM dry runs AC7/AC8 (tasks.md G3) |
 | 2026-11-05 19:03 | 7 Early draft PR CI | Orchestrator | CI on PR #153 green (all check runs success), sonar-check.py pr 153 PASS; waiting for PM dry runs AC7/AC8 |
+| 2026-11-05 19:56 | 7 Early draft PR | Product Manager | marked PR #153 ready for review before the dry runs; will still run AC7/AC8 and report the results before review and approval |
