@@ -66,7 +66,7 @@ Every webhook is checked against its signature before anything happens. A delive
 3. Select **Deploy to Cloudflare** above. The button creates an independent copy of this repository in your GitHub account (not a fork) and deploys it.
 4. Open `https://<your-worker>.workers.dev/` (it leads to the setup page `/setup`), sign in and let the wizard take your bot token, connect your Telegram chat and create the GitHub App.
 
-The full walk-through is in the [setup guide](docs/setup.md). Every push to `main` of your copy deploys it.
+The full walk-through, with a screenshot of every setup page and a test pull request at the end, is in the setup guide in [English](docs/setup.md) or [Deutsch](docs/setup.de.md). If you prefer the command line, or want to create the GitHub App yourself, follow the [manual setup](docs/manual-setup.md). If something does not work, [troubleshooting](docs/troubleshooting.md) lists the symptoms and their fixes. Every push to `main` of your copy deploys it; [`docs/update.md`](docs/update.md) explains how to apply a new release.
 
 ## Settings
 
@@ -102,7 +102,15 @@ The release plan is in [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md#release-pla
 
 ## Security
 
-Please report vulnerabilities privately, see [`SECURITY.md`](SECURITY.md).
+Please report vulnerabilities privately through GitHub's private vulnerability reporting, see [`SECURITY.md`](SECURITY.md); do not open a public issue for them.
+
+Security notes for the owner of an instance:
+
+- **What is stored encrypted.** The GitHub App's ID, private key and webhook secret and the Telegram bot token you enter in the setup live in your D1 database as AES-256-GCM ciphertext, as do the short-lived installation tokens. Nothing secret is logged or returned by a page. The chat id and your settings are not secret and are stored as plain values.
+- **What `SELUNA_SECRET` protects.** It is the password of the setup page and the source of the key that encrypts the stored credentials. Five wrong attempts lock signing in for 15 minutes. Keep it in a password manager: if you change it, Seluna cannot read the stored credentials any more and you set the earlier secret again or reset them ([troubleshooting](docs/troubleshooting.md#i-changed-the-seluna_secret)). The optional Worker secrets (`TELEGRAM_BOT_TOKEN`, `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`, `TELEGRAM_CHAT_ID`) take precedence over the stored values.
+- **Webhooks are signed.** Seluna answers a webhook only when its signature matches the webhook secret of your GitHub App.
+- **Why _Only select repositories_.** A webhook of a public repository can come from strangers (for example issues and comments). Installed on only the repositories you pick, the app reports only those; with _All repositories_, every repository of the account, public ones included, reports to your instance.
+- **The bot token in traces.** The Telegram Bot API takes the bot token in the request URL. If you turn on Workers traces or logs that record outbound requests in Cloudflare, they record the token with them; treat such traces as secret.
 
 ## Contributing
 

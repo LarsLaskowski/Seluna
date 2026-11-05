@@ -44,7 +44,7 @@ From version 1.0.0 on, a release with a new major number can change how Seluna w
 ## After the update
 
 1. Wait for the build: in the Cloudflare dashboard open **Workers & Pages**, your Worker and **Deployments**. The new version is live when the build succeeds; `https://<worker>.<your-subdomain>.workers.dev/health` answers with it.
-2. Check that the **Deploy command** under **Settings** and **Build** is still `npm run deploy` (see [Setup](setup.md)), so that the release's database migrations are applied. If the build fails after an update, its log names the reason; the update commit is an ordinary commit that you can revert on GitHub.
+2. Check that the **Deploy command** under **Settings** and **Build** is still `npm run deploy` (see [Setup, step 3](setup.md#3-deploy-to-cloudflare)), so that the release's database migrations are applied. If the build fails after an update, its log names the reason; the update commit is an ordinary commit that you can revert on GitHub.
 3. Your instance keeps its own names. The update leaves the package name (in `package.json` and `package-lock.json`), the Worker name and the database name (in `wrangler.jsonc`) of your copy as they are. This covers every `name` or `database_name` line of that file whose value is the one the original repository had when your copy was built, also a nested one, not only the first. If a release renames the package, the Worker or the database away from that value, the update replaces your name with the release's new one; set your own name again by hand afterwards in the web interface (**Edit this file**).
 
 ## Permissions
@@ -81,5 +81,5 @@ An update needs to know which Seluna version your copy was built from, to apply 
 The workflow never guesses a version, as that could silently keep or revert code. You can:
 
 - apply the release by hand: in the original repository open the release, compare its files with your copy's and edit them in your copy, keeping your `wrangler.jsonc` values; or
-- create a new copy with the **Deploy to Cloudflare** button and enter your values again (see [Setup](setup.md)); or
+- create a new copy with the **Deploy to Cloudflare** button and enter your values again (see [Setup, step 3](setup.md#3-deploy-to-cloudflare)); or
 - open an issue in the original repository with the message and the first commit of your copy.

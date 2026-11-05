@@ -179,7 +179,7 @@ that copy starts a Workers Build whose deploy command, `npm run deploy`, applies
 update workflow (`.github/workflows/update.yml`), started by hand in the copy's GitHub Actions: it pushes the latest
 full release as one new commit on `main`, keeping the copy's own changes and workflow files, and Workers Builds
 deploys that push like any other ([decision 0031](decisions/0031-update-workflow-for-copies.md), rules in
-[`areas/deployment.md`](areas/deployment.md#update)).
+[`areas/deployment.md`](areas/deployment.md#update)). An instance can also be deployed by hand with Wrangler ([`manual-setup.md`](manual-setup.md), [`areas/deployment.md`](areas/deployment.md#manual-deployment)).
 <!-- project:end architecture -->
 
 ## Development process

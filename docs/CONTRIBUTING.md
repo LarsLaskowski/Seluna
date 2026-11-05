@@ -146,6 +146,16 @@ A copy keeps the file it has until its owner replaces it by hand, so the file ch
 files of every later release. Its messages name sections of [`docs/update.md`](update.md); a change to a message or a
 section name changes both. Its tests run in the Node project of Vitest (`test/update-workflow.test.ts`).
 
+### Setup guides
+
+The setup guide exists in English ([`docs/setup.md`](setup.md)) and German ([`docs/setup.de.md`](setup.de.md)), with
+screenshots of the setup pages under `docs/assets/setup/en/` and `docs/assets/setup/de/`
+([decision 0046](decisions/0046-setup-guides-screenshots-and-languages.md)). A change of a setup page's text or look
+(`src/setup/texts.ts`, `src/setup/pages.ts`) updates `docs/setup.md`, `docs/setup.de.md` and their screenshots in the
+same pull request. The two guides keep the same sections in the same order, and a change to one changes the other in
+the same pull request. The screenshots show made-up values only (account `your-account`, App ID `123456`, no token,
+id or address of a real account); no generator is committed.
+
 ### Release plan up to 1.0.0
 
 The GitHub milestones are the release plan: one milestone is one release. A release is due when the last open
@@ -179,7 +189,7 @@ released version until that release pull request; it is never raised on its own.
 - M8 comes before 1.0.0 because it changes the GitHub App manifest: an app created with 1.0.0 already has every
   permission and event, so no 1.0.0 user has to grant new ones by hand.
 - 1.0.0 comes before the messenger channels: they are additive and follow as minor releases (1.1.0, 1.2.0), each adding
-  one step to the setup guide.
+  one step to both setup guides.
 <!-- project:end releases -->
 
 <!-- project:begin stability -->
