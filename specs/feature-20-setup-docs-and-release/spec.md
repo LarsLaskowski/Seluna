@@ -22,11 +22,13 @@ the pages and events the guide describes are final for 1.0.0.
   without a command line, deploy with **Deploy to Cloudflare**, check the deploy command, open the Worker URL and
   sign in on `/setup`, finish the **Telegram chat** step, the **GitHub App** step and the installation on
   **Only select repositories**, review the settings, and open a (non-draft) test pull request in a repository they
-  picked — and receive its Telegram message. Each step names the controls exactly as the page shows them, shows a
-  screenshot of what the reader sees, and ends with what the reader sees when the step worked.
+  picked — and receive its Telegram message. Each step names the controls exactly as the page shows them and ends
+  with what the reader sees when the step worked. A step on one of Seluna's own pages shows a screenshot of that
+  page; a step on another service (@BotFather, the Cloudflare deploy flow and build settings, GitHub's app creation
+  and installation, Telegram) is described in text and links that service's own documentation, no screenshot.
 - S2: Given a German-speaking reader, when they open `docs/setup.de.md` (linked from the top of `docs/setup.md` and
   from the README), then they find the same steps in the same order in German, with the setup pages' German labels
-  (the pages' **Deutsch** language link) and their screenshots.
+  (the pages' **Deutsch** language link) and screenshots of the German pages.
 - S3: Given a reader who prefers the Wrangler CLI or creates the GitHub App by hand, when they follow
   `docs/manual-setup.md`, then they deploy the Worker and apply the migrations with Wrangler, create a GitHub App
   with exactly the permissions, events and webhook URL the wizard's manifest uses, set the Worker secrets of
@@ -43,7 +45,7 @@ the pages and events the guide describes are final for 1.0.0.
 ## Errors and edge cases
 
 - E1: The Deploy button set the deploy command to `npx wrangler deploy` (decision 0020): the guide's deploy step has
-  the reader check **Settings → Build → Deploy command** with a screenshot, and the troubleshooting page has the
+  the reader check **Settings → Build → Deploy command** (text and a link to Cloudflare's documentation), and the troubleshooting page has the
   sign-in notice _The database of this instance is missing its tables_ as a symptom.
 - E2: The reader's `SELUNA_SECRET` is shorter than 32 characters or missing: the guide says how to create one in a
   password manager or a browser-only way first, and the troubleshooting page explains the page `/setup` shows then.
@@ -59,19 +61,20 @@ the pages and events the guide describes are final for 1.0.0.
   says so and points to the Telegram step's chat search and test message instead.
 - E8: The reader changed `SELUNA_SECRET`: the troubleshooting page leads to setting the earlier secret again or to
   **Reset and create the GitHub App again**, then re-entering the bot token and deleting the old app on GitHub.
-- E9: A screenshot would show a private value (bot token, `SELUNA_SECRET`, chat id, e-mail address, the real account,
-  Worker subdomain or App ID of the person who took it): it is not published as it is.
+- E9: A screenshot of a Seluna page would show a private value (bot token, `SELUNA_SECRET`, chat id, e-mail address,
+  a real account, Worker subdomain or App ID): it is never published; the pages are rendered with made-up values.
 - E10: A setup page, a button label or a third-party screen changes in a later release: the reader finds a guide
   whose text matches the pages of the version it ships with (see the non-functional requirements).
 
 ## Non-functional requirements
 
-- Reader environment (S1, S2): a web browser and the Telegram app, accounts at GitHub, Cloudflare (free plan) and
-  Telegram, no command line and no local tools. _Pending the Product Manager's confirmation (open question 4):
-  desktop or phone browser, new or existing accounts, organization accounts._
+- Reader environment (S1, S2), as the Product Manager answered: a desktop browser and the Telegram app on a phone;
+  new or existing free accounts at GitHub, Cloudflare and Telegram; a personal GitHub account; no command line and
+  no local tools.
 - Every label, notice and page name a guide quotes is the text of the version it ships with (`src/setup/texts.ts`,
   `src/i18n/`), in the language of the guide.
-- Screenshots: one file per screenshot under `docs/assets/`, each with alt text that says what the image shows, sized
+- Screenshots: of Seluna's own pages only, rendered by the squad in English and German; one file per screenshot
+  under `docs/assets/`, each with alt text that says what the image shows, sized
   to stay readable on GitHub without blowing up the repository (limit fixed in the plan); none shows a secret or a
   private value (E9).
 - `docs/setup.md` and `docs/setup.de.md` stay equivalent: same sections, same order, same screenshots or their German
@@ -81,12 +84,14 @@ the pages and events the guide describes are final for 1.0.0.
 
 ## Acceptance criteria
 
-- [ ] AC1: `docs/setup.md` contains the steps of S1 in that order, each with at least one screenshot and the check
-  that shows it worked, quotes every control and notice as `src/setup/texts.ts` (English) has it, contains no
+- [ ] AC1: `docs/setup.md` contains the steps of S1 in that order, each with the check that shows it worked; every
+  step on a Seluna page has at least one screenshot of that page in English, every step on another service a link
+  to that service's documentation and no screenshot; it addresses a personal GitHub account, quotes every control and notice as `src/setup/texts.ts` (English) has it, contains no
   command a reader must type, and covers the deploy-command check, the secret length, the one-hour limit and the
   test pull request's conditions (S1, E1, E2, E4, E5).
 - [ ] AC2: `docs/setup.de.md` has the same sections in the same order as `docs/setup.md`, quotes the German texts of
-  `src/setup/texts.ts`, and the two guides link each other at the top (S2).
+  `src/setup/texts.ts`, shows the screenshots of AC1 rendered in German, and the two guides link each other at the
+  top (S2).
 - [ ] AC3: `docs/manual-setup.md` lists the GitHub App permissions and events exactly as `src/github/manifest.ts`
   builds them, the webhook URL `https://<worker>.<subdomain>.workers.dev/webhook`, the Worker secrets as
   [Deployment](../../docs/areas/deployment.md#worker-secrets) names them, and the Wrangler commands to create the
@@ -97,8 +102,9 @@ the pages and events the guide describes are final for 1.0.0.
 - [ ] AC5: The README links `docs/setup.md`, `docs/setup.de.md`, `docs/manual-setup.md` and
   `docs/troubleshooting.md`, lists the reported events as `src/rules/registry.ts` registers them, and has a security
   notes section with the points of S5 (S5).
-- [ ] AC6: No screenshot or text of the change shows a secret or a private value of a real account; checked by the
-  Reviewer and confirmed by the Product Manager at the PR approval (E9).
+- [ ] AC6: No screenshot or text of the change shows a secret or a private value of a real account: every value a
+  screenshot shows is made up for the rendering; checked by the Reviewer and confirmed by the Product Manager at the
+  PR approval (E9).
 - [ ] AC7: Before the documentation is reviewed, the Product Manager (or a stand-in the plan names) runs `docs/setup.md`
   on a new instance deployed from the branch head and ends with the test pull request's message; every step where
   the run differed from the guide is fixed in both guides (S1, E10).
@@ -114,6 +120,8 @@ the pages and events the guide describes are final for 1.0.0.
 - Guides for the messengers of #70–#73 (they bring their own sections, issue comment of 2026-10-18).
 - Any change to the setup pages; a defect the screenshots reveal (decision 0034, *Consequences*) becomes a new issue.
 - A German translation of any document other than the setup guide.
+- Screenshots of other services (Product Manager, Q4) and a setup for a GitHub organization: the guides address a
+  personal account; the wizard's organization choice stays as it is, undocumented in the guides beyond a mention.
 
 ## Open questions
 
@@ -128,9 +136,10 @@ the pages and events the guide describes are final for 1.0.0.
   v1.0.0)? Answered: Lead decision — out of scope of this pull request and verified by the Product Manager afterwards
   (*Out of scope*); the squad's part ends with AC7, the dry run the routing requires for a documented procedure.
 - Q4: Who takes the screenshots, of which screens, in which languages, and what may the guide assume about the
-  reader's browser and accounts? Answered: not yet — escalated to the Product Manager; the squad can render Seluna's
-  own pages but cannot capture @BotFather, the Cloudflare deploy flow, GitHub's app creation and installation or the
-  arriving Telegram message without real accounts.
+  reader's browser and accounts? Answered: by the Product Manager — screenshots of Seluna's own pages only, rendered
+  by the squad in both languages; other services' steps in text with a link to their own documentation; the reader
+  has a desktop browser, the Telegram app on a phone, new or existing free accounts, a personal GitHub account only
+  and no command line.
 - Q5: Can a reader create `SELUNA_SECRET` without a command line? Answered: yes — a password manager's generator (or
   any 32+ character random string); `openssl` stays as an alternative in `docs/manual-setup.md` only.
 - Q6: Does an owner's own test pull request give a message? Answered: yes — the pull request rules report an opened
