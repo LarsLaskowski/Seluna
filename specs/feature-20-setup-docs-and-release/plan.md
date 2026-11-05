@@ -1,7 +1,7 @@
 # Plan: Setup documentation, troubleshooting and the path to 1.0.0
 
 Source: [spec.md](spec.md)
-Status: Draft
+Status: Revised (1)
 Tier: trivial — documentation and screenshots only, with a decision record; no production, test, configuration or workflow file changes.
 Security areas touched: Encrypted credentials (`docs/manual-setup.md` tells the reader how to set `SELUNA_SECRET`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET` and the other Worker secrets by hand); Minimal GitHub App permissions (`docs/manual-setup.md` lists the permissions and events of a hand-made app, which must equal `src/github/manifest.ts`). No security control changes.
 
@@ -29,6 +29,7 @@ Feature: see [spec.md](spec.md) (AC1–AC9).
 | 14 | `docs/CONTRIBUTING.md` is template-marked: the AC9 rule goes into its project block `releases` (lines 104–183) | `<!-- project:begin releases -->` | confirmed |
 | 15 | The links to @BotFather's, Cloudflare's and GitHub's documentation point to pages that describe today's steps | to verify: Dev writes them from the official documentation (`core.telegram.org/bots/features#botfather`, `developers.cloudflare.com/workers/…`, `docs.github.com/…/registering-a-github-app`, `…/installing-your-own-github-app`); Product Manager confirms in the AC7/AC8 runs | unverified |
 | 16 | The browser setup takes under 15 minutes | to verify: Product Manager, AC7 run, duration in `log.md` | unverified |
+| 17 | `npm ci --ignore-scripts` leaves Wrangler working for `wrangler d1 create`, `npm run deploy` and `wrangler secret put` | to verify: AC8 run, Product Manager, on a reader's machine (CI already builds and tests with it, `.squad/stack.md:39`, `.github/workflows/ci.yml:27,58,82`) | unverified |
 
 ## Tests per criterion
 
@@ -45,7 +46,8 @@ in the AC8 run.
   own, with the warning that a further pasted line would become the secret's value.
 - (b) **One line at a time:** the intended use; each block is followed by what its output shows when it worked.
 - (c) **One line fails:** each step says "stop here" and points to the troubleshooting entry; no later step works on
-  a half-finished state: `npm run deploy` already stops before `wrangler deploy` when the migrations fail
+  a half-finished state: a failed `git checkout vX.Y.Z` leaves nothing to install; `npm ci --ignore-scripts` runs
+  before `wrangler login`, so no dependency script runs and a failed install leaves no stored login; `npm run deploy` already stops before `wrangler deploy` when the migrations fail
   (`package.json:19`, `&&`), and the secrets step comes after a successful deploy.
 - (d) **A variable is lost:** the guide uses no shell variables. Values are entered at prompts or read from a file
   (`< <key file>`), never typed as arguments, so no secret lands in the shell history.
@@ -60,17 +62,17 @@ or test code (*Changes without production or test code*). Step 6 is the Dev's ed
 | -- | ----------- | ----- |
 | AC1 | Reviewer: steps and order of S1, one screenshot per Seluna-page step, a documentation link per other-service step, no shell command, every quoted label found verbatim in the English table of `src/setup/texts.ts` (Dev lists each quote with its key in the hand-back); Product Manager in the AC7 run | step 8, dry run |
 | AC2 | Reviewer: same headings in the same order as `docs/setup.md`, German quotes found in the German table; Product Manager checks against the German pages in the AC7 run | step 8, dry run |
-| AC3 | Reviewer: permission and event lists equal fact 3, secret names equal `docs/areas/deployment.md` (*Worker secrets*); Product Manager in the AC8 run | step 8, dry run |
-| AC4 | Reviewer: one entry per symptom of E1–E8, each quoted status or text found in `docs/areas/http-routes.md`, `docs/areas/setup-wizard.md` or `src/setup/texts.ts` | step 8 |
-| AC5 | Reviewer: the 13 rules of `src/rules/registry.ts` plus the release and limit notices, the four links, the security notes | step 8 |
+| AC3 | Reviewer: permission and event lists equal fact 3; installable on this account only, webhook **Active**, SSL verification on; secret names equal `docs/areas/deployment.md` (*Worker secrets*); the webhook secret generated with at least 32 random characters and entered only in GitHub's field and at the prompt; first deploy and updates on a release tag (or the own copy's `main`), never upstream `main`; `npm ci --ignore-scripts` before `wrangler login`; the bot-token warning; Product Manager in the AC8 run | step 8, dry run |
+| AC4 | Reviewer: one entry per symptom of E1–E8, each quoted status or text found in `docs/areas/http-routes.md`, `docs/areas/setup-wizard.md` or `src/setup/texts.ts`; no advice to turn on Workers traces or outbound-request logs without the bot-token warning | step 8 |
+| AC5 | Reviewer: the 13 rules of `src/rules/registry.ts` plus the release and limit notices, the four links; the security notes checked against `.squad/project.md` (*Encrypted credentials*: what D1 holds as AES-256-GCM ciphertext, `SELUNA_SECRET` as key source and setup password, Worker secrets taking precedence) and `SECURITY.md` for reporting, claiming no protection beyond those | step 8 |
 | AC6 | Reviewer opens every image; Product Manager confirms at step 9 | step 8, step 9 |
 | AC7, AC8 | Product Manager runs both procedures on the early draft PR's head; the orchestrator logs the result, the duration and every deviation; the Dev fixes deviations and marks unshown statements | dry run before step 8 |
 | AC9 | Reviewer: the rule is in the `releases` project block of `docs/CONTRIBUTING.md` | step 8 |
 
 **Early draft PR** (`.squad/routing.md`, *Early draft PR*): the dry runs need the guides with their images as GitHub
 renders them. The orchestrator opens the PR as a draft right after step 7, the Product Manager runs AC7 and AC8 on
-that head (the browser guide with the Deploy button from `main`, fact 10; the manual guide from a clone of the
-branch), fixes go back to the Dev (step 6) and through step 7 again, and the Reviewer's round of step 8 runs on the
+that head (the browser guide with the Deploy button from `main`, fact 10; the manual guide read on the branch
+and run as written, on the latest release tag), fixes go back to the Dev (step 6) and through step 7 again, and the Reviewer's round of step 8 runs on the
 head after the last fix. The PR body says "Part of #20", never "Closes #20".
 
 ## Approach
@@ -84,15 +86,28 @@ Documents (layout below fixed by this plan):
   does not work* (link to `docs/troubleshooting.md`). Each step: numbered actions, the screenshot or the external
   link, and a last line "**It worked when** …". The organization option gets one sentence in step 6 (personal
   account is what the guide follows). The note on the owner's own issues and comments stays in step 8.
-- `docs/manual-setup.md` (English): *What you need* (spec NFR), then Clone, Log in (`npx wrangler login`), Install
-  (`npm ci`), Create the database (`npx wrangler d1 create seluna`), Deploy (`npm run deploy`), Set `SELUNA_SECRET`
-  (`npx wrangler secret put SELUNA_SECRET`, password-manager value or `openssl rand -hex 32`), then either the
-  wizard (continue at `docs/setup.md` step 4) or *Create the GitHub App by hand* (fact 3 lists, webhook secret, key
-  file, the three secrets via `secret put`, `< key file` for the key), the optional `TELEGRAM_BOT_TOKEN` /
-  `TELEGRAM_CHAT_ID` with their precedence (moved from today's `docs/setup.md`), *Updates* (`git pull`, `npm ci`,
-  `npm run deploy`; a copy made by the button updates through `docs/update.md` first). Shell rules: (a)–(d) above.
+- `docs/manual-setup.md` (English): *What you need* (spec NFR), then in this order:
+  1. Clone. 2. Choose the release: a clone of the original repository runs `git fetch --tags` and
+  `git checkout vX.Y.Z` with the latest release from the repository's releases page, never `main`; a clone of the
+  reader's own copy stays on its `main`, which only the update workflow advances. 3. Install with
+  `npm ci --ignore-scripts`, before any login. 4. Log in (`npx wrangler login`). 5. Create the database
+  (`npx wrangler d1 create seluna`). 6. Deploy (`npm run deploy`). 7. Set `SELUNA_SECRET` at the
+  `npx wrangler secret put SELUNA_SECRET` prompt: at least 32 random characters from a password manager or
+  `openssl rand -hex 32`. 8. Either the wizard (continue at `docs/setup.md` step 4) or *Create the GitHub App by
+  hand*: the permissions and events of fact 3; **Where can this GitHub App be installed?** set to only this account;
+  webhook **Active**, URL `https://<worker>.<subdomain>.workers.dev/webhook`, SSL verification left on; a **Webhook
+  secret** generated like `SELUNA_SECRET` (at least 32 random characters), entered in GitHub's field and at the
+  `npx wrangler secret put GITHUB_WEBHOOK_SECRET` prompt, never as an argument; the App ID at the `GITHUB_APP_ID`
+  prompt; the private key with `npx wrangler secret put GITHUB_APP_PRIVATE_KEY < <key file>`, the file then deleted
+  or kept in a password manager. 9. Optional `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` with their precedence (moved
+  from today's `docs/setup.md`) and the warning of `docs/areas/deployment.md` (*Worker secrets*, 2nd bullet) that
+  Workers traces or logs of outbound requests record the bot token. *Updates*: a clone of the original fetches the
+  tags and checks out the next release tag; a clone of the own copy runs the update workflow (`docs/update.md`)
+  and then pulls its `main`; both then run `npm ci --ignore-scripts` and `npm run deploy` — never upstream `main`.
+  Shell rules: (a)–(d) above.
 - `docs/troubleshooting.md` (English): one `##` per symptom (E1–E8), each with *Cause* bullets and *Fix*; _No
-  message arrives_ checks the causes in E5's order, cheapest first.
+  message arrives_ checks the causes in E5's order, cheapest first. It never suggests Workers traces or logs of
+  outbound requests without the bot-token warning of `docs/areas/deployment.md`.
 - Screenshots: `docs/assets/setup/<en|de>/<nn>-<name>.png`, the same names in both languages: `01-login`,
   `02-start-empty`, `03-telegram-token`, `04-telegram-chats`, `05-telegram-code`, `06-github-account`,
   `07-github-review`, `08-github-finish`, `09-github-created`, `10-start-done`, `11-settings`. PNG, 1280 px wide
@@ -138,7 +153,7 @@ not measured).
 
 [Deployment](../../docs/areas/deployment.md): a *Manual deployment* subsection — the Worker can be deployed with
 Wrangler from a clone; the binding finds the database by its name `seluna` (`wrangler d1 create seluna` once); the
-secrets are set with `wrangler secret put`; updates are a pull and `npm run deploy`. Link to `docs/manual-setup.md`
+secrets are set with `wrangler secret put`; only a release is deployed (a release tag, or the own copy's `main`), installed with `npm ci --ignore-scripts`. Link to `docs/manual-setup.md`
 and decision 0046 under *Related decisions*. No other area changes.
 
 ## Documentation updates
@@ -173,8 +188,29 @@ secrets; the guide never has a secret written to a file in the repository or typ
 - [x] no limits (no parsed input).
 - [x] none (no code that can fail).
 - `docs/manual-setup.md`: secrets only at Wrangler's prompt or from a file outside the clone (the key file is deleted
-  or stored in a password manager afterwards); never `.dev.vars` for the deployed instance; the app's permissions
-  exactly fact 3, read-only, private app, *Only select repositories*. Screenshots: made-up values only (AC6).
+  or stored in a password manager afterwards); never `.dev.vars` for the deployed instance. The webhook secret is the
+  one secret a person chooses on this path, and the Worker accepts any non-empty value (`src/webhook-secret.ts:13-17`,
+  `src/github/worker-secrets.ts:13-15`), so the guide has it generated with at least 32 random characters, like
+  `SELUNA_SECRET`. The app equals the manifest beyond permissions and events: private, installable on this account
+  only, webhook active with SSL verification; *Only select repositories*. Only released code is deployed (a release
+  tag, or the own copy's `main`), and no dependency script runs (`npm ci --ignore-scripts`, before the login).
+  Screenshots: made-up values only (AC6).
+
+## Security review
+
+Security's plan review at 70ec8df, `CHANGES_REQUIRED`:
+
+- B1 (webhook secret of the hand-made app): accepted — *Approach* and *Security considerations* have it generated
+  with at least 32 random characters and entered only in GitHub's field and at Wrangler's prompt; AC3's check looks
+  for it.
+- B2 (unreleased code, install scripts): accepted — first deploy and updates on a release tag (a clone of the own
+  copy stays on its `main`, advanced only by the update workflow), `npm ci --ignore-scripts` throughout, install
+  before `wrangler login`; shell case (c), AC3's check and fact 17 follow.
+- N1 (bot token in traces): taken — the manual guide repeats the warning, troubleshooting never suggests traces
+  without it, AC4's check names it.
+- N2 (README security notes): taken — AC5's check names `.squad/project.md` and `SECURITY.md` as the reference.
+- N3 (app settings beyond permissions): taken — this account only, webhook **Active**, SSL verification on, in
+  *Approach* and AC3's check.
 
 ## Decision records
 
