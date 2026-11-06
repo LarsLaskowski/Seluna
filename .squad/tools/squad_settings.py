@@ -34,6 +34,9 @@ COVERAGE_FORMAT = "lcov"
 COVERAGE_REPORT_GLOB = "coverage/lcov.info"
 COVERAGE_PATHSPECS = ["src/*.ts", "src/*.tsx", "src/*.mts", "src/*.cts"]
 COVERAGE_EXCLUDES = ["*.test.ts", "*.spec.ts", "*.test.tsx", "*.spec.tsx", "*.d.ts"]
+# The paths the Tester may write (.claude/hooks/file-guard.py): test files and the test doubles and fixtures under test/.
+# Without this setting the guard falls back to COVERAGE_EXCLUDES, which lacks test/ and includes generated *.d.ts.
+COVERAGE_TEST_PATHSPECS = ["*.test.ts", "*.spec.ts", "*.test.tsx", "*.spec.tsx", "test/"]
 
 # Size warnings (config-check.py, decision-check.py): a file past its limit is reported with the split it needs.
 PROJECT_MAX_WORDS = 1500  # .squad/project.md, read by five members on every launch
