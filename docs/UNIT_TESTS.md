@@ -36,6 +36,13 @@ neighboring test file before inventing a new pattern.
 - `describe` (or the file) names the module; each test name states the scenario and the expected result,
   e.g. `"parseLine returns null for an empty line"`.
 
+## Criterion ids
+
+A test written for an acceptance criterion of a squad plan or spec carries the criterion's id at the start of its
+name, `"AC3 parseLine returns null for an empty line"`, or of the `describe` block that groups the criterion's
+tests (`describe("AC3 …")`), so that `.squad/tools/plan-check.py --matrix` finds it by id after a rename or a
+split; a test that asserts several criteria carries each id.
+
 ## Structure
 
 - Arrange / Act / Assert, separated by blank lines; **one act per test**.
@@ -74,6 +81,6 @@ cannot be covered by a unit test (for example process startup glue) need an expl
 - [ ] New production code has accompanying unit tests — mandatory, not optional.
 - [ ] The _Analyzer gate_ reports nothing in a changed test file.
 - [ ] At least 80 % line coverage on new/changed production code and overall (_Coverage gate_).
-- [ ] File and test names as above; Arrange / Act / Assert; one act; assertion messages.
+- [ ] File and test names as above (with the criterion id of a squad test); Arrange / Act / Assert; one act; assertion messages.
 - [ ] No real network or clock (a time bound only as a ratio of two durations).
 - [ ] _Format_ from `.squad/stack.md` run before committing.

@@ -19,6 +19,7 @@ specs
 docs/ARCHITECTURE.md
 docs/CONTRIBUTING.md
 docs/decisions/README.md
+docs/decisions/process.md
 docs/decisions/_template.md
 docs/areas/README.md
 docs/areas/_template.md
