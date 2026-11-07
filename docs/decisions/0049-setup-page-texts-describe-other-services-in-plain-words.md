@@ -1,6 +1,6 @@
 # 0049: Setup page texts describe other services' steps in plain words
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-07
 - **Area:** Setup wizard
 - **Source:** Issue #164

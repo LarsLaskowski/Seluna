@@ -111,6 +111,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0046](0046-process-decisions-live-in-process-md.md) | The squad's process decisions live in process.md | Accepted | 2026-11-06 |
 | [0047](0047-setup-guide-screenshots-of-selunas-own-pages.md) | Setup guide with screenshots of Seluna's own pages only | Accepted | 2026-11-05 |
 | [0048](0048-setup-guide-in-english-and-german.md) | Setup guide in English and German | Accepted | 2026-11-05 |
-| [0049](0049-setup-page-texts-describe-other-services-in-plain-words.md) | Setup page texts describe other services' steps in plain words | Proposed | 2026-11-07 |
+| [0049](0049-setup-page-texts-describe-other-services-in-plain-words.md) | Setup page texts describe other services' steps in plain words | Accepted | 2026-11-07 |
 
 <!-- project:end index -->
