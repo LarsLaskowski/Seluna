@@ -29,8 +29,8 @@ else out of the wizard; every page behind the login relies on the session and th
   after the failure; no error is read), otherwise _unavailable_, which is also the answer when that read fails. The
   secret is not checked when counting failed, so the answer is the same for a wrong secret.
 - The _migrations missing_ notice tells the owner that the database migrations have not run and how to fix it: set
-  the Worker's deploy command to `npm run deploy` in the Cloudflare dashboard (_Workers & Pages_, the Worker,
-  _Settings_, _Build_) and retry the latest build, as the setup guide describes ([Deployment](deployment.md)).
+  the Worker's deploy command to `npm run deploy` in the Worker's build settings in the Cloudflare dashboard
+  and retry the latest build, as the setup guide describes ([Deployment](deployment.md)).
 - The _locked_ notice says that signing in is locked for 15 minutes after the fifth failed attempt.
 - A browser's password field cannot hold a line break, so a `SELUNA_SECRET` that contains one cannot be entered.
 

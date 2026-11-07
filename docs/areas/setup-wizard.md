@@ -176,8 +176,13 @@ two setup steps build on it, each in its own area document ([Not here](#not-here
 - The _not configured_ page says that the setup cannot start because the Worker secret `SELUNA_SECRET` is missing or
   shorter than 32 characters, without saying which of the two; it explains how to create a random string of at
   least 32 characters (a password manager, or `openssl rand -hex 32`) and how to set it (in the Cloudflare dashboard
-  under the Worker's _Settings_ → _Variables and Secrets_, or with `npx wrangler secret put SELUNA_SECRET`), then
+  among the Worker's secrets, or with `npx wrangler secret put SELUNA_SECRET`), then
   to reload the page.
+- The texts describe other services' steps (Cloudflare, GitHub, Telegram) in plain words, saying what to do and
+  where (the Worker's secrets or build settings in the Cloudflare dashboard, the settings of the account or
+  organization that owns the app on GitHub), and quote no menu path or button label of them. Seluna's own labels,
+  the recommended installation choice _Only select repositories_ and commands (the bot commands to @BotFather,
+  `openssl`, `wrangler`) stay ([decision 0049](../decisions/0049-setup-page-texts-describe-other-services-in-plain-words.md)).
 - The _unavailable_ notice says only that the setup is unavailable and to try again; it never says why.
 
 ## Limits and errors
@@ -201,6 +206,8 @@ two setup steps build on it, each in its own area document ([Not here](#not-here
 - [`decisions/0034-setup-page-layout-checked-on-the-style.md`](../decisions/0034-setup-page-layout-checked-on-the-style.md)
   — the page layout and its colours as custom properties per mode, verified on the style and the rendered markup
   instead of in a browser.
+- [`decisions/0049-setup-page-texts-describe-other-services-in-plain-words.md`](../decisions/0049-setup-page-texts-describe-other-services-in-plain-words.md)
+  — the setup texts describe other services' steps in plain words, without their menu paths and labels.
 - [`decisions/0007-github-app-credentials-encrypted-in-d1.md`](../decisions/0007-github-app-credentials-encrypted-in-d1.md)
   — the 32-character minimum of `SELUNA_SECRET` and separate keys per purpose.
 

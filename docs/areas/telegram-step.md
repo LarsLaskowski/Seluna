@@ -88,7 +88,7 @@ token and chat it resolves ([Delivery](delivery.md#sending-a-row)).
 - The token notices that reject a value (_token invalid_, _token malformed_) describe the token form and say to copy
   the token again from @BotFather; those that report a rejected token (_token not accepted_, _token rejected_,
   _saved token rejected_) say to fetch the bot's current token from @BotFather (with `/mybots`); a notice about a
-  Worker secret says where it is replaced (the Cloudflare dashboard, _Settings_, _Variables and Secrets_); _token
+  Worker secret says where it is replaced (the Worker's secrets in the Cloudflare dashboard); _token
   unreadable_ and _token not saved_ offer setting the earlier `SELUNA_SECRET` again or the reset on the start page.
 
 ### The step page
