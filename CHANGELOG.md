@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Documentation: a step-by-step setup guide in English (`docs/setup.md`) and German (`docs/setup.de.md`) with screenshots of the setup pages and a test pull request at the end, how to uninstall an instance, and a troubleshooting page (`docs/troubleshooting.md`). The README links them and has security notes.
 
+### Changed
+
+- Documentation: the update guide (`docs/update.md`) describes GitHub's and Cloudflare's steps in plain words with links to their documentation instead of their menu paths and labels.
+
 ## [0.8.0] - 2026-11-04
 
 ### Added
