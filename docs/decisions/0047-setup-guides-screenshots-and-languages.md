@@ -1,4 +1,4 @@
-# 0046: Setup guides with screenshots of Seluna's own pages, in English and German
+# 0047: Setup guides with screenshots of Seluna's own pages, in English and German
 
 - **Status:** Proposed
 - **Date:** 2026-11-05

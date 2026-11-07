@@ -84,7 +84,7 @@ dependency of the issue is closed and released (up to v0.8.0), so the pages the 
 - Every label, notice and page name a guide quotes is the text of the version it ships with (`src/setup/texts.ts`,
   `src/i18n/`), in the language of the guide.
 - Screenshots: of Seluna's own pages only, in English and German, rendered with made-up values and captured with a
-  headless browser, no new dependency and no committed generator (decision 0046); one file each under
+  headless browser, no new dependency and no committed generator (decision 0047); one file each under
   `docs/assets/`, with alt text, size limit in the plan; none shows a secret or a private value (E9).
 - `docs/setup.md` and `docs/setup.de.md` stay equivalent: same sections, same order, same screenshots or their German
   counterparts; a later change to one changes the other in the same pull request.
@@ -148,7 +148,7 @@ dependency of the issue is closed and released (up to v0.8.0), so the pages the 
 - Q1: Which dependencies are still open? Answered: none (#13, #14, #16–#19, #65–#69, #108–#110 closed); the issue's
   *Context* lists fewer events than today's, so the documents list the current set from the code.
 - Q2: May a German document live in an English-only repository (`AGENTS.md`)? Answered: yes, `docs/setup.de.md` only —
-  [decision 0046](../../docs/decisions/0046-setup-guides-screenshots-and-languages.md).
+  [decision 0047](../../docs/decisions/0047-setup-guides-screenshots-and-languages.md).
 - Q3: How are the issue's criteria handled that the squad cannot run (external test, one week of use, v1.0.0)?
   Answered: Lead decision — *Out of scope*, verified by the Product Manager after the merge.
 - Q4: Who takes the screenshots, of which screens, in which languages, and what may the guide assume about the

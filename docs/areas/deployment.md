@@ -24,7 +24,7 @@ Workers Builds runs, and the update workflow that applies a release to the user'
 ### Manual deployment
 
 - The Worker can also be deployed with Wrangler from a clone, without the button ([`manual-setup.md`](../manual-setup.md),
-  [decision 0046](../decisions/0046-setup-guides-screenshots-and-languages.md)): `npx wrangler d1 create seluna` once,
+  [decision 0047](../decisions/0047-setup-guides-screenshots-and-languages.md)): `npx wrangler d1 create seluna` once,
   `npm run deploy`, then the Worker secrets with `npx wrangler secret put <name>`. The configuration names the database
   `seluna` and carries no id, so Wrangler finds it by that name and `wrangler.jsonc` needs no edit.
 - Only a release is deployed this way: a clone of the original repository checks out a release tag, a clone of the
@@ -226,7 +226,7 @@ How the owner uses it is in [`update.md`](../update.md); the rules it follows ar
   stay out of the build command.
 - [`decisions/0017-github-app-manifest-flow.md`](../decisions/0017-github-app-manifest-flow.md) — the optional
   GitHub Worker secrets and their precedence over the credentials the wizard stores.
-- [`decisions/0046-setup-guides-screenshots-and-languages.md`](../decisions/0046-setup-guides-screenshots-and-languages.md)
+- [`decisions/0047-setup-guides-screenshots-and-languages.md`](../decisions/0047-setup-guides-screenshots-and-languages.md)
   — the setup guides (English and German) with screenshots, the manual path and the database found by its name.
 - [`decisions/0031-update-workflow-for-copies.md`](../decisions/0031-update-workflow-for-copies.md) — why the
   update is one Bash step without actions that pushes one commit computed from the copy's base, and keeps the

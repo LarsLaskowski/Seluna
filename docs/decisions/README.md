@@ -24,6 +24,8 @@ once in the [area document](../areas/README.md) of the record's area, and the re
   released record itself stays unedited.
 - Written by the squad Lead (see [`.claude/agents/squad-lead.md`](../../.claude/agents/squad-lead.md));
   anyone may add one for a change made outside the squad.
+- The squad's own process decisions are no records: they stand in [`process.md`](process.md), whose introduction
+  says how they change.
 - Committed together with the change it explains.
 - **Released or not decides how a record changes.** A record is *released* once the commit that added it is
   contained in a release tag (`v*`; check with `git tag --contains <commit>`, the commit is
@@ -38,15 +40,22 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 - A new record that **amends** a released record without superseding it names the older one under
   *Supersedes* and says there, in one sentence, what it amends. The older record is **not edited** — not even
   with a pointer; a reader of the older record finds the amendment through the index and the new record.
-- **One record per decision that has lasting weight, grouped by topic — not one per pull request.** Not for
+- **One record per decision that has lasting weight — not one per pull request, and not one per topic.** Not for
   routine changes: a record is needed when a choice between real alternatives was made that shapes the
   architecture or behavior, a trade-off or limitation was accepted, or a documented guarantee was touched.
-  Before adding a record, look for an unreleased record on the same topic and extend it instead. A review
-  finding that was deliberately not fixed, a follow-up split, or a dependency change gets its own record only
-  if it touches a guarantee or the architecture; otherwise it belongs in the pull request description or the
-  follow-up issue, or as a sentence in the record of the topic it concerns.
+  Before adding a record, look for an unreleased record of the same decision and extend it instead (a changed
+  option, a new consequence); another decision on a topic that already has a record gets a record of its own,
+  which links the other. A review finding that was deliberately not fixed, a follow-up split, or a dependency
+  change gets its own record only if it touches a guarantee or the architecture; otherwise it belongs in the pull
+  request description or the follow-up issue, or as a sentence in the record of the decision it concerns.
+- **Size.** A record that an extension would take past `RECORD_MAX_WORDS` words or `RECORD_MAX_OPTIONS` options
+  (`.squad/tools/squad_settings.py`) holds more than one decision and is split instead: one record per decision,
+  each with its own context, options and consequences. An unreleased record keeps its number for one of them, the
+  others take the next free numbers with their index rows, and every link to it points at the record of its
+  decision; a released record is never split.
 - `.squad/tools/decision-check.py` (also run by `config-check.py`) checks the index, the links between records
-  and that no released record was changed.
+  and that no released record was changed, and warns about an unreleased record past the size limits and an area
+  document past `AREA_MAX_WORDS`, naming the split.
 
 ## Index
 
@@ -54,9 +63,9 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 
 | #   | Title | Status | Date |
 | --- | ----- | ------ | ---- |
-| [0001](0001-quality-gates-before-the-pull-request.md) | Quality gates before the pull request | Accepted | 2026-10-14 |
+| [0001](0001-quality-gates-before-the-pull-request.md) | Quality gates before the pull request | Superseded by [0046](0046-process-decisions-live-in-process-md.md) | 2026-10-14 |
 | [0002](0002-squad-working-records-off-main.md) | Squad working records stay off main, and product PRs never change the squad | Superseded by [0022](0022-squad-working-records-off-main.md) | 2026-10-14 |
-| [0003](0003-squash-merge-pull-requests.md) | Squash-merge pull requests | Accepted | 2026-10-14 |
+| [0003](0003-squash-merge-pull-requests.md) | Squash-merge pull requests | Superseded by [0046](0046-process-decisions-live-in-process-md.md) | 2026-10-14 |
 | [0004](0004-typescript-instead-of-go.md) | TypeScript instead of Go | Accepted | 2026-10-14 |
 | [0005](0005-one-instance-per-user.md) | One instance per user instead of a central service | Accepted | 2026-10-14 |
 | [0006](0006-github-app-per-user-manifest-flow.md) | A GitHub App per user, created through the manifest flow | Accepted | 2026-10-14 |
@@ -90,15 +99,16 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0034](0034-setup-page-layout-checked-on-the-style.md) | Setup page layout and navigation, checked on the style instead of in a browser | Accepted | 2026-10-23 |
 | [0035](0035-root-url-redirects-to-setup.md) | The root URL redirects to the setup wizard | Accepted | 2026-10-24 |
 | [0036](0036-telegram-bot-token-in-the-setup-wizard.md) | Telegram bot token entered in the setup wizard and checked with getMe | Accepted | 2026-10-25 |
-| [0037](0037-squad-working-records-off-main.md) | Squad working records stay off main, and product PRs never change the squad | Accepted | 2026-10-25 |
+| [0037](0037-squad-working-records-off-main.md) | Squad working records stay off main, and product PRs never change the squad | Superseded by [0046](0046-process-decisions-live-in-process-md.md) | 2026-10-25 |
 | [0038](0038-channel-neutral-outbox-and-active-delivery-channel.md) | Channel-neutral outbox and one active delivery channel | Accepted | 2026-10-26 |
 | [0039](0039-issue-comment-fork-star-events-and-the-app-owner.md) | Issue, comment, fork and star events, the app owner and narrowed installation tokens | Accepted | 2026-10-29 |
 | [0040](0040-issue-and-comment-rules.md) | Issue and comment rules | Accepted | 2026-10-30 |
 | [0041](0041-fork-and-star-rules-with-a-digest.md) | Fork and star rules with a digest | Accepted | 2026-10-31 |
 | [0042](0042-time-zone-aliases-read-as-the-listed-name.md) | Time zone aliases read as the listed name of their zone, other zone names as the runtime's name | Accepted | 2026-10-31 |
 | [0043](0043-only-deliveries-with-an-effect-are-recorded.md) | Only deliveries with an effect are recorded, and deliveries of other senders are bounded per hour | Accepted | 2026-11-02 |
-| [0044](0044-product-prs-may-change-the-squad-settings-file.md) | Product PRs may change the squad settings file | Accepted | 2026-11-01 |
+| [0044](0044-product-prs-may-change-the-squad-settings-file.md) | Product PRs may change the squad settings file | Superseded by [0046](0046-process-decisions-live-in-process-md.md) | 2026-11-01 |
 | [0045](0045-installation-token-allow-list-for-the-stateless-format.md) | Installation token allow-list for GitHub's stateless token format | Accepted | 2026-11-04 |
-| [0046](0046-setup-guides-screenshots-and-languages.md) | Setup guides with screenshots of Seluna's own pages, in English and German | Proposed | 2026-11-05 |
+| [0046](0046-process-decisions-live-in-process-md.md) | The squad's process decisions live in process.md | Accepted | 2026-11-06 |
+| [0047](0047-setup-guides-screenshots-and-languages.md) | Setup guides with screenshots of Seluna's own pages, in English and German | Proposed | 2026-11-05 |
 
 <!-- project:end index -->

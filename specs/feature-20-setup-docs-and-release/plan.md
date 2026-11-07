@@ -114,7 +114,7 @@ Documents (layout below fixed by this plan):
   viewport, full page, at most 300 KB each. Made-up values only: account `your-account`, app `seluna-your-account`,
   App ID `123456`, bot `@your_seluna_bot`, chat _Your Name_, Worker `seluna.your-subdomain.workers.dev`, fixed
   dates; no real token, id or address. Alt text names the page and what it shows.
-- Screenshot method (decision 0046): in a scratch directory outside the repository, the Dev writes a script that
+- Screenshot method (decision 0047): in a scratch directory outside the repository, the Dev writes a script that
   imports the renderers of fact 8 with made-up view data, bundles it with Wrangler's esbuild, writes one HTML file
   per page and language, and captures each with `google-chrome --headless --screenshot --window-size=1280,<height>`.
   Fallback when that fails (fact 9): `npx wrangler dev` with a local D1 (`wrangler d1 migrations apply DB --local`)
@@ -123,7 +123,7 @@ Documents (layout below fixed by this plan):
 
 ## Options considered
 
-Settled in [decision 0046](../../docs/decisions/0046-setup-guides-screenshots-and-languages.md): screenshots of
+Settled in [decision 0047](../../docs/decisions/0047-setup-guides-screenshots-and-languages.md): screenshots of
 Seluna's pages only vs. all steps (Product Manager); no committed generator vs. a script or browser test project;
 a German guide; database found by name vs. an edited `wrangler.jsonc`. Further: one bilingual document instead of
 two files (lost: the issue names two files, and a reader would scroll past the other language).
@@ -138,7 +138,7 @@ two files (lost: the issue names two files, and a reader would scroll past the o
 | docs | `docs/troubleshooting.md` | new (AC4) |
 | docs | `docs/assets/setup/en/*.png`, `docs/assets/setup/de/*.png` | new, 11 each (AC1, AC2, AC6) |
 | docs | `README.md`, `docs/CONTRIBUTING.md`, `docs/update.md`, `docs/ARCHITECTURE.md`, `docs/areas/deployment.md`, `CHANGELOG.md` | *Documentation updates* |
-| decisions | `docs/decisions/0046-…`, `docs/decisions/README.md` | Lead (done) |
+| decisions | `docs/decisions/0047-…`, `docs/decisions/README.md` | Lead (done) |
 
 ## Signatures (for the Dev's skeleton)
 
@@ -154,7 +154,7 @@ not measured).
 [Deployment](../../docs/areas/deployment.md): a *Manual deployment* subsection — the Worker can be deployed with
 Wrangler from a clone; the binding finds the database by its name `seluna` (`wrangler d1 create seluna` once); the
 secrets are set with `wrangler secret put`; only a release is deployed (a release tag, or the own copy's `main`), installed with `npm ci --ignore-scripts`. Link to `docs/manual-setup.md`
-and decision 0046 under *Related decisions*. No other area changes.
+and decision 0047 under *Related decisions*. No other area changes.
 
 ## Documentation updates
 
@@ -214,7 +214,7 @@ Security's plan review at 70ec8df, `CHANGES_REQUIRED`:
 
 ## Decision records
 
-- [`docs/decisions/0046-setup-guides-screenshots-and-languages.md`](../../docs/decisions/0046-setup-guides-screenshots-and-languages.md) (Proposed)
+- [`docs/decisions/0047-setup-guides-screenshots-and-languages.md`](../../docs/decisions/0047-setup-guides-screenshots-and-languages.md) (Proposed)
 
 ## Out of scope / follow-ups
 

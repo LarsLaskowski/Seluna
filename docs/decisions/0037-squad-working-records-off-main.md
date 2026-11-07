@@ -1,6 +1,6 @@
 # 0037: Squad working records stay off main, and product PRs never change the squad
 
-- **Status:** Accepted
+- **Status:** Superseded by [0046](0046-process-decisions-live-in-process-md.md)
 - **Date:** 2026-10-25
 - **Area:** —
 - **Source:** Squad adopted from Squad-Spec-Repository-Template

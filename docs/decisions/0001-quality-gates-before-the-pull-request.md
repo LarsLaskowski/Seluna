@@ -1,6 +1,6 @@
 # 0001: Quality gates before the pull request
 
-- **Status:** Accepted
+- **Status:** Superseded by [0046](0046-process-decisions-live-in-process-md.md)
 - **Date:** 2026-10-14
 - **Area:** —
 - **Source:** Squad adopted from Squad-Spec-Repository-Template
