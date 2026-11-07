@@ -8,7 +8,7 @@ The update applies the latest full release of [`LarsLaskowski/Seluna`](https://g
 
 1. Open your copy on GitHub and go to the workflows of the repository, where GitHub lists them and their runs.
 2. In the list of workflows select **Update Seluna**. If GitHub asks you to enable workflows for your copy, enable them first (see _Permissions_); if **Update Seluna** is still missing, see _Add the workflow to an older copy_.
-3. Run the workflow by hand on the branch `main`, which is the branch to keep ([documentation](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)).
+3. Run the workflow by hand on the branch `main` ([documentation](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)).
 4. Open the run when it appears. A green run says `Updated Seluna from vA.B.C to vX.Y.Z.`; `Seluna is already on the latest release` means there is nothing to do. A red run stops before it changes anything and says why. The sections below belong to the messages.
 
 Only one update runs at a time; start it again when a run says that `main` changed during the update.
