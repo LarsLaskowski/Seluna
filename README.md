@@ -26,7 +26,7 @@ Pull requests wait for a review, a build turns red, a security alert opens, and 
 - **Yours alone.** Every user runs their own instance. A private GitHub App sends webhooks to a Cloudflare Worker in your own account, which keeps its state in D1 and delivers through a messenger of your own, today a Telegram bot. No data passes through a third party.
 - **Your messenger.** Telegram works today. ntfy, Gotify, Matrix and Discord are planned, and you will be able to switch between the ones you have set up.
 - **Free to run.** It fits the Cloudflare free plan; D1 and Telegram cost nothing either.
-- **Set up in the browser.** Click the button above, then follow the setup wizard. No command line is needed. The aim is a working setup in under 15 minutes.
+- **Set up in the browser.** Click the button above, then follow the setup wizard. No command line is needed.
 - **You choose the repositories.** Install the GitHub App on only the repositories you pick, and add a new repository to the installation when you want it covered.
 - **Personal and team use.** Your own account or an organization, a private chat or a group chat. Messages come in English or German.
 
@@ -66,7 +66,7 @@ Every webhook is checked against its signature before anything happens. A delive
 3. Select **Deploy to Cloudflare** above. The button creates an independent copy of this repository in your GitHub account (not a fork) and deploys it.
 4. Open `https://<your-worker>.workers.dev/` (it leads to the setup page `/setup`), sign in and let the wizard take your bot token, connect your Telegram chat and create the GitHub App.
 
-The full walk-through, with a screenshot of every setup page and a test pull request at the end, is in the setup guide in [English](docs/setup.md) or [Deutsch](docs/setup.de.md). If you prefer the command line, or want to create the GitHub App yourself, follow the [manual setup](docs/manual-setup.md). If something does not work, [troubleshooting](docs/troubleshooting.md) lists the symptoms and their fixes. Every push to `main` of your copy deploys it; [`docs/update.md`](docs/update.md) explains how to apply a new release.
+The full walk-through, with a screenshot of every setup page and a test pull request at the end, is in the setup guide in [English](docs/setup.md) or [Deutsch](docs/setup.de.md). If something does not work, [troubleshooting](docs/troubleshooting.md) lists the symptoms and their fixes. Every push to `main` of your copy deploys it; [`docs/update.md`](docs/update.md) explains how to apply a new release.
 
 ## Settings
 

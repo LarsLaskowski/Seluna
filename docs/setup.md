@@ -2,9 +2,7 @@
 
 Deutsch: [Einrichtungsanleitung](setup.de.md)
 
-How to set up your own Seluna instance, in your web browser and with the Telegram app on your phone. You type no command. If you prefer the command line, or want to create the GitHub App yourself, follow the [manual setup](manual-setup.md) instead. If a step does not work, [Troubleshooting](troubleshooting.md) has the symptom.
-
-Statements marked _Not yet confirmed by a test run_ describe a page of another service (Telegram, Cloudflare, GitHub) as its own documentation describes it; they have not been run end to end yet. Where one of them differs from what you see, the service's own page is right.
+How to set up your own Seluna instance, in your web browser and with the Telegram app on your phone. You type no command. If a step does not work, [Troubleshooting](troubleshooting.md) has the symptom.
 
 ## What you need
 
@@ -21,7 +19,7 @@ Seluna sends its notifications through a Telegram bot of your own.
 3. Copy the token that @BotFather returns and keep it for step 5. Treat it like a password.
 4. Open your new bot and send it `/start`. The bot does not answer: Seluna only sends messages, it never replies in Telegram.
 
-@BotFather's own description of this step is in [Telegram's documentation](https://core.telegram.org/bots/features#botfather). _Not yet confirmed by a test run: the exact questions and wording of @BotFather._
+Telegram describes this step in its [documentation on @BotFather](https://core.telegram.org/bots/features#botfather).
 
 **It worked when** @BotFather has sent you a message with the bot's token.
 
@@ -39,14 +37,12 @@ Keep it: if you change it later, Seluna can no longer read what it stored, and y
 ## 3. Deploy to Cloudflare
 
 1. Open the [README](../README.md) and select **Deploy to Cloudflare**.
-2. Sign in to Cloudflare and connect your GitHub account when asked.
-3. The form creates an independent copy of the repository in your GitHub account (not a fork), creates the D1 database and asks for `SELUNA_SECRET`. Paste the password from step 2, then continue until Cloudflare builds and deploys the Worker.
-4. When the deploy has finished, check the deploy command. In the Cloudflare dashboard open **Workers & Pages**, your Worker, then **Settings** and **Build**, and look at **Deploy command**. It must read `npm run deploy`, which creates the database tables before it deploys the Worker. The button sometimes sets `npx wrangler deploy` instead; then change it to `npm run deploy`, save and retry the latest build (**Deployments**). Cloudflare describes the build settings in its [documentation on build configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
-5. Write down the address of your Worker, `https://<worker>.<your-subdomain>.workers.dev`; the dashboard shows it on the Worker's page.
+2. Sign in to Cloudflare. The form asks you to connect your GitHub account, so that it can create a new private repository there with a copy of Seluna (an independent copy, not a fork). Cloudflare describes this in its [documentation on deploy buttons](https://developers.cloudflare.com/workers/platform/deploy-buttons/).
+3. Keep the project name `seluna`, let the form create a new D1 database and name it `seluna`, and leave the location on automatic. Paste the password from step 2 where the form asks for `SELUNA_SECRET`, then continue until Cloudflare builds and deploys the Worker.
+4. When the deploy has finished, check the deploy command in the Worker's build settings. It must be `npm run deploy`, which creates the database tables before it deploys the Worker. The button sometimes sets `npx wrangler deploy` instead; then change it to `npm run deploy` and retry the latest build. Cloudflare describes the build settings in its [documentation on build configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
+5. Write down the address of your Worker, `https://<worker>.<your-subdomain>.workers.dev`; the Worker's page in the Cloudflare dashboard shows it.
 
 Do not test Seluna in this copy of the repository: every merge into its `main` branch deploys your instance again.
-
-_Not yet confirmed by a test run: the Cloudflare form and dashboard menus as named above._
 
 **It worked when** the build log of the latest build shows the line `> wrangler d1 migrations apply DB --remote`, and `https://<worker>.<your-subdomain>.workers.dev/health` answers with the version of Seluna.
 
@@ -82,7 +78,7 @@ Select **Telegram chat** at the top of the page.
 
 **It worked when** the step shows **Saved chat:** with the number of your chat, and the start page shows the number next to **Telegram chat:**. The code proves that the chat is yours; if no message arrived, the chat is not yours.
 
-If you want to set the token or the chat by hand as Worker secrets instead, see the [manual setup](manual-setup.md#9-optional-set-the-telegram-bot-token-and-chat-by-hand).
+If you want to set the token or the chat by hand as Worker secrets instead, see [Worker secrets](areas/deployment.md#worker-secrets).
 
 ## 6. Create the GitHub App
 
@@ -96,14 +92,12 @@ Seluna receives the events of your repositories through a private GitHub App of 
 
 ![The review page: the account, the app name, the read-only permissions, the events and the button Continue to GitHub](assets/setup/en/07-github-review.png)
 
-3. On GitHub, check the details, change the app's name if you wish, and select **Create GitHub App**. GitHub's own description is in its documentation on [registering a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app).
+3. GitHub shows the app's details. Check them, change the app's name if you wish, and confirm the creation. GitHub describes this in its documentation on [registering a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app).
 4. GitHub sends you back to the setup. Select **Finish**: Seluna fetches the app's credentials and saves them encrypted.
 
 ![The finish page: the message that GitHub has created the app and the button Finish](assets/setup/en/08-github-finish.png)
 
 Do this within one hour, and while you are still signed in to the setup page. Otherwise Seluna refuses the return and nothing is saved ([Troubleshooting](troubleshooting.md#the-return-from-github-is-refused)). Creating the app again replaces the saved one; delete the old app on GitHub afterwards.
-
-_Not yet confirmed by a test run: GitHub's page for creating the app and its wording._
 
 **It worked when** the page says **The GitHub App is saved.** and offers the link **Install the app on GitHub**.
 
@@ -113,12 +107,10 @@ _Not yet confirmed by a test run: GitHub's page for creating the app and its wor
 
 The app sees only the repositories you give it. Seluna recommends **Only select repositories**: only the repositories you pick report to Seluna, and you add a new repository to the installation by hand.
 
-1. On GitHub, select **New repository**, name it for example `seluna-test`, make it **Private**, check **Add a README file** and select **Create repository**.
+1. On GitHub, create a new private repository with a README, for example named `seluna-test` ([documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-new-repository)).
 2. In the setup page select **Install the app on GitHub**. GitHub's page for installing an app opens ([documentation](https://docs.github.com/en/apps/using-github-apps/installing-your-own-github-app)).
-3. Choose your account, select **Only select repositories**, pick the test repository and select **Install**.
+3. Install the app on your account for only the test repository, not for all repositories.
 4. Go back to the setup page and select **Start page** at the top.
-
-_Not yet confirmed by a test run: GitHub's installation page and its wording._
 
 **It worked when** the **Status** card lists **Installations:** with your account, **personal account**, **selected repositories**, and shows your account after **GitHub App owner:**. If it names something under **Missing on the app** or marks the installation **missing**, follow its links to add and accept it on GitHub.
 
@@ -142,12 +134,8 @@ Issues and comments you wrote yourself are left out. Seluna knows who you are on
 
 ## 9. Test with a pull request
 
-1. On GitHub, open the test repository from step 7 and open the file `README.md`.
-2. Select the pencil (**Edit this file**), change a line and select **Commit changes...**.
-3. Choose **Create a new branch for this commit and start a pull request**, then select **Propose changes**.
-4. On the next page select **Create pull request**. Do not choose the draft option: a draft pull request gives no message.
-
-_Not yet confirmed by a test run: GitHub's editing and pull request pages and their wording._
+1. On GitHub, open the test repository from step 7 and change a line of its `README.md` in a new branch, in the web interface ([documentation](https://docs.github.com/en/repositories/working-with-files/managing-files/editing-files)).
+2. Open a pull request from that branch ([documentation](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request)). Open it as a normal pull request, not as a draft: a draft pull request gives no message.
 
 **It worked when** Telegram shows a message **New pull request** (**Neuer Pull Request** if you set the **Language of the notifications** to Deutsch) from your bot, with the repository, the title of your pull request and a button that opens it. On the start page, **Last delivery from GitHub:** then shows the time. Your instance is set up.
 
@@ -159,4 +147,4 @@ Every push to `main` of your copy builds and deploys it. To apply a new Seluna r
 
 ## If something does not work
 
-[Troubleshooting](troubleshooting.md) is organized by symptom: no message, signing in, the Telegram step, the GitHub App step, GitHub's **Recent Deliveries**.
+[Troubleshooting](troubleshooting.md) is organized by symptom: no message, signing in, the Telegram step, the GitHub App step, GitHub's webhook deliveries.

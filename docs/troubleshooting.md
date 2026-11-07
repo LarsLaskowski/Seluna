@@ -1,27 +1,26 @@
 # Troubleshooting
 
-Find your symptom below. Each entry lists how to tell the causes apart and the fix. The setup guide is in [English](setup.md) and [Deutsch](setup.de.md); the [manual setup](manual-setup.md) covers the command line.
+Find your symptom below. Each entry lists how to tell the causes apart and the fix. The setup guide is in [English](setup.md) and [Deutsch](setup.de.md).
 
 Three places show what is wrong:
 
 - **The status page**: sign in at `https://<worker>.<your-subdomain>.workers.dev/` (it leads to `/setup`). Its **Status** card shows where the bot token comes from (never its value), the chat, the GitHub App with its owner, the installations with what the app or an installation still lacks, and **Last delivery from GitHub:**.
-- **GitHub's Recent Deliveries**: on GitHub open **Settings**, **Developer settings**, **GitHub Apps**, your app, **Advanced**. The list shows each delivery GitHub sent to your instance and the status code the instance answered with.
-- **The Workers build log**: in the Cloudflare dashboard open **Workers & Pages**, your Worker and **Deployments**, and open the build.
+- **GitHub's webhook deliveries**: the settings of your GitHub App on GitHub list each delivery GitHub sent to your instance and the status code the instance answered with ([GitHub's documentation](https://docs.github.com/en/webhooks/testing-and-troubleshooting-webhooks/viewing-webhook-deliveries)).
+- **The Workers build log**: the log of the latest build of your Worker in the Cloudflare dashboard ([Cloudflare's documentation](https://developers.cloudflare.com/workers/ci-cd/builds/)).
 
-The menus of Cloudflare and GitHub named here follow their own documentation and may differ from what you see. Do not turn on Workers traces or logs that record outbound requests to look for a cause: Seluna sends the Telegram bot token in the URL of its requests, so such traces record it. If you did, treat them as secret, or replace the token with `/revoke` at @BotFather.
+Do not turn on Workers traces or logs that record outbound requests to look for a cause: Seluna sends the Telegram bot token in the URL of its requests, so such traces record it. If you did, treat them as secret, or replace the token with `/revoke` at @BotFather.
 
 - [The setup page says the database is missing its tables](#the-setup-page-says-the-database-is-missing-its-tables)
 - [The setup page says SELUNA_SECRET is not set](#the-setup-page-says-seluna_secret-is-not-set)
 - [Signing in is locked](#signing-in-is-locked)
 - [The return from GitHub is refused](#the-return-from-github-is-refused)
 - [No message arrives](#no-message-arrives)
-- [GitHub's Recent Deliveries show 401](#githubs-recent-deliveries-show-401)
-- [GitHub's Recent Deliveries show 503](#githubs-recent-deliveries-show-503)
+- [GitHub's webhook deliveries show 401](#githubs-webhook-deliveries-show-401)
+- [GitHub's webhook deliveries show 503](#githubs-webhook-deliveries-show-503)
 - [The bot does not answer /start](#the-bot-does-not-answer-start)
 - [The Telegram step finds no chat](#the-telegram-step-finds-no-chat)
 - [The Telegram step says another program receives the bot's updates](#the-telegram-step-says-another-program-receives-the-bots-updates)
 - [I changed the SELUNA_SECRET](#i-changed-the-seluna_secret)
-- [A command of the manual setup fails](#a-command-of-the-manual-setup-fails)
 
 ## The setup page says the database is missing its tables
 
@@ -33,9 +32,9 @@ Signing in shows: _The database of this instance is missing its tables: the data
 
 **Fix**
 
-1. In the Cloudflare dashboard open **Workers & Pages**, your Worker, **Settings** and **Build**.
-2. Set **Deploy command** to `npm run deploy` and save ([Cloudflare's build configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)).
-3. Retry the latest build under **Deployments**. Its log shows the line `> wrangler d1 migrations apply DB --remote`.
+1. In the Cloudflare dashboard open the build settings of your Worker ([Cloudflare's build configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)).
+2. Set the deploy command to `npm run deploy` and save.
+3. Retry the latest build. Its log shows the line `> wrangler d1 migrations apply DB --remote`.
 
 ## The setup page says SELUNA_SECRET is not set
 
@@ -48,7 +47,7 @@ Every page under `/setup` shows the heading **SELUNA_SECRET is not set** (HTTP s
 **Fix**
 
 1. Generate a random password of at least 32 characters with your password manager and save it there. (The page itself also names `openssl rand -hex 32`, which needs a command line.)
-2. In the Cloudflare dashboard open your Worker, **Settings**, then **Variables and Secrets**, and add or edit the secret `SELUNA_SECRET` with that value. On the command line, `npx wrangler secret put SELUNA_SECRET` does the same ([manual setup](manual-setup.md#7-set-seluna_secret)).
+2. In the Cloudflare dashboard open the variables and secrets of your Worker and add or edit the secret `SELUNA_SECRET` with that value ([Cloudflare's documentation on secrets](https://developers.cloudflare.com/workers/configuration/secrets/)).
 3. Reload the page.
 
 ## Signing in is locked
@@ -80,15 +79,15 @@ After you select **Continue to GitHub**, create the app and come back, the setup
 
 **Fix**
 
-1. On GitHub open **Settings**, **Developer settings**, **GitHub Apps**, select the half-created app (named `seluna-` and your account), then **Advanced**, and delete it.
+1. On GitHub open the settings of your GitHub Apps, select the half-created app (named `seluna-` and your account) and delete it ([GitHub's documentation](https://docs.github.com/en/apps/maintaining-github-apps/deleting-a-github-app)).
 2. In Seluna open the **GitHub App** step and start again. Finish within one hour and without signing out.
 
 ## No message arrives
 
 You expected a Telegram message and none came. Check the causes in this order, the cheapest first.
 
-1. **A draft pull request.** A draft pull request gives no message; the message comes when you mark it **Ready for review**. Open the pull request on GitHub: a draft shows the label **Draft**. (The exception is a leaked secret, reported whatever the pull request.)
-2. **The repository is not in the installation.** With **Only select repositories** the app sees only the repositories you picked. On GitHub open **Settings**, **Applications**, the app's **Configure** page, and add the repository under **Repository access**. The status page's **Installations:** shows **selected repositories** for such an installation.
+1. **A draft pull request.** A draft pull request gives no message; the message comes when you mark it as ready for review. Open the pull request on GitHub: a draft is marked as a draft. (The exception is a leaked secret, reported whatever the pull request.)
+2. **The repository is not in the installation.** With **Only select repositories** the app sees only the repositories you picked. On GitHub open the installation of the app and add the repository to it ([GitHub's documentation](https://docs.github.com/en/apps/using-github-apps/reviewing-and-modifying-installed-github-apps)). The status page's **Installations:** shows **selected repositories** for such an installation.
 3. **The notification's switch is off.** On the start page check **Notify me about**. **New star on a repository** and **New fork of a repository** are off by default.
 4. **Your own issues and comments.** An issue or comment you wrote yourself is left out, once the status page shows the **GitHub App owner:** (open the start page once after the installation). Comments of bots are left out too. A pull request you open yourself is reported.
 5. **No bot token or chat saved.** If **Telegram bot token:** or **Telegram chat:** on the status page reads **None saved yet.**, notifications wait unsent until you set them up in the **Telegram chat** step; a token Telegram refuses shows as a notice in that step.
@@ -96,23 +95,20 @@ You expected a Telegram message and none came. Check the causes in this order, t
 7. **The hourly limit.** For issues, comments, stars, forks and, when someone else caused them, pull requests and CI failures, more than 20 of one kind in an hour are not reported one by one. You get one notice, _Notifications left out_, per kind and hour.
 8. **Quiet hours.** During quiet hours the message arrives without sound, not later. Check your phone's Telegram notifications.
 
-If none of these applies, look at **Last delivery from GitHub:** on the status page. **None received yet.** or an old time means GitHub's deliveries do not reach the instance or are refused: open **Recent Deliveries** (see [401](#githubs-recent-deliveries-show-401) and [503](#githubs-recent-deliveries-show-503)). If there is no delivery at all for your action, the app is not installed on that repository (cause 2) or its webhook is not active.
+If none of these applies, look at **Last delivery from GitHub:** on the status page. **None received yet.** or an old time means GitHub's deliveries do not reach the instance or are refused: open the app's webhook deliveries on GitHub (see [401](#githubs-webhook-deliveries-show-401) and [503](#githubs-webhook-deliveries-show-503)). If there is no delivery at all for your action, the app is not installed on that repository (cause 2) or its webhook is not active.
 
-## GitHub's Recent Deliveries show 401
+## GitHub's webhook deliveries show 401
 
 **Cause**
 
-- The signature of the delivery does not match the instance's webhook secret. This happens when
-  - an app was created by hand with a webhook secret other than the Worker secret `GITHUB_WEBHOOK_SECRET`, or
-  - an old app is still installed after a new one was created: the instance now holds the new app's secret, and the old app signs with its own.
+- The signature of the delivery does not match the instance's webhook secret. This happens when an old app is still installed after a new one was created: the instance now holds the new app's secret, and the old app signs with its own.
 
 **Fix**
 
-- Hand-made app: put the same secret in GitHub's **Secret** field of the app and in `GITHUB_WEBHOOK_SECRET` ([manual setup](manual-setup.md#create-the-github-app-by-hand)).
-- Old app: on GitHub open the app (**Settings**, **Developer settings**, **GitHub Apps**) that is not the one the **GitHub App** step shows (compare the App ID) and delete it.
-- Then open the delivery in **Recent Deliveries** and select **Redeliver**. A delivery refused with 401 was not recorded, so a redelivery is processed.
+- Old app: on GitHub open the settings of your GitHub Apps, find the app that is not the one the **GitHub App** step shows (compare the App ID) and delete it.
+- Then open the delivery in the app's webhook deliveries and redeliver it ([GitHub's documentation](https://docs.github.com/en/webhooks/testing-and-troubleshooting-webhooks/redelivering-webhooks)). A delivery refused with 401 was not recorded, so a redelivery is processed.
 
-## GitHub's Recent Deliveries show 503
+## GitHub's webhook deliveries show 503
 
 **Cause**
 
@@ -120,7 +116,7 @@ If none of these applies, look at **Last delivery from GitHub:** on the status p
 
 **Fix**
 
-- Finish the [GitHub App step](setup.md#6-create-the-github-app), or set all three Worker secrets for an app you created by hand, or follow [I changed the SELUNA_SECRET](#i-changed-the-seluna_secret). If the database failed, redeliver the delivery a moment later.
+- Finish the [GitHub App step](setup.md#6-create-the-github-app), or set all three Worker secrets if you use them, or follow [I changed the SELUNA_SECRET](#i-changed-the-seluna_secret). If the database failed, redeliver the delivery a moment later.
 
 A delivery answered with 202 was accepted; 200 means that delivery was already recorded.
 
@@ -170,16 +166,5 @@ Seluna can no longer read what it stored. The **GitHub App** step and the start 
 
 **Fix**, either:
 
-- **Set the earlier secret again** in the Cloudflare dashboard (**Settings**, **Variables and Secrets**). Everything is readable again.
-- Or, if you no longer have it, select **Reset and create the GitHub App again** on the start page. Seluna deletes the saved GitHub credentials, the installation tokens and the saved Telegram bot token; the Telegram chat and the settings are kept. Then create the GitHub App again in its step, enter the bot token again in the **Telegram chat** step, and afterwards delete the old app on GitHub (**Settings**, **Developer settings**, **GitHub Apps**).
-
-## A command of the manual setup fails
-
-- `git checkout vX.Y.Z` fails: the tag does not exist in your clone. Run `git fetch --tags` and check the tag on the [releases page](https://github.com/LarsLaskowski/Seluna/releases). Nothing is installed yet, so nothing is half done.
-- `npm ci --ignore-scripts` fails: check that `node --version` starts with `v24`, then run it again. It runs before `wrangler login`, so a failed install leaves no stored login.
-- `npx wrangler login` fails or the browser does not open: run it again; if the browser is on another machine, follow Wrangler's output.
-- `npx wrangler d1 create seluna` reports that the database already exists: it was created before; go on with the next step. _Not yet confirmed by a test run: Wrangler's wording._
-- `npm run deploy` fails at the migrations, with a message that the database `seluna` cannot be found: run `npx wrangler d1 create seluna` first. A failing migration stops the command before the Worker is deployed, and the previous version keeps running.
-- A secret was typed wrongly: run its `npx wrangler secret put` command again; it replaces the value.
-
-Start again at the step that failed; the later steps need its result.
+- **Set the earlier secret again** in the variables and secrets of your Worker in the Cloudflare dashboard. Everything is readable again.
+- Or, if you no longer have it, select **Reset and create the GitHub App again** on the start page. Seluna deletes the saved GitHub credentials, the installation tokens and the saved Telegram bot token; the Telegram chat and the settings are kept. Then create the GitHub App again in its step, enter the bot token again in the **Telegram chat** step, and afterwards delete the old app on GitHub.

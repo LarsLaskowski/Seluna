@@ -2,9 +2,7 @@
 
 English: [Setup guide](setup.md)
 
-So richtest du deine eigene Seluna-Instanz ein, in deinem Webbrowser und mit der Telegram-App auf deinem Handy. Du tippst keinen Befehl. Wenn du lieber die Kommandozeile benutzt oder die GitHub-App selbst erstellen möchtest, folge stattdessen der [manuellen Einrichtung](manual-setup.md) (englisch). Wenn ein Schritt nicht klappt, findest du dein Problem in der [Fehlerbehebung](troubleshooting.md) (englisch).
-
-Aussagen mit dem Vermerk _Noch nicht durch einen Testlauf bestätigt_ beschreiben eine Seite eines anderen Dienstes (Telegram, Cloudflare, GitHub) so, wie dessen eigene Dokumentation sie beschreibt; sie wurden noch nicht von Anfang bis Ende durchgespielt. Weicht eine davon von dem ab, was du siehst, hat die Seite des Dienstes recht.
+So richtest du deine eigene Seluna-Instanz ein, in deinem Webbrowser und mit der Telegram-App auf deinem Handy. Du tippst keinen Befehl. Wenn ein Schritt nicht klappt, findest du dein Problem in der [Fehlerbehebung](troubleshooting.md) (englisch).
 
 ## Was du brauchst
 
@@ -21,7 +19,7 @@ Seluna sendet seine Benachrichtigungen über einen eigenen Telegram-Bot.
 3. Kopiere den Token, den @BotFather zurückgibt, und bewahre ihn für Schritt 5 auf. Behandle ihn wie ein Passwort.
 4. Öffne deinen neuen Bot und sende ihm `/start`. Der Bot antwortet nicht: Seluna sendet nur Nachrichten, es antwortet nie in Telegram.
 
-Die Beschreibung dieses Schritts durch @BotFather selbst steht in der [Dokumentation von Telegram](https://core.telegram.org/bots/features#botfather) (englisch). _Noch nicht durch einen Testlauf bestätigt: die genauen Fragen und Formulierungen von @BotFather._
+Telegram beschreibt diesen Schritt in seiner [Dokumentation zu @BotFather](https://core.telegram.org/bots/features#botfather) (englisch).
 
 **Es hat geklappt, wenn** @BotFather dir eine Nachricht mit dem Token des Bots geschickt hat.
 
@@ -39,14 +37,12 @@ Bewahre es auf: Wenn du es später änderst, kann Seluna das Gespeicherte nicht 
 ## 3. Bei Cloudflare bereitstellen
 
 1. Öffne die [README](../README.md) und wähle **Deploy to Cloudflare**.
-2. Melde dich bei Cloudflare an und verbinde auf Nachfrage dein GitHub-Konto.
-3. Das Formular erstellt eine eigenständige Kopie des Repositorys in deinem GitHub-Konto (keinen Fork), legt die D1-Datenbank an und fragt nach `SELUNA_SECRET`. Füge das Passwort aus Schritt 2 ein und fahre fort, bis Cloudflare den Worker baut und bereitstellt.
-4. Prüfe nach dem Deploy den Deploy command. Öffne im Cloudflare-Dashboard **Workers & Pages**, deinen Worker, dann **Settings** und **Build** und sieh dir **Deploy command** an. Dort muss `npm run deploy` stehen; das legt die Datenbanktabellen an, bevor es den Worker bereitstellt. Der Button setzt manchmal stattdessen `npx wrangler deploy`; ändere es dann auf `npm run deploy`, speichere und wiederhole den letzten Build (**Deployments**). Cloudflare beschreibt die Build-Einstellungen in seiner [Dokumentation zur Build-Konfiguration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/) (englisch).
-5. Notiere die Adresse deines Workers, `https://<worker>.<dein-subdomain>.workers.dev`; das Dashboard zeigt sie auf der Seite des Workers.
+2. Melde dich bei Cloudflare an. Das Formular bittet dich, dein GitHub-Konto zu verbinden, damit es dort ein neues privates Repository mit einer Kopie von Seluna anlegen kann (eine eigenständige Kopie, kein Fork). Cloudflare beschreibt das in seiner [Dokumentation zu Deploy-Buttons](https://developers.cloudflare.com/workers/platform/deploy-buttons/) (englisch).
+3. Behalte den Projektnamen `seluna`, lass das Formular eine neue D1-Datenbank anlegen und nenne sie `seluna`, und lass den Standort auf automatisch. Füge das Passwort aus Schritt 2 dort ein, wo das Formular nach `SELUNA_SECRET` fragt, und fahre fort, bis Cloudflare den Worker baut und bereitstellt.
+4. Prüfe nach dem Deploy den Deploy-Befehl in den Build-Einstellungen des Workers. Dort muss `npm run deploy` stehen; das legt die Datenbanktabellen an, bevor es den Worker bereitstellt. Der Button setzt manchmal stattdessen `npx wrangler deploy`; ändere es dann auf `npm run deploy` und wiederhole den letzten Build. Cloudflare beschreibt die Build-Einstellungen in seiner [Dokumentation zur Build-Konfiguration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/) (englisch).
+5. Notiere die Adresse deines Workers, `https://<worker>.<dein-subdomain>.workers.dev`; die Seite des Workers im Cloudflare-Dashboard zeigt sie.
 
 Teste Seluna nicht in dieser Kopie des Repositorys: Jeder Merge in ihren `main`-Branch stellt deine Instanz neu bereit.
-
-_Noch nicht durch einen Testlauf bestätigt: das Cloudflare-Formular und die Dashboard-Menüs wie oben benannt._
 
 **Es hat geklappt, wenn** das Build-Protokoll des letzten Builds die Zeile `> wrangler d1 migrations apply DB --remote` zeigt und `https://<worker>.<dein-subdomain>.workers.dev/health` mit der Version von Seluna antwortet.
 
@@ -82,7 +78,7 @@ Wähle oben auf der Seite **Telegram-Chat**.
 
 **Es hat geklappt, wenn** der Schritt **Gespeicherter Chat:** mit der Nummer deines Chats zeigt und die Startseite die Nummer neben **Telegram-Chat:** zeigt. Der Code beweist, dass der Chat dir gehört; ist keine Nachricht angekommen, ist es nicht dein Chat.
 
-Wenn du den Token oder den Chat stattdessen von Hand als Worker-Secrets setzen möchtest, siehe die [manuelle Einrichtung](manual-setup.md#9-optional-set-the-telegram-bot-token-and-chat-by-hand) (englisch).
+Wenn du den Token oder den Chat stattdessen von Hand als Worker-Secrets setzen möchtest, siehe [Worker secrets](areas/deployment.md#worker-secrets) (englisch).
 
 ## 6. GitHub-App erstellen
 
@@ -96,14 +92,12 @@ Seluna empfängt die Ereignisse deiner Repositories über eine eigene, private G
 
 ![Die Prüfseite: das Konto, der App-Name, die Berechtigungen nur zum Lesen, die Ereignisse und der Button Weiter zu GitHub](assets/setup/de/07-github-review.png)
 
-3. Prüfe auf GitHub die Angaben, ändere auf Wunsch den Namen der App und wähle **Create GitHub App**. GitHub beschreibt das in seiner Dokumentation zum [Registrieren einer GitHub-App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app) (englisch).
+3. GitHub zeigt die Angaben der App. Prüfe sie, ändere auf Wunsch den Namen der App und bestätige das Erstellen. GitHub beschreibt das in seiner Dokumentation zum [Registrieren einer GitHub-App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app) (englisch).
 4. GitHub schickt dich zur Einrichtung zurück. Wähle **Abschließen**: Seluna ruft die Zugangsdaten der App ab und speichert sie verschlüsselt.
 
 ![Die Abschlussseite: der Hinweis, dass GitHub die App erstellt hat, und der Button Abschließen](assets/setup/de/08-github-finish.png)
 
 Tu das innerhalb einer Stunde und solange du auf der Einrichtungsseite angemeldet bist. Sonst lehnt Seluna die Rückkehr ab und es wird nichts gespeichert ([Fehlerbehebung](troubleshooting.md#the-return-from-github-is-refused)). Eine erneut erstellte App ersetzt die gespeicherte; lösche die alte App danach auf GitHub.
-
-_Noch nicht durch einen Testlauf bestätigt: die GitHub-Seite zum Erstellen der App und ihre Formulierungen._
 
 **Es hat geklappt, wenn** die Seite **Die GitHub-App ist gespeichert.** sagt und den Link **App auf GitHub installieren** anbietet.
 
@@ -113,12 +107,10 @@ _Noch nicht durch einen Testlauf bestätigt: die GitHub-Seite zum Erstellen der 
 
 Die App sieht nur die Repositories, die du ihr gibst. Seluna empfiehlt **Only select repositories**: Nur die Repositories, die du auswählst, melden an Seluna, und ein neues Repository fügst du der Installation von Hand hinzu.
 
-1. Wähle auf GitHub **New repository**, nenne es zum Beispiel `seluna-test`, mache es **Private**, setze den Haken bei **Add a README file** und wähle **Create repository**.
+1. Erstelle auf GitHub ein neues privates Repository mit einer README, zum Beispiel mit dem Namen `seluna-test` ([Dokumentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-new-repository), englisch).
 2. Wähle auf der Einrichtungsseite **App auf GitHub installieren**. Die Seite von GitHub zum Installieren einer App öffnet sich ([Dokumentation](https://docs.github.com/en/apps/using-github-apps/installing-your-own-github-app), englisch).
-3. Wähle dein Konto, wähle **Only select repositories**, wähle das Test-Repository und wähle **Install**.
+3. Installiere die App auf deinem Konto nur für das Test-Repository, nicht für alle Repositories.
 4. Gehe zurück zur Einrichtungsseite und wähle oben **Startseite**.
-
-_Noch nicht durch einen Testlauf bestätigt: die Installationsseite von GitHub und ihre Formulierungen._
 
 **Es hat geklappt, wenn** die Karte **Status** unter **Installationen:** dein Konto mit **persönliches Konto**, **ausgewählte Repositories** auflistet und nach **Besitzer der GitHub-App:** dein Konto zeigt. Nennt sie etwas unter **Fehlt der App:** oder ist die Installation mit **fehlt:** markiert, ergänze und akzeptiere es über ihre Links auf GitHub.
 
@@ -142,12 +134,8 @@ Issues und Kommentare, die du selbst geschrieben hast, werden ausgelassen. Selun
 
 ## 9. Mit einem Pull Request testen
 
-1. Öffne auf GitHub das Test-Repository aus Schritt 7 und die Datei `README.md`.
-2. Wähle den Stift (**Edit this file**), ändere eine Zeile und wähle **Commit changes...**.
-3. Wähle **Create a new branch for this commit and start a pull request** und dann **Propose changes**.
-4. Wähle auf der nächsten Seite **Create pull request**. Wähle nicht die Entwurfsoption: Ein Entwurf-Pull-Request ergibt keine Nachricht.
-
-_Noch nicht durch einen Testlauf bestätigt: die Bearbeiten- und Pull-Request-Seiten von GitHub und ihre Formulierungen._
+1. Öffne auf GitHub das Test-Repository aus Schritt 7 und ändere in der Weboberfläche eine Zeile seiner `README.md` in einem neuen Branch ([Dokumentation](https://docs.github.com/en/repositories/working-with-files/managing-files/editing-files), englisch).
+2. Öffne von diesem Branch aus einen Pull Request ([Dokumentation](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request), englisch). Öffne ihn als normalen Pull Request, nicht als Entwurf: Ein Entwurf-Pull-Request ergibt keine Nachricht.
 
 **Es hat geklappt, wenn** Telegram von deinem Bot eine Nachricht **New pull request** (**Neuer Pull Request**, wenn du die **Sprache der Benachrichtigungen** auf Deutsch gestellt hast) mit dem Repository, dem Titel deines Pull Requests und einem Button zum Öffnen zeigt. Auf der Startseite zeigt **Letzte Zustellung von GitHub:** dann die Uhrzeit. Deine Instanz ist eingerichtet.
 
@@ -159,4 +147,4 @@ Jeder Push auf `main` deiner Kopie baut und deployt sie. Um ein neues Seluna-Rel
 
 ## Wenn etwas nicht funktioniert
 
-Die [Fehlerbehebung](troubleshooting.md) (englisch) ist nach Symptomen geordnet: keine Nachricht, Anmeldung, der Telegram-Schritt, der GitHub-App-Schritt, die **Recent Deliveries** von GitHub.
+Die [Fehlerbehebung](troubleshooting.md) (englisch) ist nach Symptomen geordnet: keine Nachricht, Anmeldung, der Telegram-Schritt, der GitHub-App-Schritt, die Webhook-Zustellungen von GitHub.
