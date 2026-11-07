@@ -27,20 +27,27 @@ too. [Decision 0034](0034-setup-page-layout-checked-on-the-style.md) left the pr
    tests, a browser dependency in CI for pages that change rarely, the trade-off decision 0034 already declined.
 4. **A German guide** next to the English one, as an exception to English-only documentation — the setup pages and
    messages are German already, and the issue's owner asks for it. Chosen; other documents stay English only.
-5. **The manual setup edits `wrangler.jsonc` with the database id** — a local change every later pull conflicts
-   with; Wrangler finds the database by its name `seluna` instead, once the reader has created it. Not chosen.
+5. **A manual setup with the Wrangler command line and a GitHub App created by hand** (`docs/manual-setup.md`) —
+   a second path for readers who prefer the command line; it needs its own dry run and a second set of instructions
+   to keep correct, and the browser path already needs no command line. Not chosen (the Product Manager, after the
+   dry run of the browser guide).
+6. **Other services' steps quoting their exact labels and menu paths** — easiest to follow on the day they are
+   written, but those pages change without notice and checking them needs test accounts at every service. Not
+   chosen (the Product Manager): their steps say what the reader does and link the service's own documentation.
 
 ## Decision
 
 The setup guide exists as `docs/setup.md` and `docs/setup.de.md`, shows screenshots of Seluna's own pages only
-(rendered with made-up values, captured by hand, no committed generator) and links the other services' documentation
-for their steps; a change of a setup page's text or look updates both guides and their screenshots in the same pull
-request. The rules of the deployment paths are in [`areas/deployment.md`](../areas/deployment.md).
+(rendered with made-up values, captured by hand, no committed generator) and describes the other services' steps in
+plain words that do not depend on their labels, with a link to their documentation; there is no manual setup guide; a change of a setup page's text or look updates both guides and their screenshots in the same pull
+request. The deployment it describes is in [`areas/deployment.md`](../areas/deployment.md).
 
 ## Consequences
 
-- A reader sees no picture of @BotFather, the Cloudflare deploy flow or GitHub's pages; the text names their controls
-  and links their own documentation, which may change without Seluna noticing.
+- A reader sees no picture of @BotFather, the Cloudflare deploy flow or GitHub's pages, and no exact label of them;
+  the text says what to do there and links their own documentation, so a change of those pages leaves the guides
+  correct.
+- A reader who wants the command line has no guide of Seluna's; Wrangler's own documentation applies.
 - Renewing a screenshot is manual work for whoever changes a page; nothing fails when it is forgotten except the
   review, which `docs/CONTRIBUTING.md` asks to check.
 - Two languages double every later guide edit, the messenger sections of 1.1.0 and 1.2.0 included.

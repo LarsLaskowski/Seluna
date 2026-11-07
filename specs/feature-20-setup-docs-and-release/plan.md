@@ -1,69 +1,60 @@
 # Plan: Setup documentation, troubleshooting and the path to 1.0.0
 
 Source: [spec.md](spec.md)
-Status: Revised (2)
+Status: Revised (3)
 Tier: trivial — documentation and screenshots only, with a decision record; no production, test, configuration or workflow file.
-Security areas touched: Encrypted credentials and Minimal GitHub App permissions (`docs/manual-setup.md` sets the Worker secrets and lists a hand-made app's permissions by hand); no security control changes.
+Security areas touched: none
+Plan size: the Product Manager's AC7 decisions need an exact removal list across ten documents for the Dev (G3).
 
 ## Problem / root cause
 
-Feature: see [spec.md](spec.md).
+Feature: see [spec.md](spec.md); scope narrowed after the AC7 dry run (spec, *Amendments*).
 
 ## Verified facts
 
 | # | Claim | Evidence | Status |
 | - | ----- | -------- | ------ |
-| 1 | Hand-made app: permissions, events and webhook URL as the manifest builds them | `src/github/manifest.ts:12-32,67` | confirmed |
-| 2 | An owner's own non-draft pull request gives a message (S1's test) | `src/rules/pull-request-opened.ts`, no sender filter | confirmed |
-| 3 | The branch holds no code, so the Deploy button (deploys `main`) gives what the head would | orchestrator: `git diff main --stat`, step 7 | confirmed |
-| 4 | Screenshots render from `src/setup/pages.ts` outside the Worker | Dev, step 6: rendered and captured (Playwright over Chrome, scratch only) | confirmed |
-| 5 | `wrangler d1 create seluna` needs no config edit, and `npm run deploy` binds it by name | to verify: Product Manager, AC8 dry run before step 8 | unverified |
-| 6 | `wrangler secret put GITHUB_APP_PRIVATE_KEY < <key file>` stores the multi-line PEM unchanged | to verify: Product Manager, AC8 dry run (status page shows the app) | unverified |
-| 7 | `npm ci --ignore-scripts` leaves Wrangler working for every command of the guide | to verify: Product Manager, AC8 dry run | unverified |
-| 8 | The external documentation links describe today's steps | to verify: Product Manager, AC7/AC8 dry runs | unverified |
-| 9 | The browser setup takes under 15 minutes | to verify: Product Manager, AC7 dry run, duration in `log.md` | unverified |
+| 1 | An owner's own non-draft pull request gives a message (S1's test) | `src/rules/pull-request-opened.ts`, no sender filter; the AC7 run ended with the message | confirmed |
+| 2 | The branch holds no code, so the Deploy button (deploys `main`) gives what the head would | orchestrator: `git diff main --stat`, step 7 | confirmed |
+| 3 | Screenshots render from `src/setup/pages.ts` outside the Worker | Dev, step 6: rendered and captured (Playwright over Chrome, scratch only) | confirmed |
+| 4 | The browser guide runs through as written and is understandable | Product Manager, AC7 dry run on PR #153, 2026-11-07 | confirmed |
+| 5 | Cloudflare's deploy form today: connect a Git account, create a (private) repository, project name `seluna`, a new D1 database named `seluna`, location automatic | Product Manager's screenshot of the form, 2026-11-07 | confirmed |
+| 6 | Only Seluna's own texts quote **Only select repositories** in the guides' sense | `src/setup/texts.ts:259,262,499,502` | confirmed |
+| 7 | AC7's German half: the German pages checked against `docs/setup.de.md` | to verify: Product Manager, confirms or runs it on the G3 head before step 8; the orchestrator logs it | unverified |
 
 ## Tests per criterion
 
 | AC | Test(s) | Test file |
 | -- | ------- | --------- |
-| AC1–AC9 | none: see *Verification without tests* | — |
-
-Shell procedure of `docs/manual-setup.md`: no test can run it; the guide's design holds each case, checked in the AC8 run:
-
-- (a) all pasted at once: one command per code block; prompting commands stand alone, with a warning;
-- (b) one at a time: the intended use, each block followed by what success shows;
-- (c) one fails: each step says "stop here" and links troubleshooting; `npm run deploy` stops before deploying when migrations fail (`package.json:19`, `&&`), secrets follow a successful deploy;
-- (d) a variable is lost: no shell variables; secrets only at prompts or from a file.
+| AC1, AC2, AC4–AC7, AC9 | none: see *Verification without tests* | — |
 
 ## Verification without tests
 
-Not applicable: steps 4, 5 and the *Coverage gate*. Early draft PR (#153, *Early draft PR*): the dry runs run on its
-head before step 8; it says "Part of #20", never "Closes #20".
+Not applicable: steps 4, 5 and the *Coverage gate*. Early draft PR #153 ("Part of #20", never "Closes #20"). No
+second English run after G3: G3 only removes text and loosens third-party wording; the Reviewer checks it.
 
-- AC1: check: Reviewer, step 8 — S1's steps in order, screenshot per Seluna page, link per other service, no shell command, every quote verbatim in the English table of `src/setup/texts.ts`.
+- AC1: check: Reviewer, step 8 — S1's steps in order, screenshot per Seluna page, link per other service, no shell command, every Seluna quote verbatim in the English table of `src/setup/texts.ts`; N6/N7 as *Documentation updates* states them.
 - AC2: check: Reviewer, step 8 — same headings and order as `docs/setup.md`, German quotes from the German table.
-- AC3: check: Reviewer, step 8 — fact 1, secret names of `docs/areas/deployment.md`, the manual-path rules of *Manual deployment* there, the bot-token warning.
-- AC4: check: Reviewer, step 8 — one entry per E1–E8, quotes found in `docs/areas/http-routes.md`, `docs/areas/setup-wizard.md` or `src/setup/texts.ts`; no traces advice without the bot-token warning.
-- AC5: check: Reviewer, step 8 — rules of `src/rules/registry.ts` plus release and limit notices, four links, security notes no broader than `.squad/project.md` and `SECURITY.md`.
+- AC4: check: Reviewer, step 8 — one entry per E1–E8, quotes found in `docs/areas/http-routes.md`, `docs/areas/setup-wizard.md` or `src/setup/texts.ts`; no traces advice without the bot-token warning; N6.
+- AC5: check: Reviewer, step 8 — rules of `src/rules/registry.ts` plus release and limit notices, three links, security notes no broader than `.squad/project.md` and `SECURITY.md`, no duration.
 - AC6: check: Reviewer opens every image, step 8; Product Manager confirms, step 9.
-- AC7: manual: Product Manager, dry run on PR #153's head before step 8; result, duration and deviations in `log.md`.
-- AC8: manual: Product Manager, dry run on the latest release tag alongside AC7; deviations fixed by the Dev.
-- AC9: check: Reviewer, step 8 — the rule in the `releases` block of `docs/CONTRIBUTING.md`.
+- AC7: manual: Product Manager, done in English on PR #153 (fact 4); German half fact 7.
+- AC9: check: Reviewer, step 8 — both rules in the `releases` block of `docs/CONTRIBUTING.md`.
 
 ## Approach
 
-Built (G1–G2); the documents are the layout. Screenshots: `docs/assets/setup/<en|de>/<nn>-<name>.png`, 11 per
-language, same names, 1280 px viewport, at most 300 KB each, made-up values only. Dev deviations accepted: Playwright
-instead of Chrome's `--screenshot` flag (nothing committed); AC3's "record its id" not needed (fact 5, decision 0047
-option 5).
+G1–G2 are built; G3 applies the Product Manager's decisions. N6 in practice: a step on another service says what
+the reader does and why ("create a new private repository with a README", "open a pull request from your change, not
+as a draft", "the app's webhook deliveries on GitHub") and links that service's documentation of the step; no bold or
+quoted label of the service, no menu path, no `_Not yet confirmed …_` note. Seluna's own labels stay quoted.
 
 ## Affected projects and types
 
 | Project | Type / file | Change |
 | ------- | ----------- | ------ |
-| docs | `docs/setup.md`, `docs/setup.de.md`, `docs/manual-setup.md`, `docs/troubleshooting.md`, `docs/assets/setup/` | rewritten / new |
-| docs | `README.md`, `docs/CONTRIBUTING.md`, `docs/update.md`, `docs/ARCHITECTURE.md`, `docs/areas/deployment.md`, `CHANGELOG.md` | sweep |
+| docs | `docs/setup.md`, `docs/setup.de.md`, `docs/troubleshooting.md`, `docs/assets/setup/` | rewritten / new |
+| docs | `docs/manual-setup.md` | deleted (G3) |
+| docs | `README.md`, `docs/CONTRIBUTING.md`, `docs/ARCHITECTURE.md`, `docs/areas/deployment.md`, `CHANGELOG.md` | sweep |
 
 ## Signatures (for the Dev's skeleton)
 
@@ -75,15 +66,37 @@ none (no code).
 
 ## Areas
 
-[Deployment](../../docs/areas/deployment.md): *Manual deployment* (done).
+[Deployment](../../docs/areas/deployment.md): the *Manual deployment* subsection added in G2 is removed again (G3).
 
 ## Documentation updates
 
-Done (G2); dry-run deviations go into both guides.
+G3, Dev, against the head (line numbers of 46641cc):
+
+- `docs/manual-setup.md`: delete.
+- `docs/setup.md` and `docs/setup.de.md` alike: line 5, drop the manual-setup sentence; line 7, delete the paragraph
+  on _Not yet confirmed_ notes; delete the notes on lines 24, 49, 106, 121, 150; line 85, link
+  [Worker secrets](areas/deployment.md#worker-secrets) instead of the manual setup; rewrite N6-wise the other
+  services' steps: step 1 items 1–2, step 3 items 2–4 (fact 5 says what the form does, in plain words; the
+  deploy-command check stays, as "the deploy command in the Worker's build settings"), step 6 item 3, step 7 items
+  1–3, step 9 items 1–4. Keep the 15-minute sign-in lock (behavior, not a setup duration).
+- `docs/troubleshooting.md`: line 3, drop the manual-setup clause; lines 8–9 and 11, name the delivery log and the
+  build log N6-wise and drop the "menus … may differ" sentence; remove TOC line 24 and the section from line 176; line
+  51, drop the `wrangler secret put` sentence; lines 106 and 111, drop the hand-made-app cause and fix; line 123,
+  "set all three Worker secrets if you use them"; rewrite N6-wise the GitHub and Cloudflare click paths on lines 36–38,
+  83, 90–91, 112–113, 173–174 (headings "GitHub's Recent Deliveries show …" become "GitHub's webhook deliveries show
+  …", anchors updated where linked).
+- `README.md`: line 29, drop "The aim is a working setup in under 15 minutes."; line 69, drop the manual-setup sentence.
+- `docs/CONTRIBUTING.md`, *Setup guides*: add that other services' steps are described without depending on their
+  labels, with a link to their documentation (decision 0047).
+- `docs/ARCHITECTURE.md:182`: drop the added sentence on deploying by hand.
+- `docs/areas/deployment.md`: delete *Manual deployment* (lines 24–36); the 0047 entry under *Related decisions*
+  reads "the setup guides (English and German) with screenshots".
+- `CHANGELOG.md` `Unreleased`: drop the manual-setup clause.
+- `docs/update.md`: no change, unless step 3's heading changes (then the two `setup.md#3-deploy-to-cloudflare` anchors).
 
 ## Architecture check
 
-No guarantee touched: no code or configuration; secrets stay Cloudflare's encrypted Worker secrets.
+No guarantee touched: no code or configuration.
 
 ## Security considerations
 
@@ -92,13 +105,16 @@ No guarantee touched: no code or configuration; secrets stay Cloudflare's encryp
 
 ## Security review
 
-Approved at the delta review: B1 (generated webhook secret) and B2 (release tag only, `npm ci --ignore-scripts`
-before login) accepted, N1–N3 taken; all stand in `docs/areas/deployment.md` (*Manual deployment*), checked by AC3 and AC4.
+Security approved Revised (1). Its two areas (Encrypted credentials, Minimal GitHub App permissions) came in only
+through `docs/manual-setup.md`; the README's security notes describe existing controls without changing them. Its findings B1, B2 and N3 concerned `docs/manual-setup.md` only and fall with it; N1
+(bot-token warning in troubleshooting) and N2 (README security notes) stay, checked by AC4 and AC5. With no security
+area touched, no new plan review is due.
 
 ## Decision records
 
-- [`docs/decisions/0047-setup-guides-screenshots-and-languages.md`](../../docs/decisions/0047-setup-guides-screenshots-and-languages.md) (Proposed)
+- [`docs/decisions/0047-setup-guides-screenshots-and-languages.md`](../../docs/decisions/0047-setup-guides-screenshots-and-languages.md) (Proposed; edited in place: manual setup and label-quoting as rejected options)
 
 ## Out of scope / follow-ups
 
-External setup test, one week of use and v1.0.0: Product Manager after the merge; #20 stays open.
+External setup test, one week of use and v1.0.0: Product Manager after the merge; #20 stays open. Uninstalling an
+instance: a follow-up issue (Lead decision, see result).
