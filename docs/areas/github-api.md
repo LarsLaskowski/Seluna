@@ -5,7 +5,7 @@
 How Seluna calls the GitHub API as the owner's GitHub App: the app token (JWT), where App ID and private key come
 from, the installation tokens per installation and their cache, the rules every request follows, the pull request
 read, the app read and the installations list, and the one failure result its callers get. The webhook processing (the draft
-lookup of the CI failure rule in a pull request and of a comment on a pull request whose payload has no `draft`, [Notifications](notifications.md#draft-lookup); the App ID, resolved the same way, to read the stored owner) and the setup
+lookup of the CI failure rule in a pull request and of a comment on a pull request whose payload has no `draft`, [Notification rules](notification-rules.md#draft-lookup); the App ID, resolved the same way, to read the stored owner) and the setup
 wizard's status page rely on it.
 
 ## Behavior
@@ -83,7 +83,7 @@ wizard's status page rely on it.
   installation's repositories).
 - The webhook processing calls it with the delivery's `installation.id` and gives the whole call (token and pull
   request read) at most 8 seconds; a call still running then counts as a failure for the caller and is not cancelled
-  ([Notifications](notifications.md#draft-lookup)).
+  ([Notification rules](notification-rules.md#draft-lookup)).
 
 ### App read
 
@@ -115,7 +115,7 @@ wizard's status page rely on it.
   from the entry's own entries; when either has another shape the entry's access is unreadable, and the entry is
   still listed.
 - There are more installations exactly when the answer's `Link` header has a link with the parameter `rel="next"`.
-- How the status page shows the list is in [Setup wizard](setup-wizard.md#status-and-settings).
+- How the status page shows the list is in [Status page](status-page.md#the-app-on-github).
 
 ## Limits and errors
 
@@ -151,8 +151,8 @@ wizard's status page rely on it.
 
 - The `token_cache` table, its columns and its encryption: [Storage](storage.md).
 - The owner line, the app check and the _Installations:_ line of the status page and their texts:
-  [Setup wizard](setup-wizard.md).
-- The two GitHub requests made without credentials: the manifest conversion of the setup wizard
-  ([Setup wizard](setup-wizard.md#github-app)) and the daily release check
+  [Status page](status-page.md#the-app-on-github).
+- The two GitHub requests made without credentials: the manifest conversion of the GitHub App step
+  ([GitHub App step](github-app-step.md#the-conversion)) and the daily release check
   ([Scheduled jobs](scheduled-jobs.md#release-check)).
 - Removing expired `token_cache` rows: the cleanup of the cron ([Scheduled jobs](scheduled-jobs.md#cleanup)).

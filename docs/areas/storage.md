@@ -56,8 +56,8 @@ The first migration (`migrations/0001_initial_schema.sql`) creates the first six
 
 - `settings` holds the owner's choices: the language, the time zone, the quiet hours, the enabled rules, the
   update notice, the Telegram chat id and the active delivery channel (`delivery_channel`, below). The notification settings are eighteen rows with these keys and formats;
-  an absent row, or a value that does not fit its format, reads as the default of that row alone (code:
-  `settingsFromStored` in `src/settings.ts`), and the eighteen rows are written in one batch:
+  an absent row, or a value that does not fit its format, reads as the default of that row alone (implemented in
+  `src/settings.ts`), and the eighteen rows are written in one batch:
 
 | Key                                                 | Value                                                                                                                                                                                                                                                                                                                                                                      | Default       |
 | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
@@ -69,22 +69,23 @@ The first migration (`migrations/0001_initial_schema.sql`) creates the first six
 | `update_notice`                                     | `on` or `off`                                                                                                                                                                                                                                                                                                                                                              | `on`          |
 | `activity_digest`                                   | `immediate`, `hourly` or `daily@HH:MM` (`HH:MM` 24-hour, `00:00` to `23:59`); any other value, such as `daily@24:00`, `daily@` or `weekly`, reads as the default                                                                                                                                                                                                           | `daily@18:00` |
 
-The quiet hours are one row: switching them off stores `off` and drops the times. Consumers read them only
-through `readNotificationSettings` or `settingsFromStored`, as `quietHours` (start inclusive, end exclusive).
+The quiet hours are one row: switching them off stores `off` and drops the times. Every component reads the settings
+through the same parsing of these rows, never the raw value; the quiet hours are a start (inclusive) and an end
+(exclusive) ([Delivery](delivery.md#quiet-hours)).
 The runtime of this repository (the Workers test pool) lists 418 names and does not list `UTC`, which is
 therefore added; aliases such as `US/Pacific` are accepted or rejected exactly as the runtime's list says.
 
 - The `settings` key `telegram_chat_id` holds the decimal text of the Telegram chat id (negative for a group). Only
   the setup wizard writes it, and only after the owner typed back the code of a successful test message
-  ([Setup wizard](setup-wizard.md#telegram-chat)); a stored value that is not a chat id counts as no chat.
+  ([Telegram step](telegram-step.md#chat-proof)); a stored value that is not a chat id counts as no chat.
 - The three `secrets` rows of the GitHub App are written together, in one transaction, by the setup wizard's GitHub App step
-  ([Setup wizard](setup-wizard.md#github-app)): `github_app_id` holds the decimal App ID, `github_private_key` the
+  ([GitHub App step](github-app-step.md#githubs-return-and-finishing)): `github_app_id` holds the decimal App ID, `github_private_key` the
   private key as a PKCS#8 PEM and `github_webhook_secret` the webhook secret as GitHub generated it. The Worker
   secrets `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_WEBHOOK_SECRET` take precedence over the stored value
   of the same credential.
 - The `secrets` row `telegram_bot_token` holds the Telegram bot token as the owner entered it. It is written on its own
   by the setup wizard's Telegram step, only after the token matched the bot token form and Telegram accepted it, and
-  replaces an earlier value; _Remove token_ deletes it ([Setup wizard](setup-wizard.md#the-bot-token)). The Worker
+  replaces an earlier value; _Remove token_ deletes it ([Telegram step](telegram-step.md#the-bot-token)). The Worker
   secret `TELEGRAM_BOT_TOKEN` takes precedence over it whenever it is set. A stored value that decrypts but is not of
   the bot token form is treated as damaged and never used.
 - `token_cache` holds at most one row per installation id: the installation token of the GitHub API client and its
@@ -99,9 +100,10 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   the first character tells the two forms apart (`{` or `<b>`). A row whose `text` starts with `{` but does not decode,
   or is not text, is read as damaged and ends `failed` after five attempts; it never stops the other rows.
 - `delivery_channel` is the id of the active delivery channel (`telegram`, lowercase letters, digits and hyphens, at
-  most 32 characters). It is written alone by the _Activate_ form of the start page, never by the settings form; an
-  absent or unknown value reads as `telegram` ([Notifications](notifications.md#delivery-channels)). The credentials of
-  a channel are `secrets` rows (`ChannelSecretName`, today `telegram_bot_token`).
+  most 32 characters). It is written alone by the _Activate_ form of the start page
+  ([Status page](status-page.md#messengers)), never by the settings form; an absent or unknown value reads as
+  `telegram` ([Delivery](delivery.md#delivery-channels)). The credentials of a channel are `secrets` rows (today
+  `telegram_bot_token`).
 - An `outbox` row is written `pending` and changed only while it is still `pending`: to `sent` when the active channel accepted
   it, to `failed` by its fifth failed attempt or, for a row that already holds 5 or more attempts, by the retry of the
   cron ([Scheduled jobs](scheduled-jobs.md#retry)). A `pending` row is never deleted; `sent` and `failed` rows are
@@ -109,7 +111,7 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   ([Scheduled jobs](scheduled-jobs.md#cleanup)).
 - `meta` holds the last notified release (`notified_release`, below), the time of the last delivery, the hourly delivery counts, the hours of the limit notices, the key check value
   (`key_check`, below), the GitHub App's slug and owner and the setup login's failed-attempt count (`login_attempts`, format
-  and rules in [Setup wizard](setup-wizard.md#failed-attempts-and-the-lock)).
+  and rules in [Setup login](setup-login.md#failed-attempts-and-the-lock)).
 - The `meta` row `last_delivery` is the time of the last received webhook delivery, as decimal milliseconds since
   1970-01-01 UTC matching `^(0|[1-9]\d{0,15})$` and at most `8640000000000000` (the latest time a JavaScript `Date`
   holds); a value that does not fit counts as no delivery. The webhook processing writes it in the transaction of a recorded delivery (with its `deliveries` and `outbox`
@@ -146,7 +148,8 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   plain text (an owner is public) and counts only for the App ID in its value; a value with any other form, App ID or
   part reads as absent. The GitHub App step writes it after the credentials were stored (a failed write is dropped and
   the app is created anyway), and the status page replaces it when GitHub's answer for the same App ID names another
-  owner. The rules compare the owner by its numeric id, never by the login ([Notifications](notifications.md#the-sender)).
+  owner. The rules compare the owner by its numeric id, never by the login
+  ([Notification rules](notification-rules.md#the-sender)).
   The reset keeps it, like the slug.
 - The `meta` row `notified_release` is the newest Seluna release the release check reported, as `A.B.C` (each part a
   whole number from 0 to 999,999,999 without leading zeros). Only the release check writes it, in one transaction
@@ -155,7 +158,7 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
 - Wrangler keeps its own record of the applied migrations in the table `d1_migrations`; no Seluna code reads or
   writes it.
 - The setup login reads the table names from `sqlite_master` after a failed D1 access to tell a database without its
-  tables from another failure ([Setup wizard](setup-wizard.md#login)); the list of the schema's tables sits beside
+  tables from another failure ([Setup login](setup-login.md#login)); the list of the schema's tables sits beside
   the store modules (`src/store/schema.ts`) and a test pins it to the migrations.
 
 ### Encryption
@@ -173,9 +176,9 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   are both the UTF-8 bytes of `seluna/secrets/v1`. The key never leaves the Worker's memory and is never stored.
 - The key is used only for the values in D1. Any other key taken from `SELUNA_SECRET` is derived with an HKDF
   info of its own, never this one: the setup login's session and CSRF keys use `seluna/setup-session/v1` and
-  `seluna/setup-csrf/v1` as salt and info ([Setup wizard](setup-wizard.md#session)); the Telegram chat proof's key uses
-  `seluna/setup-telegram/v1` ([Setup wizard](setup-wizard.md#chat-proof)); the GitHub manifest flow's state key uses
-  `seluna/setup-github/v1` ([Setup wizard](setup-wizard.md#github-app)).
+  `seluna/setup-csrf/v1` as salt and info ([Setup login](setup-login.md#session)); the Telegram chat proof's key uses
+  `seluna/setup-telegram/v1` ([Telegram step](telegram-step.md#chat-proof)); the GitHub manifest flow's state key uses
+  `seluna/setup-github/v1` ([GitHub App step](github-app-step.md#starting-the-flow)).
 - Each value is bound to its place as additional authenticated data, the UTF-8 bytes of:
   - `secrets/<key>` for a row of `secrets`;
   - `token_cache/<installation_id>/<expires_at>/<permissions>` for a row of `token_cache`, the two numbers in decimal
@@ -204,7 +207,8 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
 - The first credential written stores the key check value in the same transaction as the credential. Later
   writes leave it unchanged. The bot token is a credential like the GitHub App's: it is written, read and reset
   under the same key check value, and whichever credential is written first stores it.
-- Deleting one credential (`deleteSecret`, today only the Telegram step's _Remove token_) deletes the row and, in the
+- Deleting one credential (today only the bot token, by _Remove token_ of the Telegram step or _Remove_ of the
+  Messengers card) deletes the row and, in the
   same batch, the `key_check` row when no `secrets` row is left, whatever its value. So the key check value exists
   exactly while a credential does: removing the last credential leaves no key check behind that a later
   `SELUNA_SECRET` change would report as **secret changed**. A write that checked the deleted value finds it gone,
@@ -239,14 +243,14 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
   three upserts changed one row (the key check insert of a first write is not counted); any other result is tried
   once more from the check and then reported as **corrupt**, with nothing of the three left half written by the
   attempt.
-- `checkKey` reports the same states: **corrupt** for an absent key check value beside a stored credential (it used
-  to report _unset_, after which every write failed), **unset** only while `secrets` is empty.
+- Checking the key on its own, without reading or writing a credential, reports the same states: **corrupt** for an
+  absent key check value beside a stored credential, **unset** only while `secrets` is empty.
 - **Secret changed** is the dedicated result the setup wizard shows; its remedy is a reset that clears the
   stored credentials, the installation tokens and the key check value and runs the setup again. **Corrupt** leads
   to the same reset.
-- The reset (`resetCredentials`) is needed when the key check value is **secret changed** or **corrupt**, when it is
-  absent beside a stored credential, or when a stored credential does not decrypt under a matching key check value
-  (`needsReset`). It reads the key check value (as SQLite's `quote()` text), every `secrets` row and the secrets
+- The reset is needed when the key check value is **secret changed** or **corrupt**, when it is absent beside a
+  stored credential, or when a stored credential does not decrypt under a matching key check value; the owner starts
+  it on the start page ([Status page](status-page.md#reset)). It reads the key check value (as SQLite's `quote()` text), every `secrets` row and the secrets
   fingerprint (`quote(key) || ':' || quote(iv)` of every row in key order, computed by SQLite) in one batch, decides
   from what it read and then runs one batch of three deletes in this order: (1) `token_cache` and (2) `secrets`,
   each only while the key check value and the fingerprint are still the ones read; (3) the `key_check` row, only
@@ -289,6 +293,6 @@ therefore added; aliases such as `US/Pacific` are accepted or rejected exactly a
 ## Not here
 
 - How and when migrations are applied to an instance's database: [Deployment](deployment.md#d1-database).
-- What each setting means and how the setup wizard writes it: [Setup wizard](setup-wizard.md).
+- What each setting means and how the setup wizard writes it: [Status page](status-page.md#settings).
 - The jobs that resend, mark `failed` and remove rows and the release check that writes `notified_release`:
   [Scheduled jobs](scheduled-jobs.md).

@@ -38,8 +38,8 @@ does the setup wizard under `/setup`.
 
 - `POST /webhook` is processed in this order: the body size limit (below), then the webhook secret, then the signature, then the webhook processing ([Notifications](notifications.md)). 413 and the 400 of an unreadable body therefore answer before 503 and 401; the 200, 202, 400 and 503 of the processing answer only after a valid signature.
 - The accepted signature is exactly `X-Hub-Signature-256: sha256=` followed by 64 lowercase hex digits of the
-  HMAC-SHA256 of the raw body bytes as received, under the webhook secret. It is compared in constant time
-  (`crypto.subtle.verify`). Any other form (uppercase digits or prefix, another length, another algorithm, two
+  HMAC-SHA256 of the raw body bytes as received, under the webhook secret. It is compared in constant time. Any
+  other form (uppercase digits or prefix, another length, another algorithm, two
   joined values, an empty value) answers 401.
 - `X-Hub-Signature` (SHA-1) is ignored: a delivery that carries only that header is unsigned and answers 401.
 - The secret is the `GITHUB_WEBHOOK_SECRET` Worker secret when it is a non-empty string, used verbatim (surrounding
@@ -70,9 +70,9 @@ does the setup wizard under `/setup`.
   `/setup` only the form submissions `POST /setup/login`, `POST /setup/logout`, `POST /setup/settings`,
   `POST /setup/reset`, `POST /setup/channel/activate`, `POST /setup/channel/remove`, `POST /setup/telegram`, `POST /setup/telegram/verify`, `POST /setup/telegram/token`,
   `POST /setup/telegram/token/remove`, `POST /setup/github` and
-  `POST /setup/github/callback` read a body, with this limit. The Telegram Bot API answers (`getMe`, `getUpdates`, `sendMessage`, also the 429 answer of `sendMessage`, read for its `retry_after`), through the shared HTTP code of the delivery channels ([Notifications](notifications.md#delivery-channels)), and the GitHub conversion answer read by the setup wizard are limited the same
-  way, through the same reader ([Setup wizard](setup-wizard.md#telegram-chat), [GitHub
-  App](setup-wizard.md#github-app)), and so are the GitHub API answers of the app's calls ([GitHub API](github-api.md#requests)) and the answer of the
+  `POST /setup/github/callback` read a body, with this limit. The Telegram Bot API answers (`getMe`, `getUpdates`, `sendMessage`, also the 429 answer of `sendMessage`, read for its `retry_after`), through the shared HTTP rules of the delivery channels ([Delivery](delivery.md#delivery-channels)), and the GitHub conversion answer read by the setup wizard are limited the same
+  way, through the same reader ([Telegram step](telegram-step.md), [GitHub
+  App step](github-app-step.md#the-conversion)), and so are the GitHub API answers of the app's calls ([GitHub API](github-api.md#requests)) and the answer of the
   release check ([Scheduled jobs](scheduled-jobs.md#release-check)).
 
 ### Logging
@@ -108,5 +108,6 @@ does the setup wizard under `/setup`.
 
 ## Not here
 
-- Webhook event processing, the message format and the sending: [Notifications](notifications.md).
-- The setup wizard and its login under `/setup`: [Setup wizard](setup-wizard.md).
+- Webhook event processing and the message format: [Notifications](notifications.md); the sending:
+  [Delivery](delivery.md).
+- The setup wizard under `/setup`: [Setup wizard](setup-wizard.md); its login: [Setup login](setup-login.md).
