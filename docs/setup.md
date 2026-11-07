@@ -145,6 +145,21 @@ If no message arrives, [Troubleshooting](troubleshooting.md#no-message-arrives) 
 
 Every push to `main` of your copy builds and deploys it. To apply a new Seluna release to your copy, run the update workflow in GitHub's web interface; [Update](update.md) explains how, and what to do about conflicts and permissions.
 
+## Uninstall
+
+To remove your instance, delete it in the order below. Seluna keeps nothing anywhere else: deleting it loses the GitHub App's stored credentials and the bot token, the Telegram chat and your settings, notifications not yet sent, the stars and forks collected for a digest not yet sent, and the Worker secrets. A new instance means the whole setup again.
+
+1. Open the web address of your Seluna Worker, the one you used for the setup, and sign in with your `SELUNA_SECRET`. The start page shows the app after **GitHub App:**; note it. On GitHub, uninstall it from your account, then delete it. GitHub sends its deliveries only through this app, so nothing reaches Seluna afterwards ([documentation](https://docs.github.com/en/apps/maintaining-github-apps/deleting-a-github-app)).
+2. In Cloudflare, delete the Worker, then its D1 database. Until the Worker is gone, it keeps sending: it retries pending messages and sends digests and release notices.
+3. In Telegram, send `/deletebot` to [@BotFather](https://t.me/BotFather) and choose your bot.
+4. On GitHub, delete the copy of the repository from step 3, and the test repository from step 7 if you made one. Do this after the Worker: until then a push to the copy deploys the Worker again ([documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/deleting-a-repository)).
+
+One step is optional:
+
+- If nothing else uses it, remove Cloudflare's access to your GitHub account ([documentation](https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/github-integration/)). The deploy form in step 3 connected it.
+
+If you deleted the Worker before the app, delete the app now.
+
 ## If something does not work
 
 [Troubleshooting](troubleshooting.md) is organized by symptom: no message, signing in, the Telegram step, the GitHub App step, GitHub's webhook deliveries.

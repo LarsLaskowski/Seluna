@@ -66,7 +66,7 @@ Every webhook is checked against its signature before anything happens. A delive
 3. Select **Deploy to Cloudflare** above. The button creates an independent copy of this repository in your GitHub account (not a fork) and deploys it.
 4. Open `https://<your-worker>.workers.dev/` (it leads to the setup page `/setup`), sign in and let the wizard take your bot token, connect your Telegram chat and create the GitHub App.
 
-The full walk-through, with a screenshot of every setup page and a test pull request at the end, is in the setup guide in [English](docs/setup.md) or [Deutsch](docs/setup.de.md). If something does not work, [troubleshooting](docs/troubleshooting.md) lists the symptoms and their fixes. Every push to `main` of your copy deploys it; [`docs/update.md`](docs/update.md) explains how to apply a new release.
+The full walk-through, with a screenshot of every setup page and a test pull request at the end, is in the setup guide in [English](docs/setup.md) or [Deutsch](docs/setup.de.md). If something does not work, [troubleshooting](docs/troubleshooting.md) lists the symptoms and their fixes. The setup guide's last sections say how to update and how to uninstall an instance. Every push to `main` of your copy deploys it; [`docs/update.md`](docs/update.md) explains how to apply a new release.
 
 ## Settings
 
