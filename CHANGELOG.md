@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-07
+
 ### Added
 
 - Documentation: a step-by-step setup guide in English (`docs/setup.md`) and German (`docs/setup.de.md`) with screenshots of the setup pages and a test pull request at the end, how to uninstall an instance, and a troubleshooting page (`docs/troubleshooting.md`). The README links them and has security notes.
