@@ -87,7 +87,9 @@ How the owner uses it is in [`update.md`](../update.md); the rules it follows ar
   (`.github/workflows/update.yml`), started only by hand (**Run workflow**), never on a schedule or by another event.
   It has one input, **Allow a new major version**, off by default. It runs with the permission to write the copy's
   contents and nothing else, uses no action and no credential besides the run's own token, installs nothing and runs
-  no code of the release: a release's code first runs in Workers Builds, as for any push to `main`.
+  no code of the release: a release's code first runs in Workers Builds, as for any push to `main`. The run's token
+  reaches `curl` only through a header file the run writes under `umask 077` (mode 600), never as a command-line
+  argument.
 - **One run at a time.** Runs of the workflow in one copy never run in parallel: a started run waits for the running
   one and then reads `main` as it is when it starts. GitHub keeps at most one waiting run; a further start cancels
   the waiting one, which shows as cancelled and changes nothing. A run is stopped after 10 minutes.
