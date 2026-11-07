@@ -212,6 +212,8 @@ How the owner uses it is in [`update.md`](../update.md); the rules it follows ar
   stay out of the build command.
 - [`decisions/0017-github-app-manifest-flow.md`](../decisions/0017-github-app-manifest-flow.md) — the optional
   GitHub Worker secrets and their precedence over the credentials the wizard stores.
+- [`decisions/0047-setup-guides-screenshots-and-languages.md`](../decisions/0047-setup-guides-screenshots-and-languages.md)
+  — the setup guides (English and German) with screenshots.
 - [`decisions/0031-update-workflow-for-copies.md`](../decisions/0031-update-workflow-for-copies.md) — why the
   update is one Bash step without actions that pushes one commit computed from the copy's base, and keeps the
   copy's workflow files.

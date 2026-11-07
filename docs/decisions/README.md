@@ -109,5 +109,6 @@ once in the [area document](../areas/README.md) of the record's area, and the re
 | [0044](0044-product-prs-may-change-the-squad-settings-file.md) | Product PRs may change the squad settings file | Superseded by [0046](0046-process-decisions-live-in-process-md.md) | 2026-11-01 |
 | [0045](0045-installation-token-allow-list-for-the-stateless-format.md) | Installation token allow-list for GitHub's stateless token format | Accepted | 2026-11-04 |
 | [0046](0046-process-decisions-live-in-process-md.md) | The squad's process decisions live in process.md | Accepted | 2026-11-06 |
+| [0047](0047-setup-guides-screenshots-and-languages.md) | Setup guides with screenshots of Seluna's own pages, in English and German | Accepted | 2026-11-05 |
 
 <!-- project:end index -->
