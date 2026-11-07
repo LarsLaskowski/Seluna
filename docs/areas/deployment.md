@@ -187,7 +187,8 @@ How the owner uses it is in [`update.md`](../update.md); the rules it follows ar
   Wrangler's message and deploys nothing.
 - A Workers Build that fails after an update (a migration fails, the deploy command is not `npm run deploy`) does not
   change the run, which has already ended green: `main` holds the release and the previously deployed version keeps
-  running until a build succeeds. The update commit is an ordinary commit the owner can revert.
+  running until a build succeeds. GitHub's web interface offers no revert for the update commit, which is pushed
+  directly to `main`; the recovery without a command is in [`update.md`](../update.md#if-the-build-fails).
 - A copy in which GitHub Actions is disabled has no **Run workflow**; a copy on `v0.4.0` or earlier has no update
   workflow until the owner adds the file by hand ([`update.md`](../update.md)).
 - A name line of the same key whose value equals the base's name is given the copy's name wherever it sits in the

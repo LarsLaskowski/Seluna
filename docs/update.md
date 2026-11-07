@@ -44,8 +44,18 @@ From version 1.0.0 on, a release with a new major number can change how Seluna w
 ## After the update
 
 1. Wait for the build: in the Cloudflare dashboard open your Worker and look at its builds and their log ([documentation](https://developers.cloudflare.com/workers/ci-cd/builds/)). The new version is live when the build succeeds; `https://<worker>.<your-subdomain>.workers.dev/health` answers with it.
-2. Check that the deploy command in the Worker's build settings is still `npm run deploy` (see [Setup, step 3](setup.md#3-deploy-to-cloudflare)), so that the release's database migrations are applied. If the build fails after an update, its log names the reason; the update commit is an ordinary commit that you can revert on GitHub.
+2. Check that the deploy command in the Worker's build settings is still `npm run deploy` (see [Setup, step 3](setup.md#3-deploy-to-cloudflare)), so that the release's database migrations are applied. If the build fails after an update, see _If the build fails_. GitHub's web interface undoes merged pull requests only, not the update commit, which the workflow pushes directly to `main`.
 3. Your instance keeps its own names. The update leaves the package name (in `package.json` and `package-lock.json`), the Worker name and the database name (in `wrangler.jsonc`) of your copy as they are. This covers every `name` or `database_name` line of that file whose value is the one the original repository had when your copy was built, also a nested one, not only the first. If a release renames the package, the Worker or the database away from that value, the update replaces your name with the release's new one; set your own name again by hand afterwards in the web interface (as in _Conflicts_).
+
+## If the build fails
+
+When the build of an update fails, the version that ran before keeps running. To recover:
+
+1. In the Cloudflare dashboard open the failed build and read its log ([documentation](https://developers.cloudflare.com/workers/ci-cd/builds/)). It names the reason.
+2. If the deploy command in the Worker's build settings is not `npm run deploy`, set it back to `npm run deploy` and retry the build ([documentation](https://developers.cloudflare.com/workers/ci-cd/builds/troubleshoot/)).
+3. If the release itself fails to build, leave `main` as it is. Open an issue in the [original repository](https://github.com/LarsLaskowski/Seluna/issues) with the error from the log, and run the update again (_Start the update_) once a newer release is out.
+
+Until a build succeeds, no later commit to `main` goes live either.
 
 ## Permissions
 
