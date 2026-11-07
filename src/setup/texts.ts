@@ -475,7 +475,7 @@ const GERMAN: SetupTexts = {
   githubSavedApp: "Gespeicherte GitHub-App, App-ID:",
   githubNoSavedApp: "Es ist noch keine GitHub-App gespeichert.",
   githubReplaceHint:
-    "Eine neue App ersetzt die gespeicherte. Lösche die alte App danach auf GitHub, in den Einstellungen des Kontos oder der Organisation, dem sie gehört.",
+    "Eine neue App ersetzt die gespeicherte. Lösche die alte App danach auf GitHub, in den Einstellungen des Kontos oder der Organisation, der sie gehört.",
   githubPersonal: "Mein persönliches Konto",
   githubOrganization: "Eine Organisation",
   githubAccountLabel: "Name des Kontos oder der Organisation, wie in github.com/name",
@@ -544,7 +544,7 @@ const GERMAN: SetupTexts = {
   accessNotChecked: "Zugriff nicht geprüft",
   resetHeading: "Die gespeicherten Zugangsdaten sind nicht lesbar",
   resetText:
-    "Die gespeicherten Zugangsdaten sind mit dem aktuellen SELUNA_SECRET nicht lesbar: Es wurde geändert, oder ein gespeicherter Wert ist beschädigt. Wenn du das frühere SELUNA_SECRET noch kennst, setze es stattdessen wieder. Andernfalls setze zurück: Seluna löscht die gespeicherten GitHub-Zugangsdaten, die Installations-Tokens und den gespeicherten Telegram-Bot-Token; du erstellst danach die GitHub-App neu und gibst den Bot-Token im Schritt Telegram-Chat erneut ein. Lösche die alte App danach auf GitHub, in den Einstellungen des Kontos oder der Organisation, dem sie gehört. Der Telegram-Chat und die Einstellungen bleiben erhalten.",
+    "Die gespeicherten Zugangsdaten sind mit dem aktuellen SELUNA_SECRET nicht lesbar: Es wurde geändert, oder ein gespeicherter Wert ist beschädigt. Wenn du das frühere SELUNA_SECRET noch kennst, setze es stattdessen wieder. Andernfalls setze zurück: Seluna löscht die gespeicherten GitHub-Zugangsdaten, die Installations-Tokens und den gespeicherten Telegram-Bot-Token; du erstellst danach die GitHub-App neu und gibst den Bot-Token im Schritt Telegram-Chat erneut ein. Lösche die alte App danach auf GitHub, in den Einstellungen des Kontos oder der Organisation, der sie gehört. Der Telegram-Chat und die Einstellungen bleiben erhalten.",
   resetButton: "Zurücksetzen und GitHub-App neu erstellen",
   settingsHeading: "Einstellungen",
   notificationLanguageLabel: "Sprache der Benachrichtigungen",
