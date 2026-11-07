@@ -41,14 +41,14 @@ Workers Builds runs, and the update workflow that applies a release to the user'
 
 ### Worker secrets
 
-| Secret                   | Holds                                                                                                                                 | Set                                          |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `SELUNA_SECRET`          | A random string of at least 32 characters chosen by the user                                                                          | Deploy form                                  |
-| `TELEGRAM_BOT_TOKEN`     | The bot token from @BotFather, optional; takes precedence over the saved one ([Setup wizard](setup-wizard.md#the-bot-token))          | By hand; the deploy form does not ask for it |
-| `GITHUB_APP_ID`          | The App ID of the GitHub App, optional; takes precedence over the app the wizard created ([Setup wizard](setup-wizard.md#github-app)) | By hand; the deploy form does not ask for it |
-| `GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub App, optional; takes precedence over the stored key                                                     | By hand; the deploy form does not ask for it |
-| `GITHUB_WEBHOOK_SECRET`  | The webhook secret, optional; takes precedence over the stored one ([HTTP routes](http-routes.md#webhook-signature))                  | By hand; the deploy form does not ask for it |
-| `TELEGRAM_CHAT_ID`       | The id of the chat to send to, optional; takes precedence over the wizard's choice ([Setup wizard](setup-wizard.md#telegram-chat))    | By hand; the deploy form does not ask for it |
+| Secret                   | Holds                                                                                                                            | Set                                          |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `SELUNA_SECRET`          | A random string of at least 32 characters chosen by the user                                                                     | Deploy form                                  |
+| `TELEGRAM_BOT_TOKEN`     | The bot token from @BotFather, optional; takes precedence over the saved one ([Telegram step](telegram-step.md#the-bot-token))   | By hand; the deploy form does not ask for it |
+| `GITHUB_APP_ID`          | The App ID of the GitHub App, optional; takes precedence over the app the wizard created ([GitHub App step](github-app-step.md)) | By hand; the deploy form does not ask for it |
+| `GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub App, optional; takes precedence over the stored key                                                | By hand; the deploy form does not ask for it |
+| `GITHUB_WEBHOOK_SECRET`  | The webhook secret, optional; takes precedence over the stored one ([HTTP routes](http-routes.md#webhook-signature))             | By hand; the deploy form does not ask for it |
+| `TELEGRAM_CHAT_ID`       | The id of the chat to send to, optional; takes precedence over the wizard's choice ([Telegram step](telegram-step.md))           | By hand; the deploy form does not ask for it |
 
 - The deploy form asks for exactly `SELUNA_SECRET` (the only entry of `cloudflare.bindings` in `package.json`); the
   bot token is entered in the setup wizard's Telegram step and stored encrypted in D1. `.dev.vars.example` names
@@ -178,7 +178,7 @@ How the owner uses it is in [`update.md`](../update.md); the rules it follows ar
 
 - With any other deploy command, such as Workers Builds' default `npx wrangler deploy`, no migration is applied: the
   Worker deploys against a missing or outdated schema: when a table of the schema is missing, `/setup` answers the
-  sign-in with the _migrations missing_ notice ([Setup wizard](setup-wizard.md#login)), otherwise it answers with the
+  sign-in with the _migrations missing_ notice ([Setup login](setup-login.md#login)), otherwise it answers with the
   _unavailable_ notice where it reads D1, and `/health`, which reads no D1, still answers. Setting the command
   to `npm run deploy` and retrying the build applies the missing migrations.
 - A deploy against an account in which the database does not exist yet fails at the migration step with
@@ -212,8 +212,10 @@ How the owner uses it is in [`update.md`](../update.md); the rules it follows ar
   stay out of the build command.
 - [`decisions/0017-github-app-manifest-flow.md`](../decisions/0017-github-app-manifest-flow.md) — the optional
   GitHub Worker secrets and their precedence over the credentials the wizard stores.
-- [`decisions/0047-setup-guides-screenshots-and-languages.md`](../decisions/0047-setup-guides-screenshots-and-languages.md)
-  — the setup guides (English and German) with screenshots.
+- [`decisions/0047-setup-guide-screenshots-of-selunas-own-pages.md`](../decisions/0047-setup-guide-screenshots-of-selunas-own-pages.md)
+  — the setup guide with screenshots of Seluna's own pages only, and no manual setup guide.
+- [`decisions/0048-setup-guide-in-english-and-german.md`](../decisions/0048-setup-guide-in-english-and-german.md)
+  — the setup guide in English and German.
 - [`decisions/0031-update-workflow-for-copies.md`](../decisions/0031-update-workflow-for-copies.md) — why the
   update is one Bash step without actions that pushes one commit computed from the copy's base, and keeps the
   copy's workflow files.

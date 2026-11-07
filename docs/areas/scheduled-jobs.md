@@ -19,7 +19,7 @@ the operator relies on its log entries.
 - The expression of the trigger is compared character for character with these two; any other expression (the owner
   changed `triggers.crons`) runs no job and writes one log entry, `{ job: "schedule", result: "unknown" }`.
 - A run reads the clock once when it starts; every time bound below is computed from that reading. Quiet hours are
-  still decided by a clock reading per row, at its send ([Notifications](notifications.md#quiet-hours)).
+  still decided by a clock reading per row, at its send ([Delivery](delivery.md#quiet-hours)).
 - The jobs of one run fail independently: a failure in the cleanup does not keep the retry from running, and the
   other way round, and the digest runs after a failed retry too. Every job catches its own failures; the run itself
   never fails.
@@ -32,11 +32,9 @@ the operator relies on its log entries.
    minute (60,000 ms) before the run started, oldest first (by `created_at`, then `id`). A younger row is left to its
    first send, which may still be running.
 3. Without such a row the job ends; otherwise the notification settings are read and the rows are sent one after the
-   other through the sending rules of a first send ([Notifications](notifications.md#sending-a-row)), by the active
-   delivery channel, read once for the run ([Notifications](notifications.md#delivery-channels)): its destination
-   (for Telegram the same bot token and chat), quiet hours at each send, the button label in the language at sending,
-   one wait after a 429, one log entry per row. A row of the earlier version is sent as stored by Telegram and recovered
-   for another channel; a damaged row counts a failed attempt without a send.
+   other by the sending rules of a first send ([Delivery](delivery.md#sending-a-row)), through the active delivery
+   channel read once for the run ([Delivery](delivery.md#delivery-channels)), old-form and damaged rows included, with
+   one log entry per row.
 4. An attempt that fails and is the row's fifth sets the row `failed` in the same update that counts it, and writes
    the log entry `{ outbox: <id>, status: "failed" }` after the row's own entry. The row is never sent again.
 5. While the active channel is not ready (for Telegram: no usable bot token or chat) no attempt is counted and no row
@@ -52,7 +50,7 @@ the operator relies on its log entries.
 ### Digest
 
 The digest job collects the stars and forks of the `activity` table into one message
-([Notifications](notifications.md#the-digest) says what it holds; decision
+([Stars and forks](stars-and-forks.md#the-digest) says what it holds; decision
 [0041](../decisions/0041-fork-and-star-rules-with-a-digest.md)). It runs in the 10-minute run after the retry, with its
 own failure handling. The run time of its last evaluation is kept in `meta` `activity_digest_run`
 ([Storage](storage.md#tables)).
@@ -76,9 +74,9 @@ own failure handling. The run time of its last evaluation is kept in `meta` `act
    Otherwise the digest is built in the language of the settings and one batch writes its `outbox` row, deletes every
    `activity` row up to the id read (stale ones too) and stores the run time. An event collected after the read has a
    larger id and stays for the next digest.
-6. With `sendNow` the job sends the new row at once through the first-send path, as the release check does (`sent`).
-   Otherwise the row stays `pending` and the next run's retry sends it (`queued`). `sendNow` is true when the run's
-   retry handed fewer than 10 rows to the channel (a failed retry hands none).
+6. When the run's retry handed fewer than 10 rows to the channel (a failed retry hands none), the job sends the new
+   row at once through the first-send path, as the release check does (`sent`). Otherwise the row stays `pending` and
+   the next run's retry sends it (`queued`).
 
 - A digest the channel cannot deliver is retried like any `pending` row and its events are never put into a second
   digest. A first send inside the retry's one-minute grace is left to this send.
@@ -177,7 +175,7 @@ The daily run, step by step; the first step that decides ends it with exactly on
   for the retry. A retry that sends r rows uses at most 8 + r statements and 2r requests. The digest's due path adds 8
   statements (settings, run time, three summary reads — the largest `activity` id, the repositories, the names — and a batch of three) and, with its send, 5 more statements and 2
   requests. With r up to 9 and a send that is at most 17 + 18 + 13 + 2 = 50 of the 50 subrequests; with r = 10 the
-  digest is left to the next retry (`sendNow` false) and the run uses 38 + 8 = 46. Per daily run at most 7 D1
+  digest is left to the next retry and the run uses 38 + 8 = 46. Per daily run at most 7 D1
   statements, one GitHub request and 2 Telegram requests — inside the free plan's 50 subrequests per invocation. A
   run of the retry ends within about 4 minutes (10 rows of at most two 10-second requests and a 5-second wait), well
   inside the 15 minutes a cron invocation may take.
@@ -212,7 +210,8 @@ The daily run, step by step; the first step that decides ends it with exactly on
 ## Not here
 
 - The cron triggers in `wrangler.jsonc`: [Deployment](deployment.md#cron-triggers).
-- Sending a row, the message format and the per-row log entry: [Notifications](notifications.md).
+- Sending a row: [Delivery](delivery.md#sending-a-row); the message format and the per-row log entry:
+  [Notifications](notifications.md); the content of the digest: [Stars and forks](stars-and-forks.md#the-digest).
 - The tables, the `meta` row `notified_release` and the switch `update_notice`: [Storage](storage.md).
 - GitHub calls made as the app: [GitHub API](github-api.md).
 - Applying a release to the user's copy: [Deployment](deployment.md#update).

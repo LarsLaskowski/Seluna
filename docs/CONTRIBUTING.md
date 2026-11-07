@@ -36,9 +36,9 @@ request.
 
 ### Commits and language
 
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`,
-`refactor:`, `test:`, `chore:`, `ci:`, …). Everything in the repository — code, comments, documentation, commit
-messages, issues and pull requests — is written in English.
+Pull requests are squash-merged, so each commit on `main` carries its pull request's title, `[Area] Description`
+(see [Submitting a pull request](#submitting-a-pull-request)); the commits on a branch are working history. Everything
+in the repository — code, comments, documentation, commit messages, issues and pull requests — is written in English.
 <!-- project:end getting-started -->
 
 ## Submitting a pull request
@@ -150,7 +150,8 @@ section name changes both. Its tests run in the Node project of Vitest (`test/up
 
 The setup guide exists in English ([`docs/setup.md`](setup.md)) and German ([`docs/setup.de.md`](setup.de.md)), with
 screenshots of the setup pages under `docs/assets/setup/en/` and `docs/assets/setup/de/`
-([decision 0047](decisions/0047-setup-guides-screenshots-and-languages.md)). A change of a setup page's text or look
+(decisions [0047](decisions/0047-setup-guide-screenshots-of-selunas-own-pages.md) and
+[0048](decisions/0048-setup-guide-in-english-and-german.md)). A change of a setup page's text or look
 (`src/setup/texts.ts`, `src/setup/pages.ts`) updates `docs/setup.md`, `docs/setup.de.md` and their screenshots in the
 same pull request. The two guides keep the same sections in the same order, and a change to one changes the other in
 the same pull request. The screenshots show made-up values only (account `your-account`, App ID `123456`, no token,

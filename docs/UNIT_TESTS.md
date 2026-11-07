@@ -67,6 +67,28 @@ split; a test that asserts several criteria carries each id.
 other files `.gitattributes` checks out with CRLF) normalizes `\r\n` to `\n` before it compares lines or feeds
 them to a shell. The first such test also tests the normalizer with CRLF input.
 
+## Fixtures
+
+- A rule test reads a real webhook payload, `test/fixtures/<event>/<action>.json`, never a hand-invented one. A
+  delivery used to test the signature stays unaltered, since any edit breaks its signature, and is signed with a
+  throwaway secret (decision 0012).
+- A fixture that is reference-built from GitHub's or Telegram's documentation instead of captured says so, with the
+  record that accepted it, in the `README.md` of its folder; a live check on a deployed copy may replace it with a
+  captured answer. Squad sessions cannot reach `api.telegram.org`, so a plan that reads a new Bot API answer asks the
+  Product Manager for a captured sample up front or plans that live check before the pull request is marked ready
+  (decision 0016).
+- When the Lead finds no real payload for a rule test in `test/fixtures/` or on the issue, the plan escalates and the
+  Product Manager supplies raw deliveries; the Lead never picks a hand-built payload instead. The orchestrator turns
+  them into fixtures before the Lead's second plan launch:
+  1. **Replace** every identifying value and nothing else: logins, numeric ids, `node_id`s, avatar and profile URLs,
+     repository and organization names, the homepage, the installation id, commit SHAs, and the text of titles,
+     bodies and commit messages, consistently (one original value, one replacement). Structure, field set, types and
+     the values that decide a rule (`action`, `draft`, `state`, `conclusion`, labels, review states) stay. A delivery
+     used to test the signature is not edited.
+  2. **Grep for leaks:** every original login, repository name, id and SHA of the raw delivery finds nothing in the
+     new files.
+  3. **Format** the new files with `npx prettier --write test/fixtures` and confirm that the parsed JSON is unchanged.
+
 ## Code coverage
 
 **Threshold: at least 80 % line coverage on new or changed production code, and at least 80 % overall** —
