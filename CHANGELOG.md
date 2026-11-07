@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Setup pages: the texts describe Cloudflare's and GitHub's steps in plain words instead of their menu paths and labels.
 - Documentation: the update guide (`docs/update.md`) describes GitHub's and Cloudflare's steps in plain words with links to their documentation instead of their menu paths and labels.
+- Documentation: the update guide says how to recover from a failed build after an update without a command, instead of reverting the update commit on GitHub.
 
 ## [0.8.0] - 2026-11-04
 

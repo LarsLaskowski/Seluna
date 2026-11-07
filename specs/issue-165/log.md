@@ -9,3 +9,4 @@ are quoted in full.
 | 2026-11-07 17:29 | 2 Plan | Lead | RESULT: DONE, tier trivial; docs/update.md + docs/areas/deployment.md (opus/medium · 67,882 tokens · 28 tool uses · 219 s · 56 in · 18,822 out · 1,161,620 cache read · 66,094 cache write · 469,729 weighted) |
 | 2026-11-07 17:30 | 2 Challenge skipped | Orchestrator | challenge skipped — tier trivial is never challenged |
 | 2026-11-07 17:30 | 4-5 Skipped | Orchestrator | no production or test code: see *Verification without tests* |
+| 2026-11-07 17:30 | 6 Implement | Dev | AC1-AC3 and CHANGELOG written; formatted (sonnet/medium · 78,186 tokens · 11 tool uses · 27 s · 12 in · 2,705 out · 367,446 cache read · 77,252 cache write · 146,847 weighted) |
