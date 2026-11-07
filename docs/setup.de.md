@@ -149,15 +149,14 @@ Jeder Push auf `main` deiner Kopie baut und deployt sie. Um ein neues Seluna-Rel
 
 Um deine Instanz zu entfernen, lösche sie in der Reihenfolge unten. Seluna speichert nichts an anderer Stelle: Beim Löschen gehen die gespeicherten Zugangsdaten der GitHub-App und das Bot-Token verloren, der Telegram-Chat und deine Einstellungen, noch nicht gesendete Benachrichtigungen, die für eine noch nicht gesendete Zusammenfassung gesammelten Sterne und Forks sowie die Worker-Secrets. Eine neue Instanz bedeutet, die ganze Einrichtung noch einmal zu machen.
 
-1. Notiere auf der Startseite die App, die nach **GitHub-App:** steht. Deinstalliere sie auf GitHub von deinem Konto und lösche sie dann. GitHub sendet seine Zustellungen nur über diese App, danach erreicht nichts mehr Seluna ([Dokumentation](https://docs.github.com/en/apps/maintaining-github-apps/deleting-a-github-app), englisch).
+1. Öffne die Webadresse deines Seluna-Workers, die du für die Einrichtung benutzt hast. Ihre Startseite zeigt die App nach **GitHub-App:**; notiere sie. Deinstalliere sie auf GitHub von deinem Konto und lösche sie dann. GitHub sendet seine Zustellungen nur über diese App, danach erreicht nichts mehr Seluna ([Dokumentation](https://docs.github.com/en/apps/maintaining-github-apps/deleting-a-github-app), englisch).
 2. Lösche bei Cloudflare den Worker und danach seine D1-Datenbank. Solange der Worker existiert, sendet er weiter: Er wiederholt ausstehende Nachrichten und sendet Zusammenfassungen und Release-Hinweise.
 3. Sende in Telegram `/deletebot` an [@BotFather](https://t.me/BotFather) und wähle deinen Bot.
 4. Lösche auf GitHub die Kopie des Repositorys aus Schritt 3 und, falls du eines erstellt hast, das Test-Repository aus Schritt 7. Tu das nach dem Worker: Bis dahin deployt ein Push auf die Kopie den Worker erneut ([Dokumentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/deleting-a-repository), englisch).
 
-Zwei Schritte sind optional:
+Ein Schritt ist optional:
 
 - Entferne den Zugriff von Cloudflare auf dein GitHub-Konto, wenn ihn nichts anderes nutzt ([Dokumentation](https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/github-integration/), englisch). Das Formular in Schritt 3 hat ihn verbunden.
-- Lösche den Eintrag für `SELUNA_SECRET` im Passwortmanager.
 
 Wenn du den Worker vor der App gelöscht hast, lösche die App jetzt.
 
