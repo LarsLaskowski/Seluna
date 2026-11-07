@@ -11,3 +11,4 @@ are quoted in full.
 | 2026-11-07 13:39 | 4-5 Skipped | Orchestrator | no production or test code: see *Verification without tests* |
 | 2026-11-07 13:39 | 2 Follow-up issues | Orchestrator | created the Lead's follow-ups: #164 (setup page texts quote other services' menu paths), #165 (undoing an update in the web interface) |
 | 2026-11-07 13:40 | 6 Implement | Dev | docs/update.md rewritten in plain words with the plan's links (unverified); bold labels verbatim (Missing on the app:); CONTRIBUTING line 160 and CHANGELOG entry as planned; AC1 grep empty; AC2 update-workflow tests 94 passed; no deviations (sonnet/medium · 84,410 tokens · 9 tool uses · 90 s · 14 in · 5,111 out · 469,234 cache read · 83,405 cache write · 176,749 weighted) |
+| 2026-11-07 13:42 | 7 Gate stamp | Orchestrator | PASS on c2004ea43bb20bfe084b28133b56d3a3fad6516d (tier trivial): Format check pass; Analyzer gate pass; Test with coverage pass; scope-check.py pass |
