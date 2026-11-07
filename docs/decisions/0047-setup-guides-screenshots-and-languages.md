@@ -1,6 +1,6 @@
 # 0047: Setup guides with screenshots of Seluna's own pages, in English and German
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-05
 - **Area:** Deployment
 - **Source:** Issue #20
