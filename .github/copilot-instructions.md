@@ -29,10 +29,11 @@ which keeps its state in D1 and delivers through the user's own Telegram bot. Se
 
 - **Never commit or push to `main`** — no one, not even with approval. Every change goes through a
   separate branch and a pull request.
-- **Commits and pushes to a feature branch are always allowed** without asking: commit finished work and
-  push it to the current feature branch (creating that branch off `main` if needed), so nothing is lost
-  when a session ends. Force-pushing or otherwise rewriting published history, deleting branches, and
-  creating tags (a `v*` tag may trigger a release) still need explicit user approval.
+- **Commits and pushes to a feature branch are always allowed** without asking (squad members never commit
+  or push: `.squad/team.md`, *Git and GitHub*): commit finished work and push it to the current feature
+  branch (creating that branch off `main` if needed), so nothing is lost when a session ends. Force-pushing
+  or otherwise rewriting published history, deleting branches, and creating tags (a `v*` tag may trigger a
+  release) still need explicit user approval.
 - **Pull requests are only opened by the squad or by the user.** The `squad-issue` and `squad-spec`
   skills open a PR once it is approved (`.squad/routing.md`, *PR approval*); outside the squad, a PR is
   opened only when the user explicitly asks for one (e.g. by running the `create-pr` skill). Never open a PR
@@ -131,7 +132,8 @@ promise awaited or explicitly handled; formatting is Prettier's, never hand-tune
 
 <!-- stack:begin testing -->
 **Unit tests are mandatory for newly written code.** One test file per module under test
-(`<module>.test.ts`), test names describing scenario and expected result, an assertion message where the
+(`<module>.test.ts`), test names describing scenario and expected result (a test for a squad acceptance
+criterion starts with its id, `"AC3 …"`: `docs/UNIT_TESTS.md`, *Criterion ids*), an assertion message where the
 assertion API accepts one, no real network or clock (the narrow exceptions, such as a time bound tested as the
 ratio of two durations, are in `docs/UNIT_TESTS.md`). Test code is type-checked and linted like production
 code.
@@ -146,7 +148,7 @@ Project-specific workflow skills live under `.claude/skills/` and run in Claude 
 - `create-pr` — verify (format, build, tests, analyzer and coverage gates), review the change locally,
   then open a PR following [`.github/pull_request_template.md`](/.github/pull_request_template.md).
 - `squad-issue` — fix a bug reported in a GitHub issue with the squad: the Lead plans and picks a tier
-  (`docs` / `patch` / `trivial` / `standard` / `security`), the Devil's Advocate challenges a plan once when
+  (`docs` / `patch` / `tests` / `trivial` / `standard` / `security`), the Devil's Advocate challenges a plan once when
   `.squad/routing.md` calls for it, Security reviews the plan whenever a security area is touched and the
   diff of a change to a security control, the Tester writes failing tests first, the Dev implements until the
   *Coverage gate* passes, the Code Officer clears analyzer diagnostics, the Reviewer reviews the diff, and
@@ -155,9 +157,9 @@ Project-specific workflow skills live under `.claude/skills/` and run in Claude 
   edge cases, the acceptance criteria) and the Devil's Advocate challenges it before `plan.md` and `tasks.md`
   are written against it, in a working folder under `specs/`; also for an issue the user calls a feature or that is
   labelled `feature`/`enhancement` (`.squad/routing.md`, *Bug or feature*).
-- `decision-consolidate` — merge unreleased decision records (Superseded chains, records on one topic) into
-  one record each, delete the obsolete ones, lift behavior that sits in records into the area documents and fix
-  links and index; released records stay untouched.
+- `decision-consolidate` — merge unreleased decision records (Superseded chains, records of one decision) into
+  one record each, split a record that holds several decisions, delete the obsolete ones, lift behavior that sits
+  in records into the area documents and fix links and index; released records stay untouched.
 - `review-pr` — review an open pull request against this project's stack, analyzer, security and
   unit-test conventions, and post the findings with an explicit verdict.
 
@@ -168,8 +170,9 @@ and the round semantics. The squad's members (`.squad/team.md`) run as subagents
 commits, pushes and posts. The pipeline, its limits and escalations are in [`.squad/routing.md`](/.squad/routing.md),
 the project's guarantees, security areas and integration surface in [`.squad/project.md`](/.squad/project.md).
 Working records stay under `specs/` on the work branch. A product PR never changes the squad or these
-instructions (`.squad/stack.md`, `.squad/project.md`, `.squad/tools/squad_settings.py` and the project blocks of this file excepted); squad lessons become `squad` issues where they can be fixed (`.squad/orchestration.md`, *Squad
-lessons*). The user acts as Product Manager and is asked only when the Lead escalates.
+instructions (`.squad/stack.md`, `.squad/project.md`, `.squad/tools/squad_settings.py` and the project blocks of this file excepted); squad lessons become `squad` or `squad-upstream` issues in this repository (`.squad/orchestration.md`, *Squad
+lessons*). The user acts as Product Manager and is asked only in the cases `.squad/routing.md` lists (*Escalation to
+the Product Manager*), a feature's spec approval among them.
 
 The reasoning behind code decisions — why something was built the way it was — is recorded by the Lead
 as one decision record per decision in [`docs/decisions/`](/docs/decisions/README.md) (unreleased records are

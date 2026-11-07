@@ -1,6 +1,6 @@
 # 0044: Product PRs may change the squad settings file
 
-- **Status:** Accepted
+- **Status:** Superseded by [0046](0046-process-decisions-live-in-process-md.md)
 - **Date:** 2026-11-01
 - **Area:** —
 - **Source:** Squad refreshed from Squad-Spec-Repository-Template

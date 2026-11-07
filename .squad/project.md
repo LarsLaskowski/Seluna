@@ -5,11 +5,18 @@ Advocate, Security, the Tester and the Reviewer. Not template-managed: `adopt-te
 and never overwrites it. A product PR updates it when the change makes an entry untrue
 (`.squad/routing.md`, *Scope of a product PR*).
 
+Every entry points: it names files, types or endpoints and links the document that says more. Behavior, values,
+limits and sequences are written once, in the area documents (`docs/areas/README.md`), and the reasons in the
+decision records; a copy here goes stale with the next change. `config-check.py` warns when this file grows past
+`PROJECT_MAX_WORDS` words (`.squad/tools/squad_settings.py`).
+
 ## Security areas
 
 A change that touches one of these lists it under *Security areas touched* in its plan, so Security reviews the
-plan (`.squad/routing.md`, *Tiers*, which also says when a change is tier `security`). Name the concrete types,
-files or endpoints.
+plan (`.squad/routing.md`, *Tiers*, which also says when a change is tier `security`). One line per area: what is
+protected, the concrete types, files or endpoints, and a link to the area document that states its rules
+(`- Session tokens: issued in src/Auth/, checked by every /api route — [Sessions](../docs/areas/sessions.md)`); no
+limits, patterns or sequences.
 
 - **Webhook signature:** `POST /webhook` verifies `X-Hub-Signature-256` (HMAC-SHA256 over the raw body, constant-time
   comparison) before any parsing; an invalid or missing signature is rejected without a body that explains why.
@@ -104,8 +111,8 @@ files or endpoints.
 
 ## Guarantees
 
-Deliberate behavior that must not change without the Product Manager. Each one is described in
-`docs/ARCHITECTURE.md` and, where it was a real choice, has a decision record.
+Deliberate behavior that must not change without the Product Manager. One line each: the guarantee in a few words,
+a link to its decision record where it was a real choice, and a link to the area document that states it.
 
 - A draft pull request triggers no notification; the exceptions are a CI failure in a pull request whose draft state could not be read (failure or no answer within 8 seconds), reported marked _draft status unknown_ — [decision 0027](../docs/decisions/0027-ci-failure-rules-and-the-draft-lookup.md), and a secret scanning alert, which is reported whatever its source — [decision 0028](../docs/decisions/0028-security-alert-rules.md).
 - A webhook with an invalid signature has no effect: nothing is stored, nothing is sent.
@@ -165,7 +172,7 @@ review and not after the PR is opened:
 ## Test doubles
 
 The hand-written fakes and stubs the tests reuse (no mocking library unless `docs/UNIT_TESTS.md` says
-otherwise):
+otherwise), one line each: the double, where it lives and what it stands in for; how it behaves is read in its code.
 
 - **GitHub API double** — `test/github.ts`: a `vi.fn<GitHubFetch>()` passed as the injected `GitHubFetch` (not a
   stub on `globalThis.fetch`) that records every request and answers `POST /app-manifests/<code>/conversions` from
