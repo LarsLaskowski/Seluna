@@ -88,15 +88,11 @@ Change them on the setup page (`/setup`); they apply without a new deployment.
 
 ## Status
 
-Seluna is in active development and can already notify you about pull requests, failed CI runs, security alerts, issues and comments and new Seluna releases. The path to 1.0.0 is planned release by release:
+Seluna 1.0.0 is ready for everyone: it notifies you about pull requests, failed CI runs, security alerts, issues and comments, forks and stars, and new Seluna releases, and the [setup guide](docs/setup.md) was tested by someone outside the project. Development continues; the next releases are planned like this:
 
-| Release         | What it adds                                                          |
-| --------------- | --------------------------------------------------------------------- |
-| 0.6.0           | A tidier setup: new look, navigation, bot token entered in the wizard |
-| 0.7.0           | A channel-neutral outbox and a switchable delivery channel            |
-| 0.8.0           | Messages for new issues and comments, and a digest of forks and stars |
-| 1.0.0           | Setup guide with screenshots, tested by someone outside the project   |
-| 1.1.0 and 1.2.0 | More channels: ntfy, Gotify, Matrix and Discord                       |
+| Release         | What it adds                                    |
+| --------------- | ----------------------------------------------- |
+| 1.1.0 and 1.2.0 | More channels: ntfy, Gotify, Matrix and Discord |
 
 The release plan is in [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md#release-plan-up-to-100) and the changes of each release in the [changelog](CHANGELOG.md).
 
