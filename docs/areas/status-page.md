@@ -164,8 +164,8 @@ Telegram is the only registered messenger today (the registry is `src/channels/r
   `POST /setup/reset` with the session-bound `csrf` field and the danger button.
 - The _reset text_ says what a reset deletes (the saved GitHub credentials, the installation tokens and the saved bot
   token) and what it keeps (the chat and the settings), that setting the earlier `SELUNA_SECRET` again is the
-  alternative, and that the old app is then deleted on GitHub by hand (where, in the account's or organization's
-  developer settings).
+  alternative, and that the old app is then deleted on GitHub by hand (in the settings of the account or organization
+  that owns it).
 - `POST /setup/reset`, after the body and the CSRF token (**403**, notice-only start page, _form expired_):
   - when a reset is needed, it deletes every `secrets` row (the GitHub App credentials and a saved Telegram bot
     token), every `token_cache` row and the `meta` row `key_check` and answers **303** with

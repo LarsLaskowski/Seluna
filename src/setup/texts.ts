@@ -236,13 +236,13 @@ const ENGLISH: SetupTexts = {
   githubSavedApp: "Saved GitHub App, App ID:",
   githubNoSavedApp: "No GitHub App is saved yet.",
   githubReplaceHint:
-    "Creating a new app replaces the saved one. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps.",
+    "Creating a new app replaces the saved one. Afterwards, delete the old app on GitHub, in the settings of the account or organization that owns it.",
   githubPersonal: "My personal account",
   githubOrganization: "An organization",
   githubAccountLabel: "Name of the account or organization, as in github.com/name",
   githubNextButton: "Next",
   githubReviewIntro:
-    "Seluna asks GitHub to create this app. On GitHub, check the details and select Create GitHub App; GitHub then sends you back here. Seluna saves the app only if GitHub created it for the account shown here.",
+    "Seluna asks GitHub to create this app. On GitHub, check the details and confirm the creation; GitHub then sends you back here. Seluna saves the app only if GitHub created it for the account shown here.",
   githubReviewAccountLabel: "Account:",
   githubAppNameLabel: "App name:",
   githubPermissionsLabel: "Permissions, all read-only:",
@@ -259,7 +259,7 @@ const ENGLISH: SetupTexts = {
     "Now install it on your account or organization. Choosing Only select repositories is recommended: Seluna then sees only the repositories you pick, and you add a new repository to the installation by hand.",
   githubInstallLink: "Install the app on GitHub",
   githubInstallManual:
-    "Install it on GitHub: in the settings of your account or organization, open Developer settings, then GitHub Apps, choose the app and select Install App. Choosing Only select repositories is recommended: Seluna then sees only the repositories you pick, and you add a new repository to the installation by hand.",
+    "Install it on GitHub: open the app in the settings of your account or organization and install it there. Choosing Only select repositories is recommended: Seluna then sees only the repositories you pick, and you add a new repository to the installation by hand.",
   githubBackLink: "Back to the GitHub App step",
   statusHeading: "Status",
   versionLabel: "Version:",
@@ -304,7 +304,7 @@ const ENGLISH: SetupTexts = {
   accessNotChecked: "access not checked",
   resetHeading: "The saved credentials cannot be read",
   resetText:
-    "The saved credentials cannot be read with the current SELUNA_SECRET: it was changed, or a saved value is damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials, the installation tokens and the saved Telegram bot token; you then create the GitHub App again and enter the bot token again in the Telegram chat step. Delete the old app on GitHub afterwards: in the settings of your account or organization, under Developer settings, then GitHub Apps. The Telegram chat and the settings are kept.",
+    "The saved credentials cannot be read with the current SELUNA_SECRET: it was changed, or a saved value is damaged. If you still know the earlier SELUNA_SECRET, set it again instead. Otherwise reset: Seluna deletes the saved GitHub credentials, the installation tokens and the saved Telegram bot token; you then create the GitHub App again and enter the bot token again in the Telegram chat step. Afterwards, delete the old app on GitHub, in the settings of the account or organization that owns it. The Telegram chat and the settings are kept.",
   resetButton: "Reset and create the GitHub App again",
   settingsHeading: "Settings",
   notificationLanguageLabel: "Language of the notifications",
@@ -337,7 +337,7 @@ const ENGLISH: SetupTexts = {
   notConfiguredParagraphs: [
     "The setup cannot start because the Worker secret SELUNA_SECRET is missing or shorter than 32 characters.",
     "Create a random string of at least 32 characters, for example with a password manager or with: openssl rand -hex 32",
-    "In the Cloudflare dashboard open this Worker, then Settings, then Variables and Secrets, and add a secret named SELUNA_SECRET with that string. Or run: npx wrangler secret put SELUNA_SECRET",
+    "In the Cloudflare dashboard, add a secret named SELUNA_SECRET with that string to this Worker. Or run: npx wrangler secret put SELUNA_SECRET",
     "Then reload this page.",
   ],
   messengersHeading: "Messengers",
@@ -359,20 +359,20 @@ const ENGLISH: SetupTexts = {
     "messenger-invalid": "Please choose a messenger from the list.",
     "messenger-not-set-up": "This messenger is not set up yet. Set it up first, then activate it.",
     "messenger-worker-secrets":
-      "This messenger is set by Worker secrets, which Seluna cannot remove. Delete them in the Cloudflare dashboard under Settings, then Variables and Secrets.",
+      "This messenger is set by Worker secrets, which Seluna cannot remove. Delete them from this Worker in the Cloudflare dashboard.",
     "wrong-secret": "That is not the SELUNA_SECRET of this instance.",
     locked:
       "Too many failed attempts. Signing in is locked for 15 minutes after the fifth failed attempt; try again later.",
     "form-expired": "The form has expired. Please submit it again.",
     unavailable: "The setup is unavailable right now. Please try again in a moment.",
     "migrations-missing":
-      "The database of this instance is missing its tables: the database migrations have not run. In the Cloudflare dashboard open Workers & Pages, this Worker, Settings and Build, set the Deploy command to npm run deploy and retry the latest build, as the setup guide describes.",
+      "The database of this instance is missing its tables: the database migrations have not run. In the Cloudflare dashboard, set the deploy command in this Worker's build settings to npm run deploy and retry the latest build, as the setup guide describes.",
     "telegram-token-missing":
       "No usable bot token is available. Open the Telegram chat step and check the bot token there.",
     "telegram-token-malformed":
-      "The Worker secret TELEGRAM_BOT_TOKEN is not a bot token. A token from @BotFather is digits, a colon, then letters, digits, - and _, without spaces. Copy it again from @BotFather and replace the secret in the Cloudflare dashboard under Settings, then Variables and Secrets.",
+      "The Worker secret TELEGRAM_BOT_TOKEN is not a bot token. A token from @BotFather is digits, a colon, then letters, digits, - and _, without spaces. Copy it again from @BotFather and replace the secret of this Worker in the Cloudflare dashboard.",
     "telegram-token-rejected":
-      "Telegram does not accept the Worker secret TELEGRAM_BOT_TOKEN: it is mistyped or was revoked. Send /mybots to @BotFather, copy your bot's current token and replace the secret in the Cloudflare dashboard under Settings, then Variables and Secrets.",
+      "Telegram does not accept the Worker secret TELEGRAM_BOT_TOKEN: it is mistyped or was revoked. Send /mybots to @BotFather, copy your bot's current token and replace the secret of this Worker in the Cloudflare dashboard.",
     "telegram-token-invalid":
       "That is not a bot token. A token from @BotFather is digits, a colon, then letters, digits, - and _, without spaces. Copy it again from @BotFather. Nothing was saved.",
     "telegram-token-not-accepted":
@@ -475,13 +475,13 @@ const GERMAN: SetupTexts = {
   githubSavedApp: "Gespeicherte GitHub-App, App-ID:",
   githubNoSavedApp: "Es ist noch keine GitHub-App gespeichert.",
   githubReplaceHint:
-    "Eine neue App ersetzt die gespeicherte. Lösche die alte App danach auf GitHub: in den Einstellungen deines Kontos oder deiner Organisation unter Developer settings, dann GitHub Apps.",
+    "Eine neue App ersetzt die gespeicherte. Lösche die alte App danach auf GitHub, in den Einstellungen des Kontos oder der Organisation, dem sie gehört.",
   githubPersonal: "Mein persönliches Konto",
   githubOrganization: "Eine Organisation",
   githubAccountLabel: "Name des Kontos oder der Organisation, wie in github.com/name",
   githubNextButton: "Weiter",
   githubReviewIntro:
-    "Seluna bittet GitHub, diese App zu erstellen. Prüfe auf GitHub die Angaben und wähle Create GitHub App; GitHub schickt dich danach hierher zurück. Seluna speichert die App nur, wenn GitHub sie für das hier gezeigte Konto erstellt hat.",
+    "Seluna bittet GitHub, diese App zu erstellen. Prüfe auf GitHub die Angaben und bestätige das Erstellen; GitHub schickt dich danach hierher zurück. Seluna speichert die App nur, wenn GitHub sie für das hier gezeigte Konto erstellt hat.",
   githubReviewAccountLabel: "Konto:",
   githubAppNameLabel: "App-Name:",
   githubPermissionsLabel: "Berechtigungen, alle nur lesend:",
@@ -499,7 +499,7 @@ const GERMAN: SetupTexts = {
     "Installiere sie jetzt auf deinem Konto oder deiner Organisation. Empfohlen ist die Auswahl Only select repositories: Seluna sieht dann nur die Repositories, die du auswählst, und ein neues Repository fügst du der Installation von Hand hinzu.",
   githubInstallLink: "App auf GitHub installieren",
   githubInstallManual:
-    "Installiere sie auf GitHub: Öffne in den Einstellungen deines Kontos oder deiner Organisation Developer settings, dann GitHub Apps, wähle die App und klicke auf Install App. Empfohlen ist die Auswahl Only select repositories: Seluna sieht dann nur die Repositories, die du auswählst, und ein neues Repository fügst du der Installation von Hand hinzu.",
+    "Installiere sie auf GitHub: Öffne die App in den Einstellungen deines Kontos oder deiner Organisation und installiere sie dort. Empfohlen ist die Auswahl Only select repositories: Seluna sieht dann nur die Repositories, die du auswählst, und ein neues Repository fügst du der Installation von Hand hinzu.",
   githubBackLink: "Zurück zum Schritt GitHub-App",
   statusHeading: "Status",
   versionLabel: "Version:",
@@ -544,7 +544,7 @@ const GERMAN: SetupTexts = {
   accessNotChecked: "Zugriff nicht geprüft",
   resetHeading: "Die gespeicherten Zugangsdaten sind nicht lesbar",
   resetText:
-    "Die gespeicherten Zugangsdaten sind mit dem aktuellen SELUNA_SECRET nicht lesbar: Es wurde geändert, oder ein gespeicherter Wert ist beschädigt. Wenn du das frühere SELUNA_SECRET noch kennst, setze es stattdessen wieder. Andernfalls setze zurück: Seluna löscht die gespeicherten GitHub-Zugangsdaten, die Installations-Tokens und den gespeicherten Telegram-Bot-Token; du erstellst danach die GitHub-App neu und gibst den Bot-Token im Schritt Telegram-Chat erneut ein. Lösche die alte App danach auf GitHub: in den Einstellungen deines Kontos oder deiner Organisation unter Developer settings, dann GitHub Apps. Der Telegram-Chat und die Einstellungen bleiben erhalten.",
+    "Die gespeicherten Zugangsdaten sind mit dem aktuellen SELUNA_SECRET nicht lesbar: Es wurde geändert, oder ein gespeicherter Wert ist beschädigt. Wenn du das frühere SELUNA_SECRET noch kennst, setze es stattdessen wieder. Andernfalls setze zurück: Seluna löscht die gespeicherten GitHub-Zugangsdaten, die Installations-Tokens und den gespeicherten Telegram-Bot-Token; du erstellst danach die GitHub-App neu und gibst den Bot-Token im Schritt Telegram-Chat erneut ein. Lösche die alte App danach auf GitHub, in den Einstellungen des Kontos oder der Organisation, dem sie gehört. Der Telegram-Chat und die Einstellungen bleiben erhalten.",
   resetButton: "Zurücksetzen und GitHub-App neu erstellen",
   settingsHeading: "Einstellungen",
   notificationLanguageLabel: "Sprache der Benachrichtigungen",
@@ -577,7 +577,7 @@ const GERMAN: SetupTexts = {
   notConfiguredParagraphs: [
     "Die Einrichtung kann nicht starten, weil das Worker-Secret SELUNA_SECRET fehlt oder kürzer als 32 Zeichen ist.",
     "Erzeuge eine zufällige Zeichenfolge mit mindestens 32 Zeichen, zum Beispiel mit einem Passwortmanager oder mit: openssl rand -hex 32",
-    "Öffne im Cloudflare-Dashboard diesen Worker, dann Settings, dann Variables and Secrets, und füge ein Secret namens SELUNA_SECRET mit dieser Zeichenfolge hinzu. Oder führe aus: npx wrangler secret put SELUNA_SECRET",
+    "Füge im Cloudflare-Dashboard diesem Worker ein Secret namens SELUNA_SECRET mit dieser Zeichenfolge hinzu. Oder führe aus: npx wrangler secret put SELUNA_SECRET",
     "Lade danach diese Seite neu.",
   ],
   messengersHeading: "Messenger",
@@ -600,20 +600,20 @@ const GERMAN: SetupTexts = {
     "messenger-not-set-up":
       "Dieser Messenger ist noch nicht eingerichtet. Richte ihn zuerst ein und aktiviere ihn dann.",
     "messenger-worker-secrets":
-      "Dieser Messenger ist durch Worker-Secrets gesetzt, die Seluna nicht entfernen kann. Lösche sie im Cloudflare-Dashboard unter Settings, dann Variables and Secrets.",
+      "Dieser Messenger ist durch Worker-Secrets gesetzt, die Seluna nicht entfernen kann. Lösche sie im Cloudflare-Dashboard bei diesem Worker.",
     "wrong-secret": "Das ist nicht das SELUNA_SECRET dieser Instanz.",
     locked:
       "Zu viele fehlgeschlagene Versuche. Die Anmeldung ist nach dem fünften fehlgeschlagenen Versuch 15 Minuten lang gesperrt; versuche es später erneut.",
     "form-expired": "Das Formular ist abgelaufen. Bitte sende es erneut ab.",
     unavailable: "Die Einrichtung ist gerade nicht verfügbar. Bitte versuche es gleich noch einmal.",
     "migrations-missing":
-      "Der Datenbank dieser Instanz fehlen ihre Tabellen: Die Datenbank-Migrationen wurden nicht ausgeführt. Öffne im Cloudflare-Dashboard Workers & Pages, diesen Worker, Settings und Build, setze den Deploy command auf npm run deploy und wiederhole den letzten Build, wie es die Einrichtungsanleitung beschreibt.",
+      "Der Datenbank dieser Instanz fehlen ihre Tabellen: Die Datenbank-Migrationen wurden nicht ausgeführt. Setze im Cloudflare-Dashboard in den Build-Einstellungen dieses Workers den Deploy-Befehl auf npm run deploy und wiederhole den letzten Build, wie es die Einrichtungsanleitung beschreibt.",
     "telegram-token-missing":
       "Es ist kein verwendbarer Bot-Token verfügbar. Öffne den Schritt Telegram-Chat und prüfe dort den Bot-Token.",
     "telegram-token-malformed":
-      "Das Worker-Secret TELEGRAM_BOT_TOKEN ist kein Bot-Token. Ein Token von @BotFather besteht aus Ziffern, einem Doppelpunkt und dann Buchstaben, Ziffern, - und _, ohne Leerzeichen. Kopiere ihn erneut von @BotFather und ersetze das Secret im Cloudflare-Dashboard unter Settings, dann Variables and Secrets.",
+      "Das Worker-Secret TELEGRAM_BOT_TOKEN ist kein Bot-Token. Ein Token von @BotFather besteht aus Ziffern, einem Doppelpunkt und dann Buchstaben, Ziffern, - und _, ohne Leerzeichen. Kopiere ihn erneut von @BotFather und ersetze das Secret dieses Workers im Cloudflare-Dashboard.",
     "telegram-token-rejected":
-      "Telegram akzeptiert das Worker-Secret TELEGRAM_BOT_TOKEN nicht: Es ist falsch geschrieben oder wurde widerrufen. Sende /mybots an @BotFather, kopiere den aktuellen Token deines Bots und ersetze das Secret im Cloudflare-Dashboard unter Settings, dann Variables and Secrets.",
+      "Telegram akzeptiert das Worker-Secret TELEGRAM_BOT_TOKEN nicht: Es ist falsch geschrieben oder wurde widerrufen. Sende /mybots an @BotFather, kopiere den aktuellen Token deines Bots und ersetze das Secret dieses Workers im Cloudflare-Dashboard.",
     "telegram-token-invalid":
       "Das ist kein Bot-Token. Ein Token von @BotFather besteht aus Ziffern, einem Doppelpunkt und dann Buchstaben, Ziffern, - und _, ohne Leerzeichen. Kopiere ihn erneut von @BotFather. Es wurde nichts gespeichert.",
     "telegram-token-not-accepted":
