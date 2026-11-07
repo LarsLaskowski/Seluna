@@ -150,7 +150,7 @@ Every push to `main` of your copy builds and deploys it. To apply a new Seluna r
 To remove your instance, delete it in the order below. Seluna keeps nothing anywhere else: deleting it loses the GitHub App's stored credentials and the bot token, the Telegram chat and your settings, notifications not yet sent, the stars and forks collected for a digest not yet sent, and the Worker secrets. A new instance means the whole setup again.
 
 1. On the start page, note the app shown after **GitHub App:**. On GitHub, uninstall it from your account, then delete it. GitHub sends its deliveries only through this app, so nothing reaches Seluna afterwards ([documentation](https://docs.github.com/en/apps/maintaining-github-apps/deleting-a-github-app)).
-2. In Cloudflare, delete the Worker, then its D1 database. Until the Worker is gone, it keeps sending: it retries pending messages and sends digests and release notices ([documentation](https://developers.cloudflare.com/workers/)).
+2. In Cloudflare, delete the Worker, then its D1 database. Until the Worker is gone, it keeps sending: it retries pending messages and sends digests and release notices ([Worker documentation](https://developers.cloudflare.com/workers/wrangler/commands/), [D1 documentation](https://developers.cloudflare.com/d1/wrangler-commands/)).
 3. In Telegram, send `/deletebot` to [@BotFather](https://t.me/BotFather) and choose your bot.
 4. On GitHub, delete the copy of the repository from step 3, and the test repository from step 7 if you made one. Do this after the Worker: until then a push to the copy deploys the Worker again ([documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/deleting-a-repository)).
 
