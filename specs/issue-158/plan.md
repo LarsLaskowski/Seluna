@@ -3,6 +3,7 @@
 Source: Issue #158
 Tier: trivial — documentation only, but widening the CONTRIBUTING rule extends decision 0047 (`docs` excludes `docs/decisions/`).
 Security areas touched: none
+Plan size: the revision only splits AC5 off AC1 for the matrix after the code and review round were done; cutting reviewed sections now would change what step 8 checked.
 
 ## Problem / root cause
 
@@ -22,7 +23,7 @@ two named steps would leave a dozen labels. Same decision as 0047, so no new rec
 | 5 | The status-page labels quoted exist, except "the **Missing** text" | `src/setup/texts.ts` lines 280, 297–303 | confirmed |
 | 6 | No German `update.md` exists | `ls docs/` | confirmed |
 | 7 | Decision 0047 is unreleased | `git tag --contains da9047e`, `14f7633`: empty | confirmed |
-| 8 | The links of *Approach* exist and document the step | to verify: vendor pages unreachable here (proxy 403); Product Manager, draft PR | unverified |
+| 8 | The links of *Approach* exist and document the step | to verify: vendor pages unreachable here (proxy 403); AC5 | unverified |
 | 9 | "an ordinary commit that you can revert on GitHub": the web interface reverts merged pull requests only | to verify: GitHub's documentation, follow-up issue | unverified |
 
 ## Acceptance criteria
@@ -31,23 +32,24 @@ two named steps would leave a dozen labels. Same decision as 0047, so no new rec
 - AC2: Its headings are unchanged, every workflow message it quotes matches `update.yml` verbatim, and `update.yml` is unchanged.
 - AC3: Only Seluna's own labels stay bold, each verbatim from `texts.ts`, `update.yml` or the README's **Deploy to Cloudflare**.
 - AC4: `docs/CONTRIBUTING.md` applies the rule to `docs/update.md` and `CHANGELOG.md` has the entry, both as *Documentation updates* words them.
+- AC5: Each link of AC1 opens that service's documentation of the step (fact 8).
 
 ## Tests per criterion
 
 | AC | Test(s) | Test file |
 | -- | ------- | --------- |
-| AC1 | check (below) | — |
-| AC2 | existing `AC13: docs/update.md` tests | `test/update-workflow.test.ts` (unchanged) |
-| AC3 | check (below) | — |
-| AC4 | check (below) | — |
+| AC1 | check: grep for each label of facts 1 and 2 finds none; the Reviewer reads each step | — |
+| AC2 | has a heading for every section the workflow names and for the other sections of the guide | `test/update-workflow.test.ts` (unchanged) |
+| AC3 | check: the Reviewer finds each bold span in its source | — |
+| AC4 | check: the Reviewer reads the diffs | — |
+| AC5 | manual: the Product Manager opens each link on the pushed branch before PR approval | — |
 
 ## Verification without tests
 
 Steps 4, 5 and the *Coverage gate* are not applicable: no production or test code changes.
 
-- AC1: check: Dev's grep before handing back, Reviewer in step 8; links: manual: Product Manager on the draft PR (fact 8).
+- AC1, AC3–AC5: as *Tests per criterion*; the Dev also runs AC1's grep before handing back.
 - AC2: check: Dev runs `npx vitest run --project node test/update-workflow.test.ts`; Reviewer compares each quoted message with `update.yml`.
-- AC3: check: Reviewer finds each bold span in its source. AC4: check: Reviewer.
 
 ## Approach
 
@@ -104,3 +106,9 @@ No guarantee touched.
 
 - Issue "[Setup] Setup page texts quote Cloudflare's and GitHub's menu paths": `src/setup/texts.ts` lines 239, 262, 307, 369 (German 478, 502, 547, 610); production code, outside the guide rule.
 - Issue "[Docs] Undoing an update in the web interface" (fact 9): say how to undo an update without a command.
+
+## Amendments
+
+| Criterion | Change | Reason | Step | Decided by |
+| --------- | ------ | ------ | ---- | ---------- |
+| AC5 | added: split from AC1 | one kind per criterion; same verification | 7 | Lead |
