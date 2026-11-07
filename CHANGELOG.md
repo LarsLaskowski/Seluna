@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-07
+
 ### Added
 
 - Documentation: a step-by-step setup guide in English (`docs/setup.md`) and German (`docs/setup.de.md`) with screenshots of the setup pages and a test pull request at the end, how to uninstall an instance, and a troubleshooting page (`docs/troubleshooting.md`). The README links them and has security notes.
@@ -16,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Setup pages: the texts describe Cloudflare's and GitHub's steps in plain words instead of their menu paths and labels.
 - Documentation: the update guide (`docs/update.md`) describes GitHub's and Cloudflare's steps in plain words with links to their documentation instead of their menu paths and labels.
 - Documentation: the update guide says how to recover from a failed build after an update without a command, instead of reverting the update commit on GitHub.
+- Documentation: the README's status section says that Seluna is ready for everyone with version 1.0.0 and lists only the planned channel releases.
 
 ## [0.8.0] - 2026-11-04
 
