@@ -156,7 +156,7 @@ same pull request. The two guides keep the same sections in the same order, and 
 the same pull request. The screenshots show made-up values only (account `your-account`, App ID `123456`, no token,
 id or address of a real account); no generator is committed.
 
-Other services' steps (Telegram, Cloudflare, GitHub) are described in plain words, saying what the reader does and why, with a link to that service's documentation of the step. They give no menu path and no label of that service the reader must find word for word, and they carry no note that a statement was not confirmed by a test run: other services change their pages faster than the guides can follow. Only Seluna's own labels are quoted, verbatim from `src/setup/texts.ts`.
+In the setup guides and the troubleshooting page, other services' steps (Telegram, Cloudflare, GitHub) are described in plain words, saying what the reader does and why, with a link to that service's documentation of the step. They give no menu path and no label of that service the reader must find word for word, and they carry no note that a statement was not confirmed by a test run: other services change their pages faster than the guides can follow. Only Seluna's own labels are quoted, verbatim from `src/setup/texts.ts`.
 
 ### Release plan up to 1.0.0
 
