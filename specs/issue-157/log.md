@@ -28,3 +28,4 @@ are quoted in full.
 | 2026-11-07 12:35 | 7 Gate stamp | Orchestrator | PASS on 1dd3e7e65f4dc6f2c70147bceeaaa744a1ed0f3e (tier trivial, verbatim): Format check pass; decision-check.py pass; scope-check.py pass |
 | 2026-11-07 12:35 | 8 Verbatim fix | Orchestrator | verbatim: step 1 mentions the sign-in with SELUNA_SECRET, docs/setup.md and docs/setup.de.md, commit 'Mention the sign-in in the first uninstall step'; round clean |
 | 2026-11-07 12:36 | 9 PR approval | Lead | RESULT: APPROVED, plan AC1/fact 6 updated after the PM dry run (opus/medium · 34,916 tokens · 8 tool uses · 39 s · 16 in · 3,544 out · 195,733 cache read · 34,028 cache write · 140,115 weighted) |
+| 2026-11-07 12:36 | 9 Manual test AC6 | Product Manager | Dry run of the Uninstall section on a throwaway instance: all steps and /deletebot worked; two corrections (step 1 names the Worker page, password manager hint removed) applied |
