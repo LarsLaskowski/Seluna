@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-05
 - **Area:** Deployment
-- **Source:** Issue #20
+- **Source:** Issue #20, issue #158
 - **Supersedes:** —
 
 ## Context
@@ -47,6 +47,10 @@ the guide describes is in [`areas/deployment.md`](../areas/deployment.md).
   correct. Where a service documents a step only as a command (Cloudflare's deletion of a Worker, issue #157), the
   step has no link: a command reference would contradict the guides' promise that the reader types no command, and a
   menu path would tie the text to that service's labels.
+- The update guide (`docs/update.md`) follows the same rule (issue #158): running the update workflow, its
+  permissions and the Cloudflare build are other services' steps that age the same way. It quotes Seluna's own
+  labels only, the update workflow's name and input among them; its section names stay, since the workflow's
+  messages name them.
 - A reader who wants the command line has no guide of Seluna's; Wrangler's own documentation applies.
 - Renewing a screenshot is manual work for whoever changes a page; nothing fails when it is forgotten except the
   review, which `docs/CONTRIBUTING.md` asks to check.
