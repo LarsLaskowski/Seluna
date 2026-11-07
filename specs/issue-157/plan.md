@@ -17,15 +17,16 @@ Confirmed: neither guide nor `docs/troubleshooting.md` covers uninstalling.
 | 3 | Seluna stores data only in D1 and in Worker secrets: credentials, chat id, settings, pending `outbox` rows, `activity` rows of an unsent digest | `docs/areas/storage.md:19-109`; `docs/areas/deployment.md:42-50` | confirmed |
 | 4 | Each push to `main` of the copy deploys again, and the deploy form connected the reader's GitHub account to Cloudflare | `docs/setup.md:40,45`; `docs/areas/deployment.md:12-18` | confirmed |
 | 5 | The start page shows the app after **GitHub App:** / **GitHub-App:** | `src/setup/texts.ts:272,512` | confirmed |
-| 6 | The new external links (deleting a repository on GitHub, deleting a Worker, deleting a D1 database, Cloudflare's GitHub connection) point to the step they describe, and `/deletebot` is BotFather's command | to verify: the Product Manager, in the dry run (AC6), before the review (the session's proxy refused these sites) | unverified |
+| 6 | The new external links (deleting a GitHub App, deleting a repository on GitHub, Cloudflare's GitHub connection) point to the step they describe, and `/deletebot` is BotFather's command | to verify: the Product Manager, in the dry run (AC6), before the review (the session's proxy refused these sites) | unverified |
+| 7 | Cloudflare documents deleting a Worker only as a Wrangler command, which the guide's "You type no command" excludes | the Product Manager | confirmed |
 
 ## Acceptance criteria
 
-- AC1: `docs/setup.md` gets a section `## Uninstall` between *Updates* and *If something does not work*, and `docs/setup.de.md` gets `## Deinstallation` in the same position with the same content. The section has numbered steps in this order: (1) on the start page, note the app shown after **GitHub App:**, uninstall it from the account on GitHub, then delete it; (2) in Cloudflare, delete the Worker, then its D1 database; (3) delete the bot by sending `/deletebot` to @BotFather; (4) delete the copy of the repository, and the test repository from step 7 if you made one. Two optional steps follow: remove Cloudflare's access to the GitHub account if nothing else uses it, and delete the password manager entry for `SELUNA_SECRET`.
-- AC2: The section explains the order. The app goes first because GitHub sends deliveries only through it (fact 1). The Worker goes next because until then its cron still sends messages (fact 2). The repository goes after the Worker, because before that a push to it deploys again. One sentence covers a wrong order: if the Worker is already deleted, delete the app now.
-- AC3: Before the steps, the section says what is lost. That is the stored GitHub App credentials and bot token, the Telegram chat and the settings, notifications not yet sent, stars and forks collected for a digest not yet sent, and the Worker secrets. Seluna keeps none of it anywhere else, so a new instance means the whole setup again.
-- AC4: Other services' steps follow `docs/CONTRIBUTING.md` *Setup guides* (plain words, no label or menu path of theirs, no "unconfirmed" note, one documentation link per step; existing links reused; German marks English links "(englisch)"). The only quoted Seluna label is fact 5's, verbatim.
-- AC5: `README.md:69` names the uninstall section. The Unreleased *Added* entry in `CHANGELOG.md` for the setup guide also mentions the uninstall section. `docs/troubleshooting.md` stays unchanged.
+- AC1: `docs/setup.md` gets `## Uninstall` between *Updates* and *If something does not work*, `docs/setup.de.md` `## Deinstallation` in the same position and content. Numbered steps: (1) note the app after **GitHub App:** on the start page, uninstall it on GitHub, then delete it; (2) in Cloudflare, delete the Worker, then its D1 database; (3) send `/deletebot` to @BotFather; (4) delete the copy of the repository and the test repository from step 7, if any. Optional: remove Cloudflare's access to the GitHub account if nothing else uses it; delete the password manager entry for `SELUNA_SECRET`.
+- AC2: The section gives each step's reason: the app first (fact 1), the Worker next (fact 2), the repository after the Worker (fact 4). One sentence: if the Worker is already deleted, delete the app now.
+- AC3: Before the steps, the section says what is lost (fact 3's data, the Telegram chat, unsent notifications and digest stars and forks) and that a new instance means the whole setup again.
+- AC4: Other services' steps follow `docs/CONTRIBUTING.md` *Setup guides* (plain words, no label or menu path of theirs, no "unconfirmed" note, one documentation link per step the service documents in its web interface, none otherwise (fact 7: step 2); existing links reused; German marks English links "(englisch)"). The only quoted Seluna label is fact 5's, verbatim.
+- AC5: `README.md:69` and the `CHANGELOG.md` Unreleased *Added* guide entry name the uninstall section; `docs/troubleshooting.md` stays unchanged.
 - AC6: The Product Manager runs through the section on a throwaway instance and confirms fact 6.
 
 ## Tests per criterion
@@ -67,9 +68,9 @@ none (no change in behavior).
 All owned by the Dev:
 
 - `docs/setup.md` and `docs/setup.de.md`: AC1–AC4.
-- `README.md:69`: after the troubleshooting sentence, add that the setup guide's last sections say how to update and how to uninstall an instance.
-- `CHANGELOG.md`, `[Unreleased]` → *Added*, the documentation entry: add "and how to uninstall an instance" to the guide's description.
-- Sweep: `docs/troubleshooting.md`, the area documents and `docs/ARCHITECTURE.md` enumerate no guide sections.
+- `docs/CONTRIBUTING.md:159`: the link is required only where the service documents the step in its web interface; a step it documents only as a command goes without one (AC4, decision 0047).
+- `README.md:69`, `CHANGELOG.md` (`[Unreleased]` → *Added*, the guide entry): AC5.
+- Sweep: no area document, `docs/ARCHITECTURE.md` or troubleshooting enumerates guide sections.
 
 ## Architecture check
 
@@ -86,4 +87,10 @@ none: documents existing behavior under decision 0047.
 
 ## Out of scope / follow-ups
 
-- A troubleshooting entry: a wrong order is fixed by finishing the steps, which AC2 says.
+- A troubleshooting entry: AC2's sentence covers a wrong order.
+
+## Amendments
+
+| Criterion | Change | Reason | Step | Decided by |
+| --------- | ------ | ------ | ---- | ---------- |
+| AC4 | a link only where the service documents the step in its web interface; step 2 goes without one | fact 7; a menu path instead breaks the plain-words rule | 8 | Lead |

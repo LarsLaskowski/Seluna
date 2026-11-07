@@ -39,14 +39,17 @@ too. [Decision 0034](0034-setup-page-layout-checked-on-the-style.md) left the pr
 
 The setup guide exists as `docs/setup.md` and `docs/setup.de.md`, shows screenshots of Seluna's own pages only
 (rendered with made-up values, captured by hand, no committed generator) and describes the other services' steps in
-plain words that do not depend on their labels, with a link to their documentation; there is no manual setup guide; a change of a setup page's text or look updates both guides and their screenshots in the same pull
+plain words that do not depend on their labels, with a link to their documentation where they document the step in
+their web interface (a step they document only as a command goes without a link, since the guides need no command); there is no manual setup guide; a change of a setup page's text or look updates both guides and their screenshots in the same pull
 request. The deployment it describes is in [`areas/deployment.md`](../areas/deployment.md).
 
 ## Consequences
 
 - A reader sees no picture of @BotFather, the Cloudflare deploy flow or GitHub's pages, and no exact label of them;
   the text says what to do there and links their own documentation, so a change of those pages leaves the guides
-  correct.
+  correct. Where a service documents a step only as a command (Cloudflare's deletion of a Worker, issue #157), the
+  step has no link: a command reference would contradict the guides' promise that the reader types no command, and a
+  menu path would tie the text to that service's labels.
 - A reader who wants the command line has no guide of Seluna's; Wrangler's own documentation applies.
 - Renewing a screenshot is manual work for whoever changes a page; nothing fails when it is forgotten except the
   review, which `docs/CONTRIBUTING.md` asks to check.
