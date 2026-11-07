@@ -26,3 +26,4 @@ are quoted in full.
 | 2026-11-07 12:34 | 7 Gate stamp | Orchestrator | PASS on 231ffdd3c84ef270c2a4ce25cc742b3529065e6f (tier trivial): Format check pass; Analyzer gate pass; Test with coverage pass; scope-check.py pass |
 | 2026-11-07 12:35 | 8 Review delta | Reviewer | VERDICT: NON-BLOCKING 1 — step 1 should mention the sign-in (verbatim fix applied by the orchestrator) (opus/medium · 6,412 tokens · 3 tool uses · 19 s · 8 in · 2,048 out · 107,854 cache read · 57,198 cache write · 174,276 weighted · continued) |
 | 2026-11-07 12:35 | 7 Gate stamp | Orchestrator | PASS on 1dd3e7e65f4dc6f2c70147bceeaaa744a1ed0f3e (tier trivial, verbatim): Format check pass; decision-check.py pass; scope-check.py pass |
+| 2026-11-07 12:35 | 8 Verbatim fix | Orchestrator | verbatim: step 1 mentions the sign-in with SELUNA_SECRET, docs/setup.md and docs/setup.de.md, commit 'Mention the sign-in in the first uninstall step'; round clean |
