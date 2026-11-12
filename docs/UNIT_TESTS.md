@@ -104,7 +104,7 @@ cannot be covered by a unit test (for example process startup glue) need an expl
 - [ ] New production code has accompanying unit tests — mandatory, not optional.
 - [ ] The _Analyzer gate_ reports nothing in a changed test file.
 - [ ] At least 80 % coverage (lines and branch conditions) on new/changed production code and 80 % line coverage
-  overall (_Coverage gate_).
+      overall (_Coverage gate_).
 - [ ] File and test names as above (with the criterion id of a squad test); Arrange / Act / Assert; one act; assertion messages.
 - [ ] No real network or clock (a time bound only as a ratio of two durations).
 - [ ] _Format_ from `.squad/stack.md` run before committing.
