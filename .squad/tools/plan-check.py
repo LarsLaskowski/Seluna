@@ -47,15 +47,14 @@ Checks, in the work folder `specs/<folder>/`:
   test, a *Tests per criterion* cell that names no kind names only tests the test files already hold, so a pointer
   such as `check (below)` is reported instead of read as a test name. A
   plan longer than its tier's `PLAN_MAX_WORDS` (`squad_settings.py`, default `tests` and `trivial` 800,
-  `standard` 2500, `security` 4000; HTML comments, lines kept verbatim from `specs/_template/plan.md` and the
-  orchestrator-appended *Challenge notes* and *Security notes* sections do not count) is a finding: a long plan
-  costs every
-  member that reads it, so the Lead moves settled material (answered challenge entries, facts verified in earlier
-  rounds) into the decision record, or into *Documentation updates* for the Dev. A plan whose scope really needs
-  more says why in a `Plan size:` line under the header; then up to twice the limit is a warning that quotes the
-  reason, and beyond that the scope is split. Once the plan is approved (`squad-next.py` says so when the log has a
-  row of step 4 or later) its size is a warning only: an approved plan is not reopened for its size, also not when a
-  merge of `main` brought a lower limit (`.squad/orchestration.md`, *Merge conflicts*).
+  `standard` 2500, `security` 4000; HTML comments, lines kept verbatim from `specs/_template/plan.md`, the
+  orchestrator-appended *Challenge notes* and *Security notes* and the *Challenge* and *Security review* sections that
+  answer them do not count) is a finding: a long plan costs every member that reads it, so the Lead moves settled
+  material (facts verified in earlier rounds) into the decision record, or into *Documentation updates* for the Dev.
+  A plan whose scope really needs more says why in a `Plan size:` line under the header; then up to twice the limit
+  is a warning that quotes the reason, and beyond that the scope is split. Once the plan is approved (`squad-next.py`
+  says so when the log has a row of step 4 or later) its size is a warning only: an approved plan is not reopened for
+  its size, also not when a merge of `main` brought a lower limit (`.squad/orchestration.md`, *Merge conflicts*).
 
 After a run with a `plan.md` the trigger of *Plan challenge* (`.squad/routing.md`) is printed with its reason,
 `Plan challenge: due — …` or `Plan challenge: not due — …`: due on tier `security`, and on tier `standard` when
@@ -105,7 +104,9 @@ TIERS = ("tests", "trivial", "standard", "security")
 PLAN_LIMITS = {"tests": 800, "trivial": 800, "standard": 2500, "security": 4000}
 # Per tier; one number (an older settings file) applies to every tier.
 PLAN_MAX_WORDS = getattr(settings, "PLAN_MAX_WORDS", PLAN_LIMITS)
-NOTES_HEADING = re.compile(r"^(#{2,6})[ \t]+(?:Challenge|Security) notes\b", re.I)
+# The sections no size limit counts: the *Challenge notes* and *Security notes* the orchestrator appends verbatim, and
+# the *Challenge* and *Security review* the Lead folds them into and leaves unchanged in every later launch.
+NOTES_HEADING = re.compile(r"^(#{2,6})[ \t]+(?:Challenge(?: notes)?|Security (?:notes|review))\b", re.I)
 PLAN_SIZE = re.compile(r"^Plan size:[ \t]*(\S.*)", re.M)
 SPEC_MAX_WORDS = getattr(settings, "SPEC_MAX_WORDS", 2500)
 SPEC_BASE_WORDS = getattr(settings, "SPEC_BASE_WORDS", 300)
@@ -230,12 +231,14 @@ def cell(value):
     return value.strip().strip(EMPHASIS).strip()
 
 
-def split_row(line):
-    return [cell(c) for c in re.split(r"(?<!\\)\|", line.strip().strip("|"))]
+def split_row(line, keep=False):
+    """The cells of a table row, without their emphasis; with `keep` only trimmed, so a cell of code spans (`` `A`,
+    `B` ``) keeps its backticks (Censio#137)."""
+    return [c.strip() if keep else cell(c) for c in re.split(r"(?<!\\)\|", line.strip().strip("|"))]
 
 
-def tables(body):
-    """Every Markdown table in the text, as (header cells, data rows)."""
+def tables(body, keep=False):
+    """Every Markdown table in the text, as (header cells, data rows); `keep` as for `split_row`."""
     found, header, rows = [], None, []
     for line in (body or "").splitlines():
         if not line.strip().startswith("|"):
@@ -243,7 +246,7 @@ def tables(body):
                 found.append((header, rows))
             header, rows = None, []
             continue
-        cells = split_row(line)
+        cells = split_row(line, keep)
         if all(set(c) <= set("-: ") for c in cells):
             continue
         if header is None:
@@ -746,8 +749,9 @@ def template_lines():
 
 def counted_words(plan):
     """The Lead's own words in the plan: not its HTML comments, not a line kept verbatim from the template (a
-    heading, a table header, guidance), and not the *Challenge notes* and *Security notes* sections the orchestrator
-    appends verbatim after the Lead has sized the plan: the Lead cannot shorten them."""
+    heading, a table header, guidance), and not the sections of NOTES_HEADING: the *Challenge notes* and *Security
+    notes* the orchestrator appends after the Lead has sized the plan, and the *Challenge* and *Security review* the
+    Lead answers them in and leaves as they are in every later launch (Censio#156)."""
     words, skip_level, template = 0, None, template_lines()
     for line in strip_comments(plan).splitlines():
         heading = re.match(r"^(#{1,6})[ \t]", line)
@@ -804,25 +808,61 @@ def git_output(*args):
     return result.stdout if result.returncode == 0 else ""
 
 
+LISTED = re.compile(r"\s*(?:(?:[,;/]|<br\s*/?>|\band\b|\bor\b)\s*)*", re.I)
+SPAN = re.compile(r"`([^`\n]+)`")
+
+
+def listed_spans(text):
+    """The code spans of a cell that name tests: the first one and each one a list separator (`,`, `;`, `/`, `<br>`,
+    "and", "or") leads to, a parenthesised remark and the spans in it left aside; a span the description mentions
+    (hold ``WebPort`` with a listener) names no test (Vandox#414). When every span sits in a remark, the first one."""
+    spans = SPAN.findall(text)
+    numbers = iter(range(len(spans)))
+    masked = SPAN.sub(lambda _: f"\0{next(numbers)}\0", text)
+    while (stripped := re.sub(r"\([^()]*\)", "", masked)) != masked:
+        masked = stripped
+    listed, end = [], None
+    for match in re.finditer(r"\0(\d+)\0", masked):
+        if end is None or LISTED.fullmatch(masked[end:match.start()]):
+            listed.append(spans[int(match.group(1))])
+        end = match.end()
+    return listed or spans[:1]
+
+
+# A code span that names a source file (`CatalogDocumentReaderTests.cs`, `internal/x/parse_test.go`), not a test.
+SOURCE_FILE = re.compile(r"^[\w./-]*\w\.(?:cs|vb|fs|go|py|ts|tsx|js|jsx|mjs|cjs|java|kt|rs|rb|sh|ps1|swift)$")
+
+
 def test_names(text):
-    """The test names of a *Test(s)* cell: comma-separated, a qualified name (`ExportTests.Writes`, a Go subtest
-    `TestParse/empty`) by the name a test file declares."""
+    """The test names of a *Test(s)* cell: its listed code spans when it has any (prose around them is no name), else
+    its comma-separated parts; a qualified name (`ExportTests.Writes`, a Go subtest `TestParse/empty`) by the name a
+    test file declares, a shortened one (`…ArchiveUsed`, `ReaderLoad...`) by the part that is written out, a call
+    (`Read(...)`, `Read()`) by its name, and a file name (`ReaderTests.cs`) as it is: it names that file, not a test
+    (Censio#164: its extension `cs` matched every C# file, an argument list `(...)` every file with a call)."""
+    spans = listed_spans(text)
+    parts = spans if spans else re.split(r"[,;]", text)
     names = []
-    for part in re.split(r"[,;]", text):
-        name = re.sub(r"\(\)$", "", part.strip().strip("`'\"").strip())
+    for part in parts:
+        name = part.strip().strip("`'\"").strip()
+        if SOURCE_FILE.match(name):
+            names.append(name)
+            continue
+        name = re.sub(r"\([^()]*\)$", "", name)
+        name = name.replace("\u2026", "").replace("...", "").strip()
         if name and " " not in name:
             name = name.split("/")[0].rsplit(".", 1)[-1]
-        if name:
+        if name and not (spans and " " in name):
             names.append(name)
     return names
 
 
 def row_verification(text, paths):
-    """(kind, tests or check, test names, test files) of one *Tests per criterion* cell."""
-    kind = KIND.match(text)
+    """(kind, tests or check, test names, test files) of one *Tests per criterion* cell, its code spans kept."""
+    plain = cell(text)
+    kind = KIND.match(plain)
     if kind:
-        return KINDS[kind.group(1).lower()], text[kind.end():].strip(), [], paths
-    if empty(text) or text.lower().startswith("none"):
+        return KINDS[kind.group(1).lower()], plain[kind.end():].strip(), [], paths
+    if empty(plain) or plain.lower().startswith("none"):
         return "review", "none (no tests first)", [], paths
     return "unit", text, test_names(text), paths
 
@@ -834,7 +874,8 @@ def cell_at(row, index):
 def test_rows(parts):
     """{criterion: (kind, tests or check, test names, test files)} of the plan's *Tests per criterion*."""
     planned = {}
-    for header, rows in tables(parts.get("Tests per criterion")):
+    for header, rows in tables(parts.get("Tests per criterion"), keep=True):
+        header = [cell(name) for name in header]
         test = column(header, "test(s)", "tests", "test")
         test = 1 if test is None else test
         files = column(header, "test file", "test files", "file", "files")
@@ -906,13 +947,25 @@ def changed_files():
 
 
 def carriers(criterion, verification, sources, changed):
-    """The test files that carry the criterion: one that names one of its tests, or one that carries its id (not as
-    part of a longer word or number) and is a file its row names or one the branch changes \u2014 the id in a test file
-    the branch leaves alone belongs to the test of an earlier change."""
+    """The test files that carry the criterion: the ones that name one of its tests; when none does, the files its row
+    names that carry its id (not as part of a longer word or number); when none of those does either, the files the
+    branch changes that carry it. The id alone is the last resort: an earlier feature's tests in a file the branch
+    touches carry the same `AC4` (Censio#137, Censio#140), and the id in a file the branch leaves alone belongs to the
+    test of an earlier change."""
     _, _, names, files = verification
+    named = [path for path, text in sources.items() if any(names_test(name, path, text) for name in names)]
+    if named:
+        return named
     pattern = re.compile(rf"(?<![A-Za-z0-9]){criterion}(?![0-9])")
-    return [path for path, text in sources.items() if any(name in text for name in names)
-            or (pattern.search(text) and (path in files or path in changed))]
+    with_id = [path for path, text in sources.items() if pattern.search(text)]
+    return [path for path in with_id if path in files] or [path for path in with_id if path in changed]
+
+
+def names_test(name, path, text):
+    """True when a test name of a cell names this test file: a file name by its path, a test by the file's text."""
+    if SOURCE_FILE.match(name):
+        return path == name or path.endswith("/" + name.lstrip("./"))
+    return name in text
 
 
 def matrix_row(criterion, planned, settled, sources, head, changed=frozenset()):

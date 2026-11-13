@@ -8,8 +8,8 @@ GitHub action and records every step and launch in `log.md` (`squad-issue`, step
 ones the skills use.
 
 The orchestrator's own procedures are in [`orchestration.md`](orchestration.md), which the members need not read;
-*Outside authors*, *Squad lessons*, *Draft until green*, *Merge conflicts*, *Verbatim documentation fixes* and
-*Unlisted security areas*, named here, are its sections.
+*Outside authors*, *Squad lessons*, *Draft until green*, *Merge conflicts*, *Verbatim documentation fixes*, *An
+artifact the Product Manager cannot build* and *Unlisted security areas*, named here, are its sections.
 
 ## Bug or feature
 
@@ -116,10 +116,21 @@ configuration, documentation only) may declare steps 4 (*Skeleton*), 5 (*Tests f
 gate* **not applicable**; the tier and its other steps stay. The Lead then names in `plan.md`, under
 *Verification without tests*, where and by whom each acceptance criterion is verified instead (a workflow
 step, a PR dry run, a build of the image, a read-only check); the orchestrator logs the skipped steps with a
-pointer to it. Step 6 is the Dev's edits alone, and step 7 runs every gate but the *Coverage gate* (a branch of
+pointer to it. Step 6 is the Dev's edits, plus the Tester's share where *Verification without tests* or
+*Documentation updates* names the Tester (test documentation, a dry-run artifact: *Dry-run artifacts*), in mode
+`coverage` after the Dev; step 7 runs every gate but the *Coverage gate* (a branch of
 Markdown files only: *Format check* alone, `gate-stamp.py`). The
 Reviewer checks that the section exists, covers every criterion and that the diff really holds no production
 or test code — otherwise the skip is blocking. If such code changes after all, steps 4–6 apply again.
+
+### Dry-run artifacts
+
+A criterion verified by a dry run on the branch — a planted failing test that must turn a gate or a CI job red, a
+deliberate defect a check must catch — never reaches the merged change. Its owner writes the artifact as a patch file
+outside the working tree (the scratchpad, a scratch worktree), checks it with `git apply --check` (`git-guard.py` allows a
+member only the forms of `git apply` that read a patch) and hands back its path. The orchestrator applies it as one commit, runs or waits
+for the check, reverts that commit with `git revert`, and logs both commits with the check's result; the Reviewer
+confirms that the revert left nothing of it.
 
 ### Criteria verified only in CI
 
@@ -135,7 +146,10 @@ check is worked in step 11.
 A criterion tested by hand on a build before the PR approval (step 9) — a Product Manager's manual test of the
 change, say — names in the plan the build it runs on: a local build or publish of the branch head, with the
 command the project's documentation gives, or the CI-built artifact, for which the plan asks for an *Early draft
-PR* (without one, no CI build of the change exists before step 10).
+PR* (without one, no CI build of the change exists before step 10). When the plan asks the Product Manager to build
+the artifact (an image for the target host, say), the spec or plan first asks whether they can build it there, and
+the plan names the fallback: who builds it otherwise and how it reaches the target (`orchestration.md`, *An artifact
+the Product Manager cannot build*).
 
 ### Operator environments and documented procedures
 
@@ -240,8 +254,9 @@ non-blocking findings are decided in step 8 (*Non-blocking findings*). Otherwise
 logged → 10.
 
 A fix the Lead orders goes back to step 6 or 8 and counts against the review loop; any edit beyond the
-record status — `docs/ARCHITECTURE.md` included — has an owner and gets a delta round. `NOT APPROVED` without
-a fix means the Lead decides or escalates. After the PR, a re-approval runs the same checklist once CI on the
+record status — `docs/ARCHITECTURE.md` included — has an owner and gets a delta round. Once that round is clean, the
+checklist runs again; the Lead's `approve-pr` agent is continued only for a point the fix leaves open, and a point it
+settled is not listed again. `NOT APPROVED` without a fix means the Lead decides or escalates. After the PR, a re-approval runs the same checklist once CI on the
 new head has finished and passes.
 
 ## Plan challenge
@@ -256,11 +271,17 @@ again. Each objection is ranked `major` (the plan would build the wrong thing or
 `minor`, so the orchestrator routes without judgment:
 
 - **Only minor objections** (when step 3 runs: and Security approved): no Lead launch; the orchestrator
-  appends them verbatim to `plan.md` as *Challenge notes* (bookkeeping, like `log.md`). Dev and Tester follow them
+  appends them verbatim to `plan.md` as *Challenge notes* (bookkeeping, like `log.md`), with `squad-notes.py`, which
+  copies them from the member's report, never retyped. Dev and Tester follow them
   or report a deviation; the Reviewer checks them in round 1.
 - **Non-blocking findings of Security's `APPROVED` plan review** go verbatim into a *Security notes* section
   the same way — except a note that leaves the plan a choice ("document it, or reject"): the Lead decides it
   in mode `revise` before the skeleton, in one launch with any major objection.
+- **A note or minor objection whose fix is an exact edit of the challenged document itself** (`plan.md`,
+  `spec.md`: the sentence as it stands and as it should read) is applied by the orchestrator when it appends the
+  note, the way of *Verbatim documentation fixes* (`orchestration.md`; `specs/` only, logged, no launch): Dev and
+  Tester may not edit those documents, so nobody else would. A fix that needs judgment, or one that changes an
+  acceptance criterion, is routed as above.
 - **A major objection:** the Lead, in mode `revise` with all objections, answers each one in the plan's
   *Challenge* section, the minor ones included.
 
@@ -272,7 +293,8 @@ Security delta confirmation.
 
 If the Lead concludes in step 2 (also after answering the Devil's Advocate) that no code change is needed —
 duplicate, cannot be reproduced, works as designed (e.g. covered by an accepted decision record), or out of
-scope — it returns `RESULT: NO CHANGE` with a proposed issue comment. The orchestrator shows the comment to
+scope — it returns `RESULT: NO CHANGE` with a proposed issue comment, written for the issue's author (`squad-lead.md`,
+*Output format*: none that thanks the repository owner who posts it). The orchestrator shows the comment to
 the Product Manager and posts it only after confirmation (a public statement on the issue), with the log
 appended as a collapsed "Squad working record" block. It removes the work folder with a commit and pushes; no
 PR is opened, the branch stays without one, and the user is told so.
@@ -355,6 +377,8 @@ the Lead first (*Loop limits*, New scope on the open PR).
 Fixed in the same change or opened as a linked GitHub issue now — never deferred to "a later change".
 
 - A non-blocking finding with a verbatim documentation fix goes the way of *Verbatim documentation fixes*.
+- A non-blocking finding that only asks for what the approved plan already orders (the Reviewer quotes the plan's
+  sentence and tags it `plan`) goes to the sentence's owner with the round's fixes, without a Lead decision.
 - Every other non-blocking finding — the Reviewer's or Security's, one that touches code, or one the
   orchestrator would turn into a follow-up issue — is decided by the Lead in step 8, in mode `decide` (one
   launch for all of a round's findings), before that round's fix round: a fix it orders goes to its owner

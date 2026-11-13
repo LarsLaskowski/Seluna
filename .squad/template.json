@@ -1,7 +1,7 @@
 {
   "repository": "LarsLaskowski/Squad-Spec-Repository-Template",
-  "tag": "v2026.11.4",
-  "commit": "5cba2beb3c7f75182c89266c60030d97401318dc",
+  "tag": "v2026.11.9",
+  "commit": "a4c3ca69ca3710fbc88fdbe463da59be3daaeeaa",
   "profile": "typescript",
   "profiles": [
     "typescript"

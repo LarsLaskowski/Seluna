@@ -18,11 +18,15 @@ every Git and GitHub action yourself, including follow-up issues the Lead decide
   whatever your own checks find. Besides read-only checks you write only:
   - `log.md`, through `squad-log.py` (step 1), and `tasks.md` check marks (features);
   - in `plan.md` (for a feature also `spec.md`): the *Challenge notes* and *Security notes* you append
-    verbatim (*Plan challenge*), a tier raise (*Tiers*) and an area added to *Security areas touched*
+    verbatim (*Plan challenge*) with `python3 .squad/tools/squad-notes.py <folder> challenge|security --agent-id <id>`
+    (`--spec` for `spec.md`; `--stdin` with the report piped in outside Claude Code) and the exact edits such a
+    note states for that document, a tier raise (*Tiers*) and an area added to *Security areas touched*
     (*Unlisted security areas*);
   - the Lead's exact edits on tiers `docs` and `patch` (*Tiers*), a fix marked `verbatim` (*Verbatim
     documentation fixes*), *Format* on the files of the change (step 7), merge commits (*Merge conflicts*),
-    and the record status of step 9 (*PR approval*).
+    and the record status of step 9 (*PR approval*);
+  - the exact text of a `.squad/stack.md` or `.squad/project.md` edit its owning member reports (`.squad/team.md`,
+    *Files*), and the commit and revert of a dry-run patch (*Dry-run artifacts*).
 - **Hand each member only what it needs:** the plan (for a feature: its task rows and `spec.md`), the test
   names, the base ref, the code SHA and the gate output for the head. Not the log, not the issue thread (the
   Lead and the Devil's Advocate read the issue themselves), not earlier reports in full — one line on what the
@@ -30,7 +34,8 @@ every Git and GitHub action yourself, including follow-up issues the Lead decide
 - **Next step:** after every row of `log.md`, run `python3 .squad/tools/squad-next.py <folder>` (after step 10
   with `--stdin` and the comment's log table): it prints the next step with its exact launch — agent, mode, model,
   fresh or continued (*Continuing a member*), hand-over and log command — or your own row, and the gates and review
-  set the tier calls for. Follow it; keep the agent id of each member's last launch for the agent it names.
+  set the tier calls for. Follow it, continuing exactly the agent it names (*Continuing a member* in
+  `.squad/orchestration.md`), and launching a new agent where it says fresh, a fix round too.
 - **Scope:** a product PR touches neither the squad nor the instruction files outside their project blocks
   (*Scope of a product PR*, which `scope-check.py` enforces).
 - **One build at a time:** launch the members that build or test one after another (*Concurrency*).
@@ -42,6 +47,9 @@ every Git and GitHub action yourself, including follow-up issues the Lead decide
 - **Pull request:** invoking this skill is the user's approval for opening the PR in step 10, once step 9
   approved it (tiers `docs` and `patch`: once the latest review round is clean). It opens as a draft and is
   marked ready in step 11 (*Draft until green*).
+- **Session model:** the orchestrating session re-reads its whole context on every turn and is often a run's largest
+  cost; it runs on Sonnet with medium effort unless the user chose otherwise, and `session-usage.py` names its share.
+  Gate output stays in the file `gate-stamp.py` names: read the summary it prints, not the whole file.
 - **Product Manager:** the user is asked only when the Lead returns `RESULT: ESCALATE` (relay the question
   verbatim with its options and wait) or in the other cases *Escalation to the Product Manager* lists.
 
@@ -53,8 +61,9 @@ every Git and GitHub action yourself, including follow-up issues the Lead decide
    and report that. Run `git fetch origin main --tags` (in a shallow clone, `git rev-parse
    --is-shallow-repository` prints `true`: `git fetch --unshallow --tags origin`; a stamp that checks the decision
    records refuses a shallow clone), then start from a clean working tree on a new branch off the latest `main`, e.g.
-   `fix-issue-<number>-<short-slug>` (or the branch the session prescribes). Create `specs/issue-<number>/log.md`
-   from `specs/_template/log.md`, commit and push it.
+   `fix-issue-<number>-<short-slug>` (or the branch the session prescribes). A prescribed branch whose pull request
+   is already merged is not reused: start a new branch off `main` without a force-push and name it in the intake
+   row. Create `specs/issue-<number>/log.md` from `specs/_template/log.md`, commit and push it.
 
    **Several issues in one request.** By default each issue gets its own run, branch and pull request, one after
    another. Several may share one run: intake then starts with the lowest number (its work folder) and its row lists
@@ -62,7 +71,15 @@ every Git and GitHub action yourself, including follow-up issues the Lead decide
    user did not ask for one pull request, the others go back to runs of their own. A shared run's pull request
    carries one `Closes #<number>` per issue, and the working record goes to the first issue with a one-line pointer
    on each other. When the session prescribes a single branch but the issues
-   need separate pull requests, ask the user before step 2 of the second issue.
+   need separate pull requests, ask the user before step 2 of the second issue. `gate-stamp.py --verify` and
+   `squad-log.py` read the checked-out branch, `sonar-check.py pr` its `HEAD` unless `--head <sha>` is given: while one
+   run waits on its pull request and the next works on another branch in the same clone, run the waiting one's checks
+   and step-11 fixes in a worktree of its branch (`git worktree add ../<repository>-<number> <branch>`), and remove it
+   once that pull request is merged. Issues that change the same lines, or one that needs another's change, either
+   share one run or are stacked on purpose, decided at intake and named in the intake row: each branch starts from the
+   previous one and its pull request targets it, the last pull request repeats every `Closes #<number>` (one merged
+   into another branch closes nothing), and once the previous pull request is merged, `main` is merged into the next
+   branch and its pull request retargeted to `main` before its own merge.
 
    **Logging.** Only you write `log.md`, one row per step and per launch, always with
    `python3 .squad/tools/squad-log.py issue-<number> "<step>" "<member>" "<result>"` — never by hand.
@@ -101,11 +118,12 @@ every Git and GitHub action yourself, including follow-up issues the Lead decide
    the plan assigns to the Dev. A plan that declares the change free of production and test code skips steps 4 and 5
    (*Changes without production or test code*).
 5. **Tests first** (not for `trivial` or `tests`). Launch `squad-tester` in mode `tests-first`. Confirm yourself
-   that the new tests compile and fail on the current code (unless the Tester justified why one cannot); note the
-   tests it hands back as **deferred**. A fix without a reproducing test is acceptable only when the bug
+   that the new tests compile and fail on the current code (unless the Tester justified why one cannot); the tests
+   it hands back as **deferred** go into its log row as its `Deferred:` line (`Deferred: none` without one), which
+   `squad-next.py` holds the coverage pass open on. A fix without a reproducing test is acceptable only when the bug
    genuinely needs a live external system — then the PR says so.
-6. **Implement and cover.** For a change without production or test code this is the Dev's edits alone
-   (*Changes without production or test code*). Otherwise launch `squad-dev` in mode `implement` with the plan and
+6. **Implement and cover.** For a change without production or test code this is the Dev's edits and the
+   Tester's share the plan names (*Changes without production or test code*). Otherwise launch `squad-dev` in mode `implement` with the plan and
    the test names. If the Dev disputes a test, launch `squad-lead` in mode `decide`; the Tester changes a test only if the Lead says
    so. Run *Test with coverage* and the *Coverage gate* yourself. Launch `squad-tester` in mode `coverage`,
    with the reason, only when the gate fails, the Dev reports uncovered new lines, a resource bound of the
@@ -186,7 +204,8 @@ every Git and GitHub action yourself, including follow-up issues the Lead decide
     working-record comment or `git show
     <commit-before-removal>:specs/<folder>/<file>`, and edit that comment in one batch. Never skip, disable or
     weaken a test to get green.
-12. **Wrap-up (mandatory).** Collect what this run taught about the squad itself — an unclear or
+12. **Wrap-up (mandatory, also when the PR was merged or closed before it was marked ready: *Draft until green*).**
+    Collect what this run taught about the squad itself — an unclear or
     contradictory rule, a misbehaving tool, an agent that could not be launched, a step you had to improvise —
     each with the role it concerns and a concrete proposal, and check your log for the lesson candidates of *Squad
     lessons* (`squad-log.py … --summary` lists those it finds while the lessons row is missing). File the lessons

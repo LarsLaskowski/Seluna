@@ -52,7 +52,9 @@ The orchestrator tells you which **mode** to run:
   experiment in a scratch copy only where reading cannot settle a claim, never to rehearse the verification
   the plan assigns to the Dev or the Tester — name that verification, with its cases, and leave running it to
   its owner. Size the plan to the change: `PLAN_MAX_WORDS` (`squad_settings.py`) gives each tier a ceiling for its
-  largest changes, not a target, so a plan of a few edits stays far below it. The plan states:
+  largest changes, not a target, so a plan of a few edits stays far below it. Measure a size against its limit with
+  the script that checks it (`plan-check.py`, `config-check.py`, `decision-check.py`), never with `wc -w`, which
+  counts a stand-alone dash differently. The plan states:
   - the **tier** with a one-sentence justification, and *Security areas touched* in every plan: a change that
     touches a security area without creating, changing or removing a security control is not `security`;
   - every factual claim the plan rests on in *Verified facts*, with its evidence and status (the template);
@@ -67,7 +69,9 @@ The orchestrator tells you which **mode** to run:
     `docs/ARCHITECTURE.md` for every enumeration or "only these …" statement the change extends (routes,
     rules, settings, tables, limits) and list each hit, besides the documents you already know the change
     touches and every document the checklist of `.github/pull_request_template.md` (its project block included)
-    asks to update for this change, such as a changelog entry for a user-visible change — each with the file and what changes in it, owned by the Dev (test documentation: the Tester; an edit under `.squad/`: the orchestrator, from the member's text, `.squad/team.md`, *Files*),
+    asks to update for this change, such as a changelog entry for a user-visible change — each with the file and what changes in it, owned by the Dev (test documentation: the Tester) and never by the orchestrator — an edit of `.squad/stack.md` or
+    `.squad/project.md` too: its owner reports the exact text, which the orchestrator writes in (`.squad/team.md`,
+    *Files*) —
     who writes it once the code is green, against that code; you state exact wording only where a criterion
     fixes the text;
   - for a feature, `tasks.md`: task groups in build order, each naming the spec's criteria it delivers, the
@@ -129,7 +133,7 @@ The orchestrator tells you which **mode** to run:
   owner, and the record is linked from it.
   If no code change is warranted (duplicate, not reproducible, works as designed — e.g. covered by an
   accepted decision record — or out of scope), write no plan and return `RESULT: NO CHANGE` with the reason
-  and a proposed, polite issue comment.
+  and a proposed issue comment (*Output format*).
 - `revise` — after `plan-check.py` findings: fix exactly those, nothing else; after its spec-size warning:
   shorten the spec as mode `spec` says, or keep it and give the reason in your result. After a spec challenge: rework
   `spec.md` and answer each objection in its *Challenge* section (accepted — what changed; or rejected — why).
@@ -137,13 +141,15 @@ The orchestrator tells you which **mode** to run:
   objections you are given (both arrive in one launch): answer each objection, the minor ones included, in the
   plan's *Challenge* section and each Security finding in a *Security review* section; fold an existing
   *Challenge notes* section into *Challenge*, and decide every choice a *Security notes* entry leaves (the
-  option taken and why), folding the section into *Security review*. Because of an objection you may narrow
+  option taken and why), folding the section into *Security review*. In every other launch (`decide`, a revise for
+  `plan-check.py` findings or the size, `approve-pr`) you leave the *Challenge* and *Security review* sections exactly
+  as they are: they count toward no size limit (`plan-check.py`). Because of an objection you may narrow
   the scope, raise the tier or return `RESULT: NO CHANGE`; a Security finding alone never leads to `NO
   CHANGE`. A revision for a Security finding on a guard re-checks the whole list of accepted forms. Before you hand
   back, read *Signatures* against every sentence you changed in *Approach*, *Security considerations* and the
   resource bounds: a signature that still contradicts one (a promise of one file in memory at a time beside a
   method that takes four streams) is changed in the same revision. Do not append
-  answers: move settled material (answered entries, verified facts) to the
+  answers: move settled material (verified facts) to the
   decision record, or into *Documentation updates* for the Dev, and shorten (a plan over its tier's
   `PLAN_MAX_WORDS` needs a `Plan size:` line, `plan-check.py`). Update the
   affected decision records (a rejected option and the reason belong under *Options considered*).
@@ -184,6 +190,11 @@ Output format, always ending with exactly one of these lines:
   `RESULT: APPROVED` / `RESULT: NOT APPROVED — <reasons>` (approve-pr), or
 - `RESULT: ESCALATE — <one question for the Product Manager, the options, your recommendation>`
   (*Escalation to the Product Manager*).
+
+A proposed issue comment (`NO CHANGE`) states the outcome and its reason factually and is written for the issue's
+author: when its `author_association` is `OWNER` (`gh api repos/<owner>/<repo>/issues/<n>`), the comment is posted
+under that same account, so it thanks no one, addresses no reporter and asks no one to reopen; an outside author is
+thanked and told what would change the outcome.
 
 You may write only under `specs/` and `docs/decisions/` — never a squad
 or instruction file (*Scope of a product PR*), never production or test code, never `log.md`. Bash is for
