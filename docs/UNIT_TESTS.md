@@ -15,13 +15,13 @@ neighboring test file before inventing a new pattern.
   Bash against local repositories; all other tests run in the `workers` project. `npx vitest run --project node` runs
   only the first kind (decision 0032).
 - No mocking library beyond what Vitest ships with (`vi.fn`, `vi.useFakeTimers`) — prefer real objects and the
-  hand-written fakes listed under *Test doubles*, typed against the real interface.
+  hand-written fakes listed under _Test doubles_, typed against the real interface.
 
 <!-- project:end stack -->
 
 ## Test doubles
 
-The hand-written fakes and stubs the tests reuse (no mocking library unless *Test stack* says otherwise), one line
+The hand-written fakes and stubs the tests reuse (no mocking library unless _Test stack_ says otherwise), one line
 each: the double, where it lives and what it stands in for; how it behaves is read in its code.
 
 - **GitHub API double** — `test/github.ts` (with `test/token-cache.ts` for seeded token rows): the injected `GitHubFetch`, answering from `test/fixtures/github/`
