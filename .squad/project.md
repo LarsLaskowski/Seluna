@@ -1,14 +1,15 @@
 # Project
 
 What the squad needs to know about this project that is not stack-specific. Read by the Lead, the Devil's
-Advocate, Security, the Tester and the Reviewer. Not template-managed: `adopt-template` creates it once
-and never overwrites it. A product PR updates it when the change makes an entry untrue
-(`.squad/routing.md`, *Scope of a product PR*).
+Advocate, Security and the Reviewer; the test doubles are in `docs/UNIT_TESTS.md` (*Test doubles*). Not
+template-managed: `adopt-template` creates it once and never overwrites it. A product PR updates it when the change
+makes an entry untrue (`.squad/routing.md`, *Scope of a product PR*).
 
 Every entry points: it names files, types or endpoints and links the document that says more. Behavior, values,
 limits and sequences are written once, in the area documents (`docs/areas/README.md`), and the reasons in the
-decision records; a copy here goes stale with the next change. `config-check.py` warns when this file grows past
-`PROJECT_MAX_WORDS` words (`.squad/tools/squad_settings.py`).
+decision records; a copy here goes stale with the next change. `config-check.py` warns about an entry of more than
+`PROJECT_ENTRY_MAX_PROSE` prose words (code spans and links do not count) and about a change that adds more than
+`PROJECT_MAX_GROWTH` words to this file (`.squad/tools/squad_settings.py`).
 
 ## Security areas
 
@@ -75,7 +76,7 @@ change with it.
 
 **A new external API call or DTO** (GitHub API, Telegram Bot API) touches:
 - the client module and its DTOs — the external shape must not leak past it
-- the test double of that API (*Test doubles*) and its fixtures
+- the test double of that API (*Test doubles* in `docs/UNIT_TESTS.md`) and its fixtures
 
 ## Plan checklist
 
@@ -85,15 +86,3 @@ review and not after the PR is opened:
 - **`CHANGELOG.md`:** an entry under `## [Unreleased]` for every user-visible change (the pull request template
   checklist requires it; a release fails without entries under its version). A change without user-visible effect
   names that in the plan instead.
-
-## Test doubles
-
-The hand-written fakes and stubs the tests reuse (no mocking library unless `docs/UNIT_TESTS.md` says
-otherwise), one line each: the double, where it lives and what it stands in for; how it behaves is read in its code.
-
-- **GitHub API double** — `test/github.ts` (with `test/token-cache.ts` for seeded token rows): the injected `GitHubFetch`, answering from `test/fixtures/github/`
-- **Telegram Bot API double** — `test/telegram.ts`: the injected `TelegramFetch`, answering from `test/fixtures/telegram/`
-- **Delivery channel double** — `test/channel.ts`: a `Channel` that stands in for any messenger besides Telegram
-- **Clock** — an injected `() => Date` or `vi.useFakeTimers()`: the time of rules, retries and token expiry
-- **Webhook payloads** — `test/fixtures/<event>/<action>.json`: GitHub's deliveries; whether each is captured or reference-built is in the `README.md` of its folder, the rules in [`docs/UNIT_TESTS.md`](../docs/UNIT_TESTS.md#fixtures)
-- **D1** — the real D1 binding of the Workers test pool, with the migrations applied (`test/d1.ts`)
