@@ -52,10 +52,13 @@ export default tseslint.config(
   {
     // `D1Database` still declares the deprecated `dump()`, so a test double implementing the interface has to name it
     // (typescript-eslint 8.72 reports deprecated members in object literals, and its `allow` option does not cover
-    // them); production code stays checked.
+    // them); production code stays checked. typescript-eslint 8.73 adds `no-unsafe-class-instance-assignment`, which
+    // flags every object literal standing in for the abstract `D1Database` class: the same test doubles, so it is
+    // off for them as well.
     files: ["src/**/*.test.ts", "test/**/*.ts"],
     rules: {
       "@typescript-eslint/no-deprecated": "off",
+      "@typescript-eslint/no-unsafe-class-instance-assignment": "off",
     },
   },
   {
