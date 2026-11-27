@@ -130,7 +130,7 @@ describe("encodeStoredNotification and decodeStoredNotification", () => {
     { case: "empty lines", notification: storedWith({ subject: "", context: "" }) },
     {
       case: "markup characters, quotes, a backslash and an astral character",
-      notification: storedWith({ title: '<b>"x"</b> & \\ \u{1F600}', subject: "a b" }),
+      notification: storedWith({ title: '<b>"x"</b> & \\ \u{1F600}', subject: "a\u2028b" }),
     },
   ])("decodeStoredNotification returns what encodeStoredNotification wrote for $case", ({ notification }) => {
     const decoded = decodeStoredNotification(encodeStoredNotification(notification));

@@ -224,7 +224,7 @@ describe("bodyExcerpt", () => {
     },
     { case: "leading and trailing white space", body: "\n  text  \n", expected: "text" },
     { case: "a no-break space run", body: "a  b", expected: "a b" },
-    { case: "a line separator", body: "a b", expected: "a b" },
+    { case: "a line separator", body: "a\u2028b", expected: "a b" },
     {
       case: "other Markdown",
       body: "**bold** [link](https://example.com) `code`",

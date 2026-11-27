@@ -19,19 +19,20 @@
     "deploy": "npm run db:migrations:apply && wrangler deploy"
   },
   "devDependencies": {
-    "@cloudflare/vitest-plugin": "^1.8.2",
+    "@cloudflare/vitest-plugin": "^1.9.0",
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.6",
-    "@vitest/coverage-v8": "^5.1.0",
+    "@vitest/coverage-v8": "^5.1.1",
     "eslint": "^10.15.0",
     "eslint-plugin-sonarjs": "^4.2.2",
     "prettier": "^3.10.1",
     "typescript": "~6.0",
-    "typescript-eslint": "^8.72.2",
+    "typescript-eslint": "^8.73.0",
     "vitest": "^5.0.5",
-    "wrangler": "^4.151.1"
+    "wrangler": "^4.166.0"
   },
   "overrides": {
+    "minimatch": "^11.0.9",
     "sharp": "0.35.5",
     "undici": "7.30.1"
   },
